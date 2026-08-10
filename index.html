@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfetto Pizza | Mobile Food Delivery</title>
+    <!-- Google Fonts: Outfit & Plus Jakarta Sans with bold weights -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome vector icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- App Frame (Mobile-first container) -->
+    <div class="app-frame">
+        
+        <!-- STICKY HEADER -->
+        <header class="app-header" id="header">
+            <div class="header-content">
+                <div class="brand-wrapper">
+                    <!-- Dynamic Theme Logo -->
+                    <img id="app-logo" 
+                         src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" 
+                         alt="Perfetto Pizza Logo" 
+                         class="brand-logo">
+                </div>
+
+                <div class="header-center-title" id="header-center-title">
+                    (Perfetto Pizza Plus)
+                </div>
+
+                <div class="header-actions">
+                    <!-- Theme Toggle Button -->
+                    <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Light and Dark Mode">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-moon moon-icon"></i>
+                            <i class="fa-solid fa-sun sun-icon"></i>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- PERMANENT FIXED TOP HEADER BAR FOR CATEGORY DETAIL VIEW -->
+        <div class="category-hero-bar" id="category-hero-bar" style="display: none;">
+            <div class="category-hero-content">
+                <button class="hero-back-btn" id="category-back-btn" aria-label="Back to Home">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+                <div class="hero-category-info">
+                    <div class="hero-thumb-wrapper">
+                        <img id="category-hero-img" src="" alt="Category Image" class="category-hero-img">
+                    </div>
+                    <div class="hero-text-wrapper">
+                        <h2 class="category-hero-title" id="category-hero-title">Pizza Menu</h2>
+                        <span class="category-hero-count" id="category-hero-count">18 options available</span>
+                    </div>
+                </div>
+                <button class="theme-toggle-btn hero-theme-toggle" id="category-theme-toggle" aria-label="Toggle Light and Dark Mode">
+                    <div class="toggle-icon-wrapper">
+                        <i class="fa-solid fa-moon moon-icon"></i>
+                        <i class="fa-solid fa-sun sun-icon"></i>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT CONTAINER -->
+        <main class="main-content-container" id="main-container">
+            
+            <!-- HOME TAB VIEW -->
+            <section class="tab-view active-tab" id="view-home">
+                
+                <!-- 1. 'DAILY OFFER' SECTION -->
+                <section class="daily-offer-section">
+                    <h2 class="section-title-bold">DAILY OFFER</h2>
+                    <!-- Empty placeholder container below heading -->
+                    <div class="daily-offer-placeholder" id="daily-offer-container"></div>
+                </section>
+
+                <!-- 2. 'FAST FOOD' SECTION -->
+                <section class="fast-food-section">
+                    <h2 class="section-title-bold">FAST FOOD</h2>
+                    
+                    <!-- 3. Responsive CSS Grid (2 Columns Mobile View) with 18 clickable image cards -->
+                    <div class="fast-food-grid">
+                        <a href="#" class="fast-food-card" data-category="Bread" aria-label="Bread">
+                            <img src="https://i.ibb.co/fzBqSJJx/bread.png" alt="Bread" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Burger" aria-label="Burger">
+                            <img src="https://i.ibb.co/jZDq51b6/burger.png" alt="Burger" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Chinese Food" aria-label="Chinese Food">
+                            <img src="https://i.ibb.co/YFYwbHmV/chinese-food.png" alt="Chinese Food" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Colo Drinks" aria-label="Colo Drinks">
+                            <img src="https://i.ibb.co/dJxnm38L/colo-drinks.png" alt="Colo Drinks" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Desserts" aria-label="Desserts">
+                            <img src="https://i.ibb.co/YBQ73fv2/dasserts.png" alt="Desserts" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Hot Cold Coffee" aria-label="Hot Cold Coffee">
+                            <img src="https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" alt="Hot Cold Coffee" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Mojito" aria-label="Mojito">
+                            <img src="https://i.ibb.co/kV2Wvsdq/mojito.png" alt="Mojito" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Momos" aria-label="Momos">
+                            <img src="https://i.ibb.co/gbdrfGJK/momos.png" alt="Momos" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Noodles" aria-label="Noodles">
+                            <img src="https://i.ibb.co/v6LTBqFV/noodles.png" alt="Noodles" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Pasta" aria-label="Pasta">
+                            <img src="https://i.ibb.co/Qvzgv353/pasta.png" alt="Pasta" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Pizza" aria-label="Pizza">
+                            <img src="https://i.ibb.co/21fs0TqL/pizza.png" alt="Pizza" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Rice" aria-label="Rice">
+                            <img src="https://i.ibb.co/gL0Z5F0C/rice.png" alt="Rice" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Salad" aria-label="Salad">
+                            <img src="https://i.ibb.co/W4V8XcNG/salad.png" alt="Salad" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Sandwich" aria-label="Sandwich">
+                            <img src="https://i.ibb.co/DPyPQfsT/sandwich.png" alt="Sandwich" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Shake" aria-label="Shake">
+                            <img src="https://i.ibb.co/XZpkRRpJ/shake.png" alt="Shake" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Side Orders" aria-label="Side Orders">
+                            <img src="https://i.ibb.co/JwXzvd1f/side-orders.png" alt="Side Orders" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Spring Rolls" aria-label="Spring Rolls">
+                            <img src="https://i.ibb.co/HLJWTt1D/spring-rolls.png" alt="Spring Rolls" class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Wrap" aria-label="Wrap">
+                            <img src="https://i.ibb.co/V0c7gf6d/wrap.png" alt="Wrap" class="fast-food-img" loading="lazy">
+                        </a>
+                    </div>
+                </section>
+
+            </section>
+
+            <!-- CATEGORY DETAIL TAB VIEW -->
+            <section class="tab-view" id="view-category-detail">
+                <div class="sub-items-section">
+                    <div class="sub-items-header">
+                        <h4 class="section-title-bold">VARIETIES & OPTIONS</h4>
+                    </div>
+                    <div class="sub-items-grid" id="sub-items-grid">
+                        <!-- Dynamic sub-category items rendered via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- PROFILE TAB VIEW -->
+            <section class="tab-view" id="view-profile">
+                <div class="profile-header-card">
+                    <div class="profile-avatar-wrapper">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80" alt="User Avatar" class="profile-avatar">
+                        <button class="avatar-edit-btn"><i class="fa-solid fa-camera"></i></button>
+                    </div>
+                    <h3 class="profile-name">Alex Morgan</h3>
+                    <p class="profile-email">alex.morgan@perfettopizza.com</p>
+                    <div class="vip-badge">
+                        <i class="fa-solid fa-crown"></i> PERFETTO VIP GOLD MEMBER
+                    </div>
+                </div>
+
+                <div class="profile-stats-row">
+                    <div class="stat-card">
+                        <span class="stat-num">24</span>
+                        <span class="stat-label">Total Orders</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-num">850</span>
+                        <span class="stat-label">Rewards Pts</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-num">4.9 ★</span>
+                        <span class="stat-label">Rating</span>
+                    </div>
+                </div>
+
+                <div class="menu-list-group">
+                    <h4 class="group-title">Account Settings</h4>
+                    <div class="menu-item-row">
+                        <div class="menu-item-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Order History</span>
+                            <span class="item-subtitle">View past orders & reorder</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow"></i>
+                    </div>
+                    <div class="menu-item-row">
+                        <div class="menu-item-icon"><i class="fa-solid fa-location-dot"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Saved Delivery Addresses</span>
+                            <span class="item-subtitle">Home, Office, Gym</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow"></i>
+                    </div>
+                    <div class="menu-item-row">
+                        <div class="menu-item-icon"><i class="fa-solid fa-credit-card"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Payment Methods</span>
+                            <span class="item-subtitle">Visa ending in •••• 4242</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow"></i>
+                    </div>
+                    <div class="menu-item-row">
+                        <div class="menu-item-icon"><i class="fa-solid fa-gift"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Vouchers & Coupons</span>
+                            <span class="item-subtitle">2 active discount codes</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow"></i>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CART TAB VIEW -->
+            <section class="tab-view" id="view-cart">
+                <div class="cart-view-header">
+                    <h3>Your Food Cart</h3>
+                    <button class="clear-cart-btn" onclick="clearCart()">Clear All</button>
+                </div>
+
+                <div id="cart-items-container" class="cart-items-list">
+                    <!-- Dynamic cart items rendered here -->
+                </div>
+
+                <div class="cart-summary-card" id="cart-summary">
+                    <div class="summary-line">
+                        <span>Subtotal</span>
+                        <span id="cart-subtotal">₹0</span>
+                    </div>
+                    <div class="summary-line">
+                        <span>Delivery Fee</span>
+                        <span id="cart-delivery">₹49</span>
+                    </div>
+                    <div class="summary-line">
+                        <span>Tax (5%)</span>
+                        <span id="cart-tax">₹0</span>
+                    </div>
+                    <div class="summary-line total-line">
+                        <span>Grand Total</span>
+                        <span id="cart-total">₹0</span>
+                    </div>
+                    <button class="checkout-btn" onclick="processCheckout()">
+                        Proceed to Checkout <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- FIXED BOTTOM NAVIGATION BAR -->
+        <nav class="app-bottom-nav" id="bottom-nav">
+            <div class="nav-container">
+                
+                <!-- PROFILE BUTTON -->
+                <button class="nav-item" data-tab="profile" aria-label="Profile View">
+                    <div class="nav-icon-wrapper">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <span class="nav-label">Profile</span>
+                </button>
+
+                <!-- HOME BUTTON (CENTER, VISUALLY EMPHASIZED) -->
+                <button class="nav-item nav-item-center active" data-tab="home" aria-label="Home View">
+                    <div class="center-btn-outer">
+                        <div class="center-btn-inner">
+                            <i class="fa-solid fa-house"></i>
+                        </div>
+                    </div>
+                    <span class="nav-label">Home</span>
+                </button>
+
+                <!-- CART BUTTON -->
+                <button class="nav-item" data-tab="cart" aria-label="Cart View">
+                    <div class="nav-icon-wrapper">
+                        <i class="fa-solid fa-basket-shopping"></i>
+                        <span class="cart-badge" id="cart-badge-count">0</span>
+                    </div>
+                    <span class="nav-label">Cart</span>
+                </button>
+
+            </div>
+        </nav>
+
+        <!-- Toast Notification -->
+        <div class="toast-notification" id="toast">
+            <i class="fa-solid fa-circle-check toast-icon"></i>
+            <span id="toast-message">Item selected!</span>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
