@@ -121,7 +121,7 @@ function setupNavigation() {
     }
 }
 
-function switchTab(tabName, forceRootHome = false) {
+function switchTab(tabName, forceRootHome = false, isPopState = false) {
     // Save scroll position before leaving category-detail
     if (activeTabName === 'category-detail') {
         lastCategoryState.scrollY = window.scrollY || window.pageYOffset || 0;
@@ -130,7 +130,7 @@ function switchTab(tabName, forceRootHome = false) {
     // Smart retention: return to last category when navigating to home from another tab
     if (tabName === 'home' && !forceRootHome) {
         if (lastCategoryState.categoryName && activeTabName !== 'category-detail') {
-            openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true);
+            openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, isPopState);
             return;
         } else if (activeTabName === 'category-detail') {
             // Clicking Home icon while already on category-detail resets to main home dashboard
@@ -138,6 +138,13 @@ function switchTab(tabName, forceRootHome = false) {
             lastCategoryState.categoryImg = null;
             lastCategoryState.scrollY = 0;
         }
+    }
+
+    // Push History State if not triggered by browser popstate
+    if (!isPopState) {
+        let hash = '#' + tabName;
+        if (tabName === 'home' && !lastCategoryState.categoryName) hash = '#home';
+        history.pushState({ page: tabName }, '', hash);
     }
 
     // 0. Toggle main header vs category hero bar visibility
@@ -427,7 +434,7 @@ function addPizzaToCart(pizzaId, event) {
     addToCart(cartItemTitle, price, item.img);
 }
 
-function openCategoryDetail(categoryName, categoryImg, isRestoringState = false) {
+function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
     const heroTitleEl = document.getElementById('category-hero-title');
     const heroImgEl = document.getElementById('category-hero-img');
     const heroCountEl = document.getElementById('category-hero-count');
@@ -437,6 +444,14 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false)
         lastCategoryState.categoryName = categoryName;
         lastCategoryState.categoryImg = categoryImg;
         lastCategoryState.scrollY = 0;
+    }
+
+    if (!isPopState) {
+        history.pushState(
+            { page: 'category-detail', categoryName, categoryImg },
+            '',
+            '#category-' + encodeURIComponent(categoryName)
+        );
     }
 
     const items = getSubItems(categoryName, categoryImg);
@@ -522,7 +537,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false)
         }
     }
     
-    switchTab('category-detail');
+    switchTab('category-detail', false, true);
 
     if (isRestoringState && lastCategoryState.scrollY > 0) {
         setTimeout(() => {
@@ -651,6 +666,224 @@ function showToast(msg) {
 }
 
 // --------------------------------------------------------------------------
+// 8. SMART DAILY OFFER SLIDER (AUTO-SCROLL & TOUCH GESTURES)
+// --------------------------------------------------------------------------
+function initOfferSlider() {
+    const wrapper = document.getElementById('offer-slider-wrapper');
+    const track = document.getElementById('offer-slider-track');
+    const dotsContainer = document.getElementById('offer-dots');
+    if (!wrapper || !track || !dotsContainer) return;
+
+    const slides = track.querySelectorAll('.offer-slide');
+    const dots = dotsContainer.querySelectorAll('.dot');
+    const totalSlides = slides.length;
+    let currentIndex = 0;
+
+    let autoScrollInterval = null;
+    let pauseTimeout = null;
+
+    function goToSlide(index) {
+        currentIndex = (index + totalSlides) % totalSlides;
+        const translateX = -(currentIndex * (100 / totalSlides));
+        track.style.transform = `translateX(${translateX}%)`;
+
+        dots.forEach((dot, idx) => {
+            if (idx === currentIndex) {
+                dot.classList.add('active');
+            } else {
+                dot.classList.remove('active');
+            }
+        });
+    }
+
+    function nextSlide() {
+        goToSlide(currentIndex + 1);
+    }
+
+    function prevSlide() {
+        goToSlide(currentIndex - 1);
+    }
+
+    function startAutoScroll() {
+        stopAutoScroll();
+        autoScrollInterval = setInterval(nextSlide, 3000);
+    }
+
+    function stopAutoScroll() {
+        if (autoScrollInterval) {
+            clearInterval(autoScrollInterval);
+            autoScrollInterval = null;
+        }
+    }
+
+    function handleUserInteraction() {
+        stopAutoScroll();
+        if (pauseTimeout) {
+            clearTimeout(pauseTimeout);
+        }
+        // Pause auto-scrolling for 6 seconds after manual interaction, then resume 3s loop
+        pauseTimeout = setTimeout(() => {
+            startAutoScroll();
+        }, 6000);
+    }
+
+    // Dot click navigation
+    dots.forEach((dot, idx) => {
+        dot.addEventListener('click', () => {
+            goToSlide(idx);
+            handleUserInteraction();
+        });
+    });
+
+    // Touch & Swipe gestures
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+
+    wrapper.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+            startX = e.touches[0].clientX;
+            currentX = startX;
+            isDragging = true;
+        }
+    }, { passive: true });
+
+    wrapper.addEventListener('touchmove', (e) => {
+        if (!isDragging || e.touches.length === 0) return;
+        currentX = e.touches[0].clientX;
+    }, { passive: true });
+
+    wrapper.addEventListener('touchend', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        const diffX = currentX - startX;
+
+        if (Math.abs(diffX) > 40) {
+            if (diffX < 0) {
+                nextSlide();
+            } else {
+                prevSlide();
+            }
+            handleUserInteraction();
+        }
+    });
+
+    // Mouse drag support for desktop
+    wrapper.addEventListener('mousedown', (e) => {
+        startX = e.clientX;
+        currentX = startX;
+        isDragging = true;
+    });
+
+    wrapper.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        currentX = e.clientX;
+    });
+
+    wrapper.addEventListener('mouseup', () => {
+        if (!isDragging) return;
+        isDragging = false;
+        const diffX = currentX - startX;
+
+        if (Math.abs(diffX) > 40) {
+            if (diffX < 0) {
+                nextSlide();
+            } else {
+                prevSlide();
+            }
+            handleUserInteraction();
+        }
+    });
+
+    wrapper.addEventListener('mouseleave', () => {
+        isDragging = false;
+    });
+
+    // Start 3-second auto-scroll loop
+    startAutoScroll();
+}
+
+// --------------------------------------------------------------------------
+// 9. WHATSAPP DP STYLE LOGO POPUP MODAL
+// --------------------------------------------------------------------------
+function initLogoModal() {
+    const brandLogo = document.getElementById('app-logo');
+    const logoModal = document.getElementById('logo-modal');
+    const logoModalContent = document.getElementById('logo-modal-content');
+    const modalLogoImg = document.getElementById('modal-logo-img');
+
+    if (!brandLogo || !logoModal || !modalLogoImg) return;
+
+    function openLogoModal(isPopState = false) {
+        modalLogoImg.src = brandLogo.src;
+        logoModal.classList.add('active');
+        logoModal.setAttribute('aria-hidden', 'false');
+        if (!isPopState) {
+            history.pushState({ page: 'logo-modal' }, '', '#logo-view');
+        }
+    }
+
+    function closeLogoModal(isPopState = false) {
+        if (!logoModal.classList.contains('active')) return;
+        logoModal.classList.remove('active');
+        logoModal.setAttribute('aria-hidden', 'true');
+        if (!isPopState && history.state && history.state.page === 'logo-modal') {
+            history.back();
+        }
+    }
+
+    brandLogo.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openLogoModal();
+    });
+
+    // Click outside circular image (on backdrop overlay) closes modal
+    logoModal.addEventListener('click', (e) => {
+        if (e.target === logoModal || !logoModalContent.contains(e.target)) {
+            closeLogoModal();
+        }
+    });
+
+    window.closeLogoModal = closeLogoModal;
+}
+
+// --------------------------------------------------------------------------
+// 10. BROWSER HISTORY & MOBILE HARDWARE BACK BUTTON HANDLING
+// --------------------------------------------------------------------------
+function setupHistoryState() {
+    // Set initial history state for root home dashboard
+    if (!history.state) {
+        history.replaceState({ page: 'home' }, '', window.location.pathname + window.location.search);
+    }
+
+    window.addEventListener('popstate', (e) => {
+        // 1. If logo modal is active, close it first
+        const logoModal = document.getElementById('logo-modal');
+        if (logoModal && logoModal.classList.contains('active')) {
+            if (window.closeLogoModal) {
+                window.closeLogoModal(true);
+            }
+            return;
+        }
+
+        // 2. Navigate SPA view based on history state
+        const state = e.state;
+        if (!state || state.page === 'home') {
+            lastCategoryState.categoryName = null;
+            lastCategoryState.categoryImg = null;
+            lastCategoryState.scrollY = 0;
+            switchTab('home', true, true);
+        } else if (state.page === 'category-detail' && state.categoryName) {
+            openCategoryDetail(state.categoryName, state.categoryImg, false, true);
+        } else if (state.page === 'cart') {
+            switchTab('cart', false, true);
+        } else if (state.page === 'profile') {
+            switchTab('profile', false, true);
+        }
+    });
+}
+
+// --------------------------------------------------------------------------
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -658,4 +891,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     setupFastFoodCards();
     updateCartUI();
+    initOfferSlider();
+    initLogoModal();
+    setupHistoryState();
 });

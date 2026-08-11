@@ -77,8 +77,24 @@
                 <!-- 1. 'DAILY OFFER' SECTION -->
                 <section class="daily-offer-section">
                     <h2 class="section-title-bold">DAILY OFFER</h2>
-                    <!-- Empty placeholder container below heading -->
-                    <div class="daily-offer-placeholder" id="daily-offer-container"></div>
+                    <div class="offer-slider-wrapper" id="offer-slider-wrapper">
+                        <div class="offer-slider-track" id="offer-slider-track">
+                            <div class="offer-slide">
+                                <img src="https://i.ibb.co/GQtdNF4v/free-cold-drink.png" alt="Free Cold Drink Offer" class="offer-img">
+                            </div>
+                            <div class="offer-slide">
+                                <img src="https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png" alt="Free KitKat Shake Offer" class="offer-img">
+                            </div>
+                            <div class="offer-slide">
+                                <img src="https://i.ibb.co/VYqnBKbM/free-medium-pizza.png" alt="Free Medium Pizza Offer" class="offer-img">
+                            </div>
+                        </div>
+                        <div class="offer-dots" id="offer-dots">
+                            <span class="dot active" data-index="0"></span>
+                            <span class="dot" data-index="1"></span>
+                            <span class="dot" data-index="2"></span>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- 2. 'FAST FOOD' SECTION -->
@@ -298,6 +314,13 @@
         <div class="toast-notification" id="toast">
             <i class="fa-solid fa-circle-check toast-icon"></i>
             <span id="toast-message">Item selected!</span>
+        </div>
+
+        <!-- WHATSAPP DP STYLE LOGO POPUP MODAL -->
+        <div class="logo-modal-overlay" id="logo-modal" aria-hidden="true">
+            <div class="logo-modal-content" id="logo-modal-content">
+                <img id="modal-logo-img" src="" alt="Perfetto Logo DP View" class="modal-logo-img">
+            </div>
         </div>
 
     </div>
