@@ -1505,9 +1505,11 @@ a {
 }
 
 .pizza-card.out-of-stock .pizza-card-img,
-.sub-item-card.out-of-stock .sub-item-img {
+.sub-item-card.out-of-stock .sub-item-img,
+.out-of-stock img {
     filter: grayscale(100%);
     opacity: 0.65;
+    transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
 .out-of-stock-badge {
@@ -1530,7 +1532,9 @@ a {
 }
 
 .pizza-add-cart-btn.disabled,
-.add-subitem-btn.disabled {
+.add-subitem-btn.disabled,
+button[disabled].pizza-add-cart-btn,
+button[disabled].add-subitem-btn {
     background-color: #64748b !important;
     color: #cbd5e1 !important;
     cursor: not-allowed !important;
@@ -1538,6 +1542,7 @@ a {
     pointer-events: none !important;
     box-shadow: none !important;
 }
+
 
 
 

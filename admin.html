@@ -1065,10 +1065,40 @@
         <span id="toast-text">All menu changes saved to database!</span>
     </div>
 
+    <!-- Firebase CDN SDKs (v10.12.0 compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
     <!-- --------------------------------------------------------------------------
-       8. JAVASCRIPT LOGIC & LOCALSTORAGE DATABASE
+       8. JAVASCRIPT LOGIC & FIREBASE REALTIME DATABASE
        -------------------------------------------------------------------------- -->
     <script>
+        // --------------------------------------------------------------------------
+        // FIREBASE CONFIGURATION & INITIALIZATION
+        // --------------------------------------------------------------------------
+        const firebaseConfig = {
+          apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+          authDomain: "website-fa79c.firebaseapp.com",
+          projectId: "website-fa79c",
+          storageBucket: "website-fa79c.firebasestorage.app",
+          messagingSenderId: "1070276115284",
+          appId: "1:1070276115284:web:ebcb37d56f3af2a2d326c1",
+          measurementId: "G-DT7MRXDMZ0"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+        const menuDocRef = db.collection("menu").doc("menuData");
+        
+        let rtdbRef = null;
+        try {
+            rtdbRef = firebase.database().ref("menuData");
+        } catch (e) {
+            console.warn("RTDB init notice:", e);
+        }
         // CLEAN FOOD & BEVERAGE MENU DATASET (NO PROMOTIONAL BANNERS)
         const DEFAULT_MENU_ITEMS = [
             // 1. PIZZAS (18 Exact Pizzas from app.js)
@@ -1218,7 +1248,7 @@
             "Wrap": { name: "Wrap", img: "https://i.ibb.co/V0c7gf6d/wrap.png" }
         };
 
-        // 1. INITIALIZE DATABASE FROM LOCALSTORAGE
+        // 1. INITIALIZE DATABASE FROM FIREBASE WITH LOCALSTORAGE FALLBACK
         function initMenuData() {
             try {
                 const stored = localStorage.getItem(STORAGE_KEY);
@@ -1228,11 +1258,9 @@
                         menuItems = parsed.filter(item => item.category && item.name && !item.name.toLowerCase().includes("special offer") && !item.name.toLowerCase().includes("shop for"));
                     } else {
                         menuItems = [...DEFAULT_MENU_ITEMS];
-                        saveToLocalStorage();
                     }
                 } else {
                     menuItems = [...DEFAULT_MENU_ITEMS];
-                    saveToLocalStorage();
                 }
             } catch (e) {
                 console.warn('Error reading from localStorage:', e);
@@ -1241,6 +1269,48 @@
 
             renderCategoryGrid();
             updateStats();
+
+            // STEP 5: FIREBASE REALTIME LISTENER & INITIAL DATA POPULATION
+            menuDocRef.onSnapshot((doc) => {
+                if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+                    menuItems = doc.data().items;
+                    saveToLocalStorage();
+                    renderCategoryGrid();
+                    updateStats();
+                    if (activeCategory) renderCategoryItemsTable();
+                } else {
+                    // Firebase database is empty on first load! Automatically upload default menu structure
+                    console.log("Firebase database empty on initial load. Populating default menu items...");
+                    menuDocRef.set({ items: DEFAULT_MENU_ITEMS, lastUpdated: Date.now() }).then(() => {
+                        menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
+                        saveToLocalStorage();
+                        renderCategoryGrid();
+                        updateStats();
+                        if (activeCategory) renderCategoryItemsTable();
+                    }).catch(err => console.error("Firebase initial upload error:", err));
+
+                    if (rtdbRef) {
+                        rtdbRef.set(DEFAULT_MENU_ITEMS);
+                    }
+                }
+            }, (err) => {
+                console.warn("Firestore snapshot listener notice:", err);
+            });
+
+            if (rtdbRef) {
+                rtdbRef.on('value', (snapshot) => {
+                    const val = snapshot.val();
+                    if (val && Array.isArray(val) && val.length > 0) {
+                        menuItems = val;
+                        saveToLocalStorage();
+                        renderCategoryGrid();
+                        updateStats();
+                        if (activeCategory) renderCategoryItemsTable();
+                    } else if (val === null) {
+                        rtdbRef.set(DEFAULT_MENU_ITEMS);
+                    }
+                });
+            }
         }
 
         // SAVE TO LOCALSTORAGE
@@ -1451,8 +1521,8 @@
             }
         }
 
-        // 5. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS)
-        function saveAllChanges() {
+        // 5. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS & PUSH TO FIREBASE)
+        async function saveAllChanges() {
             // Read active DOM inputs and update menuItems memory
             menuItems.forEach(item => {
                 const toggleInput = document.getElementById(`toggle-${item.id}`);
@@ -1486,12 +1556,23 @@
                 renderCategoryGrid();
             }
 
-            showToast('All menu changes & prices saved successfully!');
+            // PUSH DIRECTLY TO FIREBASE DATABASE
+            showToast('Saving changes to Firebase live database...');
+            try {
+                await menuDocRef.set({ items: menuItems, lastUpdated: Date.now() });
+                if (rtdbRef) {
+                    await rtdbRef.set(menuItems);
+                }
+                showToast('🔥 All menu changes & prices saved directly to Firebase!');
+            } catch (err) {
+                console.error("Firebase write error:", err);
+                showToast('Saved locally (Firebase sync pending connection)');
+            }
         }
 
         // 6. RESET TO DEFAULTS
-        function resetToDefaults() {
-            if (confirm('Reset menu database back to original defaults?')) {
+        async function resetToDefaults() {
+            if (confirm('Reset menu database back to original defaults on Firebase?')) {
                 menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
                 saveToLocalStorage();
                 updateStats();
@@ -1501,7 +1582,15 @@
                 } else {
                     renderCategoryGrid();
                 }
-                showToast('Menu database reset to defaults!');
+
+                try {
+                    await menuDocRef.set({ items: menuItems, lastUpdated: Date.now() });
+                    if (rtdbRef) await rtdbRef.set(menuItems);
+                    showToast('Menu database reset to defaults on Firebase!');
+                } catch(err) {
+                    console.error("Firebase reset error:", err);
+                    showToast('Reset locally');
+                }
             }
         }
 
