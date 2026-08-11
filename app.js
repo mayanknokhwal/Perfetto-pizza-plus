@@ -347,209 +347,9 @@ const categorySubItems = {
     ]
 };
 
-// --------------------------------------------------------------------------
-// FIREBASE LIVE REAL-TIME DATABASE SYNCHRONIZATION
-// --------------------------------------------------------------------------
-const DEFAULT_MENU_ITEMS = [
-    // 1. PIZZAS (18 Exact Pizzas)
-    { id: "hot-country", name: "Hot Country", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/pBjGthQG/Hot-Country.png", desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese" },
-    { id: "indian-veggie", name: "Indian Veggie", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/nNDqnySY/Indian-Veggie-Pizza.png", desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese" },
-    { id: "lovers-pizza", name: "Lover's", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/DPGHvPnT/Lover-s-Pizza.png", desc: "Red Paprika, Onion, Capsicum, Corn" },
-    { id: "makhani-pizza", name: "Makhani Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/DgM6pRrT/Makhani-Pizza.png", desc: "Capsicum, Paneer, Makhani Sauce" },
-    { id: "paradise-pizza", name: "Parndize Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/nsxZPfr3/Parndize-Pizza.png", desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno" },
-    { id: "perfetto-special", name: "Perfetto Special Pizza", category: "Pizza", isMultiSize: true, prices: { S: 299, M: 399, L: 499 }, available: true, img: "https://i.ibb.co/Zz4YBzKK/Perfetto-Special-Pizza.png", desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese" },
-    { id: "spicy-pizza", name: "Spicy Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/0pwknN8R/Spicy-Pizza.png", desc: "Paneer Chilly, Capsicum, Red Paprika" },
-    { id: "supreme-pizza", name: "Supreme Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/FkTxZmNF/Supreme-Pizza.png", desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives" },
-    { id: "tandoori-pizza", name: "Tandoori Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/b5d6Xgmx/Tandoori-Pizza.png", desc: "Onion, Paneer, Bellpeper, Tandoori Sauce" },
-    { id: "achari-pizza", name: "Acharri Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/C3Z9fkJS/Achari-Pizza.png", desc: "Capsicum, Corn, Paneer, Achari Sauce" },
-    { id: "cheese-n-corn", name: "Cheese-n-Corn", category: "Pizza", isMultiSize: true, prices: { S: 179, M: 279, L: 379 }, available: true, img: "https://i.ibb.co/0phPSW3G/Cheese-n-Corn.png", desc: "Cheese, Corn" },
-    { id: "cheese-n-mushroom", name: "Cheese-n-Mushroom", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/PvnXskbY/Cheese-n-Mushroom.png", desc: "Cheese, Mushroom" },
-    { id: "chipotle-pizza", name: "Chipotle Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/9mGwnLw9/Chipotle-Pizza.png", desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce" },
-    { id: "deluxe-pizza", name: "Deluxe Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/Gvsrbccg/Dbl-Cheese-Margherita.png", desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn" },
-    { id: "delight-pizza", name: "Delight Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/cht2BnYN/Delight-Pizza.png", desc: "Capsicum, Jalapeno, Mushroom" },
-    { id: "farm-house", name: "Farm House", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/ZzK35nQ3/Farm-House.png", desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese" },
-    { id: "green-veggie", name: "Green Veggie", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/XxKxtwM1/Green-Veggie.png", desc: "Onion, Capsicum, Tomato" },
-    { id: "harissa-pizza", name: "Harissa Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/rRsTTg0y/Harissa-Pizza.png", desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce" },
-
-    // 2. BURGERS
-    { id: "bgr-1", name: "Classic Crispy Burger", category: "Burger", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Crispy patty with fresh lettuce, tomato & mayo" },
-    { id: "bgr-2", name: "Double Cheese Delite", category: "Burger", isMultiSize: false, price: 189, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Melted cheddar cheese with double patty" },
-    { id: "bgr-3", name: "Spicy Jalapeño Burger", category: "Burger", isMultiSize: false, price: 169, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Fiery jalapeño sauce & crispy onion rings" },
-    { id: "bgr-4", name: "Smokey BBQ Bacon Burger", category: "Burger", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Smokey BBQ sauce with premium bacon strips" },
-    { id: "bgr-5", name: "Veggie Supreme Burger", category: "Burger", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Plant-based patty with fresh garden veggies" },
-    { id: "bgr-6", name: "Monster Double Stack", category: "Burger", isMultiSize: false, price: 249, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Loaded double patty with signature house dressing" },
-
-    // 3. BREAD & SIDES
-    { id: "brd-1", name: "Garlic Butter Breadsticks", category: "Bread", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Warm oven-baked breadsticks with garlic butter" },
-    { id: "brd-2", name: "Cheesy Garlic Bread", category: "Bread", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Melted mozzarella over seasoned garlic toast" },
-    { id: "brd-3", name: "Stuffed Cheese Pocket", category: "Bread", isMultiSize: false, price: 159, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Crispy crust filled with herbs & cheese" },
-
-    // 4. CHINESE FOOD
-    { id: "chn-1", name: "Kung Pao Chicken", category: "Chinese Food", isMultiSize: false, price: 249, available: true, img: "https://i.ibb.co/YFYwbHmV/chinese-food.png", desc: "Tender chicken with peanuts & chili peppers" },
-    { id: "chn-2", name: "Manchurian Gravy", category: "Chinese Food", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/YFYwbHmV/chinese-food.png", desc: "Vegetable dumplings in savory Manchurian sauce" },
-    { id: "chn-3", name: "Sweet & Sour Crispy Veg", category: "Chinese Food", isMultiSize: false, price: 189, available: true, img: "https://i.ibb.co/YFYwbHmV/chinese-food.png", desc: "Crispy veggies tossed in sweet sour glaze" },
-
-    // 5. COLD DRINKS
-    { id: "drk-1", name: "Classic Sparkling Cola", category: "Colo Drinks", isMultiSize: false, price: 60, available: true, img: "https://i.ibb.co/dJxnm38L/colo-drinks.png", desc: "Ice cold refreshing fizzy beverage" },
-    { id: "drk-2", name: "Zero Sugar Cola", category: "Colo Drinks", isMultiSize: false, price: 60, available: true, img: "https://i.ibb.co/dJxnm38L/colo-drinks.png", desc: "Zero calories, same refreshing taste" },
-    { id: "drk-3", name: "Citrus Lime Fizz", category: "Colo Drinks", isMultiSize: false, price: 70, available: true, img: "https://i.ibb.co/dJxnm38L/colo-drinks.png", desc: "Zesty lemon lime sparkling drink" },
-
-    // 6. PASTA
-    { id: "pst-1", name: "Creamy Alfredo Pasta", category: "Pasta", isMultiSize: false, price: 249, available: true, img: "https://i.ibb.co/Qvzgv353/pasta.png", desc: "Rich parmesan cream sauce with fettuccine" },
-    { id: "pst-2", name: "Penna Arrabbiata", category: "Pasta", isMultiSize: false, price: 229, available: true, img: "https://i.ibb.co/Qvzgv353/pasta.png", desc: "Spicy tomato garlic sauce with fresh basil" },
-    { id: "pst-3", name: "Pesto Supreme Pasta", category: "Pasta", isMultiSize: false, price: 269, available: true, img: "https://i.ibb.co/Qvzgv353/pasta.png", desc: "Fresh basil pesto with pine nuts & olive oil" },
-
-    // 7. DESSERTS
-    { id: "des-1", name: "Desserts Option 1", category: "Desserts", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Freshly prepared item variation for Desserts" },
-    { id: "des-2", name: "Desserts Option 2", category: "Desserts", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Special chef recipe variation for Desserts" },
-    { id: "des-3", name: "Desserts Option 3", category: "Desserts", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Deluxe portion variation for Desserts" },
-    { id: "des-4", name: "Desserts Option 4", category: "Desserts", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Combo style variation for Desserts" },
-
-    // 8. HOT COLD COFFEE
-    { id: "cof-1", name: "Hot Cold Coffee Option 1", category: "Hot Cold Coffee", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Freshly prepared item variation for Hot Cold Coffee" },
-    { id: "cof-2", name: "Hot Cold Coffee Option 2", category: "Hot Cold Coffee", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Special chef recipe variation for Hot Cold Coffee" },
-    { id: "cof-3", name: "Hot Cold Coffee Option 3", category: "Hot Cold Coffee", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Deluxe portion variation for Hot Cold Coffee" },
-    { id: "cof-4", name: "Hot Cold Coffee Option 4", category: "Hot Cold Coffee", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Combo style variation for Hot Cold Coffee" },
-
-    // 9. MOJITO
-    { id: "moj-1", name: "Mojito Option 1", category: "Mojito", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Freshly prepared item variation for Mojito" },
-    { id: "moj-2", name: "Mojito Option 2", category: "Mojito", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Special chef recipe variation for Mojito" },
-    { id: "moj-3", name: "Mojito Option 3", category: "Mojito", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Deluxe portion variation for Mojito" },
-    { id: "moj-4", name: "Mojito Option 4", category: "Mojito", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Combo style variation for Mojito" },
-
-    // 10. MOMOS
-    { id: "mom-1", name: "Momos Option 1", category: "Momos", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/gbdrfGJK/momos.png", desc: "Freshly prepared item variation for Momos" },
-    { id: "mom-2", name: "Momos Option 2", category: "Momos", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/gbdrfGJK/momos.png", desc: "Special chef recipe variation for Momos" },
-    { id: "mom-3", name: "Momos Option 3", category: "Momos", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/gbdrfGJK/momos.png", desc: "Deluxe portion variation for Momos" },
-    { id: "mom-4", name: "Momos Option 4", category: "Momos", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/gbdrfGJK/momos.png", desc: "Combo style variation for Momos" },
-
-    // 11. NOODLES
-    { id: "ndl-1", name: "Noodles Option 1", category: "Noodles", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Freshly prepared item variation for Noodles" },
-    { id: "ndl-2", name: "Noodles Option 2", category: "Noodles", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Special chef recipe variation for Noodles" },
-    { id: "ndl-3", name: "Noodles Option 3", category: "Noodles", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Deluxe portion variation for Noodles" },
-    { id: "ndl-4", name: "Noodles Option 4", category: "Noodles", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Combo style variation for Noodles" },
-
-    // 12. RICE
-    { id: "ric-1", name: "Rice Option 1", category: "Rice", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/gL0Z5F0C/rice.png", desc: "Freshly prepared item variation for Rice" },
-    { id: "ric-2", name: "Rice Option 2", category: "Rice", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/gL0Z5F0C/rice.png", desc: "Special chef recipe variation for Rice" },
-    { id: "ric-3", name: "Rice Option 3", category: "Rice", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/gL0Z5F0C/rice.png", desc: "Deluxe portion variation for Rice" },
-    { id: "ric-4", name: "Rice Option 4", category: "Rice", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/gL0Z5F0C/rice.png", desc: "Combo style variation for Rice" },
-
-    // 13. SALAD
-    { id: "sld-1", name: "Salad Option 1", category: "Salad", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Freshly prepared item variation for Salad" },
-    { id: "sld-2", name: "Salad Option 2", category: "Salad", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Special chef recipe variation for Salad" },
-    { id: "sld-3", name: "Salad Option 3", category: "Salad", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Deluxe portion variation for Salad" },
-    { id: "sld-4", name: "Salad Option 4", category: "Salad", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Combo style variation for Salad" },
-
-    // 14. SANDWICH
-    { id: "sdw-1", name: "Sandwich Option 1", category: "Sandwich", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Freshly prepared item variation for Sandwich" },
-    { id: "sdw-2", name: "Sandwich Option 2", category: "Sandwich", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Special chef recipe variation for Sandwich" },
-    { id: "sdw-3", name: "Sandwich Option 3", category: "Sandwich", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Deluxe portion variation for Sandwich" },
-    { id: "sdw-4", name: "Sandwich Option 4", category: "Sandwich", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Combo style variation for Sandwich" },
-
-    // 15. SHAKE
-    { id: "shk-1", name: "Shake Option 1", category: "Shake", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/XZpkRRpJ/shake.png", desc: "Freshly prepared item variation for Shake" },
-    { id: "shk-2", name: "Shake Option 2", category: "Shake", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/XZpkRRpJ/shake.png", desc: "Special chef recipe variation for Shake" },
-    { id: "shk-3", name: "Shake Option 3", category: "Shake", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/XZpkRRpJ/shake.png", desc: "Deluxe portion variation for Shake" },
-    { id: "shk-4", name: "Shake Option 4", category: "Shake", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/XZpkRRpJ/shake.png", desc: "Combo style variation for Shake" },
-
-    // 16. SIDE ORDERS
-    { id: "sde-1", name: "Side Orders Option 1", category: "Side Orders", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Freshly prepared item variation for Side Orders" },
-    { id: "sde-2", name: "Side Orders Option 2", category: "Side Orders", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Special chef recipe variation for Side Orders" },
-    { id: "sde-3", name: "Side Orders Option 3", category: "Side Orders", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Deluxe portion variation for Side Orders" },
-    { id: "sde-4", name: "Side Orders Option 4", category: "Side Orders", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Combo style variation for Side Orders" },
-
-    // 17. SPRING ROLLS
-    { id: "spr-1", name: "Spring Rolls Option 1", category: "Spring Rolls", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Freshly prepared item variation for Spring Rolls" },
-    { id: "spr-2", name: "Spring Rolls Option 2", category: "Spring Rolls", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Special chef recipe variation for Spring Rolls" },
-    { id: "spr-3", name: "Spring Rolls Option 3", category: "Spring Rolls", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Deluxe portion variation for Spring Rolls" },
-    { id: "spr-4", name: "Spring Rolls Option 4", category: "Spring Rolls", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Combo style variation for Spring Rolls" },
-
-    // 18. WRAP
-    { id: "wrp-1", name: "Wrap Option 1", category: "Wrap", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Freshly prepared item variation for Wrap" },
-    { id: "wrp-2", name: "Wrap Option 2", category: "Wrap", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Special chef recipe variation for Wrap" },
-    { id: "wrp-3", name: "Wrap Option 3", category: "Wrap", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Deluxe portion variation for Wrap" },
-    { id: "wrp-4", name: "Wrap Option 4", category: "Wrap", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Combo style variation for Wrap" }
-];
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
-  authDomain: "website-fa79c.firebaseapp.com",
-  projectId: "website-fa79c",
-  storageBucket: "website-fa79c.firebasestorage.app",
-  messagingSenderId: "1070276115284",
-  appId: "1:1070276115284:web:ebcb37d56f3af2a2d326c1",
-  measurementId: "G-DT7MRXDMZ0"
-};
-
-let liveMenuItems = null;
-
-function initFirebaseCustomerApp() {
-    if (typeof firebase === 'undefined') {
-        console.warn('Firebase SDK not loaded.');
-        return;
-    }
-
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-    }
-
-    try {
-        const db = firebase.firestore();
-        const firebaseDocRef = db.collection("menu").doc("menuData");
-
-        // STEP 4: Real-time listener via onSnapshot
-        firebaseDocRef.onSnapshot((doc) => {
-            if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
-                liveMenuItems = doc.data().items;
-                try {
-                    localStorage.setItem('menuData', JSON.stringify(liveMenuItems));
-                } catch (e) {}
-
-                // Instant real-time UI update across all connected devices!
-                if (lastCategoryState.categoryName) {
-                    openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
-                }
-            } else {
-                // STEP 5: Initial Data Population if Firebase database is empty
-                console.log("Firebase database is empty. Uploading default menu structure...");
-                firebaseDocRef.set({ items: DEFAULT_MENU_ITEMS, lastUpdated: Date.now() });
-            }
-        }, (err) => {
-            console.warn("Firestore real-time listener notice:", err);
-        });
-    } catch (e) {
-        console.warn("Firestore init warning:", e);
-    }
-
-    try {
-        const firebaseRtdbRef = firebase.database().ref("menuData");
-        firebaseRtdbRef.on('value', (snapshot) => {
-            const val = snapshot.val();
-            if (val && Array.isArray(val) && val.length > 0) {
-                liveMenuItems = val;
-                try {
-                    localStorage.setItem('menuData', JSON.stringify(liveMenuItems));
-                } catch (e) {}
-
-                if (lastCategoryState.categoryName) {
-                    openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
-                }
-            } else if (val === null) {
-                firebaseRtdbRef.set(DEFAULT_MENU_ITEMS);
-            }
-        });
-    } catch (e) {
-        console.warn("RTDB init notice:", e);
-    }
-}
-
 const MENU_STORAGE_KEY = 'menuData';
 
 function getStoredMenuItems() {
-    if (liveMenuItems && Array.isArray(liveMenuItems) && liveMenuItems.length > 0) {
-        return liveMenuItems;
-    }
     try {
         const stored = localStorage.getItem(MENU_STORAGE_KEY);
         if (stored) {
@@ -795,8 +595,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
 // REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
 window.addEventListener('storage', (e) => {
-    if (e.key === MENU_STORAGE_KEY && lastCategoryState.categoryName) {
+    if (e.key === MENU_STORAGE_KEY && lastCategoryState.categoryName && activeTabName === 'category-detail') {
         openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+    }
+    if (e.key === CART_STORAGE_KEY) {
+        cart = loadCartFromStorage();
+        updateCartUI();
     }
 });
 
@@ -1141,7 +945,6 @@ function setupHistoryState() {
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-    initFirebaseCustomerApp();
     initTheme();
     setupNavigation();
     setupFastFoodCards();
