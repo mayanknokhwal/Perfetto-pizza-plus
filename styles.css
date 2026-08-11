@@ -1495,3 +1495,49 @@ a {
     display: block;
 }
 
+/* --------------------------------------------------------------------------
+   16. OUT-OF-STOCK PRODUCT STYLES (ADMIN SYNCHRONIZATION)
+   -------------------------------------------------------------------------- */
+.pizza-card.out-of-stock,
+.sub-item-card.out-of-stock {
+    position: relative;
+    overflow: hidden;
+}
+
+.pizza-card.out-of-stock .pizza-card-img,
+.sub-item-card.out-of-stock .sub-item-img {
+    filter: grayscale(100%);
+    opacity: 0.65;
+}
+
+.out-of-stock-badge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    right: 14px;
+    background-color: rgba(239, 68, 68, 0.92);
+    color: #ffffff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+    z-index: 15;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    backdrop-filter: blur(4px);
+}
+
+.pizza-add-cart-btn.disabled,
+.add-subitem-btn.disabled {
+    background-color: #64748b !important;
+    color: #cbd5e1 !important;
+    cursor: not-allowed !important;
+    opacity: 0.65 !important;
+    pointer-events: none !important;
+    box-shadow: none !important;
+}
+
+
+

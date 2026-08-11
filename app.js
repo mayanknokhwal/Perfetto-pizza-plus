@@ -347,19 +347,49 @@ const categorySubItems = {
     ]
 };
 
+const MENU_STORAGE_KEY = 'menuData';
+
+function getStoredMenuItems() {
+    try {
+        const stored = localStorage.getItem(MENU_STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+            }
+        }
+    } catch (e) {
+        console.warn('Error reading menuData from localStorage:', e);
+    }
+    return null;
+}
+
 function getSubItems(categoryName, categoryImg) {
+    const storedItems = getStoredMenuItems();
+    if (storedItems) {
+        const catItems = storedItems.filter(i => i.category === categoryName);
+        if (catItems.length > 0) {
+            return catItems.map(item => ({
+                ...item,
+                img: item.img || categoryImg,
+                available: item.available !== false
+            }));
+        }
+    }
+
     if (categorySubItems[categoryName]) {
         return categorySubItems[categoryName].map(item => ({
             ...item,
-            img: item.img || categoryImg
+            img: item.img || categoryImg,
+            available: true
         }));
     }
     
     return [
-        { name: `${categoryName} Option 1 (Placeholder)`, desc: `Freshly prepared item variation for ${categoryName}`, price: 179.00, tag: "Variety 1", img: categoryImg },
-        { name: `${categoryName} Option 2 (Placeholder)`, desc: `Special chef recipe variation for ${categoryName}`, price: 199.00, tag: "Variety 2", img: categoryImg },
-        { name: `${categoryName} Option 3 (Placeholder)`, desc: `Deluxe portion variation for ${categoryName}`, price: 219.00, tag: "Variety 3", img: categoryImg },
-        { name: `${categoryName} Option 4 (Placeholder)`, desc: `Combo style variation for ${categoryName}`, price: 259.00, tag: "Variety 4", img: categoryImg }
+        { id: `${categoryName}-1`, name: `${categoryName} Option 1`, desc: `Freshly prepared item variation for ${categoryName}`, price: 179.00, tag: "Variety 1", img: categoryImg, available: true },
+        { id: `${categoryName}-2`, name: `${categoryName} Option 2`, desc: `Special chef recipe variation for ${categoryName}`, price: 199.00, tag: "Variety 2", img: categoryImg, available: true },
+        { id: `${categoryName}-3`, name: `${categoryName} Option 3`, desc: `Deluxe portion variation for ${categoryName}`, price: 219.00, tag: "Variety 3", img: categoryImg, available: true },
+        { id: `${categoryName}-4`, name: `${categoryName} Option 4`, desc: `Combo style variation for ${categoryName}`, price: 259.00, tag: "Variety 4", img: categoryImg, available: true }
     ];
 }
 
@@ -372,7 +402,6 @@ function changePizzaSize(pizzaId, size, price, event) {
     card.setAttribute('data-selected-size', size);
     card.setAttribute('data-current-price', price);
     
-    // Update active state without applying any background color fill to size buttons
     const sizeBtns = card.querySelectorAll('.size-btn');
     sizeBtns.forEach(btn => {
         if (btn.getAttribute('data-size') === size) {
@@ -380,7 +409,7 @@ function changePizzaSize(pizzaId, size, price, event) {
         } else {
             btn.classList.remove('selected');
         }
-        btn.classList.remove('active'); // Remove active color fill
+        btn.classList.remove('active');
     });
     
     const priceEl = card.querySelector('.pizza-card-price');
@@ -422,13 +451,15 @@ function addPizzaToCart(pizzaId, event) {
     
     const card = document.querySelector(`.pizza-card[data-pizza-id="${pizzaId}"]`);
     if (!card) return;
+
+    if (card.classList.contains('out-of-stock')) return;
     
-    const pizzaList = categorySubItems["Pizza"];
+    const pizzaList = getSubItems("Pizza");
     const item = pizzaList.find(p => p.id === pizzaId);
-    if (!item) return;
+    if (!item || item.available === false) return;
     
     const selectedSize = card.getAttribute('data-selected-size') || 'M';
-    const price = parseFloat(card.getAttribute('data-current-price')) || item.prices[selectedSize];
+    const price = parseFloat(card.getAttribute('data-current-price')) || (item.prices ? item.prices[selectedSize] : 299);
     
     const cartItemTitle = `${item.name} (${selectedSize})`;
     addToCart(cartItemTitle, price, item.img);
@@ -482,9 +513,19 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <span class="desc-text">${item.desc}</span>
                        </p>`;
                 }
+
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const addBtnMarkup = isAvailable
+                    ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                const prices = item.prices || { S: 199, M: 299, L: 399 };
                        
                 return `
-                <div class="pizza-card" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${item.prices.M}">
+                <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${prices.M}">
+                    ${outOfStockBadge}
                     <div class="pizza-card-image-wrapper">
                         <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                     </div>
@@ -495,27 +536,34 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <div class="pizza-size-selector">
                             <span class="size-label">Size:</span>
                             <div class="size-options">
-                                <button class="size-btn" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${item.prices.S}, event)">S</button>
-                                <button class="size-btn selected" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${item.prices.M}, event)">M</button>
-                                <button class="size-btn" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${item.prices.L}, event)">L</button>
+                                <button class="size-btn" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${prices.S}, event)">S</button>
+                                <button class="size-btn selected" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${prices.M}, event)">M</button>
+                                <button class="size-btn" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
                             </div>
                         </div>
                         
                         <div class="pizza-price-row">
                             <span class="price-prefix">Price:</span>
-                            <span class="pizza-card-price" id="price-${item.id}">${formatPrice(item.prices.M)}</span>
+                            <span class="pizza-card-price" id="price-${item.id}">${formatPrice(prices.M)}</span>
                         </div>
                     </div>
-                    <button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)">
-                        <i class="fa-solid fa-cart-shopping"></i> ADD TO CART
-                    </button>
+                    ${addBtnMarkup}
                 </div>
                 `;
             }).join('');
         } else {
             subItemsGrid.classList.remove('pizza-grid-container');
-            subItemsGrid.innerHTML = items.map(item => `
-                <div class="sub-item-card">
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const addBtnMarkup = isAvailable
+                    ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')"><i class="fa-solid fa-plus"></i> Add</button>`
+                    : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> Out of Stock</button>`;
+
+                return `
+                <div class="sub-item-card ${outOfStockClass}">
+                    ${outOfStockBadge}
                     <div class="sub-item-img-wrapper">
                         <img src="${item.img}" alt="${item.name}" class="sub-item-img" loading="lazy">
                     </div>
@@ -527,13 +575,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <p class="sub-item-desc">${item.desc}</p>
                         <div class="sub-item-bottom-row">
                             <span class="sub-item-price">${formatPrice(item.price)}</span>
-                            <button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')">
-                                <i class="fa-solid fa-plus"></i> Add
-                            </button>
+                            ${addBtnMarkup}
                         </div>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
     }
     
@@ -545,6 +592,13 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         }, 10);
     }
 }
+
+// REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
+window.addEventListener('storage', (e) => {
+    if (e.key === MENU_STORAGE_KEY && lastCategoryState.categoryName) {
+        openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+    }
+});
 
 // --------------------------------------------------------------------------
 // 5. FAST FOOD CARD INTERACTION (NAVIGATE TO CATEGORY DETAIL)
