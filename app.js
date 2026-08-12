@@ -181,6 +181,10 @@ function switchTab(tabName, forceRootHome = false, isPopState = false) {
 
     activeTabName = tabName;
 
+    if (tabName === 'profile') {
+        updateProfileTotalsUI();
+    }
+
     // Scroll to top of view
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -870,8 +874,14 @@ function processCheckout() {
         return;
     }
 
-    // Intercept checkout: Open Delivery Details modal
-    openDeliveryModal();
+    // Redirect directly to Profile tab!
+    switchTab('profile', true);
+    updateProfileTotalsUI();
+    showToast('Please enter your delivery details to complete checkout.');
+    
+    // Scroll to delivery details form
+    const formCard = document.querySelector('.profile-delivery-card');
+    if (formCard) formCard.scrollIntoView({ behavior: 'smooth' });
 }
 
 function openDeliveryModal() {
@@ -918,9 +928,8 @@ function openDeliveryModal() {
         console.error('Error loading saved delivery profile:', e);
     }
 
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
     setupDeliveryInputValidation();
+    updateProfileTotalsUI();
 }
 
 function setupDeliveryInputValidation() {
@@ -1052,12 +1061,169 @@ function handleFinalOrderSubmit(event) {
         console.error('Error saving order:', e);
     }
 
-    closeDeliveryModal();
     showToast('🎉 Order placed successfully! Arriving in 25 mins.');
     cart = [];
     saveCartToStorage();
     updateCartUI();
-    switchTab('home', true);
+    updateProfileTotalsUI();
+    
+    // Auto-expand and render saved address
+    const savedAddrBox = document.getElementById('saved-address-display-box');
+    if (savedAddrBox) {
+        renderSavedAddressDetails();
+        savedAddrBox.style.display = 'block';
+        savedAddrBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function updateProfileTotalsUI() {
+    // Update order total inside profile form if cart has items
+    const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const tax = subtotal * 0.05;
+    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
+    const total = subtotal + tax + deliveryFee;
+
+    const itemCountEl = document.getElementById('modal-item-count');
+    const orderTotalEl = document.getElementById('modal-order-total');
+    if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount > 1 ? 's' : ''}`;
+    if (orderTotalEl) orderTotalEl.textContent = formatPrice(total);
+
+    // Update stats counters to 0 default
+    let orderCount = 0;
+    try {
+        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+        if (storedOrders) {
+            const list = JSON.parse(storedOrders);
+            if (Array.isArray(list)) orderCount = list.length;
+        }
+    } catch (e) {}
+
+    const totalOrdersEl = document.getElementById('stat-total-orders');
+    const rewardsEl = document.getElementById('stat-rewards-pts');
+    const ratingEl = document.getElementById('stat-rating');
+
+    if (totalOrdersEl) totalOrdersEl.textContent = orderCount;
+    if (rewardsEl) rewardsEl.textContent = '0';
+    if (ratingEl) ratingEl.textContent = '0 ★';
+
+    // Update profile display name/phone if profile saved
+    try {
+        const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
+        if (savedProfile) {
+            const profile = JSON.parse(savedProfile);
+            const nameEl = document.getElementById('profile-display-name');
+            const subtextEl = document.getElementById('profile-display-subtext');
+            if (nameEl && profile.fullName) nameEl.textContent = profile.fullName;
+            if (subtextEl && profile.phone) subtextEl.textContent = `+91 ${profile.phone}`;
+            
+            // Pre-fill inputs if empty
+            if (profile.fullName && document.getElementById('customer-fullname')) document.getElementById('customer-fullname').value = profile.fullName;
+            if (profile.phone && document.getElementById('customer-phone')) document.getElementById('customer-phone').value = profile.phone;
+            if (profile.colonyName && document.getElementById('customer-colony-name')) document.getElementById('customer-colony-name').value = profile.colonyName;
+            if (profile.nearBy && document.getElementById('customer-nearby')) document.getElementById('customer-nearby').value = profile.nearBy;
+            if (profile.streetName && document.getElementById('customer-street-name')) document.getElementById('customer-street-name').value = profile.streetName;
+            if (profile.wardNo && document.getElementById('customer-ward-no')) document.getElementById('customer-ward-no').value = profile.wardNo;
+        }
+    } catch (e) {}
+}
+
+function toggleSavedAddressesView() {
+    const box = document.getElementById('saved-address-display-box');
+    const historyBox = document.getElementById('order-history-display-box');
+    if (historyBox) historyBox.style.display = 'none';
+
+    if (!box) return;
+    if (box.style.display === 'block') {
+        box.style.display = 'none';
+        return;
+    }
+
+    renderSavedAddressDetails();
+    box.style.display = 'block';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderSavedAddressDetails() {
+    const textContentEl = document.getElementById('saved-address-text-content');
+    if (!textContentEl) return;
+
+    try {
+        const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
+        if (savedProfile) {
+            const p = JSON.parse(savedProfile);
+            if (p.fullName || p.colonyName || p.streetName) {
+                textContentEl.innerHTML = `
+                    <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
+                        <i class="fa-solid fa-user" style="color: var(--primary-orange); margin-right: 6px;"></i>${p.fullName || 'Customer'} (${p.phone || ''})
+                    </div>
+                    <div><strong style="color: var(--text-muted);">Colony:</strong> ${p.colonyName || 'N/A'}</div>
+                    <div><strong style="color: var(--text-muted);">Landmark:</strong> ${p.nearBy || 'N/A'}</div>
+                    <div><strong style="color: var(--text-muted);">Street:</strong> ${p.streetName || 'N/A'}</div>
+                    <div><strong style="color: var(--text-muted);">Ward No:</strong> ${p.wardNo || 'N/A'}</div>
+                `;
+                return;
+            }
+        }
+    } catch (e) {}
+
+    textContentEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No saved address found. Please fill out the Delivery Details form above.</span>`;
+}
+
+function editSavedAddress() {
+    const formCard = document.querySelector('.profile-delivery-card');
+    if (formCard) formCard.scrollIntoView({ behavior: 'smooth' });
+    const nameInput = document.getElementById('customer-fullname');
+    if (nameInput) nameInput.focus();
+    showToast('You can update your address details in the form above.');
+}
+
+function toggleOrderHistoryView() {
+    const box = document.getElementById('order-history-display-box');
+    const addressBox = document.getElementById('saved-address-display-box');
+    if (addressBox) addressBox.style.display = 'none';
+
+    if (!box) return;
+    if (box.style.display === 'block') {
+        box.style.display = 'none';
+        return;
+    }
+
+    renderOrderHistoryDetails();
+    box.style.display = 'block';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderOrderHistoryDetails() {
+    const listEl = document.getElementById('order-history-list');
+    if (!listEl) return;
+
+    try {
+        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+        if (storedOrders) {
+            const orders = JSON.parse(storedOrders);
+            if (Array.isArray(orders) && orders.length > 0) {
+                listEl.innerHTML = orders.map(o => `
+                    <div style="background: var(--bg-surface); padding: 12px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                            <strong style="color: var(--primary-orange);">#${o.id}</strong>
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">${o.timeAgo}</span>
+                        </div>
+                        <div style="font-size: 0.84rem; color: var(--text-light); margin-bottom: 6px;">
+                            ${o.items.map(i => i.name).join(', ')}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 6px;">
+                            <span>Status: <span style="color: #22c55e; text-transform: uppercase;">${o.status}</span></span>
+                            <span style="color: var(--primary-orange);">₹${o.total}</span>
+                        </div>
+                    </div>
+                `).join('');
+                return;
+            }
+        }
+    } catch (e) {}
+
+    listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No order history found yet.</span>`;
 }
 
 // --------------------------------------------------------------------------

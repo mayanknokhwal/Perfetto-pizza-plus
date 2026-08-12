@@ -202,36 +202,116 @@
 
             <!-- PROFILE TAB VIEW -->
             <section class="tab-view" id="view-profile">
+                <!-- PROFILE HEADER CARD (Avatar photo removed) -->
                 <div class="profile-header-card">
-                    <div class="profile-avatar-wrapper">
-                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80" alt="User Avatar" class="profile-avatar">
-                        <button class="avatar-edit-btn"><i class="fa-solid fa-camera"></i></button>
+                    <div class="profile-icon-circle">
+                        <i class="fa-solid fa-user"></i>
                     </div>
-                    <h3 class="profile-name">Alex Morgan</h3>
-                    <p class="profile-email">alex.morgan@perfettopizza.com</p>
+                    <h3 class="profile-name" id="profile-display-name">Customer Profile</h3>
+                    <p class="profile-email" id="profile-display-subtext">Perfetto Pizza Express</p>
                     <div class="vip-badge">
-                        <i class="fa-solid fa-crown"></i> PERFETTO VIP GOLD MEMBER
+                        <i class="fa-solid fa-crown"></i> PERFETTO VIP MEMBER
                     </div>
                 </div>
 
+                <!-- STATS ROW (Default 0 values) -->
                 <div class="profile-stats-row">
                     <div class="stat-card">
-                        <span class="stat-num">24</span>
+                        <span class="stat-num" id="stat-total-orders">0</span>
                         <span class="stat-label">Total Orders</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-num">850</span>
+                        <span class="stat-num" id="stat-rewards-pts">0</span>
                         <span class="stat-label">Rewards Pts</span>
                     </div>
                     <div class="stat-card">
-                        <span class="stat-num">4.9 ★</span>
+                        <span class="stat-num" id="stat-rating">0</span>
                         <span class="stat-label">Rating</span>
                     </div>
                 </div>
 
+                <!-- EMBEDDED HYPER-LOCAL DELIVERY DETAILS FORM -->
+                <div class="profile-delivery-card">
+                    <div class="card-header-line">
+                        <h4 class="card-section-title">
+                            <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Delivery Details
+                        </h4>
+                        <p class="card-section-subtext">Enter hyper-local address for instant town delivery</p>
+                    </div>
+
+                    <form id="delivery-details-form" onsubmit="handleFinalOrderSubmit(event)" novalidate>
+                        <div class="form-grid-hyperlocal">
+                            <div class="hyperlocal-field">
+                                <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-user"></i>
+                                    <input type="text" id="customer-fullname" required autocomplete="name">
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-phone">Mobile Number <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-phone"></i>
+                                    <input type="tel" id="customer-phone" required autocomplete="tel">
+                                </div>
+                                <button type="button" class="btn-send-otp" id="btn-send-otp" onclick="handleSendOTP(event)">
+                                    <i class="fa-solid fa-paper-plane"></i> Send OTP
+                                </button>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-building"></i>
+                                    <input type="text" id="customer-colony-name" required>
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-nearby">Near By <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-location-dot"></i>
+                                    <input type="text" id="customer-nearby" required>
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-road"></i>
+                                    <input type="text" id="customer-street-name" required>
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-hashtag"></i>
+                                    <input type="text" id="customer-ward-no" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ORDER SUMMARY PREVIEW IN PROFILE FORM -->
+                        <div class="delivery-order-summary-box" id="profile-cart-summary-box">
+                            <div class="summary-box-row">
+                                <span>Order Total (<span id="modal-item-count">0 items</span>):</span>
+                                <strong id="modal-order-total" style="color: var(--primary-orange); font-size: 1.1rem;">₹0</strong>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-confirm-order">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Order
+                        </button>
+                    </form>
+                </div>
+
+                <!-- ACCOUNT SETTINGS (STRICTLY ONLY ORDER HISTORY & SAVED DELIVERY ADDRESSES) -->
                 <div class="menu-list-group">
                     <h4 class="group-title">Account Settings</h4>
-                    <div class="menu-item-row">
+                    
+                    <div class="menu-item-row" id="menu-order-history" onclick="toggleOrderHistoryView()">
                         <div class="menu-item-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
                         <div class="menu-item-text">
                             <span class="item-title">Order History</span>
@@ -239,30 +319,43 @@
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow"></i>
                     </div>
-                    <div class="menu-item-row">
+
+                    <div class="menu-item-row" id="menu-saved-addresses" onclick="toggleSavedAddressesView()">
                         <div class="menu-item-icon"><i class="fa-solid fa-location-dot"></i></div>
                         <div class="menu-item-text">
                             <span class="item-title">Saved Delivery Addresses</span>
-                            <span class="item-subtitle">Home, Office, Gym</span>
+                            <span class="item-subtitle">View & manage current delivery address</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow"></i>
                     </div>
-                    <div class="menu-item-row">
-                        <div class="menu-item-icon"><i class="fa-solid fa-credit-card"></i></div>
-                        <div class="menu-item-text">
-                            <span class="item-title">Payment Methods</span>
-                            <span class="item-subtitle">Visa ending in •••• 4242</span>
+
+                    <!-- SAVED ADDRESS DISPLAY BOX -->
+                    <div id="saved-address-display-box" class="saved-address-card" style="display: none;">
+                        <div class="saved-address-card-header">
+                            <div class="saved-title-group">
+                                <i class="fa-solid fa-house-chimney" style="color: var(--primary-orange);"></i>
+                                <span class="saved-address-label">Your Current Home Delivery Address</span>
+                            </div>
+                            <button type="button" class="change-address-btn" onclick="editSavedAddress()">
+                                <i class="fa-solid fa-pen-to-square"></i> Change
+                            </button>
                         </div>
-                        <i class="fa-solid fa-chevron-right item-arrow"></i>
-                    </div>
-                    <div class="menu-item-row">
-                        <div class="menu-item-icon"><i class="fa-solid fa-gift"></i></div>
-                        <div class="menu-item-text">
-                            <span class="item-title">Vouchers & Coupons</span>
-                            <span class="item-subtitle">2 active discount codes</span>
+                        <div class="saved-address-content" id="saved-address-text-content">
+                            <!-- Populated dynamically via JS -->
                         </div>
-                        <i class="fa-solid fa-chevron-right item-arrow"></i>
                     </div>
+
+                    <!-- ORDER HISTORY DISPLAY BOX -->
+                    <div id="order-history-display-box" class="order-history-card" style="display: none;">
+                        <div class="order-history-card-header">
+                            <i class="fa-solid fa-receipt" style="color: var(--primary-orange); margin-right: 6px;"></i>
+                            <span>Recent Orders</span>
+                        </div>
+                        <div id="order-history-list" class="order-history-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
                 </div>
             </section>
 
@@ -387,89 +480,7 @@
             <span id="toast-message">Item selected!</span>
         </div>
 
-        <!-- HYPER-LOCAL DELIVERY DETAILS MODAL -->
-        <div class="delivery-modal-overlay" id="delivery-modal" aria-hidden="true" style="display: none;">
-            <div class="delivery-modal-content">
-                <div class="delivery-modal-header">
-                    <div>
-                        <h3 class="delivery-modal-title">
-                            <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Delivery Details
-                        </h3>
-                        <p class="delivery-modal-subtext">Enter hyper-local address for instant town delivery</p>
-                    </div>
-                    <button type="button" class="close-delivery-modal-btn" onclick="closeDeliveryModal()" aria-label="Close Modal">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
 
-                <form id="delivery-details-form" onsubmit="handleFinalOrderSubmit(event)" novalidate>
-                    <div class="form-grid-hyperlocal">
-                        <div class="hyperlocal-field">
-                            <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
-                            <div class="input-icon-group">
-                                <i class="fa-solid fa-user"></i>
-                                <input type="text" id="customer-fullname" required autocomplete="name">
-                            </div>
-                        </div>
-
-                        <div class="hyperlocal-field">
-                            <label for="customer-phone">Mobile Number <span class="req-star">*</span></label>
-                            <div class="input-icon-group">
-                                <i class="fa-solid fa-phone"></i>
-                                <input type="tel" id="customer-phone" required autocomplete="tel">
-                            </div>
-                            <button type="button" class="btn-send-otp" id="btn-send-otp" onclick="handleSendOTP(event)">
-                                <i class="fa-solid fa-paper-plane"></i> Send OTP
-                            </button>
-                        </div>
-
-                        <div class="hyperlocal-field">
-                            <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
-                            <div class="input-icon-group">
-                                <i class="fa-solid fa-building"></i>
-                                <input type="text" id="customer-colony-name" required>
-                            </div>
-                        </div>
-
-                        <div class="hyperlocal-field">
-                            <label for="customer-nearby">Near By <span class="req-star">*</span></label>
-                            <div class="input-icon-group">
-                                <i class="fa-solid fa-location-dot"></i>
-                                <input type="text" id="customer-nearby" required>
-                            </div>
-                        </div>
-
-                        <div class="hyperlocal-field">
-                            <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
-                            <div class="input-icon-group">
-                                <i class="fa-solid fa-road"></i>
-                                <input type="text" id="customer-street-name" required>
-                            </div>
-                        </div>
-
-                        <div class="hyperlocal-field">
-                            <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
-                            <div class="input-icon-group">
-                                <i class="fa-solid fa-hashtag"></i>
-                                <input type="text" id="customer-ward-no" required>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ORDER SUMMARY PREVIEW IN MODAL -->
-                    <div class="delivery-order-summary-box">
-                        <div class="summary-box-row">
-                            <span>Order Total (<span id="modal-item-count">0 items</span>):</span>
-                            <strong id="modal-order-total" style="color: var(--primary-orange); font-size: 1.1rem;">₹0</strong>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn-confirm-order">
-                        <i class="fa-solid fa-circle-check"></i> Confirm Order
-                    </button>
-                </form>
-            </div>
-        </div>
 
         <!-- WHATSAPP DP STYLE LOGO POPUP MODAL -->
         <div class="logo-modal-overlay" id="logo-modal" aria-hidden="true">
