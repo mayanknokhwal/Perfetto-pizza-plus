@@ -61,6 +61,14 @@
             </div>
         </header>
 
+        <!-- PROMINENT SHOP CLOSED WARNING BANNER -->
+        <div class="shop-closed-banner" id="shop-closed-banner" style="display: none;">
+            <div class="banner-content">
+                <i class="fa-solid fa-store-slash banner-icon"></i>
+                <span>This time shop is closed. We are not accepting orders right now.</span>
+            </div>
+        </div>
+
         <!-- PERMANENT FIXED TOP HEADER BAR FOR CATEGORY DETAIL VIEW -->
         <div class="category-hero-bar" id="category-hero-bar" style="display: none;">
             <div class="category-hero-content">
@@ -267,6 +275,13 @@
 
                 <div id="cart-items-container" class="cart-items-list">
                     <!-- Dynamic cart items rendered here -->
+                </div>
+
+                <!-- DYNAMIC CART THRESHOLD STATUS BANNER -->
+                <div class="cart-threshold-banner" id="cart-threshold-banner" style="display: none;">
+                    <div class="threshold-banner-inner" id="threshold-banner-content">
+                        <!-- Dynamically populated via JS -->
+                    </div>
                 </div>
 
                 <div class="cart-summary-card" id="cart-summary">

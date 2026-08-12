@@ -377,6 +377,127 @@ a {
 }
 
 /* --------------------------------------------------------------------------
+   4B. SHOP CLOSED WARNING BANNER & DISABLED ORDERING STYLES
+   -------------------------------------------------------------------------- */
+.shop-closed-banner {
+    width: 100%;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    padding: 10px 16px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+    animation: fadeInDown 0.3s ease;
+    position: relative;
+    z-index: 998;
+}
+
+.shop-closed-banner .banner-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 480px;
+    margin: 0 auto;
+    font-size: 0.84rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.shop-closed-banner .banner-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* WHEN SHOP IS CLOSED: DISABLE ALL ADD TO CART & CHECKOUT BUTTONS */
+body.shop-closed .pizza-add-cart-btn,
+body.shop-closed .add-subitem-btn,
+body.shop-closed .checkout-btn {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    filter: grayscale(0.6) !important;
+    box-shadow: none !important;
+}
+
+body.shop-closed .checkout-btn {
+    background: #64748b !important;
+}
+
+/* --------------------------------------------------------------------------
+   4C. CART THRESHOLD BANNER & STATUS STYLES
+   -------------------------------------------------------------------------- */
+.cart-threshold-banner {
+    width: 100%;
+    margin-bottom: 16px;
+    border-radius: 16px;
+    padding: 12px 16px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.threshold-banner-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.threshold-banner-inner i {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+/* Condition A: Below Minimum Order (Red Alert) */
+.cart-threshold-banner.status-below-min {
+    background-color: rgba(239, 68, 68, 0.12);
+    border: 1.5px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+}
+
+/* Condition B: Above Minimum, Below Free Delivery (Amber Upsell) */
+.cart-threshold-banner.status-upsell-free {
+    background-color: rgba(245, 158, 11, 0.12);
+    border: 1.5px solid rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+}
+
+[data-theme="dark"] .cart-threshold-banner.status-upsell-free {
+    color: #fbbf24;
+}
+
+/* Condition C: Free Delivery Unlocked (Vibrant Green) */
+.cart-threshold-banner.status-unlocked-free {
+    background-color: rgba(34, 197, 94, 0.12);
+    border: 1.5px solid rgba(34, 197, 94, 0.4);
+    color: #22c55e;
+}
+
+/* Free Delivery Tag in Breakdown */
+.free-delivery-tag {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    font-size: 0.75rem;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 4px;
+    text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
    5. MAIN CONTENT CONTAINER (SPACE BETWEEN HEADER & FOOTER)
    -------------------------------------------------------------------------- */
 .main-content-container {
@@ -1656,6 +1777,127 @@ a {
     pointer-events: none !important;
     box-shadow: none !important;
 }
+
+/* --------------------------------------------------------------------------
+   ORDERS SECTION SCOPED MOBILE RESPONSIVE STYLES
+   Strictly targeted to #panel-orders so Dashboard, Menu Management, 
+   Team Management, and Global Sidebar layout strictly retain desktop view.
+   -------------------------------------------------------------------------- */
+#panel-orders .orders-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    #panel-orders {
+        padding: 12px !important;
+    }
+
+    #panel-orders .orders-container {
+        padding: 16px !important;
+        border-radius: var(--radius-md, 12px) !important;
+    }
+
+    #panel-orders .orders-header h3 {
+        font-size: 1.1rem !important;
+    }
+
+    #panel-orders .orders-header p {
+        font-size: 0.82rem !important;
+        margin-bottom: 16px !important;
+    }
+
+    #panel-orders .orders-list {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 14px !important;
+        width: 100% !important;
+    }
+
+    #panel-orders .order-card {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 14px !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+
+    #panel-orders .order-card-header {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+
+    #panel-orders .order-card-body {
+        width: 100% !important;
+        font-size: 0.88rem !important;
+    }
+
+    #panel-orders .order-card-subtext {
+        font-size: 0.78rem !important;
+    }
+
+    #panel-orders .order-card-footer {
+        width: 100% !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        margin-top: 8px !important;
+    }
+
+    #panel-orders .order-action-btn {
+        min-height: 40px !important;
+        padding: 10px 16px !important;
+        font-size: 0.85rem !important;
+        flex: 1 1 auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        touch-action: manipulation;
+    }
+
+    #panel-orders .orders-table-wrapper {
+        margin-top: 12px !important;
+        border-radius: var(--radius-md, 12px) !important;
+        border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08)) !important;
+    }
+
+    #panel-orders .orders-table {
+        min-width: 600px !important;
+        width: 100% !important;
+        font-size: 0.82rem !important;
+    }
+
+    #panel-orders .orders-table th,
+    #panel-orders .orders-table td {
+        padding: 10px 12px !important;
+        white-space: nowrap !important;
+    }
+}
+
+@media (max-width: 480px) {
+    #panel-orders {
+        padding: 8px !important;
+    }
+
+    #panel-orders .orders-container {
+        padding: 12px !important;
+    }
+
+    #panel-orders .order-card-footer {
+        flex-direction: column !important;
+    }
+
+    #panel-orders .order-action-btn {
+        width: 100% !important;
+    }
+}
+
 
 
 

@@ -278,6 +278,47 @@
             border-color: var(--text-muted);
         }
 
+        /* PROMINENT SHOP OPEN / CLOSED TOGGLE BUTTON */
+        .btn-shop-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1.5px solid transparent;
+        }
+
+        /* OPEN STATUS: VIBRANT GREEN */
+        .btn-shop-status.status-open {
+            background-color: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+
+        .btn-shop-status.status-open:hover {
+            background-color: #22c55e;
+            color: #ffffff;
+            box-shadow: 0 4px 16px rgba(34, 197, 94, 0.35);
+        }
+
+        /* CLOSED STATUS: VIBRANT RED */
+        .btn-shop-status.status-closed {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .btn-shop-status.status-closed:hover {
+            background-color: #ef4444;
+            color: #ffffff;
+            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+        }
+
         .btn-back-categories {
             background-color: var(--bg-surface);
             color: var(--text-main);
@@ -875,29 +916,148 @@
             letter-spacing: 0.03em;
         }
 
-        /* RESPONSIVE BREAKPOINTS */
-        @media (max-width: 900px) {
-            .admin-sidebar {
-                width: 70px;
+        /* --------------------------------------------------------------------------
+           ORDERS SECTION SCOPED MOBILE RESPONSIVE STYLES
+           Strictly targeted to #panel-orders so Dashboard, Menu Management, 
+           Team Management, and Global Sidebar layout strictly retain desktop view.
+           -------------------------------------------------------------------------- */
+        #panel-orders .orders-table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            #panel-orders {
+                padding: 12px !important;
             }
-            .brand-title, .brand-subtitle, .menu-section-label, .nav-link span, .sidebar-footer span {
-                display: none;
+
+            #panel-orders .orders-container {
+                padding: 16px !important;
+                border-radius: var(--radius-md) !important;
             }
-            .sidebar-brand {
-                padding: 0 16px;
-                justify-content: center;
+
+            #panel-orders .orders-header h3 {
+                font-size: 1.1rem !important;
             }
-            .nav-link {
-                justify-content: center;
-                padding: 14px;
+
+            #panel-orders .orders-header p {
+                font-size: 0.82rem !important;
+                margin-bottom: 16px !important;
             }
-            .main-wrapper {
-                margin-left: 70px;
+
+            #panel-orders .orders-list {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 14px !important;
+                width: 100% !important;
             }
+
+            #panel-orders .order-card {
+                width: 100% !important;
+                box-sizing: border-box !important;
+                padding: 14px !important;
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 12px !important;
+            }
+
+            #panel-orders .order-card-header {
+                width: 100% !important;
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+            }
+
+            #panel-orders .order-card-body {
+                width: 100% !important;
+                font-size: 0.88rem !important;
+            }
+
+            #panel-orders .order-card-subtext {
+                font-size: 0.78rem !important;
+            }
+
+            #panel-orders .order-card-footer {
+                width: 100% !important;
+                display: flex !important;
+                flex-wrap: wrap !important;
+                gap: 8px !important;
+                margin-top: 8px !important;
+            }
+
+            #panel-orders .order-action-btn {
+                min-height: 40px !important;
+                padding: 10px 16px !important;
+                font-size: 0.85rem !important;
+                flex: 1 1 auto !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                touch-action: manipulation;
+            }
+
+            #panel-orders .orders-table-wrapper {
+                margin-top: 12px !important;
+                border-radius: var(--radius-md) !important;
+                border: 1px solid var(--border-color) !important;
+            }
+
+            #panel-orders .orders-table {
+                min-width: 600px !important;
+                width: 100% !important;
+                font-size: 0.82rem !important;
+            }
+
+            #panel-orders .orders-table th,
+            #panel-orders .orders-table td {
+                padding: 10px 12px !important;
+                white-space: nowrap !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #panel-orders {
+                padding: 8px !important;
+            }
+
+            #panel-orders .orders-container {
+                padding: 12px !important;
+            }
+
+            #panel-orders .order-card-footer {
+                flex-direction: column !important;
+            }
+
+            #panel-orders .order-action-btn {
+                width: 100% !important;
+            }
+        }
+
+
+        .role-select-dropdown {
+            padding: 8px 14px;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .role-select-dropdown:focus {
+            border-color: var(--primary-orange);
         }
     </style>
 </head>
 <body>
+
+
 
     <!-- 1. FIXED LEFT SIDEBAR NAVIGATION -->
     <aside class="admin-sidebar">
@@ -932,6 +1092,14 @@
                     <span>Orders</span>
                 </a>
             </li>
+
+            <!-- TEAM MANAGEMENT TAB -->
+            <li>
+                <a class="nav-link" id="nav-team" onclick="switchTab('team')">
+                    <i class="fa-solid fa-users-gear"></i>
+                    <span>Team Management</span>
+                </a>
+            </li>
         </ul>
 
         <div class="sidebar-footer">
@@ -952,6 +1120,12 @@
             </div>
 
             <div class="header-actions">
+                <!-- PROMINENT SHOP OPEN/CLOSED MASTER TOGGLE -->
+                <button class="btn-shop-status status-open" id="btn-shop-status" onclick="toggleShopStatus()" aria-label="Toggle Shop Open or Closed Status">
+                    <i class="fa-solid fa-store" id="shop-status-icon"></i>
+                    <span id="shop-status-text">Shop Status: OPEN</span>
+                </button>
+
                 <button class="btn-outline" onclick="window.location.reload()">
                     <i class="fa-solid fa-arrows-rotate"></i> Reload Page
                 </button>
@@ -961,8 +1135,11 @@
                     <i class="fa-solid fa-floppy-disk"></i> Save All Changes
                 </button>
 
-                <div class="admin-profile">
-                    <div class="avatar">PM</div>
+                <div class="admin-profile" style="display: flex; align-items: center; gap: 10px;">
+                    <div class="avatar" id="user-avatar">AD</div>
+                    <div style="font-size: 0.82rem; line-height: 1.2;" class="profile-info-text">
+                        <div id="user-profile-name" style="font-weight: 700; color: var(--text-main);">Admin Panel</div>
+                    </div>
                 </div>
             </div>
         </header>
@@ -1014,11 +1191,36 @@
                     </div>
                 </div>
 
-                <div style="background-color: var(--bg-card); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                    <h3 style="margin-bottom: 12px; font-family: var(--font-heading);">System Overview</h3>
-                    <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;">
-                        Welcome to the Perfetto Pizza Administration Hub. Manage your online food menu in real-time. All changes saved here update your local browser database (<code style="color: var(--primary-orange);">localStorage</code> key: <b>menuData</b>), enabling seamless sync with the customer ordering interface.
-                    </p>
+                <!-- ORDER & DELIVERY THRESHOLDS SETTINGS CARD -->
+                <div class="order-settings-card" style="background-color: var(--bg-card); padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-top: 24px;">
+                    <div style="margin-bottom: 16px;">
+                        <h3 style="font-family: var(--font-heading); font-size: 1.15rem; color: var(--text-main); text-transform: uppercase;">
+                            <i class="fa-solid fa-sliders" style="color: var(--primary-orange); margin-right: 8px;"></i> Order & Delivery Thresholds
+                        </h3>
+                        <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: 2px;">Configure minimum order requirements and free delivery threshold for customer checkout.</p>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
+                        <div class="setting-input-group">
+                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                                Minimum Order Value (₹)
+                            </label>
+                            <div class="search-box" style="width: 100%;">
+                                <i class="fa-solid fa-indian-rupee-sign" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                                <input type="number" id="input-min-order-value" class="search-input" style="padding-left: 36px;" value="80" min="0" placeholder="e.g. 80">
+                            </div>
+                        </div>
+
+                        <div class="setting-input-group">
+                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                                Free Delivery Threshold (₹)
+                            </label>
+                            <div class="search-box" style="width: 100%;">
+                                <i class="fa-solid fa-truck-fast" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                                <input type="number" id="input-free-delivery-limit" class="search-input" style="padding-left: 36px;" value="500" min="0" placeholder="e.g. 500">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -1151,16 +1353,223 @@
 
             <!-- TAB 3: ORDERS SCREEN -->
             <section class="view-panel" id="panel-orders">
-                <div style="background-color: var(--bg-card); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                    <h3 style="margin-bottom: 12px; font-family: var(--font-heading);">Recent Customer Orders</h3>
-                    <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">Live incoming orders from the customer app.</p>
+                <div class="orders-container" style="background-color: var(--bg-card); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                    <div class="orders-header" style="margin-bottom: 24px;">
+                        <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: var(--text-main);">Recent Customer Orders</h3>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">Live incoming orders from the customer app.</p>
+                    </div>
                     
-                    <div style="padding: 16px; background-color: var(--bg-body); border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong style="color: var(--primary-orange);">Order #1042</strong> — 1x Farm House (M), 1x Cheesy Garlic Bread
-                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Customer: Rahul Sharma • Total: ₹488</div>
+                    <!-- ORDER CARDS LIST -->
+                    <div class="orders-list" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 30px;">
+                        <div class="order-card" style="padding: 20px; background-color: var(--bg-body); border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                            <div class="order-card-info">
+                                <div class="order-card-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                    <strong style="color: var(--primary-orange); font-size: 1.05rem;">Order #1042</strong>
+                                    <span class="order-status-badge status-preparing" style="background-color: rgba(34, 197, 94, 0.2); color: var(--accent-green); padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.8rem;">Preparing</span>
+                                </div>
+                                <div class="order-card-body" style="margin-top: 8px; color: var(--text-main);">1x Farm House (M), 1x Cheesy Garlic Bread</div>
+                                <div class="order-card-subtext" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Customer: Rahul Sharma • Phone: +91 98765 43210 • Total: ₹488</div>
+                            </div>
+                            <div class="order-card-footer" style="display: flex; gap: 8px; align-items: center;">
+                                <button class="btn-primary order-action-btn" style="padding: 8px 16px; font-size: 0.85rem; border-radius: var(--radius-sm);">
+                                    <i class="fa-solid fa-circle-check"></i> Ready for Pickup
+                                </button>
+                                <button class="btn-outline order-action-btn" style="padding: 8px 14px; font-size: 0.85rem; border-radius: var(--radius-sm);">
+                                    <i class="fa-solid fa-eye"></i> View Details
+                                </button>
+                            </div>
                         </div>
-                        <span style="background-color: rgba(34, 197, 94, 0.2); color: var(--accent-green); padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.8rem;">Preparing</span>
+
+                        <div class="order-card" style="padding: 20px; background-color: var(--bg-body); border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                            <div class="order-card-info">
+                                <div class="order-card-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                    <strong style="color: var(--primary-orange); font-size: 1.05rem;">Order #1041</strong>
+                                    <span class="order-status-badge status-out" style="background-color: rgba(59, 130, 246, 0.2); color: var(--accent-blue); padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.8rem;">Out for Delivery</span>
+                                </div>
+                                <div class="order-card-body" style="margin-top: 8px; color: var(--text-main);">2x Peppy Paneer (L), 2x Coke (500ml)</div>
+                                <div class="order-card-subtext" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Customer: Priya Patel • Phone: +91 98123 45678 • Total: ₹1,120</div>
+                            </div>
+                            <div class="order-card-footer" style="display: flex; gap: 8px; align-items: center;">
+                                <button class="btn-primary order-action-btn" style="padding: 8px 16px; font-size: 0.85rem; border-radius: var(--radius-sm); background-color: var(--accent-blue);">
+                                    <i class="fa-solid fa-truck-fast"></i> Track Order
+                                </button>
+                                <button class="btn-outline order-action-btn" style="padding: 8px 14px; font-size: 0.85rem; border-radius: var(--radius-sm);">
+                                    <i class="fa-solid fa-eye"></i> View Details
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ORDERS DATA TABLE WITH RESPONSIVE WRAPPER -->
+                    <h4 style="font-family: var(--font-heading); font-size: 1.05rem; margin-bottom: 12px; color: var(--text-main);">All Live & Historical Orders Table</h4>
+                    <div class="orders-table-wrapper" style="overflow-x: auto; width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                        <table class="data-table orders-table" style="width: 100%; min-width: 650px;">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer Name</th>
+                                    <th>Items Ordered</th>
+                                    <th>Total Amount</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>#1042</strong></td>
+                                    <td>Rahul Sharma</td>
+                                    <td>1x Farm House (M), 1x Garlic Bread</td>
+                                    <td>₹488</td>
+                                    <td><span class="status-text available">Preparing</span></td>
+                                    <td>
+                                        <button class="btn-outline order-action-btn" style="padding: 6px 12px; font-size: 0.78rem;">
+                                            <i class="fa-solid fa-gear"></i> Manage
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>#1041</strong></td>
+                                    <td>Priya Patel</td>
+                                    <td>2x Peppy Paneer (L), 2x Coke</td>
+                                    <td>₹1,120</td>
+                                    <td><span class="status-text" style="color: var(--accent-blue);">Out for Delivery</span></td>
+                                    <td>
+                                        <button class="btn-outline order-action-btn" style="padding: 6px 12px; font-size: 0.78rem;">
+                                            <i class="fa-solid fa-gear"></i> Manage
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>#1040</strong></td>
+                                    <td>Amit Verma</td>
+                                    <td>1x Veg Extravaganza (M)</td>
+                                    <td>₹540</td>
+                                    <td><span class="status-text" style="color: var(--accent-green);">Delivered</span></td>
+                                    <td>
+                                        <button class="btn-outline order-action-btn" style="padding: 6px 12px; font-size: 0.78rem;">
+                                            <i class="fa-solid fa-eye"></i> View
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: TEAM & ROLE MANAGEMENT SCREEN -->
+            <section class="view-panel" id="panel-team">
+                <div style="background-color: var(--bg-card); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                            <h3 style="font-family: var(--font-heading); font-size: 1.25rem;">Team & Role Management</h3>
+                            <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 4px;">Assign user permissions, manage staff members, and configure access roles.</p>
+                        </div>
+                        <button class="btn-primary" onclick="showToast('Add Team Member feature coming soon!')">
+                            <i class="fa-solid fa-user-plus"></i> Add Team Member
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Staff Member</th>
+                                    <th>Email Address</th>
+                                    <th>Assigned Role</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div class="avatar" style="background-color: rgba(255,107,0,0.2); color: var(--primary-orange);">MA</div>
+                                            <div>
+                                                <strong>Master Admin</strong>
+                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Super User</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><code>your_email@gmail.com</code></td>
+                                    <td>
+                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
+                                            <option value="Master Admin" selected>Master Admin</option>
+                                            <option value="Admin">Admin</option>
+                                            <option value="Chef">Chef</option>
+                                            <option value="Delivery Boy">Delivery Boy</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="status-text available">Active</span></td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div class="avatar" style="background-color: rgba(59,130,246,0.2); color: #3b82f6;">SA</div>
+                                            <div>
+                                                <strong>Admin Sarah</strong>
+                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Manager</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><code>admin@test.com</code></td>
+                                    <td>
+                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
+                                            <option value="Master Admin">Master Admin</option>
+                                            <option value="Admin" selected>Admin</option>
+                                            <option value="Chef">Chef</option>
+                                            <option value="Delivery Boy">Delivery Boy</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="status-text available">Active</span></td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div class="avatar" style="background-color: rgba(245,158,11,0.2); color: #f59e0b;">CA</div>
+                                            <div>
+                                                <strong>Chef Alex</strong>
+                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Kitchen Staff</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><code>chef@test.com</code></td>
+                                    <td>
+                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
+                                            <option value="Master Admin">Master Admin</option>
+                                            <option value="Admin">Admin</option>
+                                            <option value="Chef" selected>Chef</option>
+                                            <option value="Delivery Boy">Delivery Boy</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="status-text available">Active</span></td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div class="avatar" style="background-color: rgba(168,85,247,0.2); color: #a855f7;">DS</div>
+                                            <div>
+                                                <strong>Delivery Boy Sam</strong>
+                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Logistics</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><code>delivery@test.com</code></td>
+                                    <td>
+                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
+                                            <option value="Master Admin">Master Admin</option>
+                                            <option value="Admin">Admin</option>
+                                            <option value="Chef">Chef</option>
+                                            <option value="Delivery Boy" selected>Delivery Boy</option>
+                                        </select>
+                                    </td>
+                                    <td><span class="status-text available">Active</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -1930,6 +2339,7 @@
             });
 
             saveToLocalStorage();
+            saveOrderSettings(false);
             updateStats();
 
             if (currentSearchQuery.trim() !== '') {
@@ -1940,7 +2350,7 @@
                 renderCategoryGrid();
             }
 
-            showToast('All menu changes & prices saved successfully!');
+            showToast('All menu changes, prices & settings saved successfully!');
         }
 
         // 7. RESET TO DEFAULTS
@@ -1998,6 +2408,7 @@
             if (tabName === 'dashboard') title.textContent = 'Dashboard Overview';
             if (tabName === 'menu') title.textContent = 'Menu Management';
             if (tabName === 'orders') title.textContent = 'Customer Orders';
+            if (tabName === 'team') title.textContent = 'Team & Role Management';
         }
 
         // 9. TOAST NOTIFICATION UTILITY
@@ -2012,9 +2423,114 @@
             }, 3000);
         }
 
+        // --------------------------------------------------------------------------
+        // 10. SHOP OPEN/CLOSED MASTER TOGGLE SYSTEM
+        // --------------------------------------------------------------------------
+        const SHOP_STATUS_KEY = 'shopStatus';
+
+        function getShopStatus() {
+            return localStorage.getItem(SHOP_STATUS_KEY) || 'open';
+        }
+
+        function updateShopStatusUI(status) {
+            const btn = document.getElementById('btn-shop-status');
+            const textEl = document.getElementById('shop-status-text');
+            const iconEl = document.getElementById('shop-status-icon');
+
+            if (!btn || !textEl || !iconEl) return;
+
+            if (status === 'closed') {
+                btn.className = 'btn-shop-status status-closed';
+                textEl.textContent = 'Shop Status: CLOSED';
+                iconEl.className = 'fa-solid fa-store-slash';
+            } else {
+                btn.className = 'btn-shop-status status-open';
+                textEl.textContent = 'Shop Status: OPEN';
+                iconEl.className = 'fa-solid fa-store';
+            }
+        }
+
+        function toggleShopStatus() {
+            const current = getShopStatus();
+            const nextStatus = current === 'open' ? 'closed' : 'open';
+
+            try {
+                localStorage.setItem(SHOP_STATUS_KEY, nextStatus);
+                window.dispatchEvent(new Event('storage'));
+            } catch (e) {
+                console.error('Failed to save shopStatus to localStorage:', e);
+            }
+
+            updateShopStatusUI(nextStatus);
+
+            if (nextStatus === 'closed') {
+                showToast('Shop status updated to CLOSED. Customer ordering disabled.');
+            } else {
+                showToast('Shop status updated to OPEN. Customer ordering enabled!');
+            }
+        }
+
+        function initShopStatus() {
+            const status = getShopStatus();
+            updateShopStatusUI(status);
+        }
+
+        // --------------------------------------------------------------------------
+        // 11. ORDER & DELIVERY THRESHOLDS SETTINGS SYSTEM
+        // --------------------------------------------------------------------------
+        const MIN_ORDER_KEY = 'minOrderValue';
+        const FREE_DELIVERY_KEY = 'freeDeliveryLimit';
+
+        function getMinOrderValue() {
+            const val = localStorage.getItem(MIN_ORDER_KEY);
+            return val !== null ? parseFloat(val) : 80;
+        }
+
+        function getFreeDeliveryLimit() {
+            const val = localStorage.getItem(FREE_DELIVERY_KEY);
+            return val !== null ? parseFloat(val) : 500;
+        }
+
+        function initOrderSettingsUI() {
+            const minInput = document.getElementById('input-min-order-value');
+            const freeInput = document.getElementById('input-free-delivery-limit');
+
+            if (minInput) minInput.value = getMinOrderValue();
+            if (freeInput) freeInput.value = getFreeDeliveryLimit();
+        }
+
+        function saveOrderSettings(showToastMsg = true) {
+            const minInput = document.getElementById('input-min-order-value');
+            const freeInput = document.getElementById('input-free-delivery-limit');
+
+            const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
+            const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
+
+            try {
+                localStorage.setItem(MIN_ORDER_KEY, minVal.toString());
+                localStorage.setItem(FREE_DELIVERY_KEY, freeVal.toString());
+                window.dispatchEvent(new Event('storage'));
+                if (showToastMsg) {
+                    showToast(`Order settings saved! Min Order: ₹${minVal}, Free Delivery: ₹${freeVal}`);
+                }
+            } catch (e) {
+                console.error('Failed to save order settings to localStorage:', e);
+            }
+        }
+
+        // 12. GLOBAL 'ENTER' KEY EVENT LISTENER FOR INSTANT SAVING
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
+                e.preventDefault();
+                saveAllChanges();
+            }
+        });
+
         // INITIALIZE ON LOAD, HISTORY STATE & CROSS-TAB STORAGE SYNCHRONIZATION
         window.addEventListener('DOMContentLoaded', () => {
             initMenuData();
+            initShopStatus();
+            initOrderSettingsUI();
 
             // Set initial History API state for root category grid
             if (!history.state) {
@@ -2035,8 +2551,14 @@
         });
 
         window.addEventListener('storage', (e) => {
-            if (e.key === STORAGE_KEY) {
+            if (!e.key || e.key === STORAGE_KEY) {
                 initMenuData();
+            }
+            if (!e.key || e.key === SHOP_STATUS_KEY) {
+                initShopStatus();
+            }
+            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
+                initOrderSettingsUI();
             }
         });
     </script>

@@ -593,12 +593,124 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
     }
 }
 
+// --------------------------------------------------------------------------
+// SHOP OPEN / CLOSED STATUS SYSTEM
+// --------------------------------------------------------------------------
+const SHOP_STATUS_KEY = 'shopStatus';
+
+function getCustomerShopStatus() {
+    return localStorage.getItem(SHOP_STATUS_KEY) || 'open';
+}
+
+function checkAndUpdateShopStatusUI() {
+    const status = getCustomerShopStatus();
+    const banner = document.getElementById('shop-closed-banner');
+    const isClosed = status === 'closed';
+
+    if (banner) {
+        banner.style.display = isClosed ? 'block' : 'none';
+    }
+
+    if (isClosed) {
+        document.body.classList.add('shop-closed');
+    } else {
+        document.body.classList.remove('shop-closed');
+    }
+
+    const checkoutBtn = document.querySelector('.checkout-btn');
+    if (checkoutBtn) {
+        if (isClosed) {
+            checkoutBtn.setAttribute('disabled', 'true');
+        } else {
+            checkoutBtn.removeAttribute('disabled');
+        }
+    }
+}
+
+// --------------------------------------------------------------------------
+// ORDER & DELIVERY THRESHOLDS SYSTEM
+// --------------------------------------------------------------------------
+const MIN_ORDER_KEY = 'minOrderValue';
+const FREE_DELIVERY_KEY = 'freeDeliveryLimit';
+
+function getMinOrderValue() {
+    const val = localStorage.getItem(MIN_ORDER_KEY);
+    return val !== null ? parseFloat(val) : 80;
+}
+
+function getFreeDeliveryLimit() {
+    const val = localStorage.getItem(FREE_DELIVERY_KEY);
+    return val !== null ? parseFloat(val) : 500;
+}
+
+function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
+    const banner = document.getElementById('cart-threshold-banner');
+    const content = document.getElementById('threshold-banner-content');
+    const checkoutBtn = document.querySelector('.checkout-btn');
+
+    if (!banner || !content) return;
+
+    if (cart.length === 0) {
+        banner.style.display = 'none';
+        if (checkoutBtn) {
+            checkoutBtn.setAttribute('disabled', 'true');
+        }
+        return;
+    }
+
+    banner.style.display = 'block';
+
+    const isShopClosed = getCustomerShopStatus() === 'closed';
+
+    if (subtotal < minOrderVal) {
+        // CONDITION A: Below Minimum Order Value
+        const diff = (minOrderVal - subtotal).toFixed(2);
+        banner.className = 'cart-threshold-banner status-below-min';
+        content.innerHTML = `
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.</span>
+        `;
+        if (checkoutBtn) {
+            checkoutBtn.setAttribute('disabled', 'true');
+        }
+    } else if (subtotal < freeDeliveryLim) {
+        // CONDITION B: Above Minimum, Below Free Delivery Limit
+        const diff = (freeDeliveryLim - subtotal).toFixed(2);
+        banner.className = 'cart-threshold-banner status-upsell-free';
+        content.innerHTML = `
+            <i class="fa-solid fa-truck-arrow-right"></i>
+            <span>Add ${formatPrice(diff)} more to get FREE Home Delivery!</span>
+        `;
+        if (checkoutBtn && !isShopClosed) {
+            checkoutBtn.removeAttribute('disabled');
+        }
+    } else {
+        // CONDITION C: Free Delivery Unlocked!
+        banner.className = 'cart-threshold-banner status-unlocked-free';
+        content.innerHTML = `
+            <i class="fa-solid fa-circle-check"></i>
+            <span>Congratulations! You have unlocked FREE Delivery.</span>
+        `;
+        if (checkoutBtn && !isShopClosed) {
+            checkoutBtn.removeAttribute('disabled');
+        }
+    }
+}
+
 // REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
 window.addEventListener('storage', (e) => {
-    if (e.key === MENU_STORAGE_KEY && lastCategoryState.categoryName && activeTabName === 'category-detail') {
-        openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+    if (!e.key || e.key === SHOP_STATUS_KEY) {
+        checkAndUpdateShopStatusUI();
     }
-    if (e.key === CART_STORAGE_KEY) {
+    if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
+        updateCartUI();
+    }
+    if (!e.key || e.key === MENU_STORAGE_KEY) {
+        if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
+            openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+        }
+    }
+    if (!e.key || e.key === CART_STORAGE_KEY) {
         cart = loadCartFromStorage();
         updateCartUI();
     }
@@ -625,6 +737,10 @@ function setupFastFoodCards() {
 // 6. CART MANAGEMENT & CALCULATIONS
 // --------------------------------------------------------------------------
 function addToCart(name, price, img) {
+    if (getCustomerShopStatus() === 'closed') {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
+    }
     const existingIndex = cart.findIndex(item => item.name === name);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
@@ -637,6 +753,10 @@ function addToCart(name, price, img) {
 }
 
 function updateQuantity(index, change) {
+    if (getCustomerShopStatus() === 'closed' && change > 0) {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
+    }
     cart[index].qty += change;
     if (cart[index].qty <= 0) {
         cart.splice(index, 1);
@@ -686,23 +806,68 @@ function updateCartUI() {
         `).join('');
     }
 
-    // 3. Recalculate Subtotal & Totals
+    // 3. Recalculate Subtotal, Thresholds & Delivery Fee
+    const minOrderVal = getMinOrderValue();
+    const freeDeliveryLim = getFreeDeliveryLimit();
+
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    const delivery = cart.length > 0 ? 49.00 : 0.00;
+
+    let delivery = 0.00;
+    if (cart.length > 0) {
+        if (subtotal >= freeDeliveryLim) {
+            delivery = 0.00; // Condition C: Free Delivery Unlocked
+        } else {
+            delivery = 49.00; // Standard Delivery Fee
+        }
+    }
+
     const tax = subtotal * 0.05;
     const total = subtotal + delivery + tax;
 
-    document.getElementById('cart-subtotal').textContent = formatPrice(subtotal);
-    document.getElementById('cart-delivery').textContent = formatPrice(delivery);
-    document.getElementById('cart-tax').textContent = formatPrice(tax);
-    document.getElementById('cart-total').textContent = formatPrice(total);
+    const subtotalEl = document.getElementById('cart-subtotal');
+    const deliveryEl = document.getElementById('cart-delivery');
+    const taxEl = document.getElementById('cart-tax');
+    const totalEl = document.getElementById('cart-total');
+
+    if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
+
+    if (deliveryEl) {
+        if (cart.length > 0 && subtotal >= freeDeliveryLim) {
+            deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">₹49</span><span class="free-delivery-tag">FREE</span>`;
+        } else {
+            deliveryEl.textContent = formatPrice(delivery);
+        }
+    }
+
+    if (taxEl) taxEl.textContent = formatPrice(tax);
+    if (totalEl) totalEl.textContent = formatPrice(total);
+
+    // 4. Update Cart Threshold Banner & Checkout Button State
+    updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim);
+
+    // 5. Ensure shop closed state overrides if shop is closed
+    checkAndUpdateShopStatusUI();
 }
 
 function processCheckout() {
+    if (getCustomerShopStatus() === 'closed') {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
+    }
+    const minOrderVal = getMinOrderValue();
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+
     if (cart.length === 0) {
         showToast('Please add items to your cart first!');
         return;
     }
+
+    if (subtotal < minOrderVal) {
+        const diff = (minOrderVal - subtotal).toFixed(2);
+        showToast(`Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`);
+        return;
+    }
+
     showToast('🎉 Order placed successfully! Arriving in 25 mins.');
     cart = [];
     saveCartToStorage();
@@ -1349,4 +1514,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initLogoModal();
     setupHistoryState();
     initCustomerSearchEvents();
+    checkAndUpdateShopStatusUI();
 });
