@@ -849,6 +849,8 @@ function updateCartUI() {
     checkAndUpdateShopStatusUI();
 }
 
+const DELIVERY_PROFILE_KEY = 'customerDeliveryProfile';
+
 function processCheckout() {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
@@ -868,6 +870,189 @@ function processCheckout() {
         return;
     }
 
+    // Intercept checkout: Open Delivery Details modal
+    openDeliveryModal();
+}
+
+function openDeliveryModal() {
+    const modal = document.getElementById('delivery-modal');
+    if (!modal) return;
+
+    // Update order summary inside modal
+    const itemCount = cart.reduce((sum, i) => sum + i.qty, 0);
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const tax = subtotal * 0.05;
+    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
+    const total = subtotal + tax + deliveryFee;
+
+    const itemCountEl = document.getElementById('modal-item-count');
+    const orderTotalEl = document.getElementById('modal-order-total');
+    if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount > 1 ? 's' : ''}`;
+    if (orderTotalEl) orderTotalEl.textContent = formatPrice(total);
+
+    // Pre-fill profile if saved previously in localStorage
+    try {
+        const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
+        if (savedProfile) {
+            const profile = JSON.parse(savedProfile);
+            if (profile.fullName && document.getElementById('customer-fullname')) {
+                document.getElementById('customer-fullname').value = profile.fullName;
+            }
+            if (profile.phone && document.getElementById('customer-phone')) {
+                document.getElementById('customer-phone').value = profile.phone;
+            }
+            if (profile.colonyName && document.getElementById('customer-colony-name')) {
+                document.getElementById('customer-colony-name').value = profile.colonyName;
+            }
+            if (profile.nearBy && document.getElementById('customer-nearby')) {
+                document.getElementById('customer-nearby').value = profile.nearBy;
+            }
+            if (profile.streetName && document.getElementById('customer-street-name')) {
+                document.getElementById('customer-street-name').value = profile.streetName;
+            }
+            if (profile.wardNo && document.getElementById('customer-ward-no')) {
+                document.getElementById('customer-ward-no').value = profile.wardNo;
+            }
+        }
+    } catch (e) {
+        console.error('Error loading saved delivery profile:', e);
+    }
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    setupDeliveryInputValidation();
+}
+
+function setupDeliveryInputValidation() {
+    const fieldIds = [
+        'customer-fullname',
+        'customer-phone',
+        'customer-colony-name',
+        'customer-nearby',
+        'customer-street-name',
+        'customer-ward-no'
+    ];
+
+    fieldIds.forEach(id => {
+        const input = document.getElementById(id);
+        if (input && !input.dataset.valListener) {
+            input.dataset.valListener = "true";
+            input.addEventListener('input', () => {
+                if (input.value.trim() !== '') {
+                    input.classList.remove('invalid-field');
+                }
+            });
+        }
+    });
+}
+
+function closeDeliveryModal() {
+    const modal = document.getElementById('delivery-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function handleSendOTP(event) {
+    if (event) event.preventDefault();
+    const phoneInput = document.getElementById('customer-phone');
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+
+    if (!phone) {
+        if (phoneInput) {
+            phoneInput.classList.add('invalid-field');
+            phoneInput.focus();
+        }
+        showToast('Please enter your mobile number first!');
+        return;
+    }
+
+    if (phoneInput) phoneInput.classList.remove('invalid-field');
+    showToast(`📱 OTP sent to ${phone}!`);
+}
+
+function handleFinalOrderSubmit(event) {
+    if (event) event.preventDefault();
+
+    const fieldIds = [
+        'customer-fullname',
+        'customer-phone',
+        'customer-colony-name',
+        'customer-nearby',
+        'customer-street-name',
+        'customer-ward-no'
+    ];
+
+    let hasEmpty = false;
+    let firstEmpty = null;
+
+    fieldIds.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            if (!input.value.trim()) {
+                input.classList.add('invalid-field');
+                hasEmpty = true;
+                if (!firstEmpty) firstEmpty = input;
+            } else {
+                input.classList.remove('invalid-field');
+            }
+        }
+    });
+
+    if (hasEmpty) {
+        if (firstEmpty) firstEmpty.focus();
+        showToast('Please fill in all required delivery details!');
+        return;
+    }
+
+    const fullName = document.getElementById('customer-fullname').value.trim();
+    const phone = document.getElementById('customer-phone').value.trim();
+    const colonyName = document.getElementById('customer-colony-name').value.trim();
+    const nearBy = document.getElementById('customer-nearby').value.trim();
+    const streetName = document.getElementById('customer-street-name').value.trim();
+    const wardNo = document.getElementById('customer-ward-no').value.trim();
+
+    // Save profile for future convenience
+    const profile = { fullName, phone, colonyName, nearBy, streetName, wardNo };
+    try {
+        localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
+    } catch (e) {
+        console.error('Error saving delivery profile:', e);
+    }
+
+    // Process & store order object
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const tax = subtotal * 0.05;
+    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
+    const grandTotal = subtotal + tax + deliveryFee;
+
+    const newOrder = {
+        id: (Math.floor(1000 + Math.random() * 9000)).toString(),
+        customerName: fullName,
+        phone: phone,
+        address: `${colonyName}, Near: ${nearBy}, ${streetName}, Ward No. ${wardNo}`,
+        timeAgo: 'Just Now',
+        items: cart.map(item => ({
+            name: `${item.qty}x ${item.name} (${item.size || 'Standard'})`,
+            notes: ''
+        })),
+        total: Math.round(grandTotal),
+        paymentStatus: 'Cash on Delivery',
+        status: 'new',
+        createdAt: new Date().toISOString()
+    };
+
+    // Save order to localStorage
+    try {
+        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+        const ordersList = storedOrders ? JSON.parse(storedOrders) : [];
+        ordersList.unshift(newOrder);
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
+    } catch (e) {
+        console.error('Error saving order:', e);
+    }
+
+    closeDeliveryModal();
     showToast('🎉 Order placed successfully! Arriving in 25 mins.');
     cart = [];
     saveCartToStorage();

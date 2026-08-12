@@ -387,6 +387,90 @@
             <span id="toast-message">Item selected!</span>
         </div>
 
+        <!-- HYPER-LOCAL DELIVERY DETAILS MODAL -->
+        <div class="delivery-modal-overlay" id="delivery-modal" aria-hidden="true" style="display: none;">
+            <div class="delivery-modal-content">
+                <div class="delivery-modal-header">
+                    <div>
+                        <h3 class="delivery-modal-title">
+                            <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Delivery Details
+                        </h3>
+                        <p class="delivery-modal-subtext">Enter hyper-local address for instant town delivery</p>
+                    </div>
+                    <button type="button" class="close-delivery-modal-btn" onclick="closeDeliveryModal()" aria-label="Close Modal">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <form id="delivery-details-form" onsubmit="handleFinalOrderSubmit(event)" novalidate>
+                    <div class="form-grid-hyperlocal">
+                        <div class="hyperlocal-field">
+                            <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
+                            <div class="input-icon-group">
+                                <i class="fa-solid fa-user"></i>
+                                <input type="text" id="customer-fullname" required autocomplete="name">
+                            </div>
+                        </div>
+
+                        <div class="hyperlocal-field">
+                            <label for="customer-phone">Mobile Number <span class="req-star">*</span></label>
+                            <div class="input-icon-group">
+                                <i class="fa-solid fa-phone"></i>
+                                <input type="tel" id="customer-phone" required autocomplete="tel">
+                            </div>
+                            <button type="button" class="btn-send-otp" id="btn-send-otp" onclick="handleSendOTP(event)">
+                                <i class="fa-solid fa-paper-plane"></i> Send OTP
+                            </button>
+                        </div>
+
+                        <div class="hyperlocal-field">
+                            <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
+                            <div class="input-icon-group">
+                                <i class="fa-solid fa-building"></i>
+                                <input type="text" id="customer-colony-name" required>
+                            </div>
+                        </div>
+
+                        <div class="hyperlocal-field">
+                            <label for="customer-nearby">Near By <span class="req-star">*</span></label>
+                            <div class="input-icon-group">
+                                <i class="fa-solid fa-location-dot"></i>
+                                <input type="text" id="customer-nearby" required>
+                            </div>
+                        </div>
+
+                        <div class="hyperlocal-field">
+                            <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
+                            <div class="input-icon-group">
+                                <i class="fa-solid fa-road"></i>
+                                <input type="text" id="customer-street-name" required>
+                            </div>
+                        </div>
+
+                        <div class="hyperlocal-field">
+                            <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
+                            <div class="input-icon-group">
+                                <i class="fa-solid fa-hashtag"></i>
+                                <input type="text" id="customer-ward-no" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ORDER SUMMARY PREVIEW IN MODAL -->
+                    <div class="delivery-order-summary-box">
+                        <div class="summary-box-row">
+                            <span>Order Total (<span id="modal-item-count">0 items</span>):</span>
+                            <strong id="modal-order-total" style="color: var(--primary-orange); font-size: 1.1rem;">₹0</strong>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-confirm-order">
+                        <i class="fa-solid fa-circle-check"></i> Confirm Order
+                    </button>
+                </form>
+            </div>
+        </div>
+
         <!-- WHATSAPP DP STYLE LOGO POPUP MODAL -->
         <div class="logo-modal-overlay" id="logo-modal" aria-hidden="true">
             <div class="logo-modal-content" id="logo-modal-content">

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfetto Pizza - Mobile Staff Portal</title>
+    <meta name="description" content="Mobile-first kitchen and delivery management portal for Perfetto Pizza staff.">
+    
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Staff Styles -->
+    <link rel="stylesheet" href="staff.css">
+</head>
+<body>
+
+    <!-- APP CONTAINER (Mobile Frame Max Width centered on desktop) -->
+    <div class="staff-app">
+        
+        <!-- HEADER BAR -->
+        <header class="staff-header">
+            <div class="header-top">
+                <div class="brand-info">
+                    <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-logo">
+                    <div>
+                        <h1 class="brand-title">Perfetto Pizza</h1>
+                        <div class="brand-tag">Staff Portal</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ROLE SWITCHER & USER INFO -->
+            <div class="role-bar">
+                <div class="user-role-pill">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <span>Role: <strong id="current-role-label">Chef (Kitchen)</strong></span>
+                </div>
+                
+                <div class="role-toggle-group">
+                    <button class="role-btn active" id="role-btn-chef" onclick="switchRole('chef')">
+                        <i class="fa-solid fa-utensils"></i> Chef
+                    </button>
+                    <button class="role-btn" id="role-btn-delivery" onclick="switchRole('delivery')">
+                        <i class="fa-solid fa-motorcycle"></i> Delivery
+                    </button>
+                </div>
+            </div>
+
+            <!-- FILTER / TAB NAVIGATION BAR -->
+            <nav class="status-tabs">
+                <button class="tab-btn active" data-filter="all" onclick="filterOrders('all', this)">
+                    All (<span id="count-all">0</span>)
+                </button>
+                <button class="tab-btn" data-filter="kitchen" onclick="filterOrders('kitchen', this)">
+                    Kitchen (<span id="count-kitchen">0</span>)
+                </button>
+                <button class="tab-btn" data-filter="ready" onclick="filterOrders('ready', this)">
+                    Ready (<span id="count-ready">0</span>)
+                </button>
+                <button class="tab-btn" data-filter="delivery" onclick="filterOrders('delivery', this)">
+                    Out (<span id="count-delivery">0</span>)
+                </button>
+                <button class="tab-btn" data-filter="completed" onclick="filterOrders('completed', this)">
+                    Done (<span id="count-completed">0</span>)
+                </button>
+            </nav>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="staff-main">
+            
+            <!-- LIVE ORDERS FEED -->
+            <section class="orders-section">
+                <div class="section-title-bar">
+                    <h2 id="section-heading">Live Kitchen & Delivery Orders</h2>
+                    <span class="live-pulse-badge">
+                        <span class="pulse-dot"></span> Live
+                    </span>
+                </div>
+
+                <!-- CARDS CONTAINER -->
+                <div class="orders-cards-container" id="orders-list-container">
+                    <!-- Dynamic rendering via JS -->
+                </div>
+
+                <!-- EMPTY STATE -->
+                <div class="empty-state" id="empty-state" style="display: none;">
+                    <i class="fa-solid fa-bell-slash"></i>
+                    <h3>No Active Orders</h3>
+                    <p>There are currently no orders in this queue filter.</p>
+                </div>
+            </section>
+
+        </main>
+
+
+
+        <!-- TOAST NOTIFICATION CONTAINER -->
+        <div id="staff-toast" class="staff-toast">
+            <i class="fa-solid fa-circle-check" id="toast-icon"></i>
+            <span id="toast-message">Action updated successfully</span>
+        </div>
+
+    </div>
+
+    <script src="staff.js"></script>
+</body>
+</html>

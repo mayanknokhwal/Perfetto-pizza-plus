@@ -176,6 +176,9 @@
         .sidebar-footer {
             padding: 20px;
             border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .customer-portal-btn {
@@ -916,125 +919,7 @@
             letter-spacing: 0.03em;
         }
 
-        /* --------------------------------------------------------------------------
-           ORDERS SECTION SCOPED MOBILE RESPONSIVE STYLES
-           Strictly targeted to #panel-orders so Dashboard, Menu Management, 
-           Team Management, and Global Sidebar layout strictly retain desktop view.
-           -------------------------------------------------------------------------- */
-        #panel-orders .orders-table-wrapper {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            width: 100%;
-        }
 
-        @media (max-width: 768px) {
-            #panel-orders {
-                padding: 12px !important;
-            }
-
-            #panel-orders .orders-container {
-                padding: 16px !important;
-                border-radius: var(--radius-md) !important;
-            }
-
-            #panel-orders .orders-header h3 {
-                font-size: 1.1rem !important;
-            }
-
-            #panel-orders .orders-header p {
-                font-size: 0.82rem !important;
-                margin-bottom: 16px !important;
-            }
-
-            #panel-orders .orders-list {
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 14px !important;
-                width: 100% !important;
-            }
-
-            #panel-orders .order-card {
-                width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 14px !important;
-                flex-direction: column !important;
-                align-items: flex-start !important;
-                gap: 12px !important;
-            }
-
-            #panel-orders .order-card-header {
-                width: 100% !important;
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                flex-wrap: wrap !important;
-                gap: 8px !important;
-            }
-
-            #panel-orders .order-card-body {
-                width: 100% !important;
-                font-size: 0.88rem !important;
-            }
-
-            #panel-orders .order-card-subtext {
-                font-size: 0.78rem !important;
-            }
-
-            #panel-orders .order-card-footer {
-                width: 100% !important;
-                display: flex !important;
-                flex-wrap: wrap !important;
-                gap: 8px !important;
-                margin-top: 8px !important;
-            }
-
-            #panel-orders .order-action-btn {
-                min-height: 40px !important;
-                padding: 10px 16px !important;
-                font-size: 0.85rem !important;
-                flex: 1 1 auto !important;
-                display: inline-flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                touch-action: manipulation;
-            }
-
-            #panel-orders .orders-table-wrapper {
-                margin-top: 12px !important;
-                border-radius: var(--radius-md) !important;
-                border: 1px solid var(--border-color) !important;
-            }
-
-            #panel-orders .orders-table {
-                min-width: 600px !important;
-                width: 100% !important;
-                font-size: 0.82rem !important;
-            }
-
-            #panel-orders .orders-table th,
-            #panel-orders .orders-table td {
-                padding: 10px 12px !important;
-                white-space: nowrap !important;
-            }
-        }
-
-        @media (max-width: 480px) {
-            #panel-orders {
-                padding: 8px !important;
-            }
-
-            #panel-orders .orders-container {
-                padding: 12px !important;
-            }
-
-            #panel-orders .order-card-footer {
-                flex-direction: column !important;
-            }
-
-            #panel-orders .order-action-btn {
-                width: 100% !important;
-            }
-        }
 
 
         .role-select-dropdown {
@@ -1086,12 +971,7 @@
                 </a>
             </li>
 
-            <li>
-                <a class="nav-link" id="nav-orders" onclick="switchTab('orders')">
-                    <i class="fa-solid fa-receipt"></i>
-                    <span>Orders</span>
-                </a>
-            </li>
+
 
             <!-- TEAM MANAGEMENT TAB -->
             <li>
@@ -1103,6 +983,10 @@
         </ul>
 
         <div class="sidebar-footer">
+            <a href="staff.html" class="customer-portal-btn">
+                <i class="fa-solid fa-fire"></i>
+                <span>Staff App (Orders)</span>
+            </a>
             <a href="index.html" class="customer-portal-btn">
                 <i class="fa-solid fa-store"></i>
                 <span>Customer App</span>
@@ -1351,111 +1235,7 @@
 
             </section>
 
-            <!-- TAB 3: ORDERS SCREEN -->
-            <section class="view-panel" id="panel-orders">
-                <div class="orders-container" style="background-color: var(--bg-card); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                    <div class="orders-header" style="margin-bottom: 24px;">
-                        <h3 style="font-family: var(--font-heading); font-size: 1.25rem; color: var(--text-main);">Recent Customer Orders</h3>
-                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">Live incoming orders from the customer app.</p>
-                    </div>
-                    
-                    <!-- ORDER CARDS LIST -->
-                    <div class="orders-list" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 30px;">
-                        <div class="order-card" style="padding: 20px; background-color: var(--bg-body); border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                            <div class="order-card-info">
-                                <div class="order-card-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                                    <strong style="color: var(--primary-orange); font-size: 1.05rem;">Order #1042</strong>
-                                    <span class="order-status-badge status-preparing" style="background-color: rgba(34, 197, 94, 0.2); color: var(--accent-green); padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.8rem;">Preparing</span>
-                                </div>
-                                <div class="order-card-body" style="margin-top: 8px; color: var(--text-main);">1x Farm House (M), 1x Cheesy Garlic Bread</div>
-                                <div class="order-card-subtext" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Customer: Rahul Sharma • Phone: +91 98765 43210 • Total: ₹488</div>
-                            </div>
-                            <div class="order-card-footer" style="display: flex; gap: 8px; align-items: center;">
-                                <button class="btn-primary order-action-btn" style="padding: 8px 16px; font-size: 0.85rem; border-radius: var(--radius-sm);">
-                                    <i class="fa-solid fa-circle-check"></i> Ready for Pickup
-                                </button>
-                                <button class="btn-outline order-action-btn" style="padding: 8px 14px; font-size: 0.85rem; border-radius: var(--radius-sm);">
-                                    <i class="fa-solid fa-eye"></i> View Details
-                                </button>
-                            </div>
-                        </div>
 
-                        <div class="order-card" style="padding: 20px; background-color: var(--bg-body); border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                            <div class="order-card-info">
-                                <div class="order-card-header" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                                    <strong style="color: var(--primary-orange); font-size: 1.05rem;">Order #1041</strong>
-                                    <span class="order-status-badge status-out" style="background-color: rgba(59, 130, 246, 0.2); color: var(--accent-blue); padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 0.8rem;">Out for Delivery</span>
-                                </div>
-                                <div class="order-card-body" style="margin-top: 8px; color: var(--text-main);">2x Peppy Paneer (L), 2x Coke (500ml)</div>
-                                <div class="order-card-subtext" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Customer: Priya Patel • Phone: +91 98123 45678 • Total: ₹1,120</div>
-                            </div>
-                            <div class="order-card-footer" style="display: flex; gap: 8px; align-items: center;">
-                                <button class="btn-primary order-action-btn" style="padding: 8px 16px; font-size: 0.85rem; border-radius: var(--radius-sm); background-color: var(--accent-blue);">
-                                    <i class="fa-solid fa-truck-fast"></i> Track Order
-                                </button>
-                                <button class="btn-outline order-action-btn" style="padding: 8px 14px; font-size: 0.85rem; border-radius: var(--radius-sm);">
-                                    <i class="fa-solid fa-eye"></i> View Details
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ORDERS DATA TABLE WITH RESPONSIVE WRAPPER -->
-                    <h4 style="font-family: var(--font-heading); font-size: 1.05rem; margin-bottom: 12px; color: var(--text-main);">All Live & Historical Orders Table</h4>
-                    <div class="orders-table-wrapper" style="overflow-x: auto; width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-                        <table class="data-table orders-table" style="width: 100%; min-width: 650px;">
-                            <thead>
-                                <tr>
-                                    <th>Order ID</th>
-                                    <th>Customer Name</th>
-                                    <th>Items Ordered</th>
-                                    <th>Total Amount</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><strong>#1042</strong></td>
-                                    <td>Rahul Sharma</td>
-                                    <td>1x Farm House (M), 1x Garlic Bread</td>
-                                    <td>₹488</td>
-                                    <td><span class="status-text available">Preparing</span></td>
-                                    <td>
-                                        <button class="btn-outline order-action-btn" style="padding: 6px 12px; font-size: 0.78rem;">
-                                            <i class="fa-solid fa-gear"></i> Manage
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>#1041</strong></td>
-                                    <td>Priya Patel</td>
-                                    <td>2x Peppy Paneer (L), 2x Coke</td>
-                                    <td>₹1,120</td>
-                                    <td><span class="status-text" style="color: var(--accent-blue);">Out for Delivery</span></td>
-                                    <td>
-                                        <button class="btn-outline order-action-btn" style="padding: 6px 12px; font-size: 0.78rem;">
-                                            <i class="fa-solid fa-gear"></i> Manage
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>#1040</strong></td>
-                                    <td>Amit Verma</td>
-                                    <td>1x Veg Extravaganza (M)</td>
-                                    <td>₹540</td>
-                                    <td><span class="status-text" style="color: var(--accent-green);">Delivered</span></td>
-                                    <td>
-                                        <button class="btn-outline order-action-btn" style="padding: 6px 12px; font-size: 0.78rem;">
-                                            <i class="fa-solid fa-eye"></i> View
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
 
             <!-- TAB 4: TEAM & ROLE MANAGEMENT SCREEN -->
             <section class="view-panel" id="panel-team">
@@ -2407,7 +2187,6 @@
 
             if (tabName === 'dashboard') title.textContent = 'Dashboard Overview';
             if (tabName === 'menu') title.textContent = 'Menu Management';
-            if (tabName === 'orders') title.textContent = 'Customer Orders';
             if (tabName === 'team') title.textContent = 'Team & Role Management';
         }
 
