@@ -915,7 +915,13 @@ function setupHistoryState() {
     }
 
     window.addEventListener('popstate', (e) => {
-        // 1. If logo modal is active, close it first
+        // 1. If customer search is active, close search first
+        if (isCustomerSearchActive) {
+            closeCustomerSearch();
+            return;
+        }
+
+        // 2. If logo modal is active, close it first
         const logoModal = document.getElementById('logo-modal');
         if (logoModal && logoModal.classList.contains('active')) {
             if (window.closeLogoModal) {
@@ -924,7 +930,7 @@ function setupHistoryState() {
             return;
         }
 
-        // 2. Navigate SPA view based on history state
+        // 3. Navigate SPA view based on history state
         const state = e.state;
         if (!state || state.page === 'home') {
             lastCategoryState.categoryName = null;
@@ -942,6 +948,396 @@ function setupHistoryState() {
 }
 
 // --------------------------------------------------------------------------
+// 11. GLOBAL FUZZY SEARCH SYSTEM (SPACE-INSENSITIVE & RANKED)
+// --------------------------------------------------------------------------
+const CUSTOMER_CATEGORY_META = {
+    "Pizza": { name: "Pizza", img: "https://i.ibb.co/21fs0TqL/pizza.png" },
+    "Bread": { name: "Bread & Sides", img: "https://i.ibb.co/fzBqSJJx/bread.png" },
+    "Burger": { name: "Burgers", img: "https://i.ibb.co/jZDq51b6/burger.png" },
+    "Chinese Food": { name: "Chinese Food", img: "https://i.ibb.co/YFYwbHmV/chinese-food.png" },
+    "Colo Drinks": { name: "Cold Drinks", img: "https://i.ibb.co/dJxnm38L/colo-drinks.png" },
+    "Pasta": { name: "Pasta", img: "https://i.ibb.co/Qvzgv353/pasta.png" },
+    "Desserts": { name: "Desserts", img: "https://i.ibb.co/YBQ73fv2/dasserts.png" },
+    "Shake": { name: "Shakes", img: "https://i.ibb.co/XZpkRRpJ/shake.png" },
+    "Hot Cold Coffee": { name: "Hot Cold Coffee", img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" },
+    "Mojito": { name: "Mojito", img: "https://i.ibb.co/kV2Wvsdq/mojito.png" },
+    "Momos": { name: "Momos", img: "https://i.ibb.co/gbdrfGJK/momos.png" },
+    "Noodles": { name: "Noodles", img: "https://i.ibb.co/v6LTBqFV/noodles.png" },
+    "Rice": { name: "Rice", img: "https://i.ibb.co/gL0Z5F0C/rice.png" },
+    "Salad": { name: "Salad", img: "https://i.ibb.co/W4V8XcNG/salad.png" },
+    "Sandwich": { name: "Sandwich", img: "https://i.ibb.co/DPyPQfsT/sandwich.png" },
+    "Side Orders": { name: "Side Orders", img: "https://i.ibb.co/JwXzvd1f/side-orders.png" },
+    "Spring Rolls": { name: "Spring Rolls", img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png" },
+    "Wrap": { name: "Wrap", img: "https://i.ibb.co/V0c7gf6d/wrap.png" }
+};
+
+let isCustomerSearchActive = false;
+let preSearchTabName = 'home';
+
+function getLevenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+}
+
+function calculateTextMatchScore(query, targetText) {
+    if (!query || !targetText) return 0;
+    const cleanQ = query.toLowerCase().trim();
+    const cleanT = targetText.toLowerCase().trim();
+    const stripQ = cleanQ.replace(/\s+/g, '');
+    const stripT = cleanT.replace(/\s+/g, '');
+
+    if (stripQ === '' || stripT === '') return 0;
+    if (stripT === stripQ) return 1000;
+    if (stripT.startsWith(stripQ)) return 900 - (stripT.length - stripQ.length);
+    if (stripT.includes(stripQ)) return 800 - (stripT.length - stripQ.length);
+
+    const words = cleanT.split(/\s+/);
+    for (const word of words) {
+        if (word === cleanQ) return 850;
+        if (word.startsWith(cleanQ)) return 750;
+        if (word.includes(cleanQ)) return 650;
+    }
+
+    const maxAllowedDist = stripQ.length <= 4 ? 1 : 2;
+    let bestWordDist = 999;
+    for (const word of words) {
+        if (Math.abs(word.length - cleanQ.length) <= maxAllowedDist) {
+            const dist = getLevenshteinDistance(cleanQ, word);
+            if (dist < bestWordDist) bestWordDist = dist;
+        }
+    }
+    if (bestWordDist <= maxAllowedDist) return 500 - (bestWordDist * 100);
+
+    let minWindowDist = 999;
+    const qLen = stripQ.length;
+    for (let lenDelta = -1; lenDelta <= 1; lenDelta++) {
+        const winLen = qLen + lenDelta;
+        if (winLen < 2) continue;
+        for (let i = 0; i <= stripT.length - winLen; i++) {
+            const sub = stripT.substr(i, winLen);
+            const dist = getLevenshteinDistance(stripQ, sub);
+            if (dist < minWindowDist) minWindowDist = dist;
+        }
+    }
+    if (minWindowDist <= maxAllowedDist) return 400 - (minWindowDist * 100);
+
+    return 0;
+}
+
+function getAllCustomerMenuItems() {
+    const stored = getStoredMenuItems();
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+        return stored.map(item => ({
+            ...item,
+            id: item.id || item.name.toLowerCase().replace(/\s+/g, '-'),
+            available: item.available !== false
+        }));
+    }
+    const items = [];
+    Object.keys(categorySubItems).forEach(cat => {
+        categorySubItems[cat].forEach((i, idx) => {
+            items.push({
+                ...i,
+                id: i.id || `${cat.toLowerCase()}-${idx + 1}`,
+                category: cat,
+                available: true
+            });
+        });
+    });
+    return items;
+}
+
+function openCustomerSearch() {
+    const searchBar = document.getElementById('app-search-bar');
+    const searchInput = document.getElementById('customer-search-input');
+    if (searchBar) searchBar.style.display = 'block';
+    if (searchInput) searchInput.focus();
+
+    if (activeTabName !== 'search-results') {
+        preSearchTabName = activeTabName;
+    }
+    isCustomerSearchActive = true;
+}
+
+function closeCustomerSearch() {
+    const searchBar = document.getElementById('app-search-bar');
+    const searchInput = document.getElementById('customer-search-input');
+    if (searchInput) searchInput.value = '';
+    if (searchBar) searchBar.style.display = 'none';
+
+    isCustomerSearchActive = false;
+
+    // Restore previous view
+    if (preSearchTabName === 'category-detail' && lastCategoryState.categoryName) {
+        openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+    } else {
+        switchTab(preSearchTabName || 'home', true, true);
+    }
+}
+
+function handleCustomerSearch(query) {
+    const trimmed = query.toLowerCase().trim();
+
+    if (trimmed === '') {
+        if (isCustomerSearchActive) {
+            closeCustomerSearch();
+        }
+        return;
+    }
+
+    if (!isCustomerSearchActive) {
+        openCustomerSearch();
+    }
+
+    // Toggle main header vs category hero bar
+    const mainHeader = document.getElementById('header');
+    const categoryHeroBar = document.getElementById('category-hero-bar');
+    if (mainHeader) mainHeader.style.display = 'block';
+    if (categoryHeroBar) categoryHeroBar.style.display = 'none';
+
+    // Show view-search-results
+    tabViews.forEach(view => {
+        if (view.id === 'view-search-results') {
+            view.classList.add('active-tab');
+        } else {
+            view.classList.remove('active-tab');
+        }
+    });
+
+    activeTabName = 'search-results';
+
+    renderCustomerSearchResults(trimmed, query);
+}
+
+function renderCustomerSearchResults(queryLower, originalQuery) {
+    const categoriesWrapper = document.getElementById('customer-search-categories-wrapper');
+    const categoriesGrid = document.getElementById('customer-search-categories-grid');
+
+    const pizzasWrapper = document.getElementById('customer-search-pizzas-wrapper');
+    const pizzasGrid = document.getElementById('customer-search-pizzas-grid');
+
+    const productsWrapper = document.getElementById('customer-search-products-wrapper');
+    const productsGrid = document.getElementById('customer-search-products-grid');
+
+    const emptyState = document.getElementById('customer-search-empty');
+    const summaryEl = document.getElementById('customer-search-summary');
+
+    if (categoriesGrid) categoriesGrid.innerHTML = '';
+    if (pizzasGrid) pizzasGrid.innerHTML = '';
+    if (productsGrid) productsGrid.innerHTML = '';
+
+    const allItems = getAllCustomerMenuItems();
+
+    // 1. MATCHING CATEGORIES (EXACT HOME SCREEN 2-COLUMN FAST-FOOD GRID)
+    const matchingCategories = [];
+    Object.keys(CUSTOMER_CATEGORY_META).forEach(catKey => {
+        const catMeta = CUSTOMER_CATEGORY_META[catKey];
+        const nameScore = calculateTextMatchScore(originalQuery, catMeta.name);
+        const keyScore = calculateTextMatchScore(originalQuery, catKey);
+        const score = Math.max(nameScore, keyScore);
+        if (score > 0) {
+            matchingCategories.push({ catKey, catMeta, score });
+        }
+    });
+    matchingCategories.sort((a, b) => b.score - a.score);
+
+    if (categoriesGrid && matchingCategories.length > 0) {
+        categoriesGrid.innerHTML = matchingCategories.map(({ catKey, catMeta }) => `
+            <a href="#" class="fast-food-card" data-category="${catKey}" onclick="openCategoryDetail('${catKey}', '${catMeta.img}'); return false;" aria-label="${catMeta.name}">
+                <img src="${catMeta.img}" alt="${catMeta.name}" class="fast-food-img" loading="lazy">
+            </a>
+        `).join('');
+        if (categoriesWrapper) categoriesWrapper.style.display = 'block';
+    } else {
+        if (categoriesWrapper) categoriesWrapper.style.display = 'none';
+    }
+
+    // 2. MATCHING PRODUCTS (SEPARATE PIZZAS vs OTHER MENU ITEMS FOR PERFECT GRID CONSISTENCY)
+    const matchingPizzas = [];
+    const matchingOtherProducts = [];
+
+    allItems.forEach(item => {
+        const nameScore = calculateTextMatchScore(originalQuery, item.name);
+        const catScore = calculateTextMatchScore(originalQuery, item.category);
+        const descScore = item.desc ? calculateTextMatchScore(originalQuery, item.desc) * 0.7 : 0;
+        const score = Math.max(nameScore, catScore * 0.9, descScore);
+        if (score > 0) {
+            if (item.category === "Pizza" || item.prices) {
+                matchingPizzas.push({ item, score });
+            } else {
+                matchingOtherProducts.push({ item, score });
+            }
+        }
+    });
+
+    matchingPizzas.sort((a, b) => b.score - a.score);
+    matchingOtherProducts.sort((a, b) => b.score - a.score);
+
+    // 2A. Render Matching Pizzas (Exact 2-Column Pizza Card Grid Layout)
+    if (pizzasGrid && matchingPizzas.length > 0) {
+        pizzasGrid.innerHTML = matchingPizzas.map(({ item }) => {
+            const isAvailable = item.available !== false;
+            const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+            const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+
+            const ingredients = item.desc ? item.desc.split(/[,&]/).map(s => s.trim()).filter(Boolean) : [];
+            const hasMoreThanFive = ingredients.length > 5;
+            
+            let descMarkup = '';
+            if (hasMoreThanFive) {
+                const shortText = ingredients.slice(0, 5).join(', ') + '...';
+                const escFull = item.desc.replace(/"/g, '&quot;');
+                const escShort = shortText.replace(/"/g, '&quot;');
+                descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
+                    <span class="desc-text truncated" data-full="${escFull}" data-short="${escShort}">${shortText}</span>
+                    <button class="more-btn" onclick="toggleIngredients('${item.id}', event)">More</button>
+                   </p>`;
+            } else {
+                descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
+                    <span class="desc-text">${item.desc || ''}</span>
+                   </p>`;
+            }
+
+            const addBtnMarkup = isAvailable
+                ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+            const prices = item.prices || { S: 199, M: 299, L: 399 };
+
+            return `
+            <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${prices.M}">
+                ${outOfStockBadge}
+                <div class="pizza-card-image-wrapper">
+                    <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
+                </div>
+                <div class="pizza-card-body">
+                    <h4 class="pizza-card-title">${item.name}</h4>
+                    ${descMarkup}
+                    
+                    <div class="pizza-size-selector">
+                        <span class="size-label">Size:</span>
+                        <div class="size-options">
+                            <button class="size-btn" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${prices.S}, event)">S</button>
+                            <button class="size-btn selected" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${prices.M}, event)">M</button>
+                            <button class="size-btn" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
+                        </div>
+                    </div>
+                    
+                    <div class="pizza-price-row">
+                        <span class="price-prefix">Price:</span>
+                        <span class="pizza-card-price" id="price-${item.id}">${formatPrice(prices.M)}</span>
+                    </div>
+                </div>
+                ${addBtnMarkup}
+            </div>
+            `;
+        }).join('');
+
+        if (pizzasWrapper) pizzasWrapper.style.display = 'block';
+    } else {
+        if (pizzasWrapper) pizzasWrapper.style.display = 'none';
+    }
+
+    // 2B. Render Matching Other Products (Burgers, Pastas, Drinks, Side Orders, etc.)
+    if (productsGrid && matchingOtherProducts.length > 0) {
+        productsGrid.innerHTML = matchingOtherProducts.map(({ item }) => {
+            const isAvailable = item.available !== false;
+            const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+            const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+
+            const addBtnMarkup = isAvailable
+                ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 199}, '${item.img}')"><i class="fa-solid fa-plus"></i> Add</button>`
+                : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> Out of Stock</button>`;
+
+            return `
+            <div class="sub-item-card ${outOfStockClass}">
+                ${outOfStockBadge}
+                <div class="sub-item-img-wrapper">
+                    <img src="${item.img}" alt="${item.name}" class="sub-item-img" loading="lazy">
+                </div>
+                <div class="sub-item-details">
+                    <div class="sub-item-top-row">
+                        <span class="sub-item-name">${item.name}</span>
+                        ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
+                    </div>
+                    <p class="sub-item-desc">${item.desc || ''}</p>
+                    <div class="sub-item-bottom-row">
+                        <span class="sub-item-price">${formatPrice(item.price || 199)}</span>
+                        ${addBtnMarkup}
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        if (productsWrapper) productsWrapper.style.display = 'block';
+    } else {
+        if (productsWrapper) productsWrapper.style.display = 'none';
+    }
+
+    const totalMatches = matchingCategories.length + matchingPizzas.length + matchingOtherProducts.length;
+    if (summaryEl) {
+        summaryEl.textContent = `Found ${totalMatches} item(s) matching "${originalQuery}"`;
+    }
+
+    if (emptyState) {
+        emptyState.style.display = totalMatches === 0 ? 'block' : 'none';
+    }
+}
+
+function initCustomerSearchEvents() {
+    const searchToggle = document.getElementById('search-toggle');
+    const searchClear = document.getElementById('customer-search-clear');
+    const searchInput = document.getElementById('customer-search-input');
+    const closeViewBtn = document.getElementById('close-search-view-btn');
+
+    if (searchToggle) {
+        searchToggle.addEventListener('click', () => {
+            const searchBar = document.getElementById('app-search-bar');
+            if (searchBar && searchBar.style.display === 'block') {
+                closeCustomerSearch();
+            } else {
+                openCustomerSearch();
+            }
+        });
+    }
+
+    if (searchClear) {
+        searchClear.addEventListener('click', () => {
+            closeCustomerSearch();
+        });
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            handleCustomerSearch(e.target.value);
+        });
+    }
+
+    if (closeViewBtn) {
+        closeViewBtn.addEventListener('click', () => {
+            closeCustomerSearch();
+        });
+    }
+}
+
+// --------------------------------------------------------------------------
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -952,4 +1348,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initOfferSlider();
     initLogoModal();
     setupHistoryState();
+    initCustomerSearchEvents();
 });

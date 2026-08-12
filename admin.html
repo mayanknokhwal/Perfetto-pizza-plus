@@ -724,6 +724,16 @@
             outline: none;
         }
 
+        /* HIDE NUMBER INPUT SPINNERS (ARROWS) ACROSS BROWSERS */
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
         /* UI TOGGLE SWITCH */
         .switch {
             position: relative;
@@ -826,6 +836,43 @@
         .toast-notification i {
             color: var(--accent-green);
             font-size: 1.2rem;
+        }
+
+        /* GLOBAL SEARCH STYLES */
+        .search-section-label {
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-section-label i {
+            color: var(--primary-orange);
+            font-size: 1.1rem;
+        }
+
+        .item-title-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .search-cat-badge {
+            display: inline-block;
+            background-color: rgba(255, 107, 0, 0.15);
+            color: var(--primary-orange);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
 
         /* RESPONSIVE BREAKPOINTS */
@@ -975,22 +1022,33 @@
                 </div>
             </section>
 
-            <!-- TAB 2: MENU MANAGEMENT (TWO-STEP NESTED VIEW) -->
+            <!-- TAB 2: MENU MANAGEMENT -->
             <section class="view-panel active" id="panel-menu">
                 
+                <!-- PERMANENT & STATIC TOP GLOBAL SEARCH BAR (NEVER RE-RENDERED OR HIDDEN) -->
+                <div class="category-view-header static-search-header">
+                    <div class="category-view-title">
+                        <h2 id="menu-header-heading">Select Food Category</h2>
+                        <p id="menu-header-subtext">Choose a food category to view, edit prices, or manage item availability.</p>
+                    </div>
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input 
+                            type="text" 
+                            id="admin-global-search" 
+                            class="search-input" 
+                            placeholder="Global search categories & items..." 
+                            oninput="handleGlobalSearch(this.value)"
+                            autocomplete="off"
+                        >
+                        <button id="admin-search-clear-btn" class="search-clear-icon-btn" style="display: none;" onclick="clearGlobalSearch()" aria-label="Clear Search">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- STEP 1: CATEGORY SELECTION GRID CONTAINER -->
                 <div id="step-1-category-container">
-                    <div class="category-view-header">
-                        <div class="category-view-title">
-                            <h2>Select Food Category</h2>
-                            <p>Choose a food category to view, edit prices, or manage item availability.</p>
-                        </div>
-                        <div class="search-box">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="category-search" class="search-input" placeholder="Search category..." oninput="renderCategoryGrid()">
-                        </div>
-                    </div>
-
                     <!-- Category Cards Grid -->
                     <div class="category-grid" id="category-grid">
                         <!-- Dynamically populated via JS -->
@@ -1013,11 +1071,6 @@
                                 <span id="subview-cat-count">0 Items</span>
                             </div>
                         </div>
-
-                        <div class="search-box">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                            <input type="text" id="item-search" class="search-input" placeholder="Search item in category..." oninput="renderCategoryItemsTable()">
-                        </div>
                     </div>
 
                     <!-- DATA TABLE WITHOUT INDIVIDUAL SAVE BUTTONS -->
@@ -1034,8 +1087,64 @@
                             <tbody id="items-table-body">
                                 <!-- Dynamically populated via JS -->
                             </tbody>
+                        </table>
                     </div>
 
+                </div>
+
+                <!-- STEP 3: DEDICATED SEARCH RESULTS CONTAINER (Initially Hidden) -->
+                <div id="search-results-container" style="display: none;">
+                    <div class="subview-header-bar">
+                        <div class="subview-title-group">
+                            <button class="btn-back-categories" onclick="clearGlobalSearch()">
+                                <i class="fa-solid fa-arrow-left"></i> Clear Search & Return
+                            </button>
+                            
+                            <div class="subview-title-info">
+                                <h3>Global Search Results</h3>
+                                <span id="search-results-summary">Searching menu database...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MATCHING CATEGORIES SECTION -->
+                    <div id="search-matching-categories-wrapper" style="margin-bottom: 32px; display: none;">
+                        <h4 class="search-section-label">
+                            <i class="fa-solid fa-folder"></i> Matching Food Categories
+                        </h4>
+                        <div class="category-grid" id="search-category-grid">
+                            <!-- Dynamically populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- MATCHING PRODUCTS SECTION -->
+                    <div id="search-matching-products-wrapper" style="display: none;">
+                        <h4 class="search-section-label">
+                            <i class="fa-solid fa-utensils"></i> Matching Products
+                        </h4>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Image</th>
+                                        <th>Item Name & Category</th>
+                                        <th>Price / Size Prices (₹)</th>
+                                        <th>Availability</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="search-items-table-body">
+                                    <!-- Dynamically populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- SEARCH EMPTY STATE -->
+                    <div id="search-empty-state" style="display: none; text-align: center; color: var(--text-muted); padding: 50px; background-color: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                        <i class="fa-solid fa-magnifying-glass" style="font-size: 2.5rem; margin-bottom: 12px; color: var(--primary-orange);"></i>
+                        <h4 style="font-family: var(--font-heading); font-size: 1.2rem; color: var(--text-main);">No matching categories or products found</h4>
+                        <p style="font-size: 0.9rem; margin-top: 6px;">Try searching for a different keyword like "Pizza", "Burger", "Hot Country", "Cola", or "Pasta".</p>
+                    </div>
                 </div>
 
             </section>
@@ -1252,11 +1361,11 @@
             }
         }
 
+        let currentSearchQuery = '';
+
         // 2. STEP 1: RENDER CATEGORY GRID (18 FAST FOOD CATEGORIES ONLY)
         function renderCategoryGrid() {
             const grid = document.getElementById('category-grid');
-            const searchVal = document.getElementById('category-search').value.toLowerCase().trim();
-
             grid.innerHTML = '';
 
             // Group menu items into category buckets based on CATEGORY_META
@@ -1286,21 +1395,7 @@
                 if (item.available) categories[catKey].availableCount++;
             });
 
-            const matchingCatKeys = Object.keys(categories).filter(key => {
-                const cat = categories[key];
-                return cat.name.toLowerCase().includes(searchVal) || cat.key.toLowerCase().includes(searchVal);
-            });
-
-            if (matchingCatKeys.length === 0) {
-                grid.innerHTML = `
-                    <div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 50px;">
-                        No categories found matching your search.
-                    </div>
-                `;
-                return;
-            }
-
-            matchingCatKeys.forEach(catKey => {
+            Object.keys(categories).forEach(catKey => {
                 const cat = categories[catKey];
                 const card = document.createElement('div');
                 card.className = 'category-card';
@@ -1327,8 +1422,18 @@
         }
 
         // 3. STEP 2: OPEN CATEGORY SUB-VIEW
-        function openCategoryItemsStep2(categoryName) {
+        function openCategoryItemsStep2(categoryName, isPopState = false) {
             activeCategory = categoryName;
+
+            // Clear active search query when entering specific category sub-view
+            currentSearchQuery = '';
+            const searchInput = document.getElementById('admin-global-search');
+            const clearBtn = document.getElementById('admin-search-clear-btn');
+            if (searchInput) searchInput.value = '';
+            if (clearBtn) clearBtn.style.display = 'none';
+
+            const searchResults = document.getElementById('search-results-container');
+            if (searchResults) searchResults.style.display = 'none';
 
             document.getElementById('step-1-category-container').style.display = 'none';
             document.getElementById('step-2-item-container').style.display = 'block';
@@ -1338,27 +1443,375 @@
             document.getElementById('subview-cat-title').textContent = `${catMeta.name} Menu`;
             document.getElementById('subview-cat-img').src = catMeta.img;
 
+            if (!isPopState) {
+                history.pushState(
+                    { page: 'category-detail', categoryName },
+                    '',
+                    '#category-' + encodeURIComponent(categoryName)
+                );
+            }
+
             renderCategoryItemsTable();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // RETURN TO STEP 1 CATEGORIES
-        function showCategoryStep1() {
+        function showCategoryStep1(isPopState = false) {
             activeCategory = null;
+
+            // Clear active search query when returning to categories grid
+            currentSearchQuery = '';
+            const searchInput = document.getElementById('admin-global-search');
+            const clearBtn = document.getElementById('admin-search-clear-btn');
+            if (searchInput) searchInput.value = '';
+            if (clearBtn) clearBtn.style.display = 'none';
+
+            const searchResults = document.getElementById('search-results-container');
+            if (searchResults) searchResults.style.display = 'none';
+
             document.getElementById('step-2-item-container').style.display = 'none';
             document.getElementById('step-1-category-container').style.display = 'block';
             renderCategoryGrid();
+
+            if (!isPopState && history.state && history.state.page === 'category-detail') {
+                history.back();
+            }
         }
 
-        // 4. RENDER CATEGORY ITEMS TABLE (STEP 2)
+        // --------------------------------------------------------------------------
+        // FUZZY SEARCH & SPACE-INSENSITIVE MATCHING ENGINE
+        // --------------------------------------------------------------------------
+        function getLevenshteinDistance(a, b) {
+            if (a.length === 0) return b.length;
+            if (b.length === 0) return a.length;
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) {
+                matrix[i] = [i];
+            }
+            for (let j = 0; j <= a.length; j++) {
+                matrix[0][j] = j;
+            }
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(
+                            matrix[i - 1][j - 1] + 1, // substitution
+                            Math.min(
+                                matrix[i][j - 1] + 1, // insertion
+                                matrix[i - 1][j] + 1  // deletion
+                            )
+                        );
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        function calculateTextMatchScore(query, targetText) {
+            if (!query || !targetText) return 0;
+
+            const cleanQ = query.toLowerCase().trim();
+            const cleanT = targetText.toLowerCase().trim();
+            const stripQ = cleanQ.replace(/\s+/g, '');
+            const stripT = cleanT.replace(/\s+/g, '');
+
+            if (stripQ === '' || stripT === '') return 0;
+
+            // 1. Exact match (Space-insensitive, e.g. "hotcountry" === "hotcountry")
+            if (stripT === stripQ) return 1000;
+
+            // 2. Target starts with query (Space-insensitive)
+            if (stripT.startsWith(stripQ)) return 900 - (stripT.length - stripQ.length);
+
+            // 3. Target contains query as substring (Space-insensitive)
+            if (stripT.includes(stripQ)) return 800 - (stripT.length - stripQ.length);
+
+            // 4. Word-level exact / prefix / substring match
+            const words = cleanT.split(/\s+/);
+            for (const word of words) {
+                if (word === cleanQ) return 850;
+                if (word.startsWith(cleanQ)) return 750;
+                if (word.includes(cleanQ)) return 650;
+            }
+
+            // 5. Fuzzy Matching (Levenshtein distance & sliding window)
+            // Allow 1 typo for queries length <= 4, 2 typos for queries length >= 5
+            const maxAllowedDist = stripQ.length <= 4 ? 1 : 2;
+
+            // Check word-level edit distance
+            let bestWordDist = 999;
+            for (const word of words) {
+                if (Math.abs(word.length - cleanQ.length) <= maxAllowedDist) {
+                    const dist = getLevenshteinDistance(cleanQ, word);
+                    if (dist < bestWordDist) {
+                        bestWordDist = dist;
+                    }
+                }
+            }
+
+            if (bestWordDist <= maxAllowedDist) {
+                return 500 - (bestWordDist * 100);
+            }
+
+            // Check sliding window edit distance on stripped target
+            let minWindowDist = 999;
+            const qLen = stripQ.length;
+            for (let lenDelta = -1; lenDelta <= 1; lenDelta++) {
+                const winLen = qLen + lenDelta;
+                if (winLen < 2) continue;
+                for (let i = 0; i <= stripT.length - winLen; i++) {
+                    const sub = stripT.substr(i, winLen);
+                    const dist = getLevenshteinDistance(stripQ, sub);
+                    if (dist < minWindowDist) {
+                        minWindowDist = dist;
+                    }
+                }
+            }
+
+            if (minWindowDist <= maxAllowedDist) {
+                return 400 - (minWindowDist * 100);
+            }
+
+            return 0;
+        }
+
+        function getProductSearchScore(query, item) {
+            const nameScore = calculateTextMatchScore(query, item.name);
+            const catScore = calculateTextMatchScore(query, item.category);
+            const descScore = item.desc ? calculateTextMatchScore(query, item.desc) * 0.7 : 0;
+
+            return Math.max(nameScore, catScore * 0.9, descScore);
+        }
+
+        function getCategorySearchScore(query, catKey) {
+            const catMeta = CATEGORY_META[catKey];
+            const nameScore = calculateTextMatchScore(query, catMeta.name);
+            const keyScore = calculateTextMatchScore(query, catKey);
+
+            return Math.max(nameScore, keyScore);
+        }
+
+        // 4. GLOBAL SEARCH SYSTEM (STATIC DECOUPLED INPUT & ISOLATED RESULTS)
+        function handleGlobalSearch(query) {
+            currentSearchQuery = query;
+
+            const input = document.getElementById('admin-global-search');
+            const clearBtn = document.getElementById('admin-search-clear-btn');
+
+            if (input && input.value !== query) {
+                input.value = query;
+            }
+
+            if (clearBtn) {
+                clearBtn.style.display = query ? 'block' : 'none';
+            }
+
+            const trimmed = query.toLowerCase().trim();
+
+            if (trimmed === '') {
+                // Clear Search: Hide search results view and restore pre-search state
+                document.getElementById('search-results-container').style.display = 'none';
+
+                if (activeCategory) {
+                    document.getElementById('step-1-category-container').style.display = 'none';
+                    document.getElementById('step-2-item-container').style.display = 'block';
+                    renderCategoryItemsTable();
+                } else {
+                    document.getElementById('step-2-item-container').style.display = 'none';
+                    document.getElementById('step-1-category-container').style.display = 'block';
+                    renderCategoryGrid();
+                }
+                return;
+            }
+
+            // Hide Step 1 & Step 2, Show Search Results View
+            document.getElementById('step-1-category-container').style.display = 'none';
+            document.getElementById('step-2-item-container').style.display = 'none';
+            document.getElementById('search-results-container').style.display = 'block';
+
+            renderGlobalSearchResults(trimmed, query);
+        }
+
+        function clearGlobalSearch() {
+            const input = document.getElementById('admin-global-search');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            handleGlobalSearch('');
+        }
+
+        function renderGlobalSearchResults(queryLower, originalQuery) {
+            const categoriesWrapper = document.getElementById('search-matching-categories-wrapper');
+            const categoryGrid = document.getElementById('search-category-grid');
+            const productsWrapper = document.getElementById('search-matching-products-wrapper');
+            const tbody = document.getElementById('search-items-table-body');
+            const emptyState = document.getElementById('search-empty-state');
+            const summaryEl = document.getElementById('search-results-summary');
+
+            categoryGrid.innerHTML = '';
+            tbody.innerHTML = '';
+
+            // 1. MATCHING CATEGORY FOLDERS (RANKED BY RELEVANCE SCORE)
+            const matchingCategories = [];
+            Object.keys(CATEGORY_META).forEach(catKey => {
+                const score = getCategorySearchScore(originalQuery, catKey);
+                if (score > 0) {
+                    matchingCategories.push({ catKey, score });
+                }
+            });
+
+            // Sort descending by match relevance score
+            matchingCategories.sort((a, b) => b.score - a.score);
+
+            matchingCategories.forEach(({ catKey }) => {
+                const catMeta = CATEGORY_META[catKey];
+                const catItems = menuItems.filter(item => item.category === catKey);
+                const availCount = catItems.filter(item => item.available).length;
+
+                const card = document.createElement('div');
+                card.className = 'category-card';
+                card.onclick = () => {
+                    clearGlobalSearch();
+                    openCategoryItemsStep2(catKey);
+                };
+
+                card.innerHTML = `
+                    <div class="category-card-img-wrapper">
+                        <img src="${catMeta.img}" alt="${catMeta.name}" class="category-card-img">
+                        <span class="category-badge-count">${catItems.length} Items</span>
+                    </div>
+                    <div class="category-card-body">
+                        <div>
+                            <div class="category-name-text">${catMeta.name}</div>
+                            <div class="category-subtext">${availCount} Available</div>
+                        </div>
+                        <div class="category-action-icon">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                    </div>
+                `;
+
+                categoryGrid.appendChild(card);
+            });
+
+            if (matchingCategories.length > 0) {
+                categoriesWrapper.style.display = 'block';
+            } else {
+                categoriesWrapper.style.display = 'none';
+            }
+
+            // 2. MATCHING PRODUCTS (RANKED BY RELEVANCE SCORE)
+            const matchingProducts = [];
+            menuItems.forEach(item => {
+                const score = getProductSearchScore(originalQuery, item);
+                if (score > 0) {
+                    matchingProducts.push({ item, score });
+                }
+            });
+
+            // Sort descending by match relevance score
+            matchingProducts.sort((a, b) => b.score - a.score);
+
+            matchingProducts.forEach(({ item }) => {
+                const tr = document.createElement('tr');
+
+                let priceHtml = '';
+                if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
+                    const p = item.prices || { S: 199, M: 299, L: 399 };
+                    priceHtml = `
+                        <div class="size-prices-grid">
+                            <div class="size-input-group">
+                                <span class="size-tag tag-s">S</span>
+                                <input type="number" class="price-field-sm price-field-s" id="price-s-${item.id}" value="${p.S}" min="0">
+                            </div>
+                            <div class="size-input-group">
+                                <span class="size-tag tag-m">M</span>
+                                <input type="number" class="price-field-sm price-field-m" id="price-m-${item.id}" value="${p.M}" min="0">
+                            </div>
+                            <div class="size-input-group">
+                                <span class="size-tag tag-l">L</span>
+                                <input type="number" class="price-field-sm price-field-l" id="price-l-${item.id}" value="${p.L}" min="0">
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    priceHtml = `
+                        <div class="single-price-wrapper">
+                            <span class="price-currency">₹</span>
+                            <input type="number" class="price-field-single price-field-val" id="price-single-${item.id}" value="${item.price || 0}" min="0">
+                        </div>
+                    `;
+                }
+
+                const catNameDisplay = (CATEGORY_META[item.category] && CATEGORY_META[item.category].name) || item.category;
+
+                tr.innerHTML = `
+                    <td>
+                        <img src="${item.img}" alt="${item.name}" class="item-thumb">
+                    </td>
+                    <td>
+                        <div class="item-name-box">
+                            <div class="item-title-row">
+                                <span class="item-title">${item.name}</span>
+                                <span class="search-cat-badge">${catNameDisplay}</span>
+                            </div>
+                            <div class="item-desc">${item.desc}</div>
+                        </div>
+                    </td>
+                    <td>
+                        ${priceHtml}
+                    </td>
+                    <td>
+                        <div class="status-cell">
+                            <label class="switch">
+                                <input 
+                                    type="checkbox" 
+                                    id="toggle-${item.id}" 
+                                    ${item.available ? 'checked' : ''} 
+                                    onchange="toggleStatusBadge('${item.id}')"
+                                >
+                                <span class="slider"></span>
+                            </label>
+                            <span class="status-text ${item.available ? 'available' : 'unavailable'}" id="status-text-${item.id}">
+                                ${item.available ? 'Available' : 'Out of Stock'}
+                            </span>
+                        </div>
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+
+            if (matchingProducts.length > 0) {
+                productsWrapper.style.display = 'block';
+            } else {
+                productsWrapper.style.display = 'none';
+            }
+
+            // 3. SUMMARY & EMPTY STATE
+            const totalMatches = matchingCategories.length + matchingProducts.length;
+            if (summaryEl) {
+                summaryEl.textContent = `Found ${matchingCategories.length} category folder(s) and ${matchingProducts.length} product(s) for "${originalQuery}"`;
+            }
+
+            if (totalMatches === 0) {
+                emptyState.style.display = 'block';
+            } else {
+                emptyState.style.display = 'none';
+            }
+        }
+
+        // 5. RENDER CATEGORY ITEMS TABLE (STEP 2)
         function renderCategoryItemsTable() {
             if (!activeCategory) return;
 
             const tbody = document.getElementById('items-table-body');
-            const searchVal = document.getElementById('item-search').value.toLowerCase().trim();
-
             tbody.innerHTML = '';
 
-            const categoryItems = menuItems.filter(item => item.category === activeCategory && (item.name.toLowerCase().includes(searchVal) || item.desc.toLowerCase().includes(searchVal)));
+            const categoryItems = menuItems.filter(item => item.category === activeCategory);
 
             document.getElementById('subview-cat-count').textContent = `${categoryItems.length} Items`;
 
@@ -1366,7 +1819,7 @@
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 40px;">
-                            No items found in this category matching search.
+                            No items found in this category.
                         </td>
                     </tr>
                 `;
@@ -1376,7 +1829,6 @@
             categoryItems.forEach(item => {
                 const tr = document.createElement('tr');
 
-                // Render Price Column (Size-variant inputs for Pizza/multiSize vs Single input)
                 let priceHtml = '';
                 if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
                     const p = item.prices || { S: 199, M: 299, L: 399 };
@@ -1451,7 +1903,7 @@
             }
         }
 
-        // 5. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS)
+        // 6. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS)
         function saveAllChanges() {
             // Read active DOM inputs and update menuItems memory
             menuItems.forEach(item => {
@@ -1480,7 +1932,9 @@
             saveToLocalStorage();
             updateStats();
 
-            if (activeCategory) {
+            if (currentSearchQuery.trim() !== '') {
+                renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
+            } else if (activeCategory) {
                 renderCategoryItemsTable();
             } else {
                 renderCategoryGrid();
@@ -1489,14 +1943,16 @@
             showToast('All menu changes & prices saved successfully!');
         }
 
-        // 6. RESET TO DEFAULTS
+        // 7. RESET TO DEFAULTS
         function resetToDefaults() {
             if (confirm('Reset menu database back to original defaults?')) {
                 menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
                 saveToLocalStorage();
                 updateStats();
 
-                if (activeCategory) {
+                if (currentSearchQuery.trim() !== '') {
+                    renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
+                } else if (activeCategory) {
                     renderCategoryItemsTable();
                 } else {
                     renderCategoryGrid();
@@ -1556,9 +2012,26 @@
             }, 3000);
         }
 
-        // INITIALIZE ON LOAD & CROSS-TAB STORAGE SYNCHRONIZATION
+        // INITIALIZE ON LOAD, HISTORY STATE & CROSS-TAB STORAGE SYNCHRONIZATION
         window.addEventListener('DOMContentLoaded', () => {
             initMenuData();
+
+            // Set initial History API state for root category grid
+            if (!history.state) {
+                history.replaceState({ page: 'categories' }, '', window.location.pathname + window.location.search);
+            }
+        });
+
+        // HARDWARE & BROWSER BACK BUTTON NAVIGATION (HISTORY API)
+        window.addEventListener('popstate', (e) => {
+            const state = e.state;
+            if (!state || state.page === 'categories') {
+                if (activeCategory) {
+                    showCategoryStep1(true);
+                }
+            } else if (state.page === 'category-detail' && state.categoryName) {
+                openCategoryItemsStep2(state.categoryName, true);
+            }
         });
 
         window.addEventListener('storage', (e) => {

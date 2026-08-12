@@ -32,12 +32,30 @@
                 </div>
 
                 <div class="header-actions">
+                    <!-- Global Search Toggle Button -->
+                    <button class="search-toggle-btn" id="search-toggle" aria-label="Open Global Search">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </div>
+                    </button>
+
                     <!-- Theme Toggle Button -->
                     <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Light and Dark Mode">
                         <div class="toggle-icon-wrapper">
                             <i class="fa-solid fa-moon moon-icon"></i>
                             <i class="fa-solid fa-sun sun-icon"></i>
                         </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- EXPANDABLE HEADER SEARCH BAR -->
+            <div class="app-search-bar" id="app-search-bar" style="display: none;">
+                <div class="search-bar-inner">
+                    <i class="fa-solid fa-magnifying-glass search-bar-icon"></i>
+                    <input type="text" id="customer-search-input" class="customer-search-input" placeholder="Search pizza, burger, pasta..." autocomplete="off">
+                    <button class="search-clear-btn" id="customer-search-clear" aria-label="Clear Search">
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
             </div>
@@ -271,6 +289,44 @@
                     <button class="checkout-btn" onclick="processCheckout()">
                         Proceed to Checkout <i class="fa-solid fa-arrow-right"></i>
                     </button>
+                </div>
+            </section>
+
+            <!-- SEARCH RESULTS TAB VIEW -->
+            <section class="tab-view" id="view-search-results">
+                <div class="search-results-header">
+                    <div>
+                        <h2 class="section-title-bold" id="customer-search-title">SEARCH RESULTS</h2>
+                        <span class="search-results-summary" id="customer-search-summary">Type to search items...</span>
+                    </div>
+                    <button class="close-search-view-btn" id="close-search-view-btn" onclick="closeCustomerSearch()">
+                        <i class="fa-solid fa-xmark"></i> Close
+                    </button>
+                </div>
+
+                <!-- MATCHING CATEGORIES SECTION (Exact Home Screen 2-Column Grid) -->
+                <section class="fast-food-section" id="customer-search-categories-wrapper" style="display: none; margin-bottom: 24px;">
+                    <h2 class="section-title-bold"><i class="fa-solid fa-folder"></i> MATCHING CATEGORIES</h2>
+                    <div class="fast-food-grid" id="customer-search-categories-grid"></div>
+                </section>
+
+                <!-- MATCHING PIZZAS SECTION (Exact 2-Column Pizza Grid) -->
+                <section class="sub-items-section" id="customer-search-pizzas-wrapper" style="display: none; margin-bottom: 24px;">
+                    <h2 class="section-title-bold"><i class="fa-solid fa-pizza-slice"></i> MATCHING PIZZAS</h2>
+                    <div class="sub-items-grid pizza-grid-container" id="customer-search-pizzas-grid"></div>
+                </section>
+
+                <!-- MATCHING OTHER MENU PRODUCTS SECTION (Exact Standard Sub-Item List) -->
+                <section class="sub-items-section" id="customer-search-products-wrapper" style="display: none; margin-bottom: 24px;">
+                    <h2 class="section-title-bold"><i class="fa-solid fa-utensils"></i> MATCHING MENU ITEMS</h2>
+                    <div class="sub-items-grid" id="customer-search-products-grid"></div>
+                </section>
+
+                <!-- NO RESULTS EMPTY STATE -->
+                <div class="empty-cart-view" id="customer-search-empty" style="display: none; margin-top: 30px;">
+                    <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
+                    <h4>No matching items found</h4>
+                    <p>Try searching for "Hot Country", "Burger", "Pasta", "Garlic Bread", or "Cola"</p>
                 </div>
             </section>
 
