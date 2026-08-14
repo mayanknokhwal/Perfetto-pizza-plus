@@ -964,252 +964,17 @@ function closeDeliveryModal() {
     modal.setAttribute('aria-hidden', 'true');
 }
 
-let isCustomerPhoneVerified = false;
-let verifiedPhoneNumber = '';
-
-// Attach input restrictions to mobile number field
+// Attach input restrictions to mobile number field (10 digits only)
 document.addEventListener('DOMContentLoaded', () => {
     const phoneInput = document.getElementById('customer-phone');
     if (phoneInput) {
         phoneInput.addEventListener('input', (e) => {
-            // Strip any non-digit character and restrict strictly to 10 digits
-            const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
-            e.target.value = clean;
-
-            // If user changes their phone after verification, reset verified state
-            if (verifiedPhoneNumber && clean !== verifiedPhoneNumber) {
-                isCustomerPhoneVerified = false;
-                verifiedPhoneNumber = '';
-                const badge = document.getElementById('otp-verified-badge');
-                if (badge) badge.style.display = 'none';
-                const otpContainer = document.getElementById('otp-verify-container');
-                if (otpContainer) otpContainer.style.display = 'none';
-                const msg = document.getElementById('otp-status-msg');
-                if (msg) msg.textContent = 'Mobile number changed. Please request a new OTP.';
-            }
-        });
-    }
-
-    const otpInput = document.getElementById('customer-otp-input');
-    if (otpInput) {
-        otpInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
         });
     }
 });
 
-async function handleSendOTP(event) {
-    if (event) event.preventDefault();
-    const phoneInput = document.getElementById('customer-phone');
-    const phone = phoneInput ? phoneInput.value.trim() : '';
-    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
-
-    if (!cleanPhone || cleanPhone.length !== 10) {
-        if (phoneInput) {
-            phoneInput.classList.add('invalid-field');
-            phoneInput.focus();
-        }
-        console.warn('⚠️ [OTP Trigger Blocked]: Invalid mobile number length:', cleanPhone);
-        showToast('Please enter a valid 10-digit mobile number!');
-        return;
-    }
-
-    if (phoneInput) phoneInput.classList.remove('invalid-field');
-
-    const sendOtpBtn = document.getElementById('btn-send-otp');
-    if (sendOtpBtn) {
-        sendOtpBtn.disabled = true;
-        sendOtpBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
-    }
-
-    console.log(`📱 [Fast2SMS Trigger] Sending OTP request to backend for mobile: +91 ${cleanPhone}`);
-
-    try {
-        const response = await fetch('/api/otp/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mobileNumber: cleanPhone })
-        });
-
-        const data = await response.json();
-        console.log('📥 [OTP API Response]:', data);
-
-        if (data.success) {
-            // Reveal OTP Verification container
-            const otpContainer = document.getElementById('otp-verify-container');
-            const otpInput = document.getElementById('customer-otp-input');
-            const otpMsg = document.getElementById('otp-status-msg');
-
-            if (otpContainer) otpContainer.style.display = 'block';
-            if (otpInput) {
-                otpInput.value = '';
-                otpInput.focus();
-            }
-            if (otpMsg) {
-                otpMsg.textContent = data.message || `OTP dispatched to +91 ${cleanPhone} via Fast2SMS.`;
-                otpMsg.style.color = 'var(--text-muted)';
-            }
-
-            if (data.previewOtp) {
-                console.info(`🔑 [DIAGNOSTIC TEST OTP]: ${data.previewOtp}`);
-            }
-
-            showToast(`📱 Fast2SMS OTP sent to +91 ${cleanPhone}!`);
-
-            // Start countdown timer on button
-            let countdown = 45;
-            const timer = setInterval(() => {
-                if (countdown <= 0) {
-                    clearInterval(timer);
-                    if (sendOtpBtn) {
-                        sendOtpBtn.disabled = false;
-                        sendOtpBtn.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Resend OTP`;
-                    }
-                } else {
-                    if (sendOtpBtn) {
-                        sendOtpBtn.innerHTML = `<i class="fa-solid fa-clock"></i> Resend in ${countdown}s`;
-                    }
-                    countdown--;
-                }
-            }, 1000);
-        } else {
-            console.error('❌ [Fast2SMS API Error]:', data.message);
-            showToast(data.message || 'Failed to send OTP. Please check the number and try again.');
-            const otpMsg = document.getElementById('otp-status-msg');
-            if (otpMsg) {
-                otpMsg.textContent = `❌ ${data.message}`;
-                otpMsg.style.color = '#ef4444';
-            }
-            if (sendOtpBtn) {
-                sendOtpBtn.disabled = false;
-                sendOtpBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send OTP`;
-            }
-        }
-    } catch (err) {
-        console.error('❌ [Fast2SMS Network Exception]:', err);
-        const otpContainer = document.getElementById('otp-verify-container');
-        if (otpContainer) otpContainer.style.display = 'block';
-        showToast(`⚠️ Server offline or network issue: ${err.message}`);
-        if (sendOtpBtn) {
-            sendOtpBtn.disabled = false;
-            sendOtpBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send OTP`;
-        }
-    }
-}
-
-async function handleVerifyOTP(event) {
-    if (event) event.preventDefault();
-    const phoneInput = document.getElementById('customer-phone');
-    const otpInput = document.getElementById('customer-otp-input');
-    const verifyBtn = document.getElementById('btn-verify-otp');
-    const badge = document.getElementById('otp-verified-badge');
-    const msg = document.getElementById('otp-status-msg');
-
-    const phone = phoneInput ? phoneInput.value.trim().replace(/[^0-9]/g, '').slice(0, 10) : '';
-    const enteredOtp = otpInput ? otpInput.value.trim() : '';
-
-    if (!phone || phone.length !== 10) {
-        showToast('Please enter your 10-digit mobile number first!');
-        return;
-    }
-
-    if (!enteredOtp || enteredOtp.length < 4) {
-        if (otpInput) {
-            otpInput.classList.add('invalid-field');
-            otpInput.focus();
-        }
-        showToast('Please enter the 6-digit OTP code!');
-        return;
-    }
-
-    if (verifyBtn) {
-        verifyBtn.disabled = true;
-        verifyBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
-    }
-
-    console.log(`🔐 [OTP Verification] Verifying code [${enteredOtp}] for +91 ${phone}...`);
-
-    try {
-        const response = await fetch('/api/otp/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                mobileNumber: phone,
-                otpCode: enteredOtp,
-                name: document.getElementById('customer-fullname')?.value || ''
-            })
-        });
-
-        const data = await response.json();
-        console.log('📥 [OTP Verify Response]:', data);
-
-        if (data.success) {
-            isCustomerPhoneVerified = true;
-            verifiedPhoneNumber = phone;
-
-            if (badge) badge.style.display = 'inline-flex';
-            if (msg) {
-                msg.textContent = '✅ Mobile number verified successfully with Fast2SMS!';
-                msg.style.color = '#22c55e';
-            }
-            if (verifyBtn) {
-                verifyBtn.innerHTML = `<i class="fa-solid fa-check"></i> Verified`;
-                verifyBtn.style.background = '#15803d';
-            }
-            if (otpInput) otpInput.classList.remove('invalid-field');
-
-            showToast('🎉 Mobile number verified successfully!');
-
-            // Restore user's cloud cart & past orders from MongoDB
-            syncUserDataFromMongoDB(phone);
-        } else {
-            console.warn('⚠️ [OTP Verify Failed]:', data.message);
-            showToast(data.message || 'Invalid OTP code. Please check your SMS and try again.');
-            if (msg) {
-                msg.textContent = `❌ ${data.message || 'Invalid OTP code.'}`;
-                msg.style.color = '#ef4444';
-            }
-            if (otpInput) {
-                otpInput.classList.add('invalid-field');
-                otpInput.focus();
-            }
-            if (verifyBtn) {
-                verifyBtn.disabled = false;
-                verifyBtn.innerHTML = `<i class="fa-solid fa-shield-check"></i> Verify`;
-            }
-        }
-    } catch (err) {
-        console.error('❌ [OTP Verify Network Error]:', err);
-        showToast('⚠️ Error connecting to verification server.');
-        if (verifyBtn) {
-            verifyBtn.disabled = false;
-            verifyBtn.innerHTML = `<i class="fa-solid fa-shield-check"></i> Verify`;
-        }
-    }
-}
-
-async function syncUserDataFromMongoDB(phone) {
-    try {
-        const res = await fetch(`/api/users/${phone}`);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.user) {
-                const user = data.user;
-                if (user.deliveryAddress) {
-                    const addr = user.deliveryAddress;
-                    if (addr.colonyName && document.getElementById('customer-colony-name')) document.getElementById('customer-colony-name').value = addr.colonyName;
-                    if (addr.nearBy && document.getElementById('customer-nearby')) document.getElementById('customer-nearby').value = addr.nearBy;
-                    if (addr.streetName && document.getElementById('customer-street-name')) document.getElementById('customer-street-name').value = addr.streetName;
-                    if (addr.wardNo && document.getElementById('customer-ward-no')) document.getElementById('customer-ward-no').value = addr.wardNo;
-                }
-                const nameEl = document.getElementById('profile-display-name');
-                if (nameEl && user.name) nameEl.textContent = user.name;
-            }
-        }
-    } catch (e) {}
-}
-
-async function handleFinalOrderSubmit(event) {
+function handleFinalOrderSubmit(event) {
     if (event) event.preventDefault();
 
     // 1. Strict Empty Cart Validation Check
@@ -1268,32 +1033,11 @@ async function handleFinalOrderSubmit(event) {
 
     const fullName = document.getElementById('customer-fullname').value.trim();
     const phone = document.getElementById('customer-phone').value.trim();
-    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
     const colonyName = document.getElementById('customer-colony-name').value.trim();
     const nearBy = document.getElementById('customer-nearby').value.trim();
     const streetName = document.getElementById('customer-street-name').value.trim();
     const wardNo = document.getElementById('customer-ward-no').value.trim();
-    const enteredOtp = document.getElementById('customer-otp-input')?.value.trim() || '';
-
-    // 4. Strict Fast2SMS OTP Verification Requirement Check
-    if (!isCustomerPhoneVerified || verifiedPhoneNumber !== cleanPhone) {
-        if (enteredOtp && enteredOtp.length >= 4) {
-            // Try automatic inline verification
-            await handleVerifyOTP();
-            if (!isCustomerPhoneVerified) {
-                return;
-            }
-        } else {
-            const otpContainer = document.getElementById('otp-verify-container');
-            if (otpContainer) {
-                otpContainer.style.display = 'block';
-                const otpInput = document.getElementById('customer-otp-input');
-                if (otpInput) otpInput.focus();
-            }
-            showToast('⚠️ Please verify your mobile number with OTP before confirming your order!');
-            return;
-        }
-    }
 
     // Save profile for future convenience
     const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo };
@@ -1334,25 +1078,8 @@ async function handleFinalOrderSubmit(event) {
         total: Math.round(grandTotal),
         paymentStatus: 'Cash on Delivery',
         status: 'new',
-        otpVerified: true,
         createdAt: new Date().toISOString()
     };
-
-    // 5. Save Order Directly to MongoDB Atlas Database via REST API
-    try {
-        fetch('/api/orders', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ...newOrder,
-                otpCode: enteredOtp
-            })
-        }).then(r => r.json()).then(res => {
-            console.log('✅ Order saved in MongoDB:', res);
-        }).catch(e => console.warn('MongoDB order sync note:', e));
-    } catch (dbErr) {
-        console.warn('MongoDB save attempt:', dbErr);
-    }
 
     // Save order to localStorage
     try {
@@ -1369,7 +1096,7 @@ async function handleFinalOrderSubmit(event) {
         window.PerfettoFirebase.placeOrder(newOrder);
     }
 
-    showToast('🎉 Order placed successfully in Database! Arriving in 25 mins.');
+    showToast('🎉 Order placed successfully! Arriving in 25 mins.');
     cart = [];
     saveCartToStorage();
     updateCartUI();
