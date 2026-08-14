@@ -253,11 +253,33 @@
                                 <label for="customer-phone">Mobile Number <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-phone"></i>
-                                    <input type="tel" id="customer-phone" required autocomplete="tel">
+                                    <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number">
                                 </div>
                                 <button type="button" class="btn-send-otp" id="btn-send-otp" onclick="handleSendOTP(event)">
                                     <i class="fa-solid fa-paper-plane"></i> Send OTP
                                 </button>
+                            </div>
+
+                            <!-- DYNAMIC OTP VERIFICATION FIELD -->
+                            <div class="hyperlocal-field otp-verify-container" id="otp-verify-container" style="display: none;">
+                                <label for="customer-otp-input">
+                                    SMS Verification Code <span class="req-star">*</span>
+                                    <span id="otp-verified-badge" style="display: none; color: #22c55e; font-size: 0.8rem; margin-left: 6px;">
+                                        <i class="fa-solid fa-circle-check"></i> Verified
+                                    </span>
+                                </label>
+                                <div class="input-icon-group" style="display: flex; gap: 8px;">
+                                    <div style="flex: 1; position: relative;">
+                                        <i class="fa-solid fa-key" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--primary-orange);"></i>
+                                        <input type="text" id="customer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" style="padding-left: 40px; font-weight: 700; letter-spacing: 2px; text-align: center;" autocomplete="one-time-code">
+                                    </div>
+                                    <button type="button" class="btn-verify-otp" id="btn-verify-otp" onclick="handleVerifyOTP(event)" style="background: #22c55e; color: #fff; border: none; padding: 0 16px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                                        <i class="fa-solid fa-shield-check"></i> Verify
+                                    </button>
+                                </div>
+                                <div class="otp-status-msg" id="otp-status-msg" style="font-size: 0.78rem; margin-top: 4px; color: var(--text-muted);">
+                                    Enter the code sent to your phone to confirm your order.
+                                </div>
                             </div>
 
                             <div class="hyperlocal-field">

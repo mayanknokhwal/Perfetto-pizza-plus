@@ -21,13 +21,16 @@
     /* Brand Primary Accent */
     --primary-color: #ff385c;
     --primary-hover: #e02446;
+    --primary-orange: #ff6b00;
+    --primary-orange-hover: #e55e00;
+    --accent-red: #ef4444;
     --primary-light: rgba(255, 56, 92, 0.12);
     --primary-glow: rgba(255, 56, 92, 0.35);
 
     /* Light Theme (Default) */
     --bg-page: #ffffff;
     --bg-surface: #ffffff;
-    --bg-surface-elevated: #ffffff;
+    --bg-surface-elevated: #f8fafc;
     --bg-glass: rgba(255, 255, 255, 0.9);
     --bg-input: #f1f5f9;
     
@@ -46,6 +49,9 @@
 
 /* Dark Theme Overrides */
 [data-theme="dark"] {
+    --primary-orange: #ff781f;
+    --primary-orange-hover: #ff6b00;
+    --accent-red: #f87171;
     --bg-page: #0b0f17;
     --bg-surface: #161b26;
     --bg-surface-elevated: #1e2638;
@@ -1925,6 +1931,33 @@ body.shop-closed .checkout-btn {
     color: #ffffff;
 }
 
+.profile-delivery-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 24px;
+    box-shadow: var(--card-shadow);
+}
+
+.card-header-line {
+    margin-bottom: 18px;
+}
+
+.card-section-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+}
+
+.card-section-subtext {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
 .form-grid-hyperlocal {
     display: flex;
     flex-direction: column;
@@ -1933,9 +1966,10 @@ body.shop-closed .checkout-btn {
 }
 
 .hyperlocal-field label {
-    display: block;
-    font-size: 0.84rem;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    font-size: 0.86rem;
+    font-weight: 700;
     color: var(--text-main);
     margin-bottom: 6px;
 }
@@ -1950,6 +1984,7 @@ body.shop-closed .checkout-btn {
 .req-star {
     color: var(--accent-red);
     font-weight: bold;
+    margin-left: 2px;
 }
 
 .input-icon-group {
@@ -1963,17 +1998,18 @@ body.shop-closed .checkout-btn {
     top: 50%;
     transform: translateY(-50%);
     color: var(--primary-orange);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
 .input-icon-group input {
     width: 100%;
-    padding: 12px 14px 12px 40px;
+    padding: 12px 14px 12px 42px;
     background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
+    border: 1.5px solid var(--border-color);
     border-radius: 10px;
     color: var(--text-main);
-    font-size: 0.9rem;
+    font-size: 0.92rem;
+    font-weight: 600;
     outline: none;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
     box-sizing: border-box;
@@ -1984,85 +2020,133 @@ body.shop-closed .checkout-btn {
     box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2);
 }
 
-.delivery-order-summary-box {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 12px 16px;
-    margin-bottom: 20px;
-}
-
-.summary-box-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-    color: var(--text-main);
-}
-
 .input-icon-group input.invalid-field {
     border: 2px solid #ef4444 !important;
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
 }
 
+/* DYNAMIC OTP VERIFY CONTAINER */
+.otp-verify-container {
+    background-color: var(--bg-surface-elevated);
+    border: 1.5px dashed var(--primary-orange);
+    padding: 14px;
+    border-radius: 12px;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .btn-send-otp {
     width: 100%;
-    min-height: 42px;
+    min-height: 44px;
     margin-top: 8px;
-    background-color: #28a745;
-    color: #ffffff;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    color: #ffffff !important;
     border: none;
-    border-radius: 8px;
+    border-radius: 9px;
     font-family: var(--font-heading);
-    font-size: 0.9rem;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-    transition: all 0.2s ease;
-    touch-action: manipulation;
-}
-
-.btn-send-otp:hover {
-    background-color: #218838;
-}
-
-.btn-send-otp:active {
-    transform: translateY(1px);
-    box-shadow: none;
-}
-
-.btn-confirm-order {
-    width: 100%;
-    min-height: 50px;
-    background-color: var(--primary-orange);
-    color: #ffffff;
-    border: none;
-    border-radius: 12px;
-    font-family: var(--font-heading);
-    font-size: 1.05rem;
+    font-size: 0.92rem;
     font-weight: 700;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    box-shadow: 0 6px 20px rgba(255, 107, 0, 0.35);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
     transition: all 0.2s ease;
     touch-action: manipulation;
 }
 
+.btn-send-otp:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+}
+
+.btn-send-otp:active {
+    transform: translateY(1px);
+}
+
+.btn-send-otp:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+}
+
+.btn-verify-otp {
+    height: 44px;
+    background: #16a34a !important;
+    color: #ffffff !important;
+    border: none;
+    padding: 0 18px;
+    border-radius: 9px;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    transition: all 0.2s ease;
+}
+
+.btn-verify-otp:hover {
+    background: #15803d !important;
+}
+
+.delivery-order-summary-box {
+    background-color: var(--bg-surface-elevated);
+    border: 1.5px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.summary-box-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+/* CONFIRM ORDER BUTTON - HIGH CONTRAST & VISIBLE IN BOTH LIGHT & DARK MODES */
+.btn-confirm-order {
+    width: 100%;
+    min-height: 52px;
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%) !important;
+    color: #ffffff !important;
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    box-shadow: 0 6px 20px rgba(255, 107, 0, 0.4);
+    transition: all 0.25s ease;
+    touch-action: manipulation;
+}
+
 .btn-confirm-order:hover {
-    background-color: var(--primary-orange-hover);
-    transform: translateY(-1px);
+    background: linear-gradient(135deg, #e55e00 0%, #e02446 100%) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 107, 0, 0.5);
 }
 
 .btn-confirm-order:active {
     transform: translateY(1px);
-    box-shadow: none;
+    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.3);
 }
 
 
