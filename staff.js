@@ -2,79 +2,8 @@
 // PERFETTO PIZZA - MOBILE STAFF PORTAL LOGIC (CHEF & DELIVERY)
 // --------------------------------------------------------------------------
 
-// 1. INITIAL MOCK ORDERS DATASET
-let staffOrders = [
-    {
-        id: "1045",
-        customerName: "Rahul Sharma",
-        phone: "+91 98765 43210",
-        address: "Flat 302, Green Park Heights, Sector 14, Gurugram",
-        timeAgo: "2 mins ago",
-        items: [
-            { name: "1x Farm House Pizza (M)", notes: "Extra Cheese & Jalapenos" },
-            { name: "1x Cheesy Garlic Bread", notes: "Extra Garlic Dip" }
-        ],
-        total: 488,
-        paymentStatus: "Paid via UPI",
-        status: "new" // options: new, preparing, ready, delivery, completed
-    },
-    {
-        id: "1044",
-        customerName: "Priya Patel",
-        phone: "+91 98123 45678",
-        address: "Tower B-401, DLF Phase 5, Golf Course Rd",
-        timeAgo: "8 mins ago",
-        items: [
-            { name: "2x Peppy Paneer Pizza (L)", notes: "Thin Crust" },
-            { name: "2x Coca-Cola (500ml)", notes: "Chilled" }
-        ],
-        total: 1120,
-        paymentStatus: "Cash on Delivery",
-        status: "preparing"
-    },
-    {
-        id: "1043",
-        customerName: "Ankit Verma",
-        phone: "+91 99555 12345",
-        address: "House #12, Sushant Lok Phase 1",
-        timeAgo: "15 mins ago",
-        items: [
-            { name: "1x Veg Extravaganza (M)", notes: "No Mushrooms" },
-            { name: "1x Choco Lava Cake", notes: "Warm" }
-        ],
-        total: 540,
-        paymentStatus: "Paid via Cards",
-        status: "ready"
-    },
-    {
-        id: "1042",
-        customerName: "Sneha Kapoor",
-        phone: "+91 97111 88990",
-        address: "Plot 88, Cyber City Block B",
-        timeAgo: "22 mins ago",
-        items: [
-            { name: "1x Non-Veg Supreme (L)", notes: "Double Cheese Burst" },
-            { name: "1x Pepsi (1.5L)", notes: "" }
-        ],
-        total: 890,
-        paymentStatus: "Paid via UPI",
-        status: "delivery"
-    },
-    {
-        id: "1041",
-        customerName: "Vikram Malhotra",
-        phone: "+91 98990 11223",
-        address: "Villa 14, Nirvana Country",
-        timeAgo: "40 mins ago",
-        items: [
-            { name: "1x Margherita Pizza (Regular)", notes: "" },
-            { name: "1x French Fries", notes: "Extra Crispy" }
-        ],
-        total: 310,
-        paymentStatus: "Paid via UPI",
-        status: "completed"
-    }
-];
+// 1. INITIAL ORDERS DATASET (Starts empty - real customer orders only)
+let staffOrders = [];
 
 // STATE CONTROLLERS
 let currentRole = 'chef'; // 'chef' or 'delivery'
@@ -85,25 +14,50 @@ function loadCustomerOrders() {
         const stored = localStorage.getItem('perfettoCustomerOrders');
         if (stored) {
             const customerOrders = JSON.parse(stored);
-            if (Array.isArray(customerOrders) && customerOrders.length > 0) {
-                // Combine customer placed orders with mock fallback orders, avoiding duplicate IDs
-                const existingIds = new Set(customerOrders.map(o => o.id));
-                const uniqueMock = staffOrders.filter(o => !existingIds.has(o.id));
-                staffOrders = [...customerOrders, ...uniqueMock];
+            if (Array.isArray(customerOrders)) {
+                staffOrders = customerOrders;
+            } else {
+                staffOrders = [];
             }
+        } else {
+            staffOrders = [];
         }
     } catch (e) {
         console.error('Error loading customer orders:', e);
+        staffOrders = [];
     }
 }
 
 // --------------------------------------------------------------------------
-// 2. DOM INITIALIZATION & STORAGE SYNCHRONIZATION
+// 2. DOM INITIALIZATION, FIREBASE CLOUD LISTENER & STORAGE SYNCHRONIZATION
 // --------------------------------------------------------------------------
+let previousOrderCount = 0;
+
+function initFirebaseOrders() {
+    if (window.PerfettoFirebase && window.PerfettoFirebase.subscribeOrders) {
+        window.PerfettoFirebase.subscribeOrders(orders => {
+            if (Array.isArray(orders)) {
+                // Check if new order arrived to notify staff
+                if (previousOrderCount > 0 && orders.length > previousOrderCount) {
+                    showStaffToast('🔔 New Customer Order Received!');
+                }
+                previousOrderCount = orders.length;
+                staffOrders = orders;
+                try {
+                    localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
+                } catch (e) {}
+                renderOrders();
+                updateCounts();
+            }
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadCustomerOrders();
     renderOrders();
     updateCounts();
+    initFirebaseOrders();
 });
 
 window.addEventListener('storage', (e) => {
@@ -350,6 +304,11 @@ function updateOrderStatus(orderId, newStatus) {
         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
     } catch (e) {
         console.error('Error saving updated order status:', e);
+    }
+
+    // Save updated status to Firebase Cloud Firestore
+    if (window.PerfettoFirebase && window.PerfettoFirebase.updateOrderStatus) {
+        window.PerfettoFirebase.updateOrderStatus(orderId, newStatus);
     }
 
     let msg = `Order #${orderId} updated to ${newStatus.toUpperCase()}`;

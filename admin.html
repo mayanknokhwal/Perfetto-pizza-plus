@@ -1363,8 +1363,13 @@
         <span id="toast-text">All menu changes saved to database!</span>
     </div>
 
+    <!-- Firebase App & Firestore SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
     <!-- --------------------------------------------------------------------------
-       8. JAVASCRIPT LOGIC & LOCALSTORAGE DATABASE
+       8. JAVASCRIPT LOGIC & LOCALSTORAGE / FIREBASE DATABASE
        -------------------------------------------------------------------------- -->
     <script>
         // CLEAN FOOD & BEVERAGE MENU DATASET (NO PROMOTIONAL BANNERS)
@@ -2122,6 +2127,20 @@
             saveOrderSettings(false);
             updateStats();
 
+            // Save to Firebase Cloud Firestore
+            if (window.PerfettoFirebase) {
+                if (window.PerfettoFirebase.saveMenu) {
+                    window.PerfettoFirebase.saveMenu(menuItems);
+                }
+                if (window.PerfettoFirebase.saveSettings) {
+                    window.PerfettoFirebase.saveSettings({
+                        shopStatus: getShopStatus(),
+                        minOrderValue: getMinOrderValue(),
+                        freeDeliveryLimit: getFreeDeliveryLimit()
+                    });
+                }
+            }
+
             if (currentSearchQuery.trim() !== '') {
                 renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
             } else if (activeCategory) {
@@ -2130,7 +2149,7 @@
                 renderCategoryGrid();
             }
 
-            showToast('All menu changes, prices & settings saved successfully!');
+            showToast('All menu changes, prices & settings saved to Cloud & Local database!');
         }
 
         // 7. RESET TO DEFAULTS
@@ -2138,6 +2157,9 @@
             if (confirm('Reset menu database back to original defaults?')) {
                 menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
                 saveToLocalStorage();
+                if (window.PerfettoFirebase && window.PerfettoFirebase.saveMenu) {
+                    window.PerfettoFirebase.saveMenu(menuItems);
+                }
                 updateStats();
 
                 if (currentSearchQuery.trim() !== '') {
@@ -2240,6 +2262,11 @@
                 console.error('Failed to save shopStatus to localStorage:', e);
             }
 
+            // Sync to Firebase Cloud Firestore
+            if (window.PerfettoFirebase && window.PerfettoFirebase.saveSettings) {
+                window.PerfettoFirebase.saveSettings({ shopStatus: nextStatus });
+            }
+
             updateShopStatusUI(nextStatus);
 
             if (nextStatus === 'closed') {
@@ -2295,9 +2322,74 @@
             } catch (e) {
                 console.error('Failed to save order settings to localStorage:', e);
             }
+
+            // Sync to Firebase Cloud Firestore
+            if (window.PerfettoFirebase && window.PerfettoFirebase.saveSettings) {
+                window.PerfettoFirebase.saveSettings({ minOrderValue: minVal, freeDeliveryLimit: freeVal });
+            }
         }
 
-        // 12. GLOBAL 'ENTER' KEY EVENT LISTENER FOR INSTANT SAVING
+        // --------------------------------------------------------------------------
+        // 12. FIREBASE REALTIME CLOUD SYNCHRONIZATION FOR ADMIN
+        // --------------------------------------------------------------------------
+        function initFirebaseAdminSync() {
+            if (!window.PerfettoFirebase) return;
+
+            // 1. Listen for Store Settings
+            if (window.PerfettoFirebase.subscribeSettings) {
+                window.PerfettoFirebase.subscribeSettings(settings => {
+                    if (settings) {
+                        if (settings.shopStatus) {
+                            localStorage.setItem(SHOP_STATUS_KEY, settings.shopStatus);
+                            updateShopStatusUI(settings.shopStatus);
+                        }
+                        if (settings.minOrderValue !== undefined) {
+                            localStorage.setItem(MIN_ORDER_KEY, settings.minOrderValue.toString());
+                        }
+                        if (settings.freeDeliveryLimit !== undefined) {
+                            localStorage.setItem(FREE_DELIVERY_KEY, settings.freeDeliveryLimit.toString());
+                        }
+                        initOrderSettingsUI();
+                    }
+                });
+            }
+
+            // 2. Listen for Live Orders to update Revenue & Live counters on Dashboard
+            if (window.PerfettoFirebase.subscribeOrders) {
+                window.PerfettoFirebase.subscribeOrders(orders => {
+                    if (Array.isArray(orders)) {
+                        const totalRevenue = orders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+                        const revenueEl = document.querySelector('.stat-value');
+                        if (revenueEl && totalRevenue > 0) {
+                            revenueEl.textContent = `₹${totalRevenue.toLocaleString('en-IN')}`;
+                        }
+                    }
+                });
+            }
+
+            // 3. Listen for Menu Catalog
+            if (window.PerfettoFirebase.subscribeMenu) {
+                window.PerfettoFirebase.subscribeMenu(items => {
+                    if (Array.isArray(items) && items.length > 0) {
+                        // Only update if not currently typing or editing
+                        const activeEl = document.activeElement;
+                        const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+                        if (!isTyping) {
+                            menuItems = items;
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+                            updateStats();
+                            if (activeCategory) {
+                                renderCategoryItemsTable();
+                            } else {
+                                renderCategoryGrid();
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // 13. GLOBAL 'ENTER' KEY EVENT LISTENER FOR INSTANT SAVING
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
                 e.preventDefault();
@@ -2310,6 +2402,7 @@
             initMenuData();
             initShopStatus();
             initOrderSettingsUI();
+            initFirebaseAdminSync();
 
             // Set initial History API state for root category grid
             if (!history.state) {
