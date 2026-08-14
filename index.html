@@ -253,7 +253,7 @@
                                 <label for="customer-phone">Mobile Number <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-phone"></i>
-                                    <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number">
+                                    <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
                                 </div>
                                 <button type="button" class="btn-send-otp" id="btn-send-otp" onclick="handleSendOTP(event)">
                                     <i class="fa-solid fa-paper-plane"></i> Send OTP
@@ -271,7 +271,7 @@
                                 <div class="input-icon-group" style="display: flex; gap: 8px;">
                                     <div style="flex: 1; position: relative;">
                                         <i class="fa-solid fa-key" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--primary-orange);"></i>
-                                        <input type="text" id="customer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" style="padding-left: 40px; font-weight: 700; letter-spacing: 2px; text-align: center;" autocomplete="one-time-code">
+                                        <input type="text" id="customer-otp-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);" style="padding-left: 40px; font-weight: 700; letter-spacing: 2px; text-align: center;" autocomplete="one-time-code">
                                     </div>
                                     <button type="button" class="btn-verify-otp" id="btn-verify-otp" onclick="handleVerifyOTP(event)" style="background: #22c55e; color: #fff; border: none; padding: 0 16px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">
                                         <i class="fa-solid fa-shield-check"></i> Verify

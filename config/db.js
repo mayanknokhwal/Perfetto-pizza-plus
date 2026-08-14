@@ -2,7 +2,15 @@
 // PERFETTO PIZZA - MONGODB DATABASE CONNECTION CONFIGURATION
 // --------------------------------------------------------------------------
 const mongoose = require('mongoose');
+const dns = require('dns');
 require('dotenv').config();
+
+// Ensure Node resolves MongoDB Atlas SRV DNS queries reliably on Windows
+try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+    console.warn('DNS server configuration note:', e.message);
+}
 
 const connectDB = async () => {
     try {

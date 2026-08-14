@@ -967,17 +967,49 @@ function closeDeliveryModal() {
 let isCustomerPhoneVerified = false;
 let verifiedPhoneNumber = '';
 
+// Attach input restrictions to mobile number field
+document.addEventListener('DOMContentLoaded', () => {
+    const phoneInput = document.getElementById('customer-phone');
+    if (phoneInput) {
+        phoneInput.addEventListener('input', (e) => {
+            // Strip any non-digit character and restrict strictly to 10 digits
+            const clean = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+            e.target.value = clean;
+
+            // If user changes their phone after verification, reset verified state
+            if (verifiedPhoneNumber && clean !== verifiedPhoneNumber) {
+                isCustomerPhoneVerified = false;
+                verifiedPhoneNumber = '';
+                const badge = document.getElementById('otp-verified-badge');
+                if (badge) badge.style.display = 'none';
+                const otpContainer = document.getElementById('otp-verify-container');
+                if (otpContainer) otpContainer.style.display = 'none';
+                const msg = document.getElementById('otp-status-msg');
+                if (msg) msg.textContent = 'Mobile number changed. Please request a new OTP.';
+            }
+        });
+    }
+
+    const otpInput = document.getElementById('customer-otp-input');
+    if (otpInput) {
+        otpInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        });
+    }
+});
+
 async function handleSendOTP(event) {
     if (event) event.preventDefault();
     const phoneInput = document.getElementById('customer-phone');
     const phone = phoneInput ? phoneInput.value.trim() : '';
-    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
 
     if (!cleanPhone || cleanPhone.length !== 10) {
         if (phoneInput) {
             phoneInput.classList.add('invalid-field');
             phoneInput.focus();
         }
+        console.warn('⚠️ [OTP Trigger Blocked]: Invalid mobile number length:', cleanPhone);
         showToast('Please enter a valid 10-digit mobile number!');
         return;
     }
@@ -987,8 +1019,10 @@ async function handleSendOTP(event) {
     const sendOtpBtn = document.getElementById('btn-send-otp');
     if (sendOtpBtn) {
         sendOtpBtn.disabled = true;
-        sendOtpBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending...`;
+        sendOtpBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Sending OTP...`;
     }
+
+    console.log(`📱 [Fast2SMS Trigger] Sending OTP request to backend for mobile: +91 ${cleanPhone}`);
 
     try {
         const response = await fetch('/api/otp/send', {
@@ -998,6 +1032,7 @@ async function handleSendOTP(event) {
         });
 
         const data = await response.json();
+        console.log('📥 [OTP API Response]:', data);
 
         if (data.success) {
             // Reveal OTP Verification container
@@ -1011,8 +1046,12 @@ async function handleSendOTP(event) {
                 otpInput.focus();
             }
             if (otpMsg) {
-                otpMsg.textContent = `OTP dispatched to +91 ${cleanPhone} via Fast2SMS.`;
+                otpMsg.textContent = data.message || `OTP dispatched to +91 ${cleanPhone} via Fast2SMS.`;
                 otpMsg.style.color = 'var(--text-muted)';
+            }
+
+            if (data.previewOtp) {
+                console.info(`🔑 [DIAGNOSTIC TEST OTP]: ${data.previewOtp}`);
             }
 
             showToast(`📱 Fast2SMS OTP sent to +91 ${cleanPhone}!`);
@@ -1034,17 +1073,23 @@ async function handleSendOTP(event) {
                 }
             }, 1000);
         } else {
-            showToast(data.message || 'Failed to send OTP. Please try again.');
+            console.error('❌ [Fast2SMS API Error]:', data.message);
+            showToast(data.message || 'Failed to send OTP. Please check the number and try again.');
+            const otpMsg = document.getElementById('otp-status-msg');
+            if (otpMsg) {
+                otpMsg.textContent = `❌ ${data.message}`;
+                otpMsg.style.color = '#ef4444';
+            }
             if (sendOtpBtn) {
                 sendOtpBtn.disabled = false;
                 sendOtpBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send OTP`;
             }
         }
     } catch (err) {
-        console.warn('Fast2SMS request error, falling back locally:', err);
+        console.error('❌ [Fast2SMS Network Exception]:', err);
         const otpContainer = document.getElementById('otp-verify-container');
         if (otpContainer) otpContainer.style.display = 'block';
-        showToast(`📱 OTP requested for +91 ${cleanPhone}!`);
+        showToast(`⚠️ Server offline or network issue: ${err.message}`);
         if (sendOtpBtn) {
             sendOtpBtn.disabled = false;
             sendOtpBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Send OTP`;
@@ -1060,7 +1105,7 @@ async function handleVerifyOTP(event) {
     const badge = document.getElementById('otp-verified-badge');
     const msg = document.getElementById('otp-status-msg');
 
-    const phone = phoneInput ? phoneInput.value.trim().replace(/[^0-9]/g, '').slice(-10) : '';
+    const phone = phoneInput ? phoneInput.value.trim().replace(/[^0-9]/g, '').slice(0, 10) : '';
     const enteredOtp = otpInput ? otpInput.value.trim() : '';
 
     if (!phone || phone.length !== 10) {
@@ -1073,7 +1118,7 @@ async function handleVerifyOTP(event) {
             otpInput.classList.add('invalid-field');
             otpInput.focus();
         }
-        showToast('Please enter the OTP code sent to your phone!');
+        showToast('Please enter the 6-digit OTP code!');
         return;
     }
 
@@ -1081,6 +1126,8 @@ async function handleVerifyOTP(event) {
         verifyBtn.disabled = true;
         verifyBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
     }
+
+    console.log(`🔐 [OTP Verification] Verifying code [${enteredOtp}] for +91 ${phone}...`);
 
     try {
         const response = await fetch('/api/otp/verify', {
@@ -1094,6 +1141,7 @@ async function handleVerifyOTP(event) {
         });
 
         const data = await response.json();
+        console.log('📥 [OTP Verify Response]:', data);
 
         if (data.success) {
             isCustomerPhoneVerified = true;
@@ -1108,28 +1156,35 @@ async function handleVerifyOTP(event) {
                 verifyBtn.innerHTML = `<i class="fa-solid fa-check"></i> Verified`;
                 verifyBtn.style.background = '#15803d';
             }
-            if (phoneInput) phoneInput.readOnly = true;
-            if (otpInput) otpInput.readOnly = true;
+            if (otpInput) otpInput.classList.remove('invalid-field');
 
             showToast('🎉 Mobile number verified successfully!');
 
             // Restore user's cloud cart & past orders from MongoDB
             syncUserDataFromMongoDB(phone);
         } else {
-            showToast(data.message || 'Invalid OTP code. Please try again.');
+            console.warn('⚠️ [OTP Verify Failed]:', data.message);
+            showToast(data.message || 'Invalid OTP code. Please check your SMS and try again.');
+            if (msg) {
+                msg.textContent = `❌ ${data.message || 'Invalid OTP code.'}`;
+                msg.style.color = '#ef4444';
+            }
+            if (otpInput) {
+                otpInput.classList.add('invalid-field');
+                otpInput.focus();
+            }
             if (verifyBtn) {
                 verifyBtn.disabled = false;
                 verifyBtn.innerHTML = `<i class="fa-solid fa-shield-check"></i> Verify`;
             }
         }
     } catch (err) {
-        console.warn('Verification fallback:', err);
-        // Fallback verification in case of offline server
-        isCustomerPhoneVerified = true;
-        verifiedPhoneNumber = phone;
-        if (badge) badge.style.display = 'inline-flex';
-        if (verifyBtn) verifyBtn.innerHTML = `<i class="fa-solid fa-check"></i> Verified`;
-        showToast('🎉 Mobile number verified!');
+        console.error('❌ [OTP Verify Network Error]:', err);
+        showToast('⚠️ Error connecting to verification server.');
+        if (verifyBtn) {
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = `<i class="fa-solid fa-shield-check"></i> Verify`;
+        }
     }
 }
 
