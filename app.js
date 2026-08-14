@@ -1065,15 +1065,7 @@ function handleFinalOrderSubmit(event) {
     cart = [];
     saveCartToStorage();
     updateCartUI();
-    updateProfileTotalsUI();
-    
-    // Auto-expand and render saved address
-    const savedAddrBox = document.getElementById('saved-address-display-box');
-    if (savedAddrBox) {
-        renderSavedAddressDetails();
-        savedAddrBox.style.display = 'block';
-        savedAddrBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    switchTab('home', true);
 }
 
 function updateProfileTotalsUI() {
