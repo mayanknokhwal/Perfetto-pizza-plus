@@ -2115,41 +2115,207 @@ body.shop-closed .checkout-btn {
 }
 
 /* --------------------------------------------------------------------------
-   OTP VERIFICATION SYSTEM STYLES
+   8. PROFILE TAB STYLES & CONTAINED RESPONSIVE LAYOUT
    -------------------------------------------------------------------------- */
-.phone-input-with-action {
+#view-profile {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.profile-header-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 22px 16px;
+    text-align: center;
+    margin-bottom: 16px;
+    box-shadow: var(--card-shadow);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.profile-icon-circle {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background-color: var(--bg-surface-elevated);
+    border: 2.5px solid var(--primary-orange);
     display: flex;
     align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px auto;
+    font-size: 2rem;
+    color: var(--primary-orange);
+    box-shadow: 0 4px 16px var(--primary-glow);
+    overflow: hidden;
     position: relative;
+    flex-shrink: 0;
 }
 
-.phone-input-with-action input {
-    padding-right: 90px !important;
+.profile-icon-circle .avatar-placeholder-icon {
+    font-size: 2rem;
+    color: var(--primary-orange);
 }
 
-.btn-verify-otp {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    background-color: var(--primary-orange);
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
+.profile-icon-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-name {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 3px;
+    word-break: break-word;
+}
+
+.profile-email {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 12px;
+    word-break: break-word;
+}
+
+.btn-toggle-edit-profile {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    transition: all 0.2s ease;
-    z-index: 2;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--bg-surface-elevated);
+    border: 1.5px solid var(--primary-orange);
+    color: var(--primary-orange);
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: all 0.25s ease;
+    touch-action: manipulation;
 }
 
-.btn-verify-otp:hover {
-    background-color: var(--primary-orange-hover);
-    transform: translateY(-50%) scale(1.03);
+.btn-toggle-edit-profile:hover {
+    background-color: var(--primary-orange);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+/* STATS ROW */
+.profile-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.stat-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 12px 6px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.stat-num {
+    display: block;
+    font-size: 1.15rem;
+    font-weight: var(--fw-black);
+    color: var(--primary-color);
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-weight: var(--fw-bold);
+    margin-top: 2px;
+    white-space: nowrap;
+}
+
+/* PROFILE EDIT DELIVERY CARD */
+.profile-delivery-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 18px 16px;
+    margin-bottom: 18px;
+    box-shadow: var(--card-shadow);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    animation: fadeIn 0.25s ease;
+    overflow: hidden;
+}
+
+.card-header-line {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-section-title {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+}
+
+.card-section-subtext {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.form-grid-hyperlocal {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.hyperlocal-field {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.hyperlocal-field label {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 6px;
+    gap: 4px;
+}
+
+.req-star {
+    color: var(--accent-red);
+    font-weight: bold;
+    margin-left: 2px;
 }
 
 .phone-verified-badge {
@@ -2158,31 +2324,132 @@ body.shop-closed .checkout-btn {
     gap: 4px;
     background-color: rgba(34, 197, 94, 0.15);
     color: #16a34a;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 700;
     padding: 2px 8px;
     border-radius: 12px;
-    margin-left: 8px;
     border: 1px solid rgba(34, 197, 94, 0.3);
+    white-space: nowrap;
 }
 
+.input-icon-group {
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+}
+
+.input-icon-group i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--primary-orange);
+    font-size: 0.9rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.input-icon-group input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px 10px 38px;
+    background-color: var(--bg-input);
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    color: var(--text-main);
+    font-size: 0.9rem;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+.input-icon-group input:focus {
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2);
+}
+
+.input-icon-group input.invalid-field {
+    border: 2px solid #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
+}
+
+/* PHONE INPUT WITH EMBEDDED VERIFY BUTTON */
+.phone-input-with-action {
+    display: flex;
+    align-items: center;
+    position: relative;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.phone-input-with-action input {
+    padding-right: 85px !important;
+}
+
+.btn-verify-otp {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    z-index: 2;
+    touch-action: manipulation;
+    white-space: nowrap;
+}
+
+.btn-verify-otp:hover {
+    filter: brightness(1.1);
+    transform: translateY(-50%) scale(1.02);
+}
+
+.btn-verify-otp:active {
+    transform: translateY(-50%) scale(0.98);
+}
+
+/* --------------------------------------------------------------------------
+   OTP VERIFICATION SYSTEM (CENTERED & CONTEMPLATED RESPONSIVE CONTAINER)
+   -------------------------------------------------------------------------- */
 .otp-verification-wrapper {
-    background: var(--bg-surface);
+    background: var(--bg-surface-elevated);
     border: 1.5px dashed var(--primary-orange);
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 14px;
+    padding: 14px;
     margin-top: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
     animation: fadeIn 0.25s ease-in-out;
 }
 
 .otp-box-header {
+    width: 100%;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    font-size: 0.8rem;
-    font-weight: 700;
+    justify-content: center;
+    gap: 2px;
+    font-size: 0.84rem;
+    font-weight: 800;
     color: var(--text-main);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
 
 .otp-mock-hint {
@@ -2193,21 +2460,30 @@ body.shop-closed .checkout-btn {
 
 .otp-input-row {
     display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
     gap: 8px;
+    width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
 }
 
 .otp-input-field {
     flex: 1;
-    padding: 10px 12px !important;
-    background-color: var(--bg-card) !important;
+    min-width: 0;
+    height: 42px;
+    padding: 0 10px !important;
+    background-color: var(--bg-surface) !important;
     border: 1.5px solid var(--border-color) !important;
-    border-radius: 8px !important;
+    border-radius: 10px !important;
     color: var(--text-main) !important;
-    font-size: 1.1rem !important;
+    font-size: 1.15rem !important;
     font-weight: 800 !important;
     letter-spacing: 4px;
     text-align: center;
     outline: none;
+    box-sizing: border-box;
 }
 
 .otp-input-field:focus {
@@ -2216,20 +2492,130 @@ body.shop-closed .checkout-btn {
 }
 
 .btn-submit-otp {
+    height: 42px;
     background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
     color: #ffffff;
     border: none;
-    border-radius: 8px;
-    padding: 10px 14px;
+    border-radius: 10px;
+    padding: 0 14px;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 800;
     cursor: pointer;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s ease;
+    box-shadow: 0 4px 12px var(--primary-glow);
+    touch-action: manipulation;
+    flex-shrink: 0;
 }
 
 .btn-submit-otp:hover {
     filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+.btn-submit-otp:active {
+    transform: translateY(1px);
+}
+
+/* SAVE PROFILE BUTTON */
+.btn-confirm-order {
+    width: 100%;
+    min-height: 48px;
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%) !important;
+    color: #ffffff !important;
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 6px 20px rgba(255, 107, 0, 0.35);
+    transition: all 0.25s ease;
+    touch-action: manipulation;
+    box-sizing: border-box;
+}
+
+.btn-confirm-order:hover {
+    filter: brightness(1.08);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 107, 0, 0.45);
+}
+
+.btn-confirm-order:active {
+    transform: translateY(1px);
+}
+
+/* SAVED ADDRESS & ORDER HISTORY DISPLAY CARDS */
+.saved-address-card,
+.order-history-card {
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 14px;
+    margin-top: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    animation: fadeIn 0.25s ease;
+    overflow: hidden;
+}
+
+.saved-address-card-header,
+.order-history-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.saved-title-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.change-address-btn {
+    background-color: var(--primary-orange);
+    color: #ffffff;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.change-address-btn:hover {
+    background-color: var(--primary-orange-hover);
+}
+
+.saved-address-content {
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    word-break: break-word;
+}
+
+.order-history-list {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 
