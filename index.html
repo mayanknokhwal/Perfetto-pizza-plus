@@ -255,10 +255,32 @@
                             </div>
 
                             <div class="hyperlocal-field">
-                                <label for="customer-phone">Mobile Number <span class="req-star">*</span></label>
-                                <div class="input-icon-group">
+                                <label for="customer-phone">
+                                    Mobile Number <span class="req-star">*</span>
+                                    <span id="phone-verified-badge" class="phone-verified-badge" style="display: none;">
+                                        <i class="fa-solid fa-circle-check"></i> Verified
+                                    </span>
+                                </label>
+                                <div class="input-icon-group phone-input-with-action">
                                     <i class="fa-solid fa-phone"></i>
-                                    <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
+                                    <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" oninput="handlePhoneInputChange(this)">
+                                    <button type="button" class="btn-verify-otp" id="btn-request-otp" onclick="handleRequestOtp()">
+                                        <i class="fa-solid fa-shield-halved"></i> Verify
+                                    </button>
+                                </div>
+
+                                <!-- OTP VERIFICATION CONTAINER (HIDDEN BY DEFAULT) -->
+                                <div class="otp-verification-wrapper" id="otp-verification-box" style="display: none;">
+                                    <div class="otp-box-header">
+                                        <span>Enter 6-Digit OTP</span>
+                                        <span class="otp-mock-hint">(Use test OTP: <strong>123456</strong>)</span>
+                                    </div>
+                                    <div class="otp-input-row">
+                                        <input type="text" id="otp-input" class="otp-input-field" maxlength="6" inputmode="numeric" placeholder="• • • • • •" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                                        <button type="button" class="btn-submit-otp" id="btn-submit-otp" onclick="handleVerifyOtp()">
+                                            Confirm OTP
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 

@@ -1092,6 +1092,78 @@ function toggleEditProfileForm(show) {
     }
 }
 
+// --------------------------------------------------------------------------
+// OTP VERIFICATION CONTROLLER (Mock OTP: '123456')
+// --------------------------------------------------------------------------
+let isPhoneVerified = false;
+
+function handlePhoneInputChange(input) {
+    if (!input) return;
+    input.value = input.value.replace(/[^0-9]/g, '').slice(0, 10);
+    // Reset verification state if phone number changes
+    isPhoneVerified = false;
+    const badge = document.getElementById('phone-verified-badge');
+    const verifyBtn = document.getElementById('btn-request-otp');
+    const otpBox = document.getElementById('otp-verification-box');
+    if (badge) badge.style.display = 'none';
+    if (verifyBtn) {
+        verifyBtn.style.display = 'inline-flex';
+        verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Verify';
+    }
+    if (otpBox) otpBox.style.display = 'none';
+}
+
+function handleRequestOtp() {
+    const phoneInput = document.getElementById('customer-phone');
+    if (!phoneInput) return;
+    const phone = phoneInput.value.replace(/[^0-9]/g, '').slice(0, 10);
+
+    if (phone.length < 10) {
+        showToast('Please enter a valid 10-digit mobile number first!');
+        phoneInput.classList.add('invalid-field');
+        phoneInput.focus();
+        return;
+    }
+    phoneInput.classList.remove('invalid-field');
+
+    const otpBox = document.getElementById('otp-verification-box');
+    const otpInput = document.getElementById('otp-input');
+    if (otpBox) {
+        otpBox.style.display = 'block';
+        otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    if (otpInput) {
+        otpInput.value = '';
+        otpInput.focus();
+    }
+    showToast('📲 OTP sent! Use test OTP: 123456');
+}
+
+function handleVerifyOtp() {
+    const otpInput = document.getElementById('otp-input');
+    const otp = otpInput ? otpInput.value.trim() : '';
+
+    if (otp === '123456') {
+        isPhoneVerified = true;
+        const otpBox = document.getElementById('otp-verification-box');
+        const badge = document.getElementById('phone-verified-badge');
+        const verifyBtn = document.getElementById('btn-request-otp');
+
+        if (otpBox) otpBox.style.display = 'none';
+        if (badge) badge.style.display = 'inline-flex';
+        if (verifyBtn) verifyBtn.style.display = 'none';
+
+        showToast('🎉 Mobile number verified successfully!');
+    } else {
+        showToast('❌ Invalid OTP! Please enter 123456');
+        if (otpInput) {
+            otpInput.classList.add('invalid-field');
+            otpInput.focus();
+            setTimeout(() => otpInput.classList.remove('invalid-field'), 2000);
+        }
+    }
+}
+
 function handleSaveProfile(event) {
     if (event) event.preventDefault();
 
@@ -1145,7 +1217,7 @@ function handleSaveProfile(event) {
     }
 
     // Save profile to localStorage as fallback & fast cache
-    const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo };
+    const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo, isVerified: isPhoneVerified };
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
     } catch (e) {
@@ -1179,6 +1251,8 @@ function handleFinalOrderSubmit(event) {
 function renderProfileHeaderAndInputs(profile) {
     const nameEl = document.getElementById('profile-display-name');
     const subtextEl = document.getElementById('profile-display-subtext');
+    const badge = document.getElementById('phone-verified-badge');
+    const verifyBtn = document.getElementById('btn-request-otp');
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
@@ -1186,6 +1260,19 @@ function renderProfileHeaderAndInputs(profile) {
         }
         if (subtextEl) {
             subtextEl.textContent = profile.phone ? `+91 ${profile.phone}` : '+91 Mobile Number';
+        }
+
+        // Set phone verification state
+        if (profile.isVerified) {
+            isPhoneVerified = true;
+            if (badge) badge.style.display = 'inline-flex';
+            if (verifyBtn) verifyBtn.style.display = 'none';
+        } else {
+            if (badge) badge.style.display = 'none';
+            if (verifyBtn) {
+                verifyBtn.style.display = 'inline-flex';
+                verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Verify';
+            }
         }
 
         // Pre-fill form inputs
@@ -1205,6 +1292,8 @@ function renderProfileHeaderAndInputs(profile) {
     } else {
         if (nameEl) nameEl.textContent = 'Customer Name';
         if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
+        if (badge) badge.style.display = 'none';
+        if (verifyBtn) verifyBtn.style.display = 'inline-flex';
     }
 }
 

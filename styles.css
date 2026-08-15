@@ -2114,6 +2114,125 @@ body.shop-closed .checkout-btn {
     box-shadow: 0 2px 8px rgba(255, 107, 0, 0.3);
 }
 
+/* --------------------------------------------------------------------------
+   OTP VERIFICATION SYSTEM STYLES
+   -------------------------------------------------------------------------- */
+.phone-input-with-action {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.phone-input-with-action input {
+    padding-right: 90px !important;
+}
+
+.btn-verify-otp {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: var(--primary-orange);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+
+.btn-verify-otp:hover {
+    background-color: var(--primary-orange-hover);
+    transform: translateY(-50%) scale(1.03);
+}
+
+.phone-verified-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.otp-verification-wrapper {
+    background: var(--bg-surface);
+    border: 1.5px dashed var(--primary-orange);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 10px;
+    animation: fadeIn 0.25s ease-in-out;
+}
+
+.otp-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 8px;
+}
+
+.otp-mock-hint {
+    font-size: 0.72rem;
+    color: var(--primary-orange);
+    font-weight: 600;
+}
+
+.otp-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.otp-input-field {
+    flex: 1;
+    padding: 10px 12px !important;
+    background-color: var(--bg-card) !important;
+    border: 1.5px solid var(--border-color) !important;
+    border-radius: 8px !important;
+    color: var(--text-main) !important;
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 4px;
+    text-align: center;
+    outline: none;
+}
+
+.otp-input-field:focus {
+    border-color: var(--primary-orange) !important;
+    box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2) !important;
+}
+
+.btn-submit-otp {
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.btn-submit-otp:hover {
+    filter: brightness(1.1);
+}
+
+
 
 
 
