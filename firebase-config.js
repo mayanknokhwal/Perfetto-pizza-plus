@@ -171,6 +171,47 @@ const PerfettoFirebase = {
             console.error("🔥 Failed to set up menu subscription:", e);
             return null;
         }
+    },
+
+    // 8. CUSTOMER PROFILE: Save Customer Profile to Firestore ('customers' collection keyed by phone)
+    async saveCustomerProfile(profile) {
+        if (!db) {
+            console.warn("Firestore unavailable, falling back to local only.");
+            return false;
+        }
+        if (!profile || !profile.phone) {
+            console.warn("Cannot save profile without a valid phone number.");
+            return false;
+        }
+        try {
+            const customerRef = db.collection('customers').doc(profile.phone.toString());
+            await customerRef.set({
+                ...profile,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+            console.log("🔥 Customer profile saved to Firestore for phone:", profile.phone);
+            return true;
+        } catch (e) {
+            console.error("🔥 Failed to save customer profile to Firestore:", e);
+            return false;
+        }
+    },
+
+    // 9. CUSTOMER PROFILE: Get Customer Profile from Firestore by Phone
+    async getCustomerProfile(phone) {
+        if (!db || !phone) return null;
+        try {
+            const docRef = db.collection('customers').doc(phone.toString());
+            const doc = await docRef.get();
+            if (doc.exists) {
+                console.log("🔥 Customer profile fetched from Firestore for phone:", phone);
+                return doc.data();
+            }
+            return null;
+        } catch (e) {
+            console.error("🔥 Failed to fetch customer profile from Firestore:", e);
+            return null;
+        }
     }
 };
 

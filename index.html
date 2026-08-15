@@ -202,16 +202,16 @@
 
             <!-- PROFILE TAB VIEW -->
             <section class="tab-view" id="view-profile">
-                <!-- PROFILE HEADER CARD (Avatar photo removed) -->
+                <!-- PROFILE HEADER CARD (User Avatar & Customer Name / Phone) -->
                 <div class="profile-header-card">
-                    <div class="profile-icon-circle">
-                        <i class="fa-solid fa-user"></i>
+                    <div class="profile-icon-circle" id="profile-avatar-container">
+                        <i class="fa-solid fa-user avatar-placeholder-icon" id="profile-avatar-icon"></i>
                     </div>
-                    <h3 class="profile-name" id="profile-display-name">Customer Profile</h3>
-                    <p class="profile-email" id="profile-display-subtext">Perfetto Pizza Express</p>
-                    <div class="vip-badge">
-                        <i class="fa-solid fa-crown"></i> PERFETTO VIP MEMBER
-                    </div>
+                    <h3 class="profile-name" id="profile-display-name">Customer Name</h3>
+                    <p class="profile-email" id="profile-display-subtext">+91 Mobile Number</p>
+                    <button type="button" class="btn-toggle-edit-profile" id="btn-toggle-edit-profile" onclick="toggleEditProfileForm()">
+                        <i class="fa-solid fa-user-pen"></i> Edit Profile
+                    </button>
                 </div>
 
                 <!-- STATS ROW (Default 0 values) -->
@@ -230,22 +230,27 @@
                     </div>
                 </div>
 
-                <!-- EMBEDDED HYPER-LOCAL DELIVERY DETAILS FORM (FULLY VISIBLE BY DEFAULT) -->
-                <div class="profile-delivery-card">
-                    <div class="card-header-line">
-                        <h4 class="card-section-title">
-                            <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Delivery Details
-                        </h4>
-                        <p class="card-section-subtext">Enter hyper-local address for instant town delivery</p>
+                <!-- COLLAPSIBLE HYPER-LOCAL DELIVERY DETAILS / EDIT PROFILE FORM (HIDDEN BY DEFAULT) -->
+                <div class="profile-delivery-card" id="profile-edit-form-card" style="display: none;">
+                    <div class="card-header-line" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 class="card-section-title">
+                                <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Delivery Details
+                            </h4>
+                            <p class="card-section-subtext">Update your delivery address and contact details</p>
+                        </div>
+                        <button type="button" class="search-clear-btn" onclick="toggleEditProfileForm()" aria-label="Close form" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.1rem;">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
                     </div>
 
-                    <form id="delivery-details-form" onsubmit="handleFinalOrderSubmit(event)" novalidate>
+                    <form id="delivery-details-form" onsubmit="handleSaveProfile(event)" novalidate>
                         <div class="form-grid-hyperlocal">
                             <div class="hyperlocal-field">
                                 <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-user"></i>
-                                    <input type="text" id="customer-fullname" required autocomplete="name">
+                                    <input type="text" id="customer-fullname" required autocomplete="name" placeholder="Your full name">
                                 </div>
                             </div>
 
@@ -261,7 +266,7 @@
                                 <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-building"></i>
-                                    <input type="text" id="customer-colony-name" required>
+                                    <input type="text" id="customer-colony-name" required placeholder="Colony / Area">
                                 </div>
                             </div>
 
@@ -269,7 +274,7 @@
                                 <label for="customer-nearby">Near By <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-location-dot"></i>
-                                    <input type="text" id="customer-nearby" required>
+                                    <input type="text" id="customer-nearby" required placeholder="Landmark / Near by">
                                 </div>
                             </div>
 
@@ -277,7 +282,7 @@
                                 <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-road"></i>
-                                    <input type="text" id="customer-street-name" required>
+                                    <input type="text" id="customer-street-name" required placeholder="Street / House No.">
                                 </div>
                             </div>
 
@@ -285,21 +290,13 @@
                                 <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-hashtag"></i>
-                                    <input type="text" id="customer-ward-no" required>
+                                    <input type="text" id="customer-ward-no" required placeholder="Ward No.">
                                 </div>
                             </div>
                         </div>
 
-                        <!-- ORDER SUMMARY PREVIEW IN PROFILE FORM -->
-                        <div class="delivery-order-summary-box" id="profile-cart-summary-box">
-                            <div class="summary-box-row">
-                                <span>Order Total (<span id="modal-item-count">0 items</span>):</span>
-                                <strong id="modal-order-total" style="color: var(--primary-orange); font-size: 1.1rem;">₹0</strong>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn-confirm-order">
-                            <i class="fa-solid fa-circle-check"></i> Confirm Order
+                        <button type="submit" class="btn-confirm-order" id="btn-save-profile">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Profile
                         </button>
                     </form>
                 </div>

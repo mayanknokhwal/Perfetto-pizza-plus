@@ -27,6 +27,7 @@ function formatPrice(amount) {
 
 // Cart State & Persistence
 const CART_STORAGE_KEY = 'perfetto_pizza_cart';
+const DELIVERY_PROFILE_KEY = 'customerDeliveryProfile';
 
 function loadCartFromStorage() {
     try {
@@ -79,10 +80,10 @@ function initTheme() {
 function applyTheme(theme) {
     if (theme === 'dark') {
         htmlElement.setAttribute('data-theme', 'dark');
-        appLogo.src = LOGO_DARK;
+        if (appLogo) appLogo.src = LOGO_DARK;
     } else {
         htmlElement.setAttribute('data-theme', 'light');
-        appLogo.src = LOGO_LIGHT;
+        if (appLogo) appLogo.src = LOGO_LIGHT;
     }
     localStorage.setItem('perfetto_theme', theme);
 }
@@ -853,7 +854,29 @@ function updateCartUI() {
     checkAndUpdateShopStatusUI();
 }
 
-const DELIVERY_PROFILE_KEY = 'customerDeliveryProfile';
+function getSavedDeliveryProfile() {
+    try {
+        const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
+        if (stored) {
+            const profile = JSON.parse(stored);
+            if (profile && typeof profile === 'object') {
+                const fullName = (profile.fullName || '').trim();
+                const phone = (profile.phone || '').replace(/[^0-9]/g, '').slice(0, 10);
+                const colonyName = (profile.colonyName || '').trim();
+                const nearBy = (profile.nearBy || '').trim();
+                const streetName = (profile.streetName || '').trim();
+                const wardNo = (profile.wardNo || '').trim();
+
+                if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo) {
+                    return { fullName, phone, colonyName, nearBy, streetName, wardNo };
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Error reading delivery profile:', e);
+    }
+    return null;
+}
 
 function processCheckout() {
     if (getCustomerShopStatus() === 'closed') {
@@ -876,14 +899,82 @@ function processCheckout() {
         return;
     }
 
-    // Redirect directly to Profile tab!
+    // Check if delivery profile already exists and is complete
+    const savedProfile = getSavedDeliveryProfile();
+    if (savedProfile) {
+        // Automatically place the order with existing profile
+        executeOrderPlacement(savedProfile);
+        return;
+    }
+
+    // If missing or incomplete, redirect directly to Profile tab form and open it!
     switchTab('profile', true);
     updateProfileTotalsUI();
+    toggleEditProfileForm(true);
     showToast('Please enter your delivery details to complete checkout.');
-    
-    // Scroll to delivery details form
-    const formCard = document.querySelector('.profile-delivery-card');
-    if (formCard) formCard.scrollIntoView({ behavior: 'smooth' });
+}
+
+function executeOrderPlacement(profile) {
+    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    const tax = subtotal * 0.05;
+    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
+    const grandTotal = subtotal + tax + deliveryFee;
+
+    const orderId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    const orderItems = cart.map(item => ({
+        id: item.id || item.name,
+        name: `${item.qty}x ${item.name} (${item.size || 'Standard'})`,
+        size: item.size || 'Standard',
+        price: item.price,
+        qty: item.qty,
+        notes: ''
+    }));
+
+    const newOrder = {
+        orderId: orderId,
+        id: orderId,
+        customerPhone: profile.phone,
+        customerName: profile.fullName,
+        phone: profile.phone,
+        address: `${profile.colonyName}, Near: ${profile.nearBy}, ${profile.streetName}, Ward No. ${profile.wardNo}`,
+        deliveryDetails: {
+            colonyName: profile.colonyName,
+            nearBy: profile.nearBy,
+            streetName: profile.streetName,
+            wardNo: profile.wardNo
+        },
+        timeAgo: 'Just Now',
+        items: orderItems,
+        subtotal: Math.round(subtotal),
+        tax: Math.round(tax),
+        deliveryFee: deliveryFee,
+        total: Math.round(grandTotal),
+        paymentStatus: 'Cash on Delivery',
+        status: 'new',
+        createdAt: new Date().toISOString()
+    };
+
+    // Save order to localStorage
+    try {
+        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+        const ordersList = storedOrders ? JSON.parse(storedOrders) : [];
+        ordersList.unshift(newOrder);
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
+    } catch (e) {
+        console.error('Error saving order:', e);
+    }
+
+    // Save order to Firebase Cloud Firestore
+    if (window.PerfettoFirebase && window.PerfettoFirebase.placeOrder) {
+        window.PerfettoFirebase.placeOrder(newOrder);
+    }
+
+    showToast('🎉 Order placed successfully! Arriving in 25 mins.');
+    cart = [];
+    saveCartToStorage();
+    updateCartUI();
+    updateProfileTotalsUI();
+    switchTab('home', true);
 }
 
 function openDeliveryModal() {
@@ -974,31 +1065,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function handleFinalOrderSubmit(event) {
+function toggleEditProfileForm(show) {
+    const formCard = document.getElementById('profile-edit-form-card');
+    if (!formCard) return;
+
+    if (show === true) {
+        formCard.style.display = 'block';
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const nameInput = document.getElementById('customer-fullname');
+        if (nameInput) nameInput.focus();
+        return;
+    }
+
+    if (show === false) {
+        formCard.style.display = 'none';
+        return;
+    }
+
+    if (formCard.style.display === 'none' || formCard.style.display === '') {
+        formCard.style.display = 'block';
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        const nameInput = document.getElementById('customer-fullname');
+        if (nameInput) nameInput.focus();
+    } else {
+        formCard.style.display = 'none';
+    }
+}
+
+function handleSaveProfile(event) {
     if (event) event.preventDefault();
-
-    // 1. Strict Empty Cart Validation Check
-    const itemCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
-    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-
-    if (!cart || cart.length === 0 || itemCount === 0 || subtotal <= 0) {
-        showToast('Your cart is empty! Please add items before placing an order.');
-        return;
-    }
-
-    // 2. Shop Closed Validation Check
-    if (getCustomerShopStatus() === 'closed') {
-        showToast('This time shop is closed. We are not accepting orders right now.');
-        return;
-    }
-
-    // 3. Minimum Order Validation Check
-    const minOrderVal = getMinOrderValue();
-    if (subtotal < minOrderVal) {
-        const diff = (minOrderVal - subtotal).toFixed(2);
-        showToast(`Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`);
-        return;
-    }
 
     const fieldIds = [
         'customer-fullname',
@@ -1027,7 +1122,7 @@ function handleFinalOrderSubmit(event) {
 
     if (hasEmpty) {
         if (firstEmpty) firstEmpty.focus();
-        showToast('Please fill in all required delivery details!');
+        showToast('Please fill in all required profile fields!');
         return;
     }
 
@@ -1039,73 +1134,109 @@ function handleFinalOrderSubmit(event) {
     const streetName = document.getElementById('customer-street-name').value.trim();
     const wardNo = document.getElementById('customer-ward-no').value.trim();
 
-    // Save profile for future convenience
+    if (cleanPhone.length < 10) {
+        showToast('Please enter a valid 10-digit mobile number!');
+        const phoneEl = document.getElementById('customer-phone');
+        if (phoneEl) {
+            phoneEl.classList.add('invalid-field');
+            phoneEl.focus();
+        }
+        return;
+    }
+
+    // Save profile to localStorage as fallback & fast cache
     const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo };
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
     } catch (e) {
-        console.error('Error saving delivery profile:', e);
+        console.error('Error saving delivery profile to localStorage:', e);
     }
 
-    // Process & store order object
-    const tax = subtotal * 0.05;
-    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
-    const grandTotal = subtotal + tax + deliveryFee;
-
-    const orderId = (Math.floor(1000 + Math.random() * 9000)).toString();
-    const orderItems = cart.map(item => ({
-        id: item.id || item.name,
-        name: `${item.qty}x ${item.name} (${item.size || 'Standard'})`,
-        size: item.size || 'Standard',
-        price: item.price,
-        qty: item.qty,
-        notes: ''
-    }));
-
-    const newOrder = {
-        orderId: orderId,
-        id: orderId,
-        customerPhone: cleanPhone,
-        customerName: fullName,
-        phone: cleanPhone,
-        address: `${colonyName}, Near: ${nearBy}, ${streetName}, Ward No. ${wardNo}`,
-        deliveryDetails: { colonyName, nearBy, streetName, wardNo },
-        timeAgo: 'Just Now',
-        items: orderItems,
-        subtotal: Math.round(subtotal),
-        tax: Math.round(tax),
-        deliveryFee: deliveryFee,
-        total: Math.round(grandTotal),
-        paymentStatus: 'Cash on Delivery',
-        status: 'new',
-        createdAt: new Date().toISOString()
-    };
-
-    // Save order to localStorage
-    try {
-        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
-        const ordersList = storedOrders ? JSON.parse(storedOrders) : [];
-        ordersList.unshift(newOrder);
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
-    } catch (e) {
-        console.error('Error saving order:', e);
-    }
-
-    // Save order to Firebase Cloud Firestore
-    if (window.PerfettoFirebase && window.PerfettoFirebase.placeOrder) {
-        window.PerfettoFirebase.placeOrder(newOrder);
-    }
-
-    showToast('🎉 Order placed successfully! Arriving in 25 mins.');
-    cart = [];
-    saveCartToStorage();
-    updateCartUI();
+    // Immediately update header UI & form inputs
+    renderProfileHeaderAndInputs(profile);
     updateProfileTotalsUI();
-    switchTab('home', true);
+    toggleEditProfileForm(false);
+
+    // Save profile directly to Firebase Firestore 'customers' collection
+    if (window.PerfettoFirebase && window.PerfettoFirebase.saveCustomerProfile) {
+        window.PerfettoFirebase.saveCustomerProfile(profile).then(success => {
+            if (success) {
+                console.log("🔥 Profile synced to Firestore successfully");
+            }
+        }).catch(err => {
+            console.error("🔥 Error syncing profile to Firestore:", err);
+        });
+    }
+
+    showToast('✅ Profile saved successfully!');
+}
+
+function handleFinalOrderSubmit(event) {
+    if (event) event.preventDefault();
+    handleSaveProfile(event);
+}
+
+function renderProfileHeaderAndInputs(profile) {
+    const nameEl = document.getElementById('profile-display-name');
+    const subtextEl = document.getElementById('profile-display-subtext');
+
+    if (profile && typeof profile === 'object') {
+        if (nameEl) {
+            nameEl.textContent = profile.fullName ? profile.fullName : 'Customer Name';
+        }
+        if (subtextEl) {
+            subtextEl.textContent = profile.phone ? `+91 ${profile.phone}` : '+91 Mobile Number';
+        }
+
+        // Pre-fill form inputs
+        const fullNameInput = document.getElementById('customer-fullname');
+        const phoneInput = document.getElementById('customer-phone');
+        const colonyInput = document.getElementById('customer-colony-name');
+        const nearbyInput = document.getElementById('customer-nearby');
+        const streetInput = document.getElementById('customer-street-name');
+        const wardInput = document.getElementById('customer-ward-no');
+
+        if (profile.fullName && fullNameInput && (!fullNameInput.value || fullNameInput.value === '')) fullNameInput.value = profile.fullName;
+        if (profile.phone && phoneInput && (!phoneInput.value || phoneInput.value === '')) phoneInput.value = profile.phone;
+        if (profile.colonyName && colonyInput && (!colonyInput.value || colonyInput.value === '')) colonyInput.value = profile.colonyName;
+        if (profile.nearBy && nearbyInput && (!nearbyInput.value || nearbyInput.value === '')) nearbyInput.value = profile.nearBy;
+        if (profile.streetName && streetInput && (!streetInput.value || streetInput.value === '')) streetInput.value = profile.streetName;
+        if (profile.wardNo && wardInput && (!wardInput.value || wardInput.value === '')) wardInput.value = profile.wardNo;
+    } else {
+        if (nameEl) nameEl.textContent = 'Customer Name';
+        if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
+    }
+}
+
+async function syncProfileFromFirestore(phone) {
+    if (!phone) {
+        try {
+            const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
+            if (savedProfile) {
+                const parsed = JSON.parse(savedProfile);
+                phone = parsed.phone;
+            }
+        } catch (e) {}
+    }
+
+    if (!phone) return;
+
+    if (window.PerfettoFirebase && window.PerfettoFirebase.getCustomerProfile) {
+        try {
+            const firestoreProfile = await window.PerfettoFirebase.getCustomerProfile(phone);
+            if (firestoreProfile && firestoreProfile.fullName) {
+                localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(firestoreProfile));
+                renderProfileHeaderAndInputs(firestoreProfile);
+                console.log("🔥 Profile updated from Firestore:", firestoreProfile);
+            }
+        } catch (e) {
+            console.error("🔥 Error syncing profile from Firestore:", e);
+        }
+    }
 }
 
 function updateProfileTotalsUI() {
-    // Update order total inside profile form if cart has items
+    // Update order total inside modal / summary if needed
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     const tax = subtotal * 0.05;
@@ -1135,25 +1266,21 @@ function updateProfileTotalsUI() {
     if (rewardsEl) rewardsEl.textContent = '0';
     if (ratingEl) ratingEl.textContent = '0 ★';
 
-    // Update profile display name/phone if profile saved
+    // Update profile display name/phone & prefill inputs
+    let currentProfile = null;
     try {
         const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
         if (savedProfile) {
-            const profile = JSON.parse(savedProfile);
-            const nameEl = document.getElementById('profile-display-name');
-            const subtextEl = document.getElementById('profile-display-subtext');
-            if (nameEl && profile.fullName) nameEl.textContent = profile.fullName;
-            if (subtextEl && profile.phone) subtextEl.textContent = `+91 ${profile.phone}`;
-            
-            // Pre-fill inputs if empty
-            if (profile.fullName && document.getElementById('customer-fullname')) document.getElementById('customer-fullname').value = profile.fullName;
-            if (profile.phone && document.getElementById('customer-phone')) document.getElementById('customer-phone').value = profile.phone;
-            if (profile.colonyName && document.getElementById('customer-colony-name')) document.getElementById('customer-colony-name').value = profile.colonyName;
-            if (profile.nearBy && document.getElementById('customer-nearby')) document.getElementById('customer-nearby').value = profile.nearBy;
-            if (profile.streetName && document.getElementById('customer-street-name')) document.getElementById('customer-street-name').value = profile.streetName;
-            if (profile.wardNo && document.getElementById('customer-ward-no')) document.getElementById('customer-ward-no').value = profile.wardNo;
+            currentProfile = JSON.parse(savedProfile);
         }
     } catch (e) {}
+
+    renderProfileHeaderAndInputs(currentProfile);
+
+    // If we have a phone number, fetch latest data from Firestore asynchronously
+    if (currentProfile && currentProfile.phone) {
+        syncProfileFromFirestore(currentProfile.phone);
+    }
 }
 
 function toggleSavedAddressesView() {
@@ -1195,14 +1322,11 @@ function renderSavedAddressDetails() {
         }
     } catch (e) {}
 
-    textContentEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No saved address found. Please fill out the Delivery Details form above.</span>`;
+    textContentEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No saved address found. Click 'Edit Profile' to add your delivery details.</span>`;
 }
 
 function editSavedAddress() {
-    const formCard = document.querySelector('.profile-delivery-card');
-    if (formCard) formCard.scrollIntoView({ behavior: 'smooth' });
-    const nameInput = document.getElementById('customer-fullname');
-    if (nameInput) nameInput.focus();
+    toggleEditProfileForm(true);
     showToast('You can update your address details in the form above.');
 }
 
@@ -1946,5 +2070,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupHistoryState();
     initCustomerSearchEvents();
     checkAndUpdateShopStatusUI();
+    updateProfileTotalsUI();
     initFirebaseCustomerSync();
 });
+

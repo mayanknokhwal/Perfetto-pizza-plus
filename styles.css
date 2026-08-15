@@ -626,8 +626,8 @@ body.shop-closed .checkout-btn {
 }
 
 .profile-icon-circle {
-    width: 68px;
-    height: 68px;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
     background-color: var(--bg-card);
     border: 2px solid var(--primary-orange);
@@ -635,9 +635,46 @@ body.shop-closed .checkout-btn {
     align-items: center;
     justify-content: center;
     margin: 0 auto 12px auto;
-    font-size: 1.8rem;
+    font-size: 2.2rem;
     color: var(--primary-orange);
-    box-shadow: 0 4px 15px var(--primary-glow);
+    box-shadow: 0 4px 16px var(--primary-glow);
+    overflow: hidden;
+    position: relative;
+}
+
+.profile-icon-circle .avatar-placeholder-icon {
+    font-size: 2.3rem;
+    color: var(--primary-orange);
+}
+
+.profile-icon-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.btn-toggle-edit-profile {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: var(--bg-card);
+    border: 1.5px solid var(--primary-orange);
+    color: var(--primary-orange);
+    font-family: var(--font-heading);
+    font-size: 0.86rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: all 0.25s ease;
+}
+
+.btn-toggle-edit-profile:hover {
+    background-color: var(--primary-orange);
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--primary-glow);
 }
 
 .profile-delivery-card {
@@ -647,6 +684,7 @@ body.shop-closed .checkout-btn {
     padding: 20px;
     margin-bottom: 20px;
     box-shadow: var(--shadow-card);
+    animation: fadeIn 0.3s ease;
 }
 
 .card-header-line {
