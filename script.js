@@ -964,11 +964,6 @@ function executeOrderPlacement(profile) {
         console.error('Error saving order:', e);
     }
 
-    // Save order to Firebase Cloud Firestore
-    if (window.PerfettoFirebase && window.PerfettoFirebase.placeOrder) {
-        window.PerfettoFirebase.placeOrder(newOrder);
-    }
-
     showToast('🎉 Order placed successfully! Arriving in 25 mins.');
     cart = [];
     saveCartToStorage();
@@ -1216,7 +1211,7 @@ function handleSaveProfile(event) {
         return;
     }
 
-    // Save profile to localStorage as fallback & fast cache
+    // Save profile to localStorage
     const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo, isVerified: isPhoneVerified };
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
@@ -1228,17 +1223,6 @@ function handleSaveProfile(event) {
     renderProfileHeaderAndInputs(profile);
     updateProfileTotalsUI();
     toggleEditProfileForm(false);
-
-    // Save profile directly to Firebase Firestore 'customers' collection
-    if (window.PerfettoFirebase && window.PerfettoFirebase.saveCustomerProfile) {
-        window.PerfettoFirebase.saveCustomerProfile(profile).then(success => {
-            if (success) {
-                console.log("🔥 Profile synced to Firestore successfully");
-            }
-        }).catch(err => {
-            console.error("🔥 Error syncing profile to Firestore:", err);
-        });
-    }
 
     showToast('✅ Profile saved successfully!');
 }
@@ -1297,33 +1281,6 @@ function renderProfileHeaderAndInputs(profile) {
     }
 }
 
-async function syncProfileFromFirestore(phone) {
-    if (!phone) {
-        try {
-            const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
-            if (savedProfile) {
-                const parsed = JSON.parse(savedProfile);
-                phone = parsed.phone;
-            }
-        } catch (e) {}
-    }
-
-    if (!phone) return;
-
-    if (window.PerfettoFirebase && window.PerfettoFirebase.getCustomerProfile) {
-        try {
-            const firestoreProfile = await window.PerfettoFirebase.getCustomerProfile(phone);
-            if (firestoreProfile && firestoreProfile.fullName) {
-                localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(firestoreProfile));
-                renderProfileHeaderAndInputs(firestoreProfile);
-                console.log("🔥 Profile updated from Firestore:", firestoreProfile);
-            }
-        } catch (e) {
-            console.error("🔥 Error syncing profile from Firestore:", e);
-        }
-    }
-}
-
 function updateProfileTotalsUI() {
     // Update order total inside modal / summary if needed
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
@@ -1365,11 +1322,6 @@ function updateProfileTotalsUI() {
     } catch (e) {}
 
     renderProfileHeaderAndInputs(currentProfile);
-
-    // If we have a phone number, fetch latest data from Firestore asynchronously
-    if (currentProfile && currentProfile.phone) {
-        syncProfileFromFirestore(currentProfile.phone);
-    }
 }
 
 function toggleSavedAddressesView() {
@@ -2095,55 +2047,39 @@ function initCustomerSearchEvents() {
 }
 
 // --------------------------------------------------------------------------
-// 9. FIREBASE REALTIME CLOUD SYNCHRONIZATION
+// 9. CROSS-TAB LOCALSTORAGE SYNCHRONIZATION
 // --------------------------------------------------------------------------
-function initFirebaseCustomerSync() {
-    if (!window.PerfettoFirebase) return;
-
-    // 1. Listen for Store Settings changes (Shop status, Min order, Free delivery limit)
-    if (window.PerfettoFirebase.subscribeSettings) {
-        window.PerfettoFirebase.subscribeSettings(settings => {
-            if (settings) {
-                if (settings.shopStatus) {
-                    localStorage.setItem(SHOP_STATUS_KEY, settings.shopStatus);
-                }
-                if (settings.minOrderValue !== undefined) {
-                    localStorage.setItem(MIN_ORDER_KEY, settings.minOrderValue.toString());
-                }
-                if (settings.freeDeliveryLimit !== undefined) {
-                    localStorage.setItem(FREE_DELIVERY_KEY, settings.freeDeliveryLimit.toString());
-                }
-                checkAndUpdateShopStatusUI();
-                updateCartUI();
+function setupLocalStorageSync() {
+    window.addEventListener('storage', (e) => {
+        // 1. Shop Status changed by Admin
+        if (!e.key || e.key === SHOP_STATUS_KEY) {
+            checkAndUpdateShopStatusUI();
+            updateCartUI();
+        }
+        // 2. Thresholds changed by Admin (Min Order, Free Delivery)
+        if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
+            updateCartUI();
+        }
+        // 3. Menu changed by Admin
+        if (!e.key || e.key === MENU_STORAGE_KEY) {
+            if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
+                openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
             }
-        });
-    }
-
-    // 2. Listen for Menu changes from Admin (Prices & Availability)
-    if (window.PerfettoFirebase.subscribeMenu) {
-        window.PerfettoFirebase.subscribeMenu(menuItems => {
-            if (Array.isArray(menuItems) && menuItems.length > 0) {
-                localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(menuItems));
-                // If viewing a category, re-render it
-                if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
-                    openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
-                }
+        }
+        // 4. Orders changed by Staff or another tab
+        if (!e.key || e.key === 'perfettoCustomerOrders') {
+            if (activeTabName === 'profile') {
+                updateProfileTotalsUI();
+                renderOrderHistoryDetails();
             }
-        });
-    }
-
-    // 3. Listen for Order status updates
-    if (window.PerfettoFirebase.subscribeOrders) {
-        window.PerfettoFirebase.subscribeOrders(orders => {
-            if (Array.isArray(orders)) {
-                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
-                if (activeTabName === 'profile') {
-                    updateProfileTotalsUI();
-                    renderOrderHistoryDetails();
-                }
+        }
+        // 5. Customer Profile changed
+        if (!e.key || e.key === DELIVERY_PROFILE_KEY) {
+            if (activeTabName === 'profile') {
+                updateProfileTotalsUI();
             }
-        });
-    }
+        }
+    });
 }
 
 // --------------------------------------------------------------------------
@@ -2160,6 +2096,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initCustomerSearchEvents();
     checkAndUpdateShopStatusUI();
     updateProfileTotalsUI();
-    initFirebaseCustomerSync();
+    setupLocalStorageSync();
 });
+
 

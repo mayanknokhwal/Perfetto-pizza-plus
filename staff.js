@@ -29,42 +29,29 @@ function loadCustomerOrders() {
 }
 
 // --------------------------------------------------------------------------
-// 2. DOM INITIALIZATION, FIREBASE CLOUD LISTENER & STORAGE SYNCHRONIZATION
+// 2. DOM INITIALIZATION & CROSS-TAB STORAGE SYNCHRONIZATION
 // --------------------------------------------------------------------------
 let previousOrderCount = 0;
 
-function initFirebaseOrders() {
-    if (window.PerfettoFirebase && window.PerfettoFirebase.subscribeOrders) {
-        window.PerfettoFirebase.subscribeOrders(orders => {
-            if (Array.isArray(orders)) {
-                // Check if new order arrived to notify staff
-                if (previousOrderCount > 0 && orders.length > previousOrderCount) {
-                    showStaffToast('🔔 New Customer Order Received!');
-                }
-                previousOrderCount = orders.length;
-                staffOrders = orders;
-                try {
-                    localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
-                } catch (e) {}
-                renderOrders();
-                updateCounts();
-            }
-        });
+function syncCustomerOrders() {
+    const oldCount = staffOrders.length;
+    loadCustomerOrders();
+    if (oldCount > 0 && staffOrders.length > oldCount) {
+        showStaffToast('🔔 New Customer Order Received!');
     }
+    renderOrders();
+    updateCounts();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     loadCustomerOrders();
     renderOrders();
     updateCounts();
-    initFirebaseOrders();
 });
 
 window.addEventListener('storage', (e) => {
     if (!e.key || e.key === 'perfettoCustomerOrders') {
-        loadCustomerOrders();
-        renderOrders();
-        updateCounts();
+        syncCustomerOrders();
     }
 });
 
@@ -304,11 +291,6 @@ function updateOrderStatus(orderId, newStatus) {
         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
     } catch (e) {
         console.error('Error saving updated order status:', e);
-    }
-
-    // Save updated status to Firebase Cloud Firestore
-    if (window.PerfettoFirebase && window.PerfettoFirebase.updateOrderStatus) {
-        window.PerfettoFirebase.updateOrderStatus(orderId, newStatus);
     }
 
     let msg = `Order #${orderId} updated to ${newStatus.toUpperCase()}`;
