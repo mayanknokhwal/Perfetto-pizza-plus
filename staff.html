@@ -34,41 +34,13 @@
                 </div>
             </div>
 
-            <!-- ROLE SWITCHER & USER INFO -->
+            <!-- ROLE & USER INFO (STATIC CHEF DISPLAY) -->
             <div class="role-bar">
                 <div class="user-role-pill">
-                    <i class="fa-solid fa-user-gear"></i>
+                    <i class="fa-solid fa-utensils"></i>
                     <span>Role: <strong id="current-role-label">Chef (Kitchen)</strong></span>
                 </div>
-                
-                <div class="role-toggle-group">
-                    <button class="role-btn active" id="role-btn-chef" onclick="switchRole('chef')">
-                        <i class="fa-solid fa-utensils"></i> Chef
-                    </button>
-                    <button class="role-btn" id="role-btn-delivery" onclick="switchRole('delivery')">
-                        <i class="fa-solid fa-motorcycle"></i> Delivery
-                    </button>
-                </div>
             </div>
-
-            <!-- FILTER / TAB NAVIGATION BAR -->
-            <nav class="status-tabs">
-                <button class="tab-btn active" data-filter="all" onclick="filterOrders('all', this)">
-                    All (<span id="count-all">0</span>)
-                </button>
-                <button class="tab-btn" data-filter="kitchen" onclick="filterOrders('kitchen', this)">
-                    Kitchen (<span id="count-kitchen">0</span>)
-                </button>
-                <button class="tab-btn" data-filter="ready" onclick="filterOrders('ready', this)">
-                    Ready (<span id="count-ready">0</span>)
-                </button>
-                <button class="tab-btn" data-filter="delivery" onclick="filterOrders('delivery', this)">
-                    Out (<span id="count-delivery">0</span>)
-                </button>
-                <button class="tab-btn" data-filter="completed" onclick="filterOrders('completed', this)">
-                    Done (<span id="count-completed">0</span>)
-                </button>
-            </nav>
         </header>
 
         <!-- MAIN CONTENT AREA -->
@@ -77,7 +49,7 @@
             <!-- LIVE ORDERS FEED -->
             <section class="orders-section">
                 <div class="section-title-bar">
-                    <h2 id="section-heading">Live Kitchen & Delivery Orders</h2>
+                    <h2 id="section-heading">Orders</h2>
                     <span class="live-pulse-badge">
                         <span class="pulse-dot"></span> Live
                     </span>

@@ -239,8 +239,8 @@
                             </h4>
                             <p class="card-section-subtext">Update your delivery address and contact details</p>
                         </div>
-                        <button type="button" class="close-delivery-modal-btn" onclick="toggleEditProfileForm()" aria-label="Close form">
-                            <i class="fa-solid fa-xmark"></i>
+                        <button type="button" class="btn-collapse-profile-form" id="btn-collapse-profile-form" onclick="toggleEditProfileForm()" aria-label="Toggle Delivery Details">
+                            <i class="fa-solid fa-chevron-down"></i>
                         </button>
                     </div>
 
@@ -265,7 +265,8 @@
                                     <i class="fa-solid fa-phone"></i>
                                     <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" oninput="handlePhoneInputChange(this)">
                                     <button type="button" class="btn-verify-otp" id="btn-request-otp" onclick="handleRequestOtp()">
-                                        <i class="fa-solid fa-shield-halved"></i> Verify
+                                        <i class="fa-solid fa-shield-halved"></i>
+                                        <span class="verify-text">Verify</span>
                                     </button>
                                 </div>
 

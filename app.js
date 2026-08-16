@@ -920,7 +920,29 @@ function executeOrderPlacement(profile) {
     const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
     const grandTotal = subtotal + tax + deliveryFee;
 
-    const orderId = (Math.floor(1000 + Math.random() * 9000)).toString();
+    // Calculate Sequential Order Number (#1, #2, #3, ...)
+    let nextOrderSeq = 1;
+    let ordersList = [];
+    try {
+        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+        if (storedOrders) {
+            ordersList = JSON.parse(storedOrders);
+            if (Array.isArray(ordersList)) {
+                // Find maximum sequential number or length
+                const maxNum = ordersList.reduce((max, o) => {
+                    const num = parseInt(o.id || o.orderId, 10);
+                    return !isNaN(num) && num > max ? num : max;
+                }, ordersList.length);
+                nextOrderSeq = maxNum + 1;
+            } else {
+                ordersList = [];
+            }
+        }
+    } catch (e) {
+        ordersList = [];
+    }
+
+    const orderId = nextOrderSeq.toString();
     const orderItems = cart.map(item => ({
         id: item.id || item.name,
         name: `${item.qty}x ${item.name} (${item.size || 'Standard'})`,
@@ -929,6 +951,9 @@ function executeOrderPlacement(profile) {
         qty: item.qty,
         notes: ''
     }));
+
+    const now = new Date();
+    const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
     const newOrder = {
         orderId: orderId,
@@ -943,7 +968,7 @@ function executeOrderPlacement(profile) {
             streetName: profile.streetName,
             wardNo: profile.wardNo
         },
-        timeAgo: 'Just Now',
+        timeAgo: `${timeFormatted} • Just now`,
         items: orderItems,
         subtotal: Math.round(subtotal),
         tax: Math.round(tax),
@@ -951,13 +976,11 @@ function executeOrderPlacement(profile) {
         total: Math.round(grandTotal),
         paymentStatus: 'Cash on Delivery',
         status: 'new',
-        createdAt: new Date().toISOString()
+        createdAt: now.toISOString()
     };
 
     // Save order to localStorage
     try {
-        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
-        const ordersList = storedOrders ? JSON.parse(storedOrders) : [];
         ordersList.unshift(newOrder);
         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
     } catch (e) {
@@ -1062,28 +1085,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function toggleEditProfileForm(show) {
     const formCard = document.getElementById('profile-edit-form-card');
+    const collapseBtn = document.getElementById('btn-collapse-profile-form');
     if (!formCard) return;
 
-    if (show === true) {
-        formCard.style.display = 'block';
-        formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        const nameInput = document.getElementById('customer-fullname');
-        if (nameInput) nameInput.focus();
-        return;
-    }
+    const willShow = (show === true) ? true : (show === false) ? false : (formCard.style.display === 'none' || formCard.style.display === '');
 
-    if (show === false) {
-        formCard.style.display = 'none';
-        return;
-    }
-
-    if (formCard.style.display === 'none' || formCard.style.display === '') {
+    if (willShow) {
         formCard.style.display = 'block';
+        if (collapseBtn) collapseBtn.classList.add('collapsed');
         formCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         const nameInput = document.getElementById('customer-fullname');
         if (nameInput) nameInput.focus();
     } else {
         formCard.style.display = 'none';
+        if (collapseBtn) collapseBtn.classList.remove('collapsed');
     }
 }
 
@@ -1103,7 +1118,7 @@ function handlePhoneInputChange(input) {
     if (badge) badge.style.display = 'none';
     if (verifyBtn) {
         verifyBtn.style.display = 'inline-flex';
-        verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Verify';
+        verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
     }
     if (otpBox) otpBox.style.display = 'none';
 }
@@ -1255,7 +1270,7 @@ function renderProfileHeaderAndInputs(profile) {
             if (badge) badge.style.display = 'none';
             if (verifyBtn) {
                 verifyBtn.style.display = 'inline-flex';
-                verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> Verify';
+                verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
             }
         }
 
