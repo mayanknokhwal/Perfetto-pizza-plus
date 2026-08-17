@@ -189,14 +189,16 @@ function buildOrderCardHTML(order) {
     }
 
     // Build Items List
-    const itemsHTML = (order.items || []).map(item => `
+    const itemsHTML = (order.items || []).map(item => {
+        let cleanName = (item.name || '').replace(/\s*\(\s*Standard\s*\)/gi, '').trim();
+        return `
         <div class="item-row">
             <div>
-                <span class="item-name">${item.name}</span>
+                <span class="item-name">${cleanName}</span>
                 ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${item.notes}</div>` : ''}
             </div>
         </div>
-    `).join('');
+    `}).join('');
 
     const formattedTime = formatOrderTime(order.createdAt, order.timeAgo);
 

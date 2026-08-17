@@ -25,6 +25,12 @@
                          src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" 
                          alt="Perfetto Pizza Logo" 
                          class="brand-logo">
+                    <!-- Customer Care Phone Call Button -->
+                    <button class="header-call-btn" id="header-call-btn" aria-label="Customer Care Call" title="Customer Care">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-phone"></i>
+                        </div>
+                    </button>
                 </div>
 
                 <div class="header-center-title" id="header-center-title">
@@ -273,14 +279,18 @@
                                 <!-- OTP VERIFICATION CONTAINER (HIDDEN BY DEFAULT) -->
                                 <div class="otp-verification-wrapper" id="otp-verification-box" style="display: none;">
                                     <div class="otp-box-header">
-                                        <span>Enter 6-Digit OTP</span>
-                                        <span class="otp-mock-hint">(Use test OTP: <strong>123456</strong>)</span>
+                                        <span id="otp-status-title"><i class="fa-solid fa-phone-volume"></i> MSG91 Voice Call Verification</span>
+                                        <span class="otp-mock-hint" id="otp-instructions-hint">You will receive a call. Enter the <strong>last 4 digits</strong> of the incoming caller number.</span>
                                     </div>
                                     <div class="otp-input-row">
-                                        <input type="text" id="otp-input" class="otp-input-field" maxlength="6" inputmode="numeric" placeholder="• • • • • •" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                                        <input type="text" id="otp-input" class="otp-input-field" maxlength="6" inputmode="numeric" placeholder="• • • •" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
                                         <button type="button" class="btn-submit-otp" id="btn-submit-otp" onclick="handleVerifyOtp()">
                                             Confirm OTP
                                         </button>
+                                    </div>
+                                    <div class="otp-box-footer" style="margin-top: 8px; font-size: 0.75rem; display: flex; justify-content: space-between; width: 100%; max-width: 320px; color: var(--text-muted);">
+                                        <span id="otp-timer-text">Didn't get call?</span>
+                                        <a href="javascript:void(0)" id="btn-resend-voice-otp" onclick="handleRequestOtp()" style="color: var(--primary-orange); font-weight: 700; text-decoration: none;">Resend Call</a>
                                     </div>
                                 </div>
                             </div>
@@ -380,7 +390,7 @@
             <section class="tab-view" id="view-cart">
                 <div class="cart-view-header">
                     <h3>Your Food Cart</h3>
-                    <button class="clear-cart-btn" onclick="clearCart()">Clear All</button>
+                    <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()">Clear All</button>
                 </div>
 
                 <div id="cart-items-container" class="cart-items-list">
@@ -505,6 +515,30 @@
         <div class="logo-modal-overlay" id="logo-modal" aria-hidden="true">
             <div class="logo-modal-content" id="logo-modal-content">
                 <img id="modal-logo-img" src="" alt="Perfetto Logo DP View" class="modal-logo-img">
+            </div>
+        </div>
+
+        <!-- CUSTOMER CARE CALL MODAL -->
+        <div class="customer-care-modal-overlay" id="customer-care-modal" aria-hidden="true">
+            <div class="customer-care-modal-card" role="dialog" aria-labelledby="care-modal-title">
+                <button class="customer-care-close-btn" id="customer-care-close-btn" aria-label="Close Dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="customer-care-icon-badge">
+                    <i class="fa-solid fa-headset"></i>
+                </div>
+                <h3 class="customer-care-title" id="care-modal-title">Customer Care Support</h3>
+                <p class="customer-care-message">
+                    अगर आपको कोई भी दिक्कत आ रही है तो आप कस्टमर केयर से बात कर सकते हैं
+                </p>
+                <div class="customer-care-phone-display" id="customer-care-phone-display">
+                    <i class="fa-solid fa-phone-volume"></i>
+                    <span id="care-phone-number-text">9876543210</span>
+                </div>
+                <a href="tel:9876543210" class="customer-care-action-btn" id="customer-care-call-link">
+                    <i class="fa-solid fa-phone"></i>
+                    <span>कॉल करने के लिए यहां पर टैप करें</span>
+                </a>
             </div>
         </div>
 

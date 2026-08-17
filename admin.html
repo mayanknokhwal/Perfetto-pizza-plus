@@ -1077,11 +1077,13 @@
 
                 <!-- ORDER & DELIVERY THRESHOLDS SETTINGS CARD -->
                 <div class="order-settings-card" style="background-color: var(--bg-card); padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-top: 24px;">
-                    <div style="margin-bottom: 16px;">
-                        <h3 style="font-family: var(--font-heading); font-size: 1.15rem; color: var(--text-main); text-transform: uppercase;">
-                            <i class="fa-solid fa-sliders" style="color: var(--primary-orange); margin-right: 8px;"></i> Order & Delivery Thresholds
-                        </h3>
-                        <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: 2px;">Configure minimum order requirements and free delivery threshold for customer checkout.</p>
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                        <div>
+                            <h3 style="font-family: var(--font-heading); font-size: 1.15rem; color: var(--text-main); text-transform: uppercase;">
+                                <i class="fa-solid fa-sliders" style="color: var(--primary-orange); margin-right: 8px;"></i> Store Settings & Support Configuration
+                            </h3>
+                            <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: 2px;">Configure minimum order requirements, free delivery threshold, and customer care call support phone number.</p>
+                        </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
@@ -1102,6 +1104,42 @@
                             <div class="search-box" style="width: 100%;">
                                 <i class="fa-solid fa-truck-fast" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
                                 <input type="number" id="input-free-delivery-limit" class="search-input" style="padding-left: 36px;" value="500" min="0" placeholder="e.g. 500">
+                            </div>
+                        </div>
+
+                        <div class="setting-input-group">
+                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                                Customer Care Phone Number (10 Digits)
+                            </label>
+                            <div class="search-box" style="width: 100%;">
+                                <i class="fa-solid fa-headset" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                                <input 
+                                    type="tel" 
+                                    id="input-customer-care-phone" 
+                                    class="search-input" 
+                                    style="padding-left: 36px;" 
+                                    value="9876543210" 
+                                    placeholder="e.g. 9876543210" 
+                                    maxlength="10" 
+                                    inputmode="numeric"
+                                    pattern="[0-9]{10}"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);" 
+                                    onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
+                                    onchange="saveCustomerCarePhone(true)"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="setting-input-group" style="display: flex; flex-direction: column; justify-content: space-between;">
+                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+                                Enable Customer Care Call Button
+                            </label>
+                            <div style="display: flex; align-items: center; gap: 12px; height: 42px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0 14px;">
+                                <label class="switch">
+                                    <input type="checkbox" id="toggle-customer-care-enabled" checked onchange="toggleCustomerCareVisibility(this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                                <span id="customer-care-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Enabled</span>
                             </div>
                         </div>
                     </div>
@@ -2273,10 +2311,13 @@
         }
 
         // --------------------------------------------------------------------------
-        // 11. ORDER & DELIVERY THRESHOLDS SETTINGS SYSTEM
+        // 11. ORDER & DELIVERY THRESHOLDS AND SUPPORT SETTINGS SYSTEM
         // --------------------------------------------------------------------------
         const MIN_ORDER_KEY = 'minOrderValue';
         const FREE_DELIVERY_KEY = 'freeDeliveryLimit';
+        const CUSTOMER_CARE_PHONE_KEY = 'customerCarePhone';
+        const CUSTOMER_CARE_ENABLED_KEY = 'customerCareEnabled';
+        const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
 
         function getMinOrderValue() {
             const val = localStorage.getItem(MIN_ORDER_KEY);
@@ -2288,29 +2329,113 @@
             return val !== null ? parseFloat(val) : 500;
         }
 
+        function getCustomerCarePhone() {
+            const val = localStorage.getItem(CUSTOMER_CARE_PHONE_KEY);
+            if (val && val.trim() !== '') {
+                const digits = val.replace(/[^0-9]/g, '').slice(0, 10);
+                return digits || DEFAULT_CUSTOMER_CARE_PHONE;
+            }
+            return DEFAULT_CUSTOMER_CARE_PHONE;
+        }
+
+        function getCustomerCareEnabled() {
+            const val = localStorage.getItem(CUSTOMER_CARE_ENABLED_KEY);
+            return val === null ? true : val === 'true';
+        }
+
+        function toggleCustomerCareVisibility(enabled) {
+            try {
+                localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, enabled.toString());
+                const statusEl = document.getElementById('customer-care-toggle-status');
+                if (statusEl) {
+                    statusEl.textContent = enabled ? 'Enabled' : 'Disabled';
+                    statusEl.style.color = enabled ? 'var(--accent-green)' : 'var(--text-muted)';
+                }
+                showToast(`Customer Care Call Button ${enabled ? 'Enabled' : 'Disabled'}!`);
+            } catch (e) {
+                console.error('Failed to save customerCareEnabled to localStorage:', e);
+            }
+        }
+
         function initOrderSettingsUI() {
             const minInput = document.getElementById('input-min-order-value');
             const freeInput = document.getElementById('input-free-delivery-limit');
+            const phoneInput = document.getElementById('input-customer-care-phone');
+            const toggleCare = document.getElementById('toggle-customer-care-enabled');
+            const statusEl = document.getElementById('customer-care-toggle-status');
 
             if (minInput) minInput.value = getMinOrderValue();
             if (freeInput) freeInput.value = getFreeDeliveryLimit();
+            if (phoneInput) phoneInput.value = getCustomerCarePhone();
+            if (toggleCare) {
+                const isEnabled = getCustomerCareEnabled();
+                toggleCare.checked = isEnabled;
+                if (statusEl) {
+                    statusEl.textContent = isEnabled ? 'Enabled' : 'Disabled';
+                    statusEl.style.color = isEnabled ? 'var(--accent-green)' : 'var(--text-muted)';
+                }
+            }
+        }
+
+        function saveCustomerCarePhone(showToastMsg = true) {
+            const phoneInput = document.getElementById('input-customer-care-phone');
+            if (!phoneInput) return false;
+
+            const phoneVal = phoneInput.value.replace(/[^0-9]/g, '').trim();
+
+            // Strict exactly 10 digits validation check
+            if (phoneVal.length !== 10) {
+                alert('⚠️ Error: Customer Care Phone Number must be exactly 10 digits.');
+                phoneInput.focus();
+                return false;
+            }
+
+            phoneInput.value = phoneVal;
+
+            try {
+                localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, phoneVal);
+                if (showToastMsg) {
+                    showToast(`Customer care phone saved: ${phoneVal}`);
+                }
+                return true;
+            } catch (e) {
+                console.error('Failed to save customer care phone to localStorage:', e);
+                return false;
+            }
         }
 
         function saveOrderSettings(showToastMsg = true) {
             const minInput = document.getElementById('input-min-order-value');
             const freeInput = document.getElementById('input-free-delivery-limit');
+            const phoneInput = document.getElementById('input-customer-care-phone');
+            const toggleCare = document.getElementById('toggle-customer-care-enabled');
 
             const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
             const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
+            const phoneVal = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').trim() : DEFAULT_CUSTOMER_CARE_PHONE;
+
+            // Strict exactly 10 digits validation check
+            if (phoneVal.length !== 10) {
+                alert('⚠️ Error: Customer Care Phone Number must be exactly 10 digits before saving.');
+                if (phoneInput) phoneInput.focus();
+                return false;
+            }
+
+            if (phoneInput) phoneInput.value = phoneVal;
+            const isCareEnabled = toggleCare ? toggleCare.checked : true;
 
             try {
                 localStorage.setItem(MIN_ORDER_KEY, minVal.toString());
                 localStorage.setItem(FREE_DELIVERY_KEY, freeVal.toString());
+                localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, phoneVal);
+                localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, isCareEnabled.toString());
                 if (showToastMsg) {
-                    showToast(`Order settings saved! Min Order: ₹${minVal}, Free Delivery: ₹${freeVal}`);
+                    showToast(`Settings saved! Min: ₹${minVal}, Free: ₹${freeVal}, Care: ${phoneVal}`);
                 }
+                return true;
             } catch (e) {
                 console.error('Failed to save order settings to localStorage:', e);
+                return false;
             }
         }
 
@@ -2354,7 +2479,7 @@
             if (!e.key || e.key === SHOP_STATUS_KEY) {
                 initShopStatus();
             }
-            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
+            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY) {
                 initOrderSettingsUI();
             }
             if (!e.key || e.key === 'perfettoCustomerOrders') {
