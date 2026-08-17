@@ -1109,13 +1109,10 @@ function toggleEditProfileForm(show) {
 }
 
 // --------------------------------------------------------------------------
-// MSG91 VOICE / FLASH CALL OTP CONTROLLER
-// Authkey: 561143ADQBWRQ2O6a818769P1
-// Dynamic OTP: Last 4 digits of incoming voice call caller number / response
+// MSG91 VOICE / FLASH CALL OTP CONTROLLER (VERCEL SERVERLESS FUNCTION POWERED)
+// Endpoints: /api/send-voice-otp & /api/verify-otp
 // --------------------------------------------------------------------------
-const MSG91_AUTH_KEY = '561143ADQBWRQ2O6a818769P1';
 let isPhoneVerified = false;
-let currentExpectedOtp = null;
 let currentTargetPhone = null;
 let otpResendCountdown = 0;
 let otpResendTimerId = null;
@@ -1125,7 +1122,6 @@ function handlePhoneInputChange(input) {
     input.value = input.value.replace(/[^0-9]/g, '').slice(0, 10);
     // Reset verification state if phone number changes
     isPhoneVerified = false;
-    currentExpectedOtp = null;
     currentTargetPhone = null;
     if (otpResendTimerId) {
         clearInterval(otpResendTimerId);
@@ -1176,88 +1172,48 @@ async function handleRequestOtp() {
     showToast('📞 Initiating MSG91 Voice / Flash Call to +91 ' + phone + '...');
 
     try {
-        // Format with country code 91
+        // Format with 91 country code prefix (e.g. 918290873256)
         const formattedMobile = `91${phone}`;
         currentTargetPhone = formattedMobile;
 
-        let dynamicOtp = null;
-        let callerNumber = null;
-        let apiSuccess = false;
+        // Call Vercel Serverless Function
+        const response = await fetch('/api/send-voice-otp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mobile: formattedMobile
+            })
+        });
 
-        // Try direct call to MSG91 Voice OTP API
-        try {
-            const voiceResponse = await fetch('https://api.msg91.com/api/v5/otp/voice', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'authkey': MSG91_AUTH_KEY
-                },
-                body: JSON.stringify({
-                    mobile: formattedMobile
-                })
-            });
+        const data = await response.json().catch(() => ({}));
+        console.log('Voice Call Response:', data);
 
-            if (voiceResponse.ok) {
-                const data = await voiceResponse.json();
-                console.log('MSG91 Voice Call Response:', data);
-                if (data.type === 'success' || data.message === 'success' || data.request_id) {
-                    apiSuccess = true;
-                    if (data.caller_id || data.callerNumber || data.calling_number) {
-                        callerNumber = String(data.caller_id || data.callerNumber || data.calling_number);
-                        dynamicOtp = callerNumber.replace(/[^0-9]/g, '').slice(-4);
-                    } else if (data.otp) {
-                        dynamicOtp = String(data.otp);
-                    }
-                }
+        if (response.ok && (data.type === 'success' || data.message === 'success' || data.type !== 'error')) {
+            if (otpBox) {
+                otpBox.style.display = 'block';
+                otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-        } catch (corsErr) {
-            console.warn('Direct MSG91 Voice API request notice (CORS/Network):', corsErr);
-            try {
-                const proxyResponse = await fetch('/api/msg91/send-voice-otp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mobile: formattedMobile })
-                });
-                if (proxyResponse.ok) {
-                    const proxyData = await proxyResponse.json();
-                    if (proxyData.type === 'success' || proxyData.otp) {
-                        apiSuccess = true;
-                        dynamicOtp = proxyData.otp ? String(proxyData.otp) : null;
-                    }
-                }
-            } catch (proxyErr) {}
+            if (otpInput) {
+                otpInput.value = '';
+                otpInput.placeholder = '• • • •';
+                otpInput.maxLength = 4;
+                otpInput.focus();
+            }
+            if (hintEl) {
+                hintEl.innerHTML = `📞 You will receive a call. Enter the <strong>last 4 digits</strong> of the calling number.`;
+            }
+
+            showToast('📲 Flash Call initiated! Please check your incoming calls.');
+            startOtpResendTimer(30);
+        } else {
+            const errorMsg = data.message || 'Failed to initiate voice call. Please try again.';
+            showToast(`❌ ${errorMsg}`);
         }
-
-        if (!dynamicOtp) {
-            const randomSuffix = Math.floor(1000 + Math.random() * 9000).toString();
-            dynamicOtp = randomSuffix;
-            callerNumber = `08047${randomSuffix}`;
-        }
-
-        currentExpectedOtp = dynamicOtp;
-
-        if (otpBox) {
-            otpBox.style.display = 'block';
-            otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        if (otpInput) {
-            otpInput.value = '';
-            otpInput.placeholder = '• • • •';
-            otpInput.maxLength = 6;
-            otpInput.focus();
-        }
-
-        if (hintEl) {
-            hintEl.innerHTML = `📞 You will receive a call from <strong>...${dynamicOtp}</strong>. Enter the <strong>last 4 digits</strong> of that number.`;
-        }
-
-        showToast(`📲 Flash Call sent! Enter the last 4 digits of incoming caller ID.`);
-
-        startOtpResendTimer(30);
-
     } catch (err) {
         console.error('Error initiating MSG91 Voice OTP:', err);
-        showToast('❌ Failed to initiate voice call. Please try again.');
+        showToast('❌ Failed to connect to verification service. Please try again.');
     } finally {
         if (verifyBtn) {
             verifyBtn.disabled = false;
@@ -1297,85 +1253,77 @@ function startOtpResendTimer(seconds) {
 async function handleVerifyOtp() {
     const otpInput = document.getElementById('otp-input');
     const phoneInput = document.getElementById('customer-phone');
+    const submitBtn = document.getElementById('btn-submit-otp');
     const enteredOtp = otpInput ? otpInput.value.trim() : '';
 
-    if (!enteredOtp) {
-        showToast('⚠️ Please enter the last 4 digits of the incoming call.');
+    if (!enteredOtp || enteredOtp.length < 4) {
+        showToast('⚠️ Please enter the 4-digit code from the incoming call.');
         if (otpInput) otpInput.focus();
         return;
     }
 
-    let isVerifiedSuccess = false;
+    if (!currentTargetPhone) {
+        const phone = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').slice(0, 10) : '';
+        currentTargetPhone = `91${phone}`;
+    }
 
-    if (currentTargetPhone) {
-        try {
-            const verifyUrl = `https://api.msg91.com/api/v5/otp/verify?authkey=${encodeURIComponent(MSG91_AUTH_KEY)}&mobile=${encodeURIComponent(currentTargetPhone)}&otp=${encodeURIComponent(enteredOtp)}`;
-            const response = await fetch(verifyUrl, {
-                method: 'GET'
-            });
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+    }
 
-            if (response.ok) {
-                const data = await response.json();
-                console.log('MSG91 Verify Response:', data);
-                if (data.type === 'success' || data.message === 'OTP verified success') {
-                    isVerifiedSuccess = true;
-                }
+    try {
+        // Call Vercel Serverless Function: /api/verify-otp?mobile=...&otp=...
+        const response = await fetch(`/api/verify-otp?mobile=${encodeURIComponent(currentTargetPhone)}&otp=${encodeURIComponent(enteredOtp)}`, {
+            method: 'GET'
+        });
+
+        const data = await response.json().catch(() => ({}));
+        console.log('Verify Result:', data);
+
+        const isSuccess = response.ok && (data.type === 'success' || data.message === 'OTP verified success' || data.message === 'success');
+
+        if (isSuccess) {
+            isPhoneVerified = true;
+            const otpBox = document.getElementById('otp-verification-box');
+            const badge = document.getElementById('phone-verified-badge');
+            const verifyBtn = document.getElementById('btn-request-otp');
+
+            if (otpBox) otpBox.style.display = 'none';
+            if (badge) badge.style.display = 'inline-flex';
+            if (verifyBtn) verifyBtn.style.display = 'none';
+
+            // Disable phone input to prevent alteration after verification
+            if (phoneInput) {
+                phoneInput.readOnly = true;
+                phoneInput.classList.remove('invalid-field');
+                phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
+                phoneInput.style.cursor = 'not-allowed';
             }
-        } catch (apiErr) {
-            console.warn('Direct MSG91 verify API check notice (CORS/Network):', apiErr);
-            try {
-                const proxyResp = await fetch(`/api/msg91/verify-otp?mobile=${encodeURIComponent(currentTargetPhone)}&otp=${encodeURIComponent(enteredOtp)}`);
-                if (proxyResp.ok) {
-                    const proxyJson = await proxyResp.json();
-                    if (proxyJson.type === 'success') {
-                        isVerifiedSuccess = true;
-                    }
-                }
-            } catch (proxyVerifyErr) {}
+
+            if (otpResendTimerId) {
+                clearInterval(otpResendTimerId);
+                otpResendTimerId = null;
+            }
+
+            showToast('🎉 Mobile number verified successfully via Voice Call!');
+        } else {
+            const errorMsg = data.message || 'Invalid code. Please enter the last 4 digits of the missed call.';
+            showToast(`❌ ${errorMsg}`);
+            if (otpInput) {
+                otpInput.value = '';
+                otpInput.classList.add('invalid-field');
+                otpInput.focus();
+                setTimeout(() => otpInput.classList.remove('invalid-field'), 2000);
+            }
         }
-    }
-
-    if (!isVerifiedSuccess) {
-        if (
-            (currentExpectedOtp && enteredOtp === currentExpectedOtp) ||
-            (currentExpectedOtp && enteredOtp.endsWith(currentExpectedOtp)) ||
-            (enteredOtp === '123456') ||
-            (enteredOtp === '1234')
-        ) {
-            isVerifiedSuccess = true;
-        }
-    }
-
-    if (isVerifiedSuccess) {
-        isPhoneVerified = true;
-        const otpBox = document.getElementById('otp-verification-box');
-        const badge = document.getElementById('phone-verified-badge');
-        const verifyBtn = document.getElementById('btn-request-otp');
-
-        if (otpBox) otpBox.style.display = 'none';
-        if (badge) badge.style.display = 'inline-flex';
-        if (verifyBtn) verifyBtn.style.display = 'none';
-
-        if (phoneInput) {
-            phoneInput.readOnly = true;
-            phoneInput.classList.remove('invalid-field');
-            phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
-            phoneInput.style.cursor = 'not-allowed';
-        }
-
-        if (otpResendTimerId) {
-            clearInterval(otpResendTimerId);
-            otpResendTimerId = null;
-        }
-
-        showToast('🎉 Mobile number verified successfully via Voice Call!');
-    } else {
-        showToast('❌ Invalid code. Please enter the last 4 digits of the missed call.');
-        if (otpInput) {
-            otpInput.value = '';
-            otpInput.classList.add('invalid-field');
-            otpInput.focus();
-            setTimeout(() => otpInput.classList.remove('invalid-field'), 2000);
+    } catch (err) {
+        console.error('Error verifying OTP with serverless function:', err);
+        showToast('❌ Verification service error. Please try again.');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Confirm OTP';
         }
     }
 }
