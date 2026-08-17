@@ -1165,6 +1165,12 @@ function handlePhoneInputChange(input) {
     if (otpBox) otpBox.style.display = 'none';
 }
 
+// MSG91 OTP Widget Configuration Constants
+const MSG91_WIDGET_CONFIG = {
+    widgetId: "3668716b4f68313937363038",
+    tokenAuth: "561143TsR6UbilsDv6a82f3f8P1"
+};
+
 async function handleRequestOtp() {
     const phoneInput = document.getElementById('customer-phone');
     if (!phoneInput) return;
@@ -1180,7 +1186,7 @@ async function handleRequestOtp() {
     phoneInput.classList.remove('invalid-field');
 
     if (otpResendCountdown > 0) {
-        showToast(`⏳ Please wait ${otpResendCountdown}s before requesting another call.`);
+        showToast(`⏳ Please wait ${otpResendCountdown}s before requesting another OTP.`);
         return;
     }
 
@@ -1195,56 +1201,72 @@ async function handleRequestOtp() {
         verifyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="verify-text">Calling...</span>';
     }
 
-    showToast('📞 Initiating MSG91 Voice / Flash Call to +91 ' + phone + '...');
+    showToast('📞 Initiating MSG91 Voice Call OTP for +91 ' + phone + '...');
 
-    try {
-        // Format with 91 country code prefix (e.g. 918290873256)
-        const formattedMobile = `91${phone}`;
-        currentTargetPhone = formattedMobile;
+    const formattedMobile = `91${phone}`;
+    currentTargetPhone = formattedMobile;
 
-        // Call Vercel Serverless Function
-        const response = await fetch('/api/send-voice-otp', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                mobile: formattedMobile
-            })
-        });
-
-        const data = await response.json().catch(() => ({}));
-        console.log('Voice Call Response:', data);
-
-        if (response.ok && (data.type === 'success' || data.message === 'success' || data.type !== 'error')) {
-            if (otpBox) {
-                otpBox.style.display = 'block';
-                otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-            if (otpInput) {
-                otpInput.value = '';
-                otpInput.placeholder = '• • • •';
-                otpInput.maxLength = 4;
-                otpInput.focus();
-            }
-            if (hintEl) {
-                hintEl.innerHTML = `📞 You will receive a call. Enter the <strong>last 4 digits</strong> of the calling number.`;
-            }
-
-            showToast('📲 Flash Call initiated! Please check your incoming calls.');
-            startOtpResendTimer(30);
-        } else {
-            const errorMsg = data.message || 'Failed to initiate voice call. Please try again.';
-            showToast(`❌ ${errorMsg}`);
-        }
-    } catch (err) {
-        console.error('Error initiating MSG91 Voice OTP:', err);
-        showToast('❌ Failed to connect to verification service. Please try again.');
-    } finally {
+    const onSuccess = (data) => {
+        console.log('MSG91 Voice Call OTP Success:', data);
         if (verifyBtn) {
             verifyBtn.disabled = false;
-            verifyBtn.innerHTML = '<i class="fa-solid fa-phone"></i><span class="verify-text">Call Sent</span>';
+            verifyBtn.innerHTML = '<i class="fa-solid fa-phone-volume"></i><span class="verify-text">Call Sent</span>';
         }
+        if (otpBox) {
+            otpBox.style.display = 'block';
+            otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (otpInput) {
+            otpInput.value = '';
+            otpInput.placeholder = '• • • •';
+            otpInput.maxLength = 4;
+            otpInput.focus();
+        }
+        if (hintEl) {
+            hintEl.innerHTML = `📞 You will receive a call. Enter the <strong>4-digit code</strong>.`;
+        }
+
+        showToast('📲 Voice OTP Call initiated! Please answer the call or check your incoming calls.');
+        startOtpResendTimer(30);
+    };
+
+    const onFailure = (error) => {
+        console.error('MSG91 OTP Send Error:', error);
+        if (verifyBtn) {
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+        }
+        const errorMsg = (error && (error.message || error.description)) || 'Failed to dispatch voice call OTP. Please try again.';
+        showToast(`❌ ${errorMsg}`);
+    };
+
+    try {
+        if (typeof window.sendOtp === 'function') {
+            window.sendOtp(formattedMobile, onSuccess, onFailure);
+        } else if (typeof window.OTPWidget !== 'undefined' && typeof window.OTPWidget.sendOTP === 'function') {
+            const resp = await window.OTPWidget.sendOTP({ identifier: formattedMobile });
+            onSuccess(resp);
+        } else {
+            console.warn('MSG91 SDK sendOtp function not yet available on window, initializing widget...');
+            if (typeof initSendOTP === 'function') {
+                const config = (typeof configuration !== 'undefined') ? configuration : {
+                    widgetId: MSG91_WIDGET_CONFIG.widgetId,
+                    tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
+                    exposeMethods: true
+                };
+                initSendOTP(config);
+            }
+            // Retry after initialization
+            setTimeout(() => {
+                if (typeof window.sendOtp === 'function') {
+                    window.sendOtp(formattedMobile, onSuccess, onFailure);
+                } else {
+                    onFailure({ message: 'MSG91 Widget SDK loading. Please try again in a few seconds.' });
+                }
+            }, 600);
+        }
+    } catch (err) {
+        onFailure(err);
     }
 }
 
@@ -1263,7 +1285,7 @@ function startOtpResendTimer(seconds) {
     otpResendTimerId = setInterval(() => {
         otpResendCountdown--;
         if (timerText) {
-            timerText.textContent = otpResendCountdown > 0 ? `Resend call in ${otpResendCountdown}s` : "Didn't get call?";
+            timerText.textContent = otpResendCountdown > 0 ? `Resend OTP in ${otpResendCountdown}s` : "Didn't get OTP?";
         }
         if (otpResendCountdown <= 0) {
             clearInterval(otpResendTimerId);
@@ -1283,7 +1305,7 @@ async function handleVerifyOtp() {
     const enteredOtp = otpInput ? otpInput.value.trim() : '';
 
     if (!enteredOtp || enteredOtp.length < 4) {
-        showToast('⚠️ Please enter the 4-digit code from the incoming call.');
+        showToast('⚠️ Please enter the 4-digit OTP code.');
         if (otpInput) otpInput.focus();
         return;
     }
@@ -1298,59 +1320,69 @@ async function handleVerifyOtp() {
         submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
     }
 
-    try {
-        // Call Vercel Serverless Function: /api/verify-otp?mobile=...&otp=...
-        const response = await fetch(`/api/verify-otp?mobile=${encodeURIComponent(currentTargetPhone)}&otp=${encodeURIComponent(enteredOtp)}`, {
-            method: 'GET'
-        });
+    const onVerifySuccess = (data) => {
+        console.log('MSG91 OTP Verify Success:', data);
+        isPhoneVerified = true;
+        const otpBox = document.getElementById('otp-verification-box');
+        const badge = document.getElementById('phone-verified-badge');
+        const verifyBtn = document.getElementById('btn-request-otp');
 
-        const data = await response.json().catch(() => ({}));
-        console.log('Verify Result:', data);
+        if (otpBox) otpBox.style.display = 'none';
+        if (badge) badge.style.display = 'inline-flex';
+        if (verifyBtn) verifyBtn.style.display = 'none';
 
-        const isSuccess = response.ok && (data.type === 'success' || data.message === 'OTP verified success' || data.message === 'success');
-
-        if (isSuccess) {
-            isPhoneVerified = true;
-            const otpBox = document.getElementById('otp-verification-box');
-            const badge = document.getElementById('phone-verified-badge');
-            const verifyBtn = document.getElementById('btn-request-otp');
-
-            if (otpBox) otpBox.style.display = 'none';
-            if (badge) badge.style.display = 'inline-flex';
-            if (verifyBtn) verifyBtn.style.display = 'none';
-
-            // Disable phone input to prevent alteration after verification
-            if (phoneInput) {
-                phoneInput.readOnly = true;
-                phoneInput.classList.remove('invalid-field');
-                phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
-                phoneInput.style.cursor = 'not-allowed';
-            }
-
-            if (otpResendTimerId) {
-                clearInterval(otpResendTimerId);
-                otpResendTimerId = null;
-            }
-
-            showToast('🎉 Mobile number verified successfully via Voice Call!');
-        } else {
-            const errorMsg = data.message || 'Invalid code. Please enter the last 4 digits of the missed call.';
-            showToast(`❌ ${errorMsg}`);
-            if (otpInput) {
-                otpInput.value = '';
-                otpInput.classList.add('invalid-field');
-                otpInput.focus();
-                setTimeout(() => otpInput.classList.remove('invalid-field'), 2000);
-            }
+        // Disable phone input to prevent alteration after verification
+        if (phoneInput) {
+            phoneInput.readOnly = true;
+            phoneInput.classList.remove('invalid-field');
+            phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
+            phoneInput.style.cursor = 'not-allowed';
         }
-    } catch (err) {
-        console.error('Error verifying OTP with serverless function:', err);
-        showToast('❌ Verification service error. Please try again.');
-    } finally {
+
+        if (otpResendTimerId) {
+            clearInterval(otpResendTimerId);
+            otpResendTimerId = null;
+        }
+
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Confirm OTP';
         }
+
+        showToast('🎉 Mobile number verified successfully via MSG91 OTP Widget!');
+    };
+
+    const onVerifyFailure = (error) => {
+        console.error('MSG91 OTP Verify Error:', error);
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Confirm OTP';
+        }
+        const errorMsg = (error && (error.message || error.description)) || 'Invalid OTP. Please enter the correct 4-digit code.';
+        showToast(`❌ ${errorMsg}`);
+        if (otpInput) {
+            otpInput.value = '';
+            otpInput.classList.add('invalid-field');
+            otpInput.focus();
+            setTimeout(() => otpInput.classList.remove('invalid-field'), 2000);
+        }
+    };
+
+    try {
+        if (typeof window.verifyOtp === 'function') {
+            window.verifyOtp(enteredOtp, onVerifySuccess, onVerifyFailure);
+        } else if (typeof window.OTPWidget !== 'undefined' && typeof window.OTPWidget.verifyOTP === 'function') {
+            const resp = await window.OTPWidget.verifyOTP({
+                widgetId: MSG91_WIDGET_CONFIG.widgetId,
+                otp: enteredOtp
+            });
+            onVerifySuccess(resp);
+        } else {
+            console.warn('MSG91 SDK verifyOtp function not found on window, checking verify method');
+            onVerifyFailure({ message: 'MSG91 Widget SDK verify method unavailable.' });
+        }
+    } catch (err) {
+        onVerifyFailure(err);
     }
 }
 

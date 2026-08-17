@@ -279,8 +279,8 @@
                                 <!-- OTP VERIFICATION CONTAINER (HIDDEN BY DEFAULT) -->
                                 <div class="otp-verification-wrapper" id="otp-verification-box" style="display: none;">
                                     <div class="otp-box-header">
-                                        <span id="otp-status-title"><i class="fa-solid fa-phone-volume"></i> MSG91 Voice Call Verification</span>
-                                        <span class="otp-mock-hint" id="otp-instructions-hint">You will receive a call. Enter the <strong>last 4 digits</strong> of the incoming caller number.</span>
+                                        <span id="otp-status-title"><i class="fa-solid fa-phone-volume"></i> MSG91 Voice Call OTP</span>
+                                        <span class="otp-mock-hint" id="otp-instructions-hint">You will receive a call. Enter the <strong>4-digit code</strong>.</span>
                                     </div>
                                     <div class="otp-input-row">
                                         <input type="text" id="otp-input" class="otp-input-field" maxlength="6" inputmode="numeric" placeholder="• • • •" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
@@ -543,6 +543,22 @@
         </div>
 
     </div>
+
+    <!-- MSG91 OTP Widget Configuration & SDK Script -->
+    <script type="text/javascript">
+        var configuration = {
+            widgetId: "3668716b4f68313937363038",
+            tokenAuth: "561143TsR6UbilsDv6a82f3f8P1",
+            exposeMethods: true,
+            success: function(data) {
+                console.log('MSG91 Widget Success:', data);
+            },
+            failure: function(error) {
+                console.error('MSG91 Widget Failure:', error);
+            }
+        };
+    </script>
+    <script type="text/javascript" onload="initSendOTP(configuration)" src="https://verify.msg91.com/otp-provider.js"></script>
 
     <script src="app.js"></script>
 </body>
