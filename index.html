@@ -544,21 +544,26 @@
 
     </div>
 
-    <!-- MSG91 OTP Widget Configuration & SDK Script -->
+    <!-- MSG91 OTP Widget Script Loader -->
     <script type="text/javascript">
-        var configuration = {
-            widgetId: "3668716b4f68313937363038",
-            tokenAuth: "561143TsR6UbilsDv6a82f3f8P1",
-            exposeMethods: true,
-            success: function(data) {
-                console.log('MSG91 Widget Success:', data);
-            },
-            failure: function(error) {
-                console.error('MSG91 Widget Failure:', error);
-            }
-        };
+    (function loadOtpScript(urls) {
+        let i = 0;
+        function attempt() {
+            const s = document.createElement('script');
+            s.src = urls[i];
+            s.async = true;
+            s.onerror = () => {
+                i++;
+                if (i < urls.length) attempt();
+            };
+            document.head.appendChild(s);
+        }
+        attempt();
+    })([
+        'https://verify.msg91.com/otp-provider.js',
+        'https://verify.phone91.com/otp-provider.js'
+    ]);
     </script>
-    <script type="text/javascript" onload="initSendOTP(configuration)" src="https://verify.msg91.com/otp-provider.js"></script>
 
     <script src="app.js"></script>
 </body>
