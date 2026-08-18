@@ -2688,31 +2688,22 @@ body.shop-closed .checkout-btn {
     animation: pulseWarn 1.5s ease infinite;
 }
 
-.map-precision-alert {
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(249, 115, 22, 0.12));
-    border-left: 4px solid #ef4444;
-    border-bottom: 1px solid rgba(239, 68, 68, 0.25);
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    animation: fadeIn 0.3s ease;
-}
-
-.precision-alert-header {
+.map-drag-helper-tip {
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.08), rgba(59, 130, 246, 0.08));
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 14px;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.82rem;
-    font-weight: 800;
-    color: #dc2626;
+    gap: 8px;
+    font-size: 0.76rem;
+    color: var(--text-main);
+    line-height: 1.35;
 }
 
-.precision-alert-body {
-    font-size: 0.74rem;
-    line-height: 1.35;
-    color: var(--text-main);
-    margin: 0;
+.map-drag-helper-tip i {
+    color: var(--primary-orange);
+    font-size: 0.9rem;
+    flex-shrink: 0;
 }
 
 @keyframes pulseWarn {

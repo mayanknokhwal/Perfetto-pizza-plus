@@ -306,8 +306,7 @@
                                 </div>
                                 <div class="gps-action-container">
                                     <button type="button" class="btn-open-map-selector" id="btn-open-map-modal" onclick="openCustomerMapModal()">
-                                        <i class="fa-solid fa-map"></i>
-                                        <span id="gps-btn-text">Open Location Map</span>
+                                        <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
                                     </button>
                                     <input type="hidden" id="customer-gps-lat" value="">
                                     <input type="hidden" id="customer-gps-lng" value="">
@@ -581,9 +580,6 @@
                             <p class="map-modal-subtitle">Drag the marker or tap "Detect Live GPS" to pin your exact location</p>
                         </div>
                     </div>
-                    <button type="button" class="map-modal-close-btn" id="btn-close-map-modal" onclick="closeCustomerMapModal()" aria-label="Close Map Dialog">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
                 </div>
 
                 <!-- LIVE GPS BUTTON ON TOP OF MAP -->
@@ -605,15 +601,10 @@
                     <span id="zone-status-text">Within Delivery Zone (0.0 km from store)</span>
                 </div>
 
-                <!-- PRECISE LOCATION ERROR / WARNING NOTICE (SHOWN WHEN APPROXIMATE LOCATION IS DETECTED) -->
-                <div class="map-precision-alert" id="map-precision-alert" style="display: none;">
-                    <div class="precision-alert-header">
-                        <i class="fa-solid fa-triangle-exclamation"></i>
-                        <strong>Precise Location Required</strong>
-                    </div>
-                    <p class="precision-alert-body" id="precision-alert-text">
-                        Approximate location detected. Food delivery requires exact pinpoint accuracy. Please allow <strong>"Precise"</strong> location access in your browser or device settings to confirm your order.
-                    </p>
+                <!-- HELPER GUIDANCE TIP (ENCOURAGING EASY MANUAL PIN ADJUSTMENT) -->
+                <div class="map-drag-helper-tip" id="map-drag-helper-tip">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    <span><strong>Fine-tune location:</strong> Drag the delivery marker or tap anywhere on the map to set your exact doorstep.</span>
                 </div>
 
                 <!-- SELECTED COORDINATES & ADDRESS SUMMARY FOOTER -->

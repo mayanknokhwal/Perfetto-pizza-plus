@@ -116,6 +116,16 @@ function setupNavigation() {
 }
 
 function switchTab(tabName, forceRootHome = false, isPopState = false) {
+    // If accessing Cart, check if profile is complete. If new/incomplete, redirect to Profile completion
+    if (tabName === 'cart') {
+        const savedProfile = getSavedDeliveryProfile();
+        if (!savedProfile) {
+            tabName = 'profile';
+            toggleEditProfileForm(true);
+            showToast('👋 Welcome! Please complete your profile and delivery address first.');
+        }
+    }
+
     // Save scroll position before leaving category-detail
     if (activeTabName === 'category-detail') {
         lastCategoryState.scrollY = window.scrollY || window.pageYOffset || 0;
@@ -1182,7 +1192,7 @@ function openCustomerMapModal() {
     const lngHidden = document.getElementById('customer-gps-lng');
     const hasExistingCoords = (latHidden && latHidden.value && lngHidden && lngHidden.value) || currentCustomerGps;
 
-    // If user doesn't have saved coords and geolocation is supported, show spinner while detecting live GPS
+    // If geolocation is available and no existing coords, try detecting live GPS
     if (!hasExistingCoords && navigator.geolocation) {
         if (openBtn) openBtn.disabled = true;
         if (openBtnText) openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
@@ -1194,13 +1204,25 @@ function openCustomerMapModal() {
                 lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
 
                 resetOpenMapButton(openBtn, openBtnText);
-                launchCustomerMapModal(liveLat, liveLng);
+
+                // If accuracy is high/rough, clamp to delivery zone if needed and open modal for manual adjustment
+                const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
+                let initialLat = liveLat;
+                let initialLng = liveLng;
+                if (!radiusCheck.isAllowed) {
+                    const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
+                    initialLat = clamped.lat;
+                    initialLng = clamped.lng;
+                }
+
+                launchCustomerMapModal(initialLat, initialLng);
             },
             (error) => {
                 console.warn('Initial GPS detection fallback:', error);
                 resetOpenMapButton(openBtn, openBtnText);
                 lastGpsAccuracyMeters = null;
-                // Fallback to store/default coordinates
+
+                // Fallback to store/default coordinates so user can still manually pin
                 const storeLat = getRestaurantLat();
                 const storeLng = getRestaurantLng();
                 launchCustomerMapModal(storeLat, storeLng);
@@ -1371,7 +1393,7 @@ function initCustomerLeafletMap(lat, lng) {
         customerLocationMarker.bindPopup(`
             <div style="text-align: center; padding: 4px;">
                 <strong style="color: #ff6b00; font-size: 0.9rem;">📍 Your Delivery Location</strong><br>
-                <small style="color: #64748b; font-size: 0.72rem;">Drag or tap anywhere on map</small>
+                <small style="color: #64748b; font-size: 0.72rem;">Drag or tap anywhere to fine-tune</small>
             </div>
         `);
 
@@ -1465,33 +1487,15 @@ function updateMapModalCoordsDisplay(lat, lng) {
     const banner = document.getElementById('map-zone-status-banner');
     const icon = document.getElementById('zone-status-icon');
     const text = document.getElementById('zone-status-text');
-    const precisionAlert = document.getElementById('map-precision-alert');
-    const precisionText = document.getElementById('precision-alert-text');
     const confirmBtn = document.getElementById('btn-confirm-map-location');
 
     const check = isWithinDeliveryRadius(lat, lng);
-    const isApproximate = lastGpsAccuracyMeters !== null && lastGpsAccuracyMeters > MAX_ALLOWED_ACCURACY_METERS;
-
-    if (precisionAlert) {
-        if (isApproximate) {
-            precisionAlert.style.display = 'flex';
-            if (precisionText) {
-                precisionText.innerHTML = `Approximate location detected (~${Math.round(lastGpsAccuracyMeters)}m radius error). Food delivery requires pinpoint precision. Please enable <strong>"Precise Location"</strong> in your device/browser permission settings or re-detect live GPS.`;
-            }
-        } else {
-            precisionAlert.style.display = 'none';
-        }
-    }
 
     if (banner && icon && text) {
         if (!check.isAllowed) {
             banner.className = 'map-zone-status-banner out-zone';
             if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
             text.textContent = `Outside Delivery Zone (${check.distanceKm} km > ${check.maxRadiusKm} km limit)`;
-        } else if (isApproximate) {
-            banner.className = 'map-zone-status-banner out-zone';
-            if (icon) icon.className = 'fa-solid fa-circle-exclamation';
-            text.textContent = `Approximate Fix (~${Math.round(lastGpsAccuracyMeters)}m accuracy) - Precise GPS Required`;
         } else {
             banner.className = 'map-zone-status-banner in-zone';
             if (icon) icon.className = 'fa-solid fa-circle-check';
@@ -1500,7 +1504,7 @@ function updateMapModalCoordsDisplay(lat, lng) {
     }
 
     if (confirmBtn) {
-        confirmBtn.disabled = !check.isAllowed || isApproximate;
+        confirmBtn.disabled = !check.isAllowed;
     }
 }
 
@@ -1527,19 +1531,14 @@ function handleDetectLiveGps() {
             const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
             lastGpsAccuracyMeters = accuracy;
 
-            // Check if accuracy fix is approximate/rough
-            if (accuracy !== null && accuracy > MAX_ALLOWED_ACCURACY_METERS) {
-                showToast(`⚠️ Approximate location detected (~${Math.round(accuracy)}m error). Please enable "Precise" location access in your browser/device settings.`);
+            const radiusCheck = isWithinDeliveryRadius(lat, lng);
+            if (!radiusCheck.isAllowed) {
+                const clamped = clampCoordsToDeliveryRadius(lat, lng);
+                showToast(`⚠️ Location (${radiusCheck.distanceKm} km) is outside our ${radiusCheck.maxRadiusKm} km delivery zone. Marker placed at nearest point.`);
+                lat = clamped.lat;
+                lng = clamped.lng;
             } else {
-                const radiusCheck = isWithinDeliveryRadius(lat, lng);
-                if (!radiusCheck.isAllowed) {
-                    const clamped = clampCoordsToDeliveryRadius(lat, lng);
-                    showToast(`⚠️ Live location (${radiusCheck.distanceKm} km) is outside our ${radiusCheck.maxRadiusKm} km delivery zone. Marker moved to closest delivery point.`);
-                    lat = clamped.lat;
-                    lng = clamped.lng;
-                } else {
-                    showToast(`📍 Precise location detected! (${radiusCheck.distanceKm} km from store)`);
-                }
+                showToast(`📍 Location detected! Drag marker or tap anywhere to fine-tune.`);
             }
 
             customerTempCoords = { lat, lng };
@@ -1566,21 +1565,21 @@ function handleDetectLiveGps() {
                 if (btnText) btnText.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Detect My Live GPS';
             }
 
-            let errorMsg = '⚠️ Unable to detect location. Please check device location permissions.';
+            let errorMsg = '⚠️ Unable to detect location. You can manually drag the pin to your address.';
             if (error.code === error.PERMISSION_DENIED) {
-                errorMsg = '⚠️ Location permission denied. Please allow "Precise" GPS access in your browser.';
+                errorMsg = '⚠️ Location permission not granted. Please drag the map pin manually to set your address.';
             } else if (error.code === error.POSITION_UNAVAILABLE) {
-                errorMsg = '⚠️ Location unavailable. Please turn on device GPS.';
+                errorMsg = '⚠️ Location unavailable. Please drag the map pin manually.';
             } else if (error.code === error.TIMEOUT) {
-                errorMsg = '⚠️ Location request timed out. Please tap retry.';
+                errorMsg = '⚠️ Location request timed out. Please drag the map pin manually or tap retry.';
             }
 
             showToast(errorMsg);
         },
         {
             enableHighAccuracy: true,
-            timeout: 12000,
-            maximumAge: 0
+            timeout: 10000,
+            maximumAge: 60000
         }
     );
 }
@@ -1593,17 +1592,6 @@ function handleConfirmMapLocation() {
 
     const lat = customerTempCoords.lat;
     const lng = customerTempCoords.lng;
-
-    // Precise Location Restriction Check
-    if (lastGpsAccuracyMeters !== null && lastGpsAccuracyMeters > MAX_ALLOWED_ACCURACY_METERS) {
-        showToast(`🚫 Approximate location fix detected (~${Math.round(lastGpsAccuracyMeters)}m error). Precise location is required for delivery! Please enable "Precise" location access in your device/browser settings.`);
-        const alertBox = document.getElementById('map-precision-alert');
-        if (alertBox) {
-            alertBox.style.display = 'flex';
-            alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        return;
-    }
 
     // Delivery Radius Boundary Validation
     const radiusCheck = isWithinDeliveryRadius(lat, lng);
