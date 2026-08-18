@@ -67,14 +67,7 @@ function loadCartFromStorage() {
     } catch (e) {
         console.warn('Failed to load cart from localStorage:', e);
     }
-    return [
-        {
-            name: 'Pizza (M)',
-            price: 299,
-            qty: 1,
-            img: 'https://i.ibb.co/21fs0TqL/pizza.png'
-        }
-    ];
+    return [];
 }
 
 function saveCartToStorage() {
@@ -1201,15 +1194,54 @@ function handlePhoneInputChange(input) {
         otpResendTimerId = null;
     }
     const badge = document.getElementById('phone-verified-badge');
+    const changeBtn = document.getElementById('btn-change-phone');
     const verifyBtn = document.getElementById('btn-request-otp');
     const otpBox = document.getElementById('otp-verification-box');
     if (badge) badge.style.display = 'none';
+    if (changeBtn) changeBtn.style.display = 'none';
     if (verifyBtn) {
         verifyBtn.style.display = 'inline-flex';
         verifyBtn.disabled = input.value.length !== 10;
         verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
     }
     if (otpBox) otpBox.style.display = 'none';
+}
+
+function handleChangePhoneNumber() {
+    const phoneInput = document.getElementById('customer-phone');
+    const badge = document.getElementById('phone-verified-badge');
+    const changeBtn = document.getElementById('btn-change-phone');
+    const verifyBtn = document.getElementById('btn-request-otp');
+    const otpBox = document.getElementById('otp-verification-box');
+
+    isPhoneVerified = false;
+    currentTargetPhone = null;
+
+    if (otpResendTimerId) {
+        clearInterval(otpResendTimerId);
+        otpResendTimerId = null;
+    }
+
+    if (badge) badge.style.display = 'none';
+    if (changeBtn) changeBtn.style.display = 'none';
+    if (otpBox) otpBox.style.display = 'none';
+
+    if (phoneInput) {
+        phoneInput.readOnly = false;
+        phoneInput.style.backgroundColor = 'var(--bg-input)';
+        phoneInput.style.cursor = 'text';
+        phoneInput.focus();
+        phoneInput.select();
+    }
+
+    if (verifyBtn) {
+        verifyBtn.style.display = 'inline-flex';
+        const len = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
+        verifyBtn.disabled = len !== 10;
+        verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+    }
+
+    showToast('✏️ Mobile number unlocked. Enter number and verify.');
 }
 
 // MSG91 OTP Widget Configuration Constants
@@ -1376,10 +1408,12 @@ async function handleVerifyOtp() {
         isPhoneVerified = true;
         const otpBox = document.getElementById('otp-verification-box');
         const badge = document.getElementById('phone-verified-badge');
+        const changeBtn = document.getElementById('btn-change-phone');
         const verifyBtn = document.getElementById('btn-request-otp');
 
         if (otpBox) otpBox.style.display = 'none';
         if (badge) badge.style.display = 'inline-flex';
+        if (changeBtn) changeBtn.style.display = 'inline-flex';
         if (verifyBtn) verifyBtn.style.display = 'none';
 
         // Disable phone input to prevent alteration after verification
@@ -1534,6 +1568,7 @@ function renderProfileHeaderAndInputs(profile) {
     const nameEl = document.getElementById('profile-display-name');
     const subtextEl = document.getElementById('profile-display-subtext');
     const badge = document.getElementById('phone-verified-badge');
+    const changeBtn = document.getElementById('btn-change-phone');
     const verifyBtn = document.getElementById('btn-request-otp');
     const phoneInput = document.getElementById('customer-phone');
 
@@ -1549,6 +1584,7 @@ function renderProfileHeaderAndInputs(profile) {
         if (profile.isVerified) {
             isPhoneVerified = true;
             if (badge) badge.style.display = 'inline-flex';
+            if (changeBtn) changeBtn.style.display = 'inline-flex';
             if (verifyBtn) verifyBtn.style.display = 'none';
             if (phoneInput) {
                 phoneInput.readOnly = true;
@@ -1558,6 +1594,7 @@ function renderProfileHeaderAndInputs(profile) {
         } else {
             isPhoneVerified = false;
             if (badge) badge.style.display = 'none';
+            if (changeBtn) changeBtn.style.display = 'none';
             if (verifyBtn) {
                 verifyBtn.style.display = 'inline-flex';
                 const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
@@ -1589,6 +1626,7 @@ function renderProfileHeaderAndInputs(profile) {
         if (nameEl) nameEl.textContent = 'Customer Name';
         if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
         if (badge) badge.style.display = 'none';
+        if (changeBtn) changeBtn.style.display = 'none';
         if (verifyBtn) {
             verifyBtn.style.display = 'inline-flex';
             const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;

@@ -2346,6 +2346,34 @@ body.shop-closed .checkout-btn {
     white-space: nowrap;
 }
 
+.btn-change-phone {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    color: var(--primary-orange);
+    border: 1px solid var(--primary-orange);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    text-transform: none;
+    line-height: 1.2;
+    touch-action: manipulation;
+}
+
+.btn-change-phone:hover {
+    background: rgba(255, 107, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.btn-change-phone:active {
+    transform: translateY(1px);
+}
+
 .input-icon-group {
     position: relative;
     width: 100%;
