@@ -279,8 +279,8 @@
                                 <!-- OTP VERIFICATION CONTAINER (HIDDEN BY DEFAULT) -->
                                 <div class="otp-verification-wrapper" id="otp-verification-box" style="display: none;">
                                     <div class="otp-box-header">
-                                        <span id="otp-status-title"><i class="fa-solid fa-phone-volume"></i> MSG91 Voice Call OTP</span>
-                                        <span class="otp-mock-hint" id="otp-instructions-hint">You will receive a call. Enter the <strong>4-digit code</strong>.</span>
+                                        <span id="otp-status-title"><i class="fa-solid fa-shield-halved"></i> MSG91 OTP Verification</span>
+                                        <span class="otp-mock-hint" id="otp-instructions-hint">Enter the <strong>OTP code</strong> sent to your number.</span>
                                     </div>
                                     <div class="otp-input-row">
                                         <input type="text" id="otp-input" class="otp-input-field" maxlength="6" inputmode="numeric" placeholder="• • • •" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
@@ -289,8 +289,8 @@
                                         </button>
                                     </div>
                                     <div class="otp-box-footer" style="margin-top: 8px; font-size: 0.75rem; display: flex; justify-content: space-between; width: 100%; max-width: 320px; color: var(--text-muted);">
-                                        <span id="otp-timer-text">Didn't get call?</span>
-                                        <a href="javascript:void(0)" id="btn-resend-voice-otp" onclick="handleRequestOtp()" style="color: var(--primary-orange); font-weight: 700; text-decoration: none;">Resend Call</a>
+                                        <span id="otp-timer-text">Didn't receive OTP?</span>
+                                        <a href="javascript:void(0)" id="btn-resend-voice-otp" onclick="handleRequestOtp(true)" style="color: var(--primary-orange); font-weight: 700; text-decoration: none;">Resend OTP</a>
                                     </div>
                                 </div>
                             </div>
@@ -544,25 +544,31 @@
 
     </div>
 
-    <!-- MSG91 OTP Widget Script Loader -->
+    <!-- MSG91 OTP Widget Script Loader (Headless Mode / Custom UI) -->
     <script type="text/javascript">
-    (function loadOtpScript(urls) {
+      var configuration = {
+        widgetId: "3668716b4f68313937363038",
+        tokenAuth: "561143TsR6UbiIs0v6a82f3f8P1",
+        exposeMethods: true,
+        success: (data) => console.log('OTP Success:', data),
+        failure: (error) => console.error('OTP Error:', error)
+      };
+      (function (urls) {
         let i = 0;
         function attempt() {
-            const s = document.createElement('script');
-            s.src = urls[i];
-            s.async = true;
-            s.onerror = () => {
-                i++;
-                if (i < urls.length) attempt();
-            };
-            document.head.appendChild(s);
+          const s = document.createElement('script');
+          s.src = urls[i];
+          s.async = true;
+          s.onload = () => {
+            if (typeof window.initSendOTP === 'function') {
+              window.initSendOTP(configuration);
+            }
+          };
+          s.onerror = () => { i++; if (i < urls.length) attempt(); };
+          document.head.appendChild(s);
         }
         attempt();
-    })([
-        'https://verify.msg91.com/otp-provider.js',
-        'https://verify.phone91.com/otp-provider.js'
-    ]);
+      })(['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js']);
     </script>
 
     <script src="app.js"></script>

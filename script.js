@@ -1145,7 +1145,7 @@ const MSG91_WIDGET_CONFIG = {
     tokenAuth: "561143TsR6UbiIs0v6a82f3f8P1"
 };
 
-async function handleRequestOtp() {
+async function handleRequestOtp(isResend = false) {
     const phoneVal = (document.getElementById('customer-phone') || {}).value?.trim();
     if (!phoneVal || phoneVal.replace(/[^0-9]/g, '').length < 10) {
         showToast('⚠️ Please enter a valid 10-digit Indian mobile number!');
@@ -1167,88 +1167,83 @@ async function handleRequestOtp() {
     const verifyBtn = document.getElementById('btn-request-otp');
     const badge = document.getElementById('phone-verified-badge');
     const otpBox = document.getElementById('otp-verification-box');
+    const otpInput = document.getElementById('otp-input');
 
     // UI Loading state
-    if (verifyBtn) {
+    if (verifyBtn && !isResend) {
         verifyBtn.disabled = true;
-        verifyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="verify-text">Opening...</span>';
+        verifyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="verify-text">Sending...</span>';
     }
 
-    showToast('📞 Launching MSG91 Voice OTP for +91 ' + cleanDigits + '...');
+    showToast(`📲 Sending OTP to +91 ${cleanDigits}...`);
 
-    const markPhoneVerified = (data) => {
-        console.log('MSG91 Widget Verified Successfully:', data);
-        isPhoneVerified = true;
-        
-        if (otpBox) otpBox.style.display = 'none';
-        if (badge) badge.style.display = 'inline-flex';
-        if (verifyBtn) {
-            verifyBtn.style.display = 'none';
-            verifyBtn.disabled = false;
-        }
-
-        // Lock phone input
-        if (phoneInput) {
-            phoneInput.readOnly = true;
-            phoneInput.classList.remove('invalid-field');
-            phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
-            phoneInput.style.cursor = 'not-allowed';
-        }
-
-        if (otpResendTimerId) {
-            clearInterval(otpResendTimerId);
-            otpResendTimerId = null;
-        }
-
-        showToast('🎉 Mobile number verified successfully!');
-    };
-
-    const handleFailure = (error) => {
-        console.error('MSG91 Widget Error:', error);
+    const handleSendSuccess = (data) => {
+        console.log('MSG91 sendOtp Success:', data);
         if (verifyBtn) {
             verifyBtn.disabled = false;
             verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
         }
-        const errorMsg = (error && (error.message || error.description)) || 'Verification failed. Please try again.';
+        // Reveal native custom OTP container
+        if (otpBox) {
+            otpBox.style.display = 'block';
+            otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        if (otpInput) {
+            otpInput.value = '';
+            otpInput.focus();
+        }
+        startOtpResendTimer(30);
+        showToast('✅ OTP sent successfully! Please enter code below.');
+    };
+
+    const handleSendFailure = (error) => {
+        console.error('MSG91 sendOtp Error:', error);
+        if (verifyBtn) {
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+        }
+        const errorMsg = (error && (error.message || error.description || error.msg)) || 'Failed to send OTP. Please try again.';
         showToast(`❌ ${errorMsg}`);
     };
 
-    const widgetConfig = {
-        widgetId: MSG91_WIDGET_CONFIG.widgetId,
-        tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
-        identifier: fullNumber,
-        success: (data) => {
-            console.log('MSG91 OTP Success Callback:', data);
-            markPhoneVerified(data);
-        },
-        failure: (error) => {
-            handleFailure(error);
+    const executeSendOtp = () => {
+        if (typeof window.sendOtp === 'function') {
+            window.sendOtp(
+                fullNumber,
+                handleSendSuccess,
+                handleSendFailure
+            );
+            return true;
+        } else if (typeof window.initSendOTP === 'function') {
+            window.initSendOTP({
+                widgetId: MSG91_WIDGET_CONFIG.widgetId,
+                tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
+                exposeMethods: true,
+                identifier: fullNumber,
+                success: handleSendSuccess,
+                failure: handleSendFailure
+            });
+            setTimeout(() => {
+                if (typeof window.sendOtp === 'function') {
+                    window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
+                }
+            }, 300);
+            return true;
         }
+        return false;
     };
 
     try {
-        if (typeof window.initSendOTP === 'function') {
-            window.initSendOTP(widgetConfig);
-            if (verifyBtn) {
-                verifyBtn.disabled = false;
-                verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
-            }
-        } else {
-            console.log('MSG91 Widget SDK loading, waiting to initialize...');
+        if (!executeSendOtp()) {
+            console.log('MSG91 Widget SDK loading, retrying sendOtp in 800ms...');
             setTimeout(() => {
-                if (typeof window.initSendOTP === 'function') {
-                    window.initSendOTP(widgetConfig);
-                    if (verifyBtn) {
-                        verifyBtn.disabled = false;
-                        verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
-                    }
-                } else {
-                    handleFailure({ message: 'MSG91 Widget SDK is loading. Please try again in a few moments.' });
+                if (!executeSendOtp()) {
+                    handleSendFailure({ message: 'MSG91 Widget SDK is loading. Please try again in a few moments.' });
                 }
             }, 800);
         }
     } catch (err) {
-        handleFailure(err);
+        handleSendFailure(err);
     }
 }
 
@@ -1267,7 +1262,7 @@ function startOtpResendTimer(seconds) {
     otpResendTimerId = setInterval(() => {
         otpResendCountdown--;
         if (timerText) {
-            timerText.textContent = otpResendCountdown > 0 ? `Resend call in ${otpResendCountdown}s` : "Didn't get call?";
+            timerText.textContent = otpResendCountdown > 0 ? `Resend in ${otpResendCountdown}s` : "Didn't receive OTP?";
         }
         if (otpResendCountdown <= 0) {
             clearInterval(otpResendTimerId);
@@ -1275,6 +1270,7 @@ function startOtpResendTimer(seconds) {
             if (resendBtn) {
                 resendBtn.style.pointerEvents = 'auto';
                 resendBtn.style.opacity = '1';
+                resendBtn.textContent = 'Resend OTP';
             }
         }
     }, 1000);
@@ -1287,7 +1283,7 @@ async function handleVerifyOtp() {
     const enteredOtp = otpInput ? otpInput.value.trim() : '';
 
     if (!enteredOtp || enteredOtp.length < 4) {
-        showToast('⚠️ Please enter the 4-digit OTP code.');
+        showToast('⚠️ Please enter the OTP code.');
         if (otpInput) otpInput.focus();
         return;
     }
@@ -1340,7 +1336,7 @@ async function handleVerifyOtp() {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Confirm OTP';
         }
-        const errorMsg = (error && (error.message || error.description)) || 'Invalid OTP. Please enter the correct 4-digit code.';
+        const errorMsg = (error && (error.message || error.description || error.msg)) || 'Invalid OTP. Please enter the correct code.';
         showToast(`❌ ${errorMsg}`);
         if (otpInput) {
             otpInput.value = '';
