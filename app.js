@@ -142,6 +142,16 @@ function setupNavigation() {
 }
 
 function switchTab(tabName, forceRootHome = false, isPopState = false) {
+    // If accessing Cart, check if profile is complete. If new/incomplete, redirect to Profile completion
+    if (tabName === 'cart') {
+        const savedProfile = getSavedDeliveryProfile();
+        if (!savedProfile) {
+            tabName = 'profile';
+            toggleEditProfileForm(true);
+            showToast('👋 Welcome! Please complete your profile and delivery address first.');
+        }
+    }
+
     // Save scroll position before leaving category-detail
     if (activeTabName === 'category-detail') {
         lastCategoryState.scrollY = window.scrollY || window.pageYOffset || 0;
@@ -937,9 +947,11 @@ function getSavedDeliveryProfile() {
                 const nearBy = (profile.nearBy || '').trim();
                 const streetName = (profile.streetName || '').trim();
                 const wardNo = (profile.wardNo || '').trim();
+                const gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
+                const gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
 
-                if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo) {
-                    return { fullName, phone, colonyName, nearBy, streetName, wardNo };
+                if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null) {
+                    return { fullName, phone, colonyName, nearBy, streetName, wardNo, gpsLat, gpsLng };
                 }
             }
         }
@@ -1182,6 +1194,475 @@ let isPhoneVerified = false;
 let currentTargetPhone = null;
 let otpResendCountdown = 0;
 let otpResendTimerId = null;
+
+// --------------------------------------------------------------------------
+// CUSTOMER INTERACTIVE LOCATION MAP CONTROLLER (LEAFLET + LIVE GPS)
+// --------------------------------------------------------------------------
+let customerLeafletMap = null;
+let customerLocationMarker = null;
+let customerStoreMarker = null;
+let customerCoverageCircle = null;
+let customerTempCoords = { lat: 29.533736, lng: 73.447895 }; // Raisingh Nagar default
+let currentCustomerGps = null; // Confirmed coords { lat: number, lng: number }
+let lastGpsAccuracyMeters = null; // Accuracy in meters from Geolocation API
+const MAX_ALLOWED_ACCURACY_METERS = 250; // Threshold for precise location (anything higher is approximate/rough IP/cell fix)
+
+function openCustomerMapModal() {
+    const modal = document.getElementById('customer-map-modal');
+    const openBtn = document.getElementById('btn-open-map-modal');
+    const openBtnText = document.getElementById('gps-btn-text');
+    if (!modal) return;
+
+    // Check if we already have confirmed or saved coordinates
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const hasExistingCoords = (latHidden && latHidden.value && lngHidden && lngHidden.value) || currentCustomerGps;
+
+    // If geolocation is available and no existing coords, try detecting live GPS
+    if (!hasExistingCoords && navigator.geolocation) {
+        if (openBtn) openBtn.disabled = true;
+        if (openBtnText) openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const liveLat = parseFloat(position.coords.latitude.toFixed(6));
+                const liveLng = parseFloat(position.coords.longitude.toFixed(6));
+                lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
+
+                resetOpenMapButton(openBtn, openBtnText);
+
+                // If accuracy is high/rough, clamp to delivery zone if needed and open modal for manual adjustment
+                const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
+                let initialLat = liveLat;
+                let initialLng = liveLng;
+                if (!radiusCheck.isAllowed) {
+                    const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
+                    initialLat = clamped.lat;
+                    initialLng = clamped.lng;
+                }
+
+                launchCustomerMapModal(initialLat, initialLng);
+            },
+            (error) => {
+                console.warn('Initial GPS detection fallback:', error);
+                resetOpenMapButton(openBtn, openBtnText);
+                lastGpsAccuracyMeters = null;
+
+                // Fallback to store/default coordinates so user can still manually pin
+                const storeLat = getRestaurantLat();
+                const storeLng = getRestaurantLng();
+                launchCustomerMapModal(storeLat, storeLng);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 8000,
+                maximumAge: 60000
+            }
+        );
+    } else {
+        let initialLat = getRestaurantLat();
+        let initialLng = getRestaurantLng();
+
+        if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
+            initialLat = parseFloat(latHidden.value) || initialLat;
+            initialLng = parseFloat(lngHidden.value) || initialLng;
+        } else if (currentCustomerGps) {
+            initialLat = currentCustomerGps.lat;
+            initialLng = currentCustomerGps.lng;
+        }
+
+        launchCustomerMapModal(initialLat, initialLng);
+    }
+}
+
+function resetOpenMapButton(btn, btnText) {
+    if (btn) btn.disabled = false;
+    if (btnText) {
+        const isVerified = currentCustomerGps !== null || (document.getElementById('customer-gps-lat')?.value);
+        btnText.innerHTML = isVerified ? '<i class="fa-solid fa-map-pin"></i> Change Location on Map' : '<i class="fa-solid fa-map"></i> Open Location Map';
+    }
+}
+
+function launchCustomerMapModal(initialLat, initialLng) {
+    const modal = document.getElementById('customer-map-modal');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+
+    customerTempCoords = { lat: initialLat, lng: initialLng };
+    updateMapModalCoordsDisplay(initialLat, initialLng);
+
+    setTimeout(() => {
+        initCustomerLeafletMap(initialLat, initialLng);
+    }, 150);
+}
+
+function closeCustomerMapModal() {
+    const modal = document.getElementById('customer-map-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+function initCustomerLeafletMap(lat, lng) {
+    const mapContainer = document.getElementById('customer-location-map');
+    if (!mapContainer || typeof L === 'undefined') return;
+
+    const customMarkerHtml = `
+        <div style="
+            background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+            width: 36px;
+            height: 36px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.6);
+            border: 2.5px solid #ffffff;
+        ">
+            <i class="fa-solid fa-house-chimney" style="
+                transform: rotate(45deg);
+                color: #ffffff;
+                font-size: 15px;
+            "></i>
+        </div>
+    `;
+
+    const customIcon = L.divIcon({
+        className: 'customer-delivery-marker',
+        html: customMarkerHtml,
+        iconSize: [36, 36],
+        iconAnchor: [18, 36],
+        popupAnchor: [0, -36]
+    });
+
+    const storeLat = getRestaurantLat();
+    const storeLng = getRestaurantLng();
+    const radiusKm = getDeliveryRadiusKm();
+
+    const storeMarkerHtml = `
+        <div style="
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            width: 38px;
+            height: 38px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+            border: 2.5px solid #ff6b00;
+        ">
+            <i class="fa-solid fa-pizza-slice" style="
+                transform: rotate(45deg);
+                color: #ff6b00;
+                font-size: 16px;
+            "></i>
+        </div>
+    `;
+
+    const storeIcon = L.divIcon({
+        className: 'store-location-marker',
+        html: storeMarkerHtml,
+        iconSize: [38, 38],
+        iconAnchor: [19, 38],
+        popupAnchor: [0, -38]
+    });
+
+    if (!customerLeafletMap) {
+        customerLeafletMap = L.map('customer-location-map', {
+            center: [lat, lng],
+            zoom: 15,
+            zoomControl: true
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(customerLeafletMap);
+
+        // Store Location Marker
+        customerStoreMarker = L.marker([storeLat, storeLng], {
+            icon: storeIcon,
+            zIndexOffset: 500
+        }).addTo(customerLeafletMap);
+
+        customerStoreMarker.bindPopup(`
+            <div style="text-align: center; padding: 4px;">
+                <strong style="color: #ff6b00; font-size: 0.95rem;">🍕 Perfetto Pizza Store</strong><br>
+                <small style="color: #64748b; font-size: 0.76rem;">Kitchen & Pickup Hub</small>
+            </div>
+        `);
+
+        // Delivery Coverage Circle
+        if (radiusKm && !isNaN(radiusKm) && radiusKm > 0) {
+            customerCoverageCircle = L.circle([storeLat, storeLng], {
+                color: '#ff6b00',
+                weight: 1.5,
+                dashArray: '5, 5',
+                fillColor: '#ff6b00',
+                fillOpacity: 0.07,
+                radius: radiusKm * 1000
+            }).addTo(customerLeafletMap);
+        }
+
+        // Customer Location Marker
+        customerLocationMarker = L.marker([lat, lng], {
+            draggable: true,
+            icon: customIcon,
+            zIndexOffset: 1000
+        }).addTo(customerLeafletMap);
+
+        customerLocationMarker.bindPopup(`
+            <div style="text-align: center; padding: 4px;">
+                <strong style="color: #ff6b00; font-size: 0.9rem;">📍 Your Delivery Location</strong><br>
+                <small style="color: #64748b; font-size: 0.72rem;">Drag or tap anywhere to fine-tune</small>
+            </div>
+        `);
+
+        customerLocationMarker.on('drag', (e) => {
+            const pos = e.target.getLatLng();
+            let newLat = parseFloat(pos.lat.toFixed(6));
+            let newLng = parseFloat(pos.lng.toFixed(6));
+            const clamped = clampCoordsToDeliveryRadius(newLat, newLng);
+            if (clamped.wasClamped) {
+                newLat = clamped.lat;
+                newLng = clamped.lng;
+                customerLocationMarker.setLatLng([newLat, newLng]);
+            }
+            customerTempCoords = { lat: newLat, lng: newLng };
+            updateMapModalCoordsDisplay(newLat, newLng);
+        });
+
+        customerLeafletMap.on('click', (e) => {
+            const pos = e.latlng;
+            let newLat = parseFloat(pos.lat.toFixed(6));
+            let newLng = parseFloat(pos.lng.toFixed(6));
+            const clamped = clampCoordsToDeliveryRadius(newLat, newLng);
+            if (clamped.wasClamped) {
+                newLat = clamped.lat;
+                newLng = clamped.lng;
+                showToast(`⚠️ Location is outside our ${getDeliveryRadiusKm()} km delivery area. Pinned to nearest boundary point!`);
+            }
+            customerTempCoords = { lat: newLat, lng: newLng };
+            if (customerLocationMarker) {
+                customerLocationMarker.setLatLng([newLat, newLng]);
+            }
+            updateMapModalCoordsDisplay(newLat, newLng);
+        });
+    } else {
+        customerLeafletMap.invalidateSize();
+        customerLeafletMap.setView([lat, lng], 15);
+        if (customerLocationMarker) {
+            customerLocationMarker.setLatLng([lat, lng]);
+        }
+        if (customerStoreMarker) {
+            customerStoreMarker.setLatLng([storeLat, storeLng]);
+        }
+        if (customerCoverageCircle) {
+            customerCoverageCircle.setLatLng([storeLat, storeLng]);
+            if (radiusKm && !isNaN(radiusKm) && radiusKm > 0) {
+                customerCoverageCircle.setRadius(radiusKm * 1000);
+            }
+        }
+    }
+}
+
+// Restricts / clamps a coordinate to lie strictly within the delivery radius circle if dragged outside
+function clampCoordsToDeliveryRadius(lat, lng) {
+    const storeLat = getRestaurantLat();
+    const storeLng = getRestaurantLng();
+    const radiusKm = getDeliveryRadiusKm();
+    const dist = calculateDistanceHaversine(storeLat, storeLng, lat, lng);
+
+    if (dist <= radiusKm) {
+        return { lat, lng, wasClamped: false, distanceKm: parseFloat(dist.toFixed(2)) };
+    }
+
+    // Project coordinates onto circle perimeter (bearing projection)
+    const dLat = (lat - storeLat) * (Math.PI / 180);
+    const dLon = (lng - storeLng) * (Math.PI / 180);
+    const y = Math.sin(dLon) * Math.cos(lat * (Math.PI / 180));
+    const x = Math.cos(storeLat * (Math.PI / 180)) * Math.sin(lat * (Math.PI / 180)) -
+              Math.sin(storeLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.cos(dLon);
+    const bearing = Math.atan2(y, x);
+
+    const R = 6371; // Earth's radius in KM
+    const maxSafeRadius = Math.max(0.1, radiusKm - 0.05); // slight safety inset
+    const angularDist = maxSafeRadius / R;
+    const storeLatRad = storeLat * (Math.PI / 180);
+    const storeLngRad = storeLng * (Math.PI / 180);
+
+    const clampedLatRad = Math.asin(Math.sin(storeLatRad) * Math.cos(angularDist) +
+                          Math.cos(storeLatRad) * Math.sin(angularDist) * Math.cos(bearing));
+    const clampedLngRad = storeLngRad + Math.atan2(Math.sin(bearing) * Math.sin(angularDist) * Math.cos(storeLatRad),
+                          Math.cos(angularDist) - Math.sin(storeLatRad) * Math.sin(clampedLatRad));
+
+    return {
+        lat: parseFloat((clampedLatRad * (180 / Math.PI)).toFixed(6)),
+        lng: parseFloat((clampedLngRad * (180 / Math.PI)).toFixed(6)),
+        wasClamped: true,
+        distanceKm: parseFloat(dist.toFixed(2))
+    };
+}
+
+function updateMapModalCoordsDisplay(lat, lng) {
+    const banner = document.getElementById('map-zone-status-banner');
+    const icon = document.getElementById('zone-status-icon');
+    const text = document.getElementById('zone-status-text');
+    const confirmBtn = document.getElementById('btn-confirm-map-location');
+
+    const check = isWithinDeliveryRadius(lat, lng);
+
+    if (banner && icon && text) {
+        if (!check.isAllowed) {
+            banner.className = 'map-zone-status-banner out-zone';
+            if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
+            text.textContent = `Outside Delivery Zone (${check.distanceKm} km > ${check.maxRadiusKm} km limit)`;
+        } else {
+            banner.className = 'map-zone-status-banner in-zone';
+            if (icon) icon.className = 'fa-solid fa-circle-check';
+            text.textContent = `Within Delivery Zone (${check.distanceKm} km from store)`;
+        }
+    }
+
+    if (confirmBtn) {
+        confirmBtn.disabled = !check.isAllowed;
+    }
+}
+
+function handleDetectLiveGps() {
+    const btn = document.getElementById('btn-detect-live-gps');
+    const btnText = document.getElementById('detect-gps-btn-text');
+
+    if (!navigator.geolocation) {
+        showToast('⚠️ Geolocation is not supported on this device/browser.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        if (btnText) btnText.innerHTML = '<span class="btn-spinner"></span> Detecting GPS...';
+    }
+
+    showToast('📡 Detecting your current live coordinates...');
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            let lat = parseFloat(position.coords.latitude.toFixed(6));
+            let lng = parseFloat(position.coords.longitude.toFixed(6));
+            const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
+            lastGpsAccuracyMeters = accuracy;
+
+            const radiusCheck = isWithinDeliveryRadius(lat, lng);
+            if (!radiusCheck.isAllowed) {
+                const clamped = clampCoordsToDeliveryRadius(lat, lng);
+                showToast(`⚠️ Location (${radiusCheck.distanceKm} km) is outside our ${radiusCheck.maxRadiusKm} km delivery zone. Marker placed at nearest point.`);
+                lat = clamped.lat;
+                lng = clamped.lng;
+            } else {
+                showToast(`📍 Location detected! Drag marker or tap anywhere to fine-tune.`);
+            }
+
+            customerTempCoords = { lat, lng };
+
+            if (customerLeafletMap) {
+                customerLeafletMap.setView([lat, lng], 16);
+                if (customerLocationMarker) {
+                    customerLocationMarker.setLatLng([lat, lng]);
+                    customerLocationMarker.openPopup();
+                }
+            }
+
+            updateMapModalCoordsDisplay(lat, lng);
+
+            if (btn) {
+                btn.disabled = false;
+                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
+            }
+        },
+        (error) => {
+            console.error('Geolocation Error:', error);
+            if (btn) {
+                btn.disabled = false;
+                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Detect My Live GPS';
+            }
+
+            let errorMsg = '⚠️ Unable to detect location. You can manually drag the pin to your address.';
+            if (error.code === error.PERMISSION_DENIED) {
+                errorMsg = '⚠️ Location permission not granted. Please drag the map pin manually to set your address.';
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+                errorMsg = '⚠️ Location unavailable. Please drag the map pin manually.';
+            } else if (error.code === error.TIMEOUT) {
+                errorMsg = '⚠️ Location request timed out. Please drag the map pin manually or tap retry.';
+            }
+
+            showToast(errorMsg);
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+        }
+    );
+}
+
+function handleConfirmMapLocation() {
+    if (!customerTempCoords || isNaN(customerTempCoords.lat) || isNaN(customerTempCoords.lng)) {
+        showToast('⚠️ Please select a location on the map first!');
+        return;
+    }
+
+    const lat = customerTempCoords.lat;
+    const lng = customerTempCoords.lng;
+
+    // Delivery Radius Boundary Validation
+    const radiusCheck = isWithinDeliveryRadius(lat, lng);
+    if (!radiusCheck.isAllowed) {
+        showToast(`🚫 Out of Delivery Area: Your selected location is ${radiusCheck.distanceKm} km away. We only deliver within ${radiusCheck.maxRadiusKm} km of our store. Please move your pin inside the circle.`);
+        const banner = document.getElementById('map-zone-status-banner');
+        if (banner) {
+            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+    }
+
+    currentCustomerGps = { lat, lng };
+
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const statusBadge = document.getElementById('gps-status-badge');
+    const coordsDisplay = document.getElementById('gps-coordinates-display');
+    const gpsContainer = document.querySelector('.full-width-gps-field');
+    const gpsBtnText = document.getElementById('gps-btn-text');
+
+    if (latHidden) latHidden.value = lat;
+    if (lngHidden) lngHidden.value = lng;
+
+    if (statusBadge) {
+        statusBadge.className = 'gps-status-badge verified';
+        statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
+    }
+
+    if (coordsDisplay) {
+        coordsDisplay.style.display = 'flex';
+    }
+
+    if (gpsContainer) {
+        gpsContainer.classList.remove('invalid-gps');
+        gpsContainer.classList.add('gps-verified');
+    }
+
+    if (gpsBtnText) {
+        gpsBtnText.innerHTML = '<i class="fa-solid fa-map-pin"></i> Change Location on Map';
+    }
+
+    closeCustomerMapModal();
+    showToast(`📍 Delivery location verified (${radiusCheck.distanceKm} km from store)!`);
+}
 
 function handlePhoneInputChange(input) {
     if (!input) return;
@@ -1534,7 +2015,6 @@ function handleSaveProfile(event) {
         }
         if (verifyBtn) {
             verifyBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Subtle pulse animation to highlight verify button
             verifyBtn.style.animation = 'none';
             setTimeout(() => {
                 verifyBtn.style.animation = 'pulseGlow 1.2s ease infinite';
@@ -1543,8 +2023,37 @@ function handleSaveProfile(event) {
         return;
     }
 
-    // Save profile to localStorage
-    const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo, isVerified: true };
+    // MANDATORY AUTO GPS LOCATION VERIFICATION CHECK
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const latVal = latHidden && latHidden.value ? parseFloat(latHidden.value) : (currentCustomerGps ? currentCustomerGps.lat : null);
+    const lngVal = lngHidden && lngHidden.value ? parseFloat(lngHidden.value) : (currentCustomerGps ? currentCustomerGps.lng : null);
+
+    if (latVal === null || lngVal === null || isNaN(latVal) || isNaN(lngVal)) {
+        showToast('⚠️ Mandatory: Please tap "Open Location Map" to pin & confirm your delivery location!');
+        const gpsContainer = document.querySelector('.full-width-gps-field');
+        const mapBtn = document.getElementById('btn-open-map-modal');
+        if (gpsContainer) {
+            gpsContainer.classList.add('invalid-gps');
+            gpsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (mapBtn) mapBtn.focus();
+        return;
+    }
+
+    // Save profile with GPS Coordinates to localStorage
+    const profile = { 
+        fullName, 
+        phone: cleanPhone, 
+        colonyName, 
+        nearBy, 
+        streetName, 
+        wardNo, 
+        isVerified: true,
+        gpsLat: latVal,
+        gpsLng: lngVal
+    };
+
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
     } catch (e) {
@@ -1556,7 +2065,7 @@ function handleSaveProfile(event) {
     updateProfileTotalsUI();
     toggleEditProfileForm(false);
 
-    showToast('✅ Profile saved successfully!');
+    showToast('✅ Profile & Home Address saved successfully!');
 }
 
 function handleFinalOrderSubmit(event) {
@@ -1571,6 +2080,14 @@ function renderProfileHeaderAndInputs(profile) {
     const changeBtn = document.getElementById('btn-change-phone');
     const verifyBtn = document.getElementById('btn-request-otp');
     const phoneInput = document.getElementById('customer-phone');
+
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const statusBadge = document.getElementById('gps-status-badge');
+    const coordsDisplay = document.getElementById('gps-coordinates-display');
+    const coordsText = document.getElementById('gps-coords-text');
+    const gpsContainer = document.querySelector('.full-width-gps-field');
+    const gpsBtnText = document.getElementById('gps-btn-text');
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
@@ -1603,6 +2120,27 @@ function renderProfileHeaderAndInputs(profile) {
             }
         }
 
+        // Pre-fill GPS coordinate state
+        if (profile.gpsLat !== undefined && profile.gpsLat !== null && profile.gpsLng !== undefined && profile.gpsLng !== null) {
+            currentCustomerGps = { lat: profile.gpsLat, lng: profile.gpsLng };
+            if (latHidden) latHidden.value = profile.gpsLat;
+            if (lngHidden) lngHidden.value = profile.gpsLng;
+            if (statusBadge) {
+                statusBadge.className = 'gps-status-badge verified';
+                statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
+            }
+            if (coordsDisplay) {
+                coordsDisplay.style.display = 'flex';
+            }
+            if (gpsContainer) {
+                gpsContainer.classList.add('gps-verified');
+                gpsContainer.classList.remove('invalid-gps');
+            }
+            if (gpsBtnText) {
+                gpsBtnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh GPS Location';
+            }
+        }
+
         // Pre-fill form inputs
         const fullNameInput = document.getElementById('customer-fullname');
         const colonyInput = document.getElementById('customer-colony-name');
@@ -1623,6 +2161,7 @@ function renderProfileHeaderAndInputs(profile) {
         if (profile.wardNo && wardInput && (!wardInput.value || wardInput.value === '')) wardInput.value = profile.wardNo;
     } else {
         isPhoneVerified = false;
+        currentCustomerGps = null;
         if (nameEl) nameEl.textContent = 'Customer Name';
         if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
         if (badge) badge.style.display = 'none';
@@ -1632,6 +2171,11 @@ function renderProfileHeaderAndInputs(profile) {
             const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
             verifyBtn.disabled = currentPhoneLen !== 10;
         }
+        if (statusBadge) {
+            statusBadge.className = 'gps-status-badge';
+            statusBadge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Required';
+        }
+        if (coordsDisplay) coordsDisplay.style.display = 'none';
     }
 }
 
@@ -1704,6 +2248,12 @@ function renderSavedAddressDetails() {
         if (savedProfile) {
             const p = JSON.parse(savedProfile);
             if (p.fullName || p.colonyName || p.streetName) {
+                const gpsInfo = (p.gpsLat && p.gpsLng) 
+                    ? `<div style="margin-top: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 700;">
+                         <i class="fa-solid fa-location-crosshairs"></i> GPS: ${p.gpsLat}, ${p.gpsLng}
+                       </div>`
+                    : '';
+
                 textContentEl.innerHTML = `
                     <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
                         <i class="fa-solid fa-user" style="color: var(--primary-orange); margin-right: 6px;"></i>${p.fullName || 'Customer'} (${p.phone || ''})
@@ -1712,6 +2262,7 @@ function renderSavedAddressDetails() {
                     <div><strong style="color: var(--text-muted);">Landmark:</strong> ${p.nearBy || 'N/A'}</div>
                     <div><strong style="color: var(--text-muted);">Street:</strong> ${p.streetName || 'N/A'}</div>
                     <div><strong style="color: var(--text-muted);">Ward No:</strong> ${p.wardNo || 'N/A'}</div>
+                    ${gpsInfo}
                 `;
                 return;
             }

@@ -10,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
     <!-- FontAwesome vector icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -38,18 +40,18 @@
                 </div>
 
                 <div class="header-actions">
-                    <!-- Global Search Toggle Button -->
-                    <button class="search-toggle-btn" id="search-toggle" aria-label="Open Global Search">
-                        <div class="toggle-icon-wrapper">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                        </div>
-                    </button>
-
-                    <!-- Theme Toggle Button -->
+                    <!-- Theme Toggle Button (Now on the left of search) -->
                     <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Light and Dark Mode">
                         <div class="toggle-icon-wrapper">
                             <i class="fa-solid fa-moon moon-icon"></i>
                             <i class="fa-solid fa-sun sun-icon"></i>
+                        </div>
+                    </button>
+
+                    <!-- Global Search Toggle Button (Now on the right) -->
+                    <button class="search-toggle-btn" id="search-toggle" aria-label="Open Global Search">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
                         </div>
                     </button>
                 </div>
@@ -215,6 +217,9 @@
                     </div>
                     <h3 class="profile-name" id="profile-display-name">Customer Name</h3>
                     <p class="profile-email" id="profile-display-subtext">+91 Mobile Number</p>
+                    <button type="button" class="btn-toggle-edit-profile" id="btn-toggle-edit-profile" onclick="toggleEditProfileForm()">
+                        <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+                    </button>
                 </div>
 
                 <!-- STATS ROW (Clean Total Orders Only) -->
@@ -230,11 +235,11 @@
                     <div class="card-header-line">
                         <div>
                             <h4 class="card-section-title">
-                                <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Profile & Delivery Details
+                                <i class="fa-solid fa-house-user" style="color: var(--primary-orange); margin-right: 8px;"></i> Edit Profile & Home Address
                             </h4>
-                            <p class="card-section-subtext">Update your delivery address and contact details</p>
+                            <p class="card-section-subtext">Update your customer profile, home delivery address & precise GPS location</p>
                         </div>
-                        <button type="button" class="btn-collapse-profile-form" id="btn-collapse-profile-form" onclick="toggleEditProfileForm()" aria-label="Toggle Delivery Details">
+                        <button type="button" class="btn-collapse-profile-form" id="btn-collapse-profile-form" onclick="toggleEditProfileForm()" aria-label="Toggle Profile & Address Details">
                             <i class="fa-solid fa-chevron-down"></i>
                         </button>
                     </div>
@@ -286,6 +291,28 @@
                                         <span id="otp-timer-text">Didn't receive OTP?</span>
                                         <a href="javascript:void(0)" id="btn-resend-voice-otp" onclick="handleRequestOtp(true)" style="color: var(--primary-orange); font-weight: 700; text-decoration: none;">Resend OTP</a>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- INTERACTIVE GPS LOCATION CAPTURE FIELD (MANDATORY WITH MAP POPUP) -->
+                            <div class="hyperlocal-field full-width-gps-field">
+                                <div class="gps-field-header">
+                                    <label for="btn-open-map-modal">
+                                        <i class="fa-solid fa-map-location-dot" style="color: var(--primary-orange);"></i> GPS Location Verification <span class="req-star">*</span>
+                                    </label>
+                                    <span class="gps-status-badge" id="gps-status-badge">
+                                        <i class="fa-solid fa-circle-exclamation"></i> Required
+                                    </span>
+                                </div>
+                                <div class="gps-action-container">
+                                    <button type="button" class="btn-open-map-selector" id="btn-open-map-modal" onclick="openCustomerMapModal()">
+                                        <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
+                                    </button>
+                                    <input type="hidden" id="customer-gps-lat" value="">
+                                    <input type="hidden" id="customer-gps-lng" value="">
+                                </div>
+                                <div class="gps-coordinates-display" id="gps-coordinates-display" style="display: none;">
+                                    <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location Pinned on Map</span>
                                 </div>
                             </div>
 
@@ -540,7 +567,64 @@
             </div>
         </div>
 
+        <!-- INTERACTIVE GPS LOCATION SELECTION MAP MODAL (POPUP) -->
+        <div class="customer-map-modal-overlay" id="customer-map-modal" aria-hidden="true" style="display: none;">
+            <div class="customer-map-modal-card" role="dialog" aria-labelledby="map-modal-title">
+                <div class="map-modal-header">
+                    <div class="map-modal-title-group">
+                        <div class="map-icon-badge">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                        </div>
+                        <div>
+                            <h3 class="map-modal-title" id="map-modal-title">Select Delivery Location</h3>
+                            <p class="map-modal-subtitle">Drag the marker or tap "Detect Live GPS" to pin your exact location</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIVE GPS BUTTON ON TOP OF MAP -->
+                <div class="map-modal-action-bar">
+                    <button type="button" class="btn-detect-live-gps" id="btn-detect-live-gps" onclick="handleDetectLiveGps()">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span id="detect-gps-btn-text">Detect My Live GPS</span>
+                    </button>
+                </div>
+
+                <!-- MAP CONTAINER -->
+                <div class="customer-map-wrapper">
+                    <div id="customer-location-map"></div>
+                </div>
+
+                <!-- DYNAMIC DELIVERY RADIUS STATUS / WARNING BANNER -->
+                <div class="map-zone-status-banner in-zone" id="map-zone-status-banner">
+                    <i class="fa-solid fa-circle-check" id="zone-status-icon"></i>
+                    <span id="zone-status-text">Within Delivery Zone (0.0 km from store)</span>
+                </div>
+
+                <!-- HELPER GUIDANCE TIP (ENCOURAGING EASY MANUAL PIN ADJUSTMENT) -->
+                <div class="map-drag-helper-tip" id="map-drag-helper-tip">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    <span><strong>Fine-tune location:</strong> Drag the delivery marker or tap anywhere on the map to set your exact doorstep.</span>
+                </div>
+
+                <!-- SELECTED COORDINATES & ADDRESS SUMMARY FOOTER -->
+                <div class="map-modal-footer">
+                    <div class="map-modal-buttons-row">
+                        <button type="button" class="btn-cancel-map" onclick="closeCustomerMapModal()">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn-confirm-location" id="btn-confirm-map-location" onclick="handleConfirmMapLocation()">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Location
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
+
+    <!-- Leaflet JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- MSG91 OTP Widget Script Loader (Headless Mode / Custom UI) -->
     <script type="text/javascript">
