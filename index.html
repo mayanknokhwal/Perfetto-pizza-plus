@@ -215,24 +215,13 @@
                     </div>
                     <h3 class="profile-name" id="profile-display-name">Customer Name</h3>
                     <p class="profile-email" id="profile-display-subtext">+91 Mobile Number</p>
-                    <button type="button" class="btn-toggle-edit-profile" id="btn-toggle-edit-profile" onclick="toggleEditProfileForm()">
-                        <i class="fa-solid fa-user-pen"></i> Edit Profile
-                    </button>
                 </div>
 
-                <!-- STATS ROW (Default 0 values) -->
+                <!-- STATS ROW (Clean Total Orders Only) -->
                 <div class="profile-stats-row">
                     <div class="stat-card">
                         <span class="stat-num" id="stat-total-orders">0</span>
                         <span class="stat-label">Total Orders</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-num" id="stat-rewards-pts">0</span>
-                        <span class="stat-label">Rewards Pts</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-num" id="stat-rating">0</span>
-                        <span class="stat-label">Rating</span>
                     </div>
                 </div>
 
@@ -241,7 +230,7 @@
                     <div class="card-header-line">
                         <div>
                             <h4 class="card-section-title">
-                                <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Delivery Details
+                                <i class="fa-solid fa-truck-ramp-box" style="color: var(--primary-orange); margin-right: 8px;"></i> Profile & Delivery Details
                             </h4>
                             <p class="card-section-subtext">Update your delivery address and contact details</p>
                         </div>
@@ -270,7 +259,7 @@
                                 <div class="input-icon-group phone-input-with-action">
                                     <i class="fa-solid fa-phone"></i>
                                     <input type="tel" id="customer-phone" required autocomplete="tel" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]{10}" oninput="handlePhoneInputChange(this)">
-                                    <button type="button" class="btn-verify-otp" id="btn-request-otp" onclick="handleRequestOtp()">
+                                    <button type="button" class="btn-verify-otp" id="btn-request-otp" onclick="handleRequestOtp()" disabled>
                                         <i class="fa-solid fa-shield-halved"></i>
                                         <span class="verify-text">Verify</span>
                                     </button>
@@ -329,12 +318,12 @@
                         </div>
 
                         <button type="submit" class="btn-confirm-order" id="btn-save-profile">
-                            <i class="fa-solid fa-floppy-disk"></i> Save Profile
+                            <i class="fa-solid fa-floppy-disk"></i> Save Profile & Address
                         </button>
                     </form>
                 </div>
 
-                <!-- ACCOUNT SETTINGS (STRICTLY ONLY ORDER HISTORY & SAVED DELIVERY ADDRESSES) -->
+                <!-- ACCOUNT SETTINGS (ORDER HISTORY & EDIT PROFILE & ADDRESS) -->
                 <div class="menu-list-group">
                     <h4 class="group-title">Account Settings</h4>
                     
@@ -342,18 +331,34 @@
                         <div class="menu-item-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
                         <div class="menu-item-text">
                             <span class="item-title">Order History</span>
-                            <span class="item-subtitle">View past orders & reorder</span>
+                            <span class="item-subtitle">View past orders & details</span>
                         </div>
-                        <i class="fa-solid fa-chevron-right item-arrow"></i>
+                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-order-history"></i>
+                    </div>
+
+                    <!-- ORDER HISTORY ACCORDION DISPLAY BOX (Directly under Order History) -->
+                    <div id="order-history-display-box" class="order-history-card" style="display: none;">
+                        <div class="order-history-card-header">
+                            <div class="saved-title-group">
+                                <i class="fa-solid fa-receipt" style="color: var(--primary-orange); margin-right: 6px;"></i>
+                                <span>Recent Orders</span>
+                            </div>
+                            <button type="button" class="btn-clear-history" id="btn-clear-history" onclick="clearCustomerOrderHistory()">
+                                <i class="fa-solid fa-trash-can"></i> Clear History
+                            </button>
+                        </div>
+                        <div id="order-history-list" class="order-history-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
                     </div>
 
                     <div class="menu-item-row" id="menu-saved-addresses" onclick="toggleSavedAddressesView()">
                         <div class="menu-item-icon"><i class="fa-solid fa-location-dot"></i></div>
                         <div class="menu-item-text">
-                            <span class="item-title">Saved Delivery Addresses</span>
-                            <span class="item-subtitle">View & manage current delivery address</span>
+                            <span class="item-title">Edit Profile & Home Address</span>
+                            <span class="item-subtitle">View & update your profile and delivery address</span>
                         </div>
-                        <i class="fa-solid fa-chevron-right item-arrow"></i>
+                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-saved-addresses"></i>
                     </div>
 
                     <!-- SAVED ADDRESS DISPLAY BOX -->
@@ -364,25 +369,13 @@
                                 <span class="saved-address-label">Your Current Home Delivery Address</span>
                             </div>
                             <button type="button" class="change-address-btn" onclick="editSavedAddress()">
-                                <i class="fa-solid fa-pen-to-square"></i> Change
+                                <i class="fa-solid fa-pen-to-square"></i> Edit Details
                             </button>
                         </div>
                         <div class="saved-address-content" id="saved-address-text-content">
                             <!-- Populated dynamically via JS -->
                         </div>
                     </div>
-
-                    <!-- ORDER HISTORY DISPLAY BOX -->
-                    <div id="order-history-display-box" class="order-history-card" style="display: none;">
-                        <div class="order-history-card-header">
-                            <i class="fa-solid fa-receipt" style="color: var(--primary-orange); margin-right: 6px;"></i>
-                            <span>Recent Orders</span>
-                        </div>
-                        <div id="order-history-list" class="order-history-list">
-                            <!-- Populated dynamically via JS -->
-                        </div>
-                    </div>
-
                 </div>
             </section>
 

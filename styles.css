@@ -920,8 +920,15 @@ body.shop-closed .checkout-btn {
 }
 
 .item-arrow {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     color: var(--text-muted);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease;
+    transform: rotate(0deg);
+}
+
+.item-arrow.expanded {
+    transform: rotate(90deg);
+    color: var(--primary-orange);
 }
 
 /* --------------------------------------------------------------------------
@@ -1803,13 +1810,12 @@ body.shop-closed .checkout-btn {
 
 .offer-slider-track {
     display: flex;
-    width: 300%;
-    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    width: 100%;
     will-change: transform;
 }
 
 .offer-slide {
-    width: 33.33333%;
+    width: 100%;
     flex-shrink: 0;
 }
 
@@ -2177,10 +2183,10 @@ body.shop-closed .checkout-btn {
     box-shadow: 0 4px 12px var(--primary-glow);
 }
 
-/* STATS ROW */
+/* STATS ROW (Clean Single Card for Total Orders) */
 .profile-stats-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr;
     gap: 8px;
     margin-bottom: 16px;
     width: 100%;
@@ -2188,32 +2194,37 @@ body.shop-closed .checkout-btn {
 }
 
 .stat-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 12px 6px;
+    background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-surface-elevated) 100%);
+    border: 1.5px solid var(--border-color);
+    border-radius: 18px;
+    padding: 16px 12px;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
+    box-shadow: var(--card-shadow);
+    transition: all 0.25s ease;
 }
 
 .stat-num {
     display: block;
-    font-size: 1.15rem;
+    font-size: 1.5rem;
     font-weight: var(--fw-black);
-    color: var(--primary-color);
+    color: var(--primary-orange);
     line-height: 1.2;
+    font-family: var(--font-heading);
 }
 
 .stat-label {
-    font-size: 0.68rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
     font-weight: var(--fw-bold);
-    margin-top: 2px;
+    margin-top: 4px;
+    letter-spacing: 0.3px;
     white-space: nowrap;
+    text-transform: uppercase;
 }
 
 /* PROFILE EDIT DELIVERY CARD */
@@ -2469,6 +2480,30 @@ body.shop-closed .checkout-btn {
     transform: translateY(-50%) scale(0.97);
 }
 
+.btn-verify-otp:disabled {
+    opacity: 0.55;
+    cursor: not-allowed !important;
+    filter: grayscale(0.5);
+    box-shadow: none !important;
+    transform: translateY(-50%) !important;
+    pointer-events: none;
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7);
+        transform: translateY(-50%) scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(255, 107, 0, 0);
+        transform: translateY(-50%) scale(1.06);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 0, 0);
+        transform: translateY(-50%) scale(1);
+    }
+}
+
 /* --------------------------------------------------------------------------
    OTP VERIFICATION SYSTEM (CENTERED & CONTEMPLATED RESPONSIVE CONTAINER)
    -------------------------------------------------------------------------- */
@@ -2652,6 +2687,34 @@ body.shop-closed .checkout-btn {
 
 .change-address-btn:hover {
     background-color: var(--primary-orange-hover);
+}
+
+.btn-clear-history {
+    background-color: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.btn-clear-history:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-clear-history:active {
+    transform: translateY(1px);
 }
 
 .saved-address-content {

@@ -633,10 +633,17 @@ function checkAndUpdateShopStatusUI() {
 }
 
 // --------------------------------------------------------------------------
-// ORDER & DELIVERY THRESHOLDS SYSTEM
+// ORDER & DELIVERY THRESHOLDS AND LOCATION BOUNDARY SYSTEM
 // --------------------------------------------------------------------------
 const MIN_ORDER_KEY = 'minOrderValue';
 const FREE_DELIVERY_KEY = 'freeDeliveryLimit';
+const RESTAURANT_LAT_KEY = 'restaurantLatitude';
+const RESTAURANT_LNG_KEY = 'restaurantLongitude';
+const DELIVERY_RADIUS_KEY = 'deliveryRadiusKm';
+
+const DEFAULT_RESTAURANT_LAT = 29.533736;
+const DEFAULT_RESTAURANT_LNG = 73.447895;
+const DEFAULT_DELIVERY_RADIUS_KM = 10;
 
 function getMinOrderValue() {
     const val = localStorage.getItem(MIN_ORDER_KEY);
@@ -646,6 +653,46 @@ function getMinOrderValue() {
 function getFreeDeliveryLimit() {
     const val = localStorage.getItem(FREE_DELIVERY_KEY);
     return val !== null ? parseFloat(val) : 500;
+}
+
+function getRestaurantLat() {
+    const val = localStorage.getItem(RESTAURANT_LAT_KEY);
+    return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LAT;
+}
+
+function getRestaurantLng() {
+    const val = localStorage.getItem(RESTAURANT_LNG_KEY);
+    return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LNG;
+}
+
+function getDeliveryRadiusKm() {
+    const val = localStorage.getItem(DELIVERY_RADIUS_KEY);
+    return val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
+}
+
+// Calculate distance in kilometers between two coordinates using Haversine formula
+function calculateDistanceHaversine(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in KM
+}
+
+function isWithinDeliveryRadius(userLat, userLng) {
+    const restLat = getRestaurantLat();
+    const restLng = getRestaurantLng();
+    const maxRadius = getDeliveryRadiusKm();
+    const dist = calculateDistanceHaversine(restLat, restLng, userLat, userLng);
+    return {
+        isAllowed: dist <= maxRadius,
+        distanceKm: parseFloat(dist.toFixed(2)),
+        maxRadiusKm: maxRadius
+    };
 }
 
 function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
@@ -1133,7 +1180,7 @@ function handlePhoneInputChange(input) {
     if (badge) badge.style.display = 'none';
     if (verifyBtn) {
         verifyBtn.style.display = 'inline-flex';
-        verifyBtn.disabled = false;
+        verifyBtn.disabled = input.value.length !== 10;
         verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
     }
     if (otpBox) otpBox.style.display = 'none';
@@ -1416,8 +1463,27 @@ function handleSaveProfile(event) {
         return;
     }
 
+    // MANDATORY OTP VERIFICATION CHECK
+    if (!isPhoneVerified) {
+        showToast('⚠️ Please verify your mobile number before saving your profile!');
+        const phoneEl = document.getElementById('customer-phone');
+        const verifyBtn = document.getElementById('btn-request-otp');
+        if (phoneEl) {
+            phoneEl.classList.add('invalid-field');
+            phoneEl.focus();
+        }
+        if (verifyBtn) {
+            verifyBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            verifyBtn.style.animation = 'none';
+            setTimeout(() => {
+                verifyBtn.style.animation = 'pulseGlow 1.2s ease infinite';
+            }, 10);
+        }
+        return;
+    }
+
     // Save profile to localStorage
-    const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo, isVerified: isPhoneVerified };
+    const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo, isVerified: true };
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
     } catch (e) {
@@ -1442,6 +1508,7 @@ function renderProfileHeaderAndInputs(profile) {
     const subtextEl = document.getElementById('profile-display-subtext');
     const badge = document.getElementById('phone-verified-badge');
     const verifyBtn = document.getElementById('btn-request-otp');
+    const phoneInput = document.getElementById('customer-phone');
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
@@ -1456,33 +1523,50 @@ function renderProfileHeaderAndInputs(profile) {
             isPhoneVerified = true;
             if (badge) badge.style.display = 'inline-flex';
             if (verifyBtn) verifyBtn.style.display = 'none';
+            if (phoneInput) {
+                phoneInput.readOnly = true;
+                phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
+                phoneInput.style.cursor = 'not-allowed';
+            }
         } else {
+            isPhoneVerified = false;
             if (badge) badge.style.display = 'none';
             if (verifyBtn) {
                 verifyBtn.style.display = 'inline-flex';
+                const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
+                verifyBtn.disabled = currentPhoneLen !== 10;
                 verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
             }
         }
 
         // Pre-fill form inputs
         const fullNameInput = document.getElementById('customer-fullname');
-        const phoneInput = document.getElementById('customer-phone');
         const colonyInput = document.getElementById('customer-colony-name');
         const nearbyInput = document.getElementById('customer-nearby');
         const streetInput = document.getElementById('customer-street-name');
         const wardInput = document.getElementById('customer-ward-no');
 
         if (profile.fullName && fullNameInput && (!fullNameInput.value || fullNameInput.value === '')) fullNameInput.value = profile.fullName;
-        if (profile.phone && phoneInput && (!phoneInput.value || phoneInput.value === '')) phoneInput.value = profile.phone;
+        if (profile.phone && phoneInput && (!phoneInput.value || phoneInput.value === '')) {
+            phoneInput.value = profile.phone;
+            if (!profile.isVerified && verifyBtn) {
+                verifyBtn.disabled = profile.phone.length !== 10;
+            }
+        }
         if (profile.colonyName && colonyInput && (!colonyInput.value || colonyInput.value === '')) colonyInput.value = profile.colonyName;
         if (profile.nearBy && nearbyInput && (!nearbyInput.value || nearbyInput.value === '')) nearbyInput.value = profile.nearBy;
         if (profile.streetName && streetInput && (!streetInput.value || streetInput.value === '')) streetInput.value = profile.streetName;
         if (profile.wardNo && wardInput && (!wardInput.value || wardInput.value === '')) wardInput.value = profile.wardNo;
     } else {
+        isPhoneVerified = false;
         if (nameEl) nameEl.textContent = 'Customer Name';
         if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
         if (badge) badge.style.display = 'none';
-        if (verifyBtn) verifyBtn.style.display = 'inline-flex';
+        if (verifyBtn) {
+            verifyBtn.style.display = 'inline-flex';
+            const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
+            verifyBtn.disabled = currentPhoneLen !== 10;
+        }
     }
 }
 
@@ -1491,7 +1575,7 @@ function updateProfileTotalsUI() {
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     const tax = subtotal * 0.05;
-    const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= getFreeDeliveryLimit() ? 0 : 49) : 0;
+    const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= 499 ? 0 : 49) : 0;
     const total = subtotal + tax + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
@@ -1499,7 +1583,7 @@ function updateProfileTotalsUI() {
     if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
     if (orderTotalEl) orderTotalEl.textContent = formatPrice(total);
 
-    // Update stats counters to 0 default
+    // Update stats counters - clean Total Orders only
     let orderCount = 0;
     try {
         const storedOrders = localStorage.getItem('perfettoCustomerOrders');
@@ -1510,12 +1594,7 @@ function updateProfileTotalsUI() {
     } catch (e) {}
 
     const totalOrdersEl = document.getElementById('stat-total-orders');
-    const rewardsEl = document.getElementById('stat-rewards-pts');
-    const ratingEl = document.getElementById('stat-rating');
-
     if (totalOrdersEl) totalOrdersEl.textContent = orderCount;
-    if (rewardsEl) rewardsEl.textContent = '0';
-    if (ratingEl) ratingEl.textContent = '0 ★';
 
     // Update profile display name/phone & prefill inputs
     let currentProfile = null;
@@ -1531,17 +1610,23 @@ function updateProfileTotalsUI() {
 
 function toggleSavedAddressesView() {
     const box = document.getElementById('saved-address-display-box');
+    const arrow = document.getElementById('arrow-saved-addresses');
     const historyBox = document.getElementById('order-history-display-box');
+    const historyArrow = document.getElementById('arrow-order-history');
+
     if (historyBox) historyBox.style.display = 'none';
+    if (historyArrow) historyArrow.classList.remove('expanded');
 
     if (!box) return;
     if (box.style.display === 'block') {
         box.style.display = 'none';
+        if (arrow) arrow.classList.remove('expanded');
         return;
     }
 
     renderSavedAddressDetails();
     box.style.display = 'block';
+    if (arrow) arrow.classList.add('expanded');
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -1568,32 +1653,39 @@ function renderSavedAddressDetails() {
         }
     } catch (e) {}
 
-    textContentEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No saved address found. Click 'Edit Profile' to add your delivery details.</span>`;
+    textContentEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No saved address found. Click 'Edit Details' to set your delivery address.</span>`;
 }
 
 function editSavedAddress() {
     toggleEditProfileForm(true);
-    showToast('You can update your address details in the form above.');
+    showToast('Update your profile and address details below.');
 }
 
 function toggleOrderHistoryView() {
     const box = document.getElementById('order-history-display-box');
+    const arrow = document.getElementById('arrow-order-history');
     const addressBox = document.getElementById('saved-address-display-box');
+    const addressArrow = document.getElementById('arrow-saved-addresses');
+
     if (addressBox) addressBox.style.display = 'none';
+    if (addressArrow) addressArrow.classList.remove('expanded');
 
     if (!box) return;
     if (box.style.display === 'block') {
         box.style.display = 'none';
+        if (arrow) arrow.classList.remove('expanded');
         return;
     }
 
     renderOrderHistoryDetails();
     box.style.display = 'block';
+    if (arrow) arrow.classList.add('expanded');
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function renderOrderHistoryDetails() {
     const listEl = document.getElementById('order-history-list');
+    const clearBtn = document.getElementById('btn-clear-history');
     if (!listEl) return;
 
     try {
@@ -1601,6 +1693,7 @@ function renderOrderHistoryDetails() {
         if (storedOrders) {
             const orders = JSON.parse(storedOrders);
             if (Array.isArray(orders) && orders.length > 0) {
+                if (clearBtn) clearBtn.style.display = 'inline-flex';
                 listEl.innerHTML = orders.map(o => `
                     <div style="background: var(--bg-surface); padding: 12px; border-radius: 10px; margin-top: 10px; border: 1px solid var(--border-color);">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
@@ -1621,7 +1714,21 @@ function renderOrderHistoryDetails() {
         }
     } catch (e) {}
 
+    if (clearBtn) clearBtn.style.display = 'none';
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No order history found yet.</span>`;
+}
+
+function clearCustomerOrderHistory() {
+    if (confirm('Are you sure you want to clear your entire order history?')) {
+        try {
+            localStorage.removeItem('perfettoCustomerOrders');
+        } catch (e) {
+            console.error('Error clearing customer order history:', e);
+        }
+        renderOrderHistoryDetails();
+        updateProfileTotalsUI();
+        showToast('🗑️ Order history cleared successfully!');
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -1638,7 +1745,7 @@ function showToast(msg) {
 }
 
 // --------------------------------------------------------------------------
-// 8. SMART DAILY OFFER SLIDER (AUTO-SCROLL & TOUCH GESTURES)
+// 8. SMART DAILY OFFER SLIDER (SEAMLESS INFINITE AUTO-SCROLL LOOP & SWIPE)
 // --------------------------------------------------------------------------
 function initOfferSlider() {
     const wrapper = document.getElementById('offer-slider-wrapper');
@@ -1646,21 +1753,51 @@ function initOfferSlider() {
     const dotsContainer = document.getElementById('offer-dots');
     if (!wrapper || !track || !dotsContainer) return;
 
-    const slides = track.querySelectorAll('.offer-slide');
-    const dots = dotsContainer.querySelectorAll('.dot');
-    const totalSlides = slides.length;
-    let currentIndex = 0;
+    // Get original slides
+    const origSlides = Array.from(track.querySelectorAll('.offer-slide'));
+    const totalRealSlides = origSlides.length;
+    if (totalRealSlides <= 1) return;
 
+    const dots = dotsContainer.querySelectorAll('.dot');
+
+    // Clone first and last slides for seamless infinite loop transition
+    track.querySelectorAll('.clone-slide').forEach(c => c.remove());
+
+    const firstClone = origSlides[0].cloneNode(true);
+    firstClone.classList.add('clone-slide');
+    const lastClone = origSlides[totalRealSlides - 1].cloneNode(true);
+    lastClone.classList.add('clone-slide');
+
+    track.appendChild(firstClone);
+    track.insertBefore(lastClone, origSlides[0]);
+
+    const allSlides = track.querySelectorAll('.offer-slide');
+    const totalWithClones = allSlides.length;
+
+    // Adjust width percentage dynamically
+    track.style.width = `${totalWithClones * 100}%`;
+    allSlides.forEach(slide => {
+        slide.style.width = `${100 / totalWithClones}%`;
+    });
+
+    let currentPos = 1; // Start at first original slide
+    let isTransitioning = false;
     let autoScrollInterval = null;
     let pauseTimeout = null;
 
-    function goToSlide(index) {
-        currentIndex = (index + totalSlides) % totalSlides;
-        const translateX = -(currentIndex * (100 / totalSlides));
-        track.style.transform = `translateX(${translateX}%)`;
+    function setPosition(pos, animated = true) {
+        if (animated) {
+            track.style.transition = 'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+        } else {
+            track.style.transition = 'none';
+        }
+        const pct = -(pos * (100 / totalWithClones));
+        track.style.transform = `translateX(${pct}%)`;
+    }
 
+    function updateDots(activeIdx) {
         dots.forEach((dot, idx) => {
-            if (idx === currentIndex) {
+            if (idx === activeIdx) {
                 dot.classList.add('active');
             } else {
                 dot.classList.remove('active');
@@ -1668,17 +1805,49 @@ function initOfferSlider() {
         });
     }
 
+    // Initial positioning on first real slide without animation
+    setPosition(currentPos, false);
+    updateDots(0);
+
     function nextSlide() {
-        goToSlide(currentIndex + 1);
+        if (isTransitioning) return;
+        isTransitioning = true;
+        currentPos++;
+        setPosition(currentPos, true);
+
+        let activeDot = (currentPos - 1) % totalRealSlides;
+        if (activeDot < 0) activeDot = totalRealSlides - 1;
+        updateDots(activeDot);
     }
 
     function prevSlide() {
-        goToSlide(currentIndex - 1);
+        if (isTransitioning) return;
+        isTransitioning = true;
+        currentPos--;
+        setPosition(currentPos, true);
+
+        let activeDot = (currentPos - 1) % totalRealSlides;
+        if (activeDot < 0) activeDot = totalRealSlides - 1;
+        updateDots(activeDot);
     }
+
+    // Seamless loop reset on transitionend
+    track.addEventListener('transitionend', () => {
+        isTransitioning = false;
+        if (currentPos >= totalWithClones - 1) {
+            currentPos = 1;
+            setPosition(currentPos, false);
+            updateDots(0);
+        } else if (currentPos <= 0) {
+            currentPos = totalRealSlides;
+            setPosition(currentPos, false);
+            updateDots(totalRealSlides - 1);
+        }
+    });
 
     function startAutoScroll() {
         stopAutoScroll();
-        autoScrollInterval = setInterval(nextSlide, 3000);
+        autoScrollInterval = setInterval(nextSlide, 3200);
     }
 
     function stopAutoScroll() {
@@ -1690,24 +1859,24 @@ function initOfferSlider() {
 
     function handleUserInteraction() {
         stopAutoScroll();
-        if (pauseTimeout) {
-            clearTimeout(pauseTimeout);
-        }
-        // Pause auto-scrolling for 6 seconds after manual interaction, then resume 3s loop
+        if (pauseTimeout) clearTimeout(pauseTimeout);
         pauseTimeout = setTimeout(() => {
             startAutoScroll();
-        }, 6000);
+        }, 5000);
     }
 
     // Dot click navigation
     dots.forEach((dot, idx) => {
         dot.addEventListener('click', () => {
-            goToSlide(idx);
+            if (isTransitioning) return;
+            currentPos = idx + 1;
+            setPosition(currentPos, true);
+            updateDots(idx);
             handleUserInteraction();
         });
     });
 
-    // Touch & Swipe gestures
+    // Touch gestures
     let startX = 0;
     let currentX = 0;
     let isDragging = false;
@@ -1771,7 +1940,7 @@ function initOfferSlider() {
         isDragging = false;
     });
 
-    // Start 3-second auto-scroll loop
+    // Start auto loop
     startAutoScroll();
 }
 

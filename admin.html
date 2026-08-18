@@ -938,6 +938,86 @@
         .role-select-dropdown:focus {
             border-color: var(--primary-orange);
         }
+
+        /* --------------------------------------------------------------------------
+           7. STORE SETTINGS & SUPPORT CONFIGURATION CARD
+           -------------------------------------------------------------------------- */
+        .store-settings-card {
+            background-color: var(--bg-card);
+            padding: 24px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            margin-top: 24px;
+        }
+
+        .store-settings-header {
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .store-settings-header h3 {
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .store-settings-header p {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            margin-top: 4px;
+        }
+
+        .store-settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            align-items: start;
+        }
+
+        .setting-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .setting-input-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .setting-input-group .search-box {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .setting-toggle-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 42px;
+            background-color: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0 14px;
+            transition: border-color 0.25s ease;
+        }
+
+        .setting-toggle-box:hover {
+            border-color: rgba(255, 107, 0, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -1073,55 +1153,50 @@
                             <i class="fa-solid fa-circle-xmark"></i>
                         </div>
                     </div>
-                </div>
-
-                <!-- ORDER & DELIVERY THRESHOLDS SETTINGS CARD -->
-                <div class="order-settings-card" style="background-color: var(--bg-card); padding: 24px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); margin-top: 24px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
-                        <div>
-                            <h3 style="font-family: var(--font-heading); font-size: 1.15rem; color: var(--text-main); text-transform: uppercase;">
-                                <i class="fa-solid fa-sliders" style="color: var(--primary-orange); margin-right: 8px;"></i> Store Settings & Support Configuration
-                            </h3>
-                            <p style="color: var(--text-muted); font-size: 0.82rem; margin-top: 2px;">Configure minimum order requirements, free delivery threshold, and customer care call support phone number.</p>
-                        </div>
+                </div>                <!-- STORE SETTINGS & SUPPORT CONFIGURATION CARD -->
+                <div class="store-settings-card">
+                    <div class="store-settings-header">
+                        <h3>
+                            <i class="fa-solid fa-sliders" style="color: var(--primary-orange);"></i> Store Settings & Support Configuration
+                        </h3>
+                        <p>Configure minimum order requirements, free delivery threshold, customer care call support, restaurant coordinates, and operational delivery radius.</p>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
+                    <div class="store-settings-grid">
                         <div class="setting-input-group">
-                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
-                                Minimum Order Value (₹)
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-indian-rupee-sign" style="color: var(--primary-orange);"></i> Minimum Order Value (₹)
                             </label>
-                            <div class="search-box" style="width: 100%;">
-                                <i class="fa-solid fa-indian-rupee-sign" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                                <input type="number" id="input-min-order-value" class="search-input" style="padding-left: 36px;" value="80" min="0" placeholder="e.g. 80">
+                            <div class="search-box">
+                                <i class="fa-solid fa-indian-rupee-sign"></i>
+                                <input type="number" id="input-min-order-value" class="search-input" value="80" min="0" placeholder="e.g. 80">
                             </div>
                         </div>
 
                         <div class="setting-input-group">
-                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
-                                Free Delivery Threshold (₹)
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-truck-fast" style="color: var(--primary-orange);"></i> Free Delivery Threshold (₹)
                             </label>
-                            <div class="search-box" style="width: 100%;">
-                                <i class="fa-solid fa-truck-fast" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
-                                <input type="number" id="input-free-delivery-limit" class="search-input" style="padding-left: 36px;" value="500" min="0" placeholder="e.g. 500">
+                            <div class="search-box">
+                                <i class="fa-solid fa-truck-fast"></i>
+                                <input type="number" id="input-free-delivery-limit" class="search-input" value="500" min="0" placeholder="e.g. 500">
                             </div>
                         </div>
 
                         <div class="setting-input-group">
-                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
-                                Customer Care Phone Number (10 Digits)
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-phone" style="color: var(--primary-orange);"></i> Customer Care Phone (10 Digits)
                             </label>
-                            <div class="search-box" style="width: 100%;">
-                                <i class="fa-solid fa-headset" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                            <div class="search-box">
+                                <i class="fa-solid fa-headset"></i>
                                 <input 
                                     type="tel" 
                                     id="input-customer-care-phone" 
                                     class="search-input" 
-                                    style="padding-left: 36px;" 
                                     value="9876543210" 
                                     placeholder="e.g. 9876543210" 
                                     maxlength="10" 
-                                    inputmode="numeric"
+                                    inputmode="numeric" 
                                     pattern="[0-9]{10}"
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);" 
                                     onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
@@ -1130,16 +1205,47 @@
                             </div>
                         </div>
 
-                        <div class="setting-input-group" style="display: flex; flex-direction: column; justify-content: space-between;">
-                            <label style="display: block; font-size: 0.82rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
-                                Enable Customer Care Call Button
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-toggle-on" style="color: var(--primary-orange);"></i> Customer Care Call Button
                             </label>
-                            <div style="display: flex; align-items: center; gap: 12px; height: 42px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0 14px;">
-                                <label class="switch">
+                            <div class="setting-toggle-box">
+                                <span id="customer-care-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Enabled</span>
+                                <label class="switch" style="margin: 0;">
                                     <input type="checkbox" id="toggle-customer-care-enabled" checked onchange="toggleCustomerCareVisibility(this.checked)">
                                     <span class="slider"></span>
                                 </label>
-                                <span id="customer-care-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Enabled</span>
+                            </div>
+                        </div>
+
+                        <!-- RESTAURANT LOCATION COORDINATES & DELIVERY RADIUS -->
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-location-dot" style="color: var(--primary-orange);"></i> Restaurant Latitude
+                            </label>
+                            <div class="search-box">
+                                <i class="fa-solid fa-map-pin"></i>
+                                <input type="number" step="any" id="input-restaurant-lat" class="search-input" value="29.533736" placeholder="e.g. 29.533736">
+                            </div>
+                        </div>
+
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-location-crosshairs" style="color: var(--primary-orange);"></i> Restaurant Longitude
+                            </label>
+                            <div class="search-box">
+                                <i class="fa-solid fa-map-pin"></i>
+                                <input type="number" step="any" id="input-restaurant-lng" class="search-input" value="73.447895" placeholder="e.g. 73.447895">
+                            </div>
+                        </div>
+
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-route" style="color: var(--primary-orange);"></i> Max Delivery Radius (KM)
+                            </label>
+                            <div class="search-box">
+                                <i class="fa-solid fa-circle-dot"></i>
+                                <input type="number" step="any" id="input-delivery-radius-km" class="search-input" value="10" min="1" placeholder="e.g. 10">
                             </div>
                         </div>
                     </div>
@@ -2317,7 +2423,14 @@
         const FREE_DELIVERY_KEY = 'freeDeliveryLimit';
         const CUSTOMER_CARE_PHONE_KEY = 'customerCarePhone';
         const CUSTOMER_CARE_ENABLED_KEY = 'customerCareEnabled';
+        const RESTAURANT_LAT_KEY = 'restaurantLatitude';
+        const RESTAURANT_LNG_KEY = 'restaurantLongitude';
+        const DELIVERY_RADIUS_KEY = 'deliveryRadiusKm';
+        
         const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
+        const DEFAULT_RESTAURANT_LAT = 29.533736;
+        const DEFAULT_RESTAURANT_LNG = 73.447895;
+        const DEFAULT_DELIVERY_RADIUS_KM = 10;
 
         function getMinOrderValue() {
             const val = localStorage.getItem(MIN_ORDER_KEY);
@@ -2343,6 +2456,21 @@
             return val === null ? true : val === 'true';
         }
 
+        function getRestaurantLat() {
+            const val = localStorage.getItem(RESTAURANT_LAT_KEY);
+            return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LAT;
+        }
+
+        function getRestaurantLng() {
+            const val = localStorage.getItem(RESTAURANT_LNG_KEY);
+            return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LNG;
+        }
+
+        function getDeliveryRadiusKm() {
+            const val = localStorage.getItem(DELIVERY_RADIUS_KEY);
+            return val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
+        }
+
         function toggleCustomerCareVisibility(enabled) {
             try {
                 localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, enabled.toString());
@@ -2363,10 +2491,17 @@
             const phoneInput = document.getElementById('input-customer-care-phone');
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
             const statusEl = document.getElementById('customer-care-toggle-status');
+            const latInput = document.getElementById('input-restaurant-lat');
+            const lngInput = document.getElementById('input-restaurant-lng');
+            const radiusInput = document.getElementById('input-delivery-radius-km');
 
             if (minInput) minInput.value = getMinOrderValue();
             if (freeInput) freeInput.value = getFreeDeliveryLimit();
             if (phoneInput) phoneInput.value = getCustomerCarePhone();
+            if (latInput) latInput.value = getRestaurantLat();
+            if (lngInput) lngInput.value = getRestaurantLng();
+            if (radiusInput) radiusInput.value = getDeliveryRadiusKm();
+
             if (toggleCare) {
                 const isEnabled = getCustomerCareEnabled();
                 toggleCare.checked = isEnabled;
@@ -2409,10 +2544,16 @@
             const freeInput = document.getElementById('input-free-delivery-limit');
             const phoneInput = document.getElementById('input-customer-care-phone');
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
+            const latInput = document.getElementById('input-restaurant-lat');
+            const lngInput = document.getElementById('input-restaurant-lng');
+            const radiusInput = document.getElementById('input-delivery-radius-km');
 
             const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
             const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
             const phoneVal = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').trim() : DEFAULT_CUSTOMER_CARE_PHONE;
+            const latVal = latInput ? (parseFloat(latInput.value) || DEFAULT_RESTAURANT_LAT) : DEFAULT_RESTAURANT_LAT;
+            const lngVal = lngInput ? (parseFloat(lngInput.value) || DEFAULT_RESTAURANT_LNG) : DEFAULT_RESTAURANT_LNG;
+            const radiusVal = radiusInput ? (parseFloat(radiusInput.value) || DEFAULT_DELIVERY_RADIUS_KM) : DEFAULT_DELIVERY_RADIUS_KM;
 
             // Strict exactly 10 digits validation check
             if (phoneVal.length !== 10) {
@@ -2429,8 +2570,11 @@
                 localStorage.setItem(FREE_DELIVERY_KEY, freeVal.toString());
                 localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, phoneVal);
                 localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, isCareEnabled.toString());
+                localStorage.setItem(RESTAURANT_LAT_KEY, latVal.toString());
+                localStorage.setItem(RESTAURANT_LNG_KEY, lngVal.toString());
+                localStorage.setItem(DELIVERY_RADIUS_KEY, radiusVal.toString());
                 if (showToastMsg) {
-                    showToast(`Settings saved! Min: ₹${minVal}, Free: ₹${freeVal}, Care: ${phoneVal}`);
+                    showToast(`Settings saved! Coordinates: [${latVal}, ${lngVal}], Radius: ${radiusVal} km`);
                 }
                 return true;
             } catch (e) {
@@ -2479,7 +2623,7 @@
             if (!e.key || e.key === SHOP_STATUS_KEY) {
                 initShopStatus();
             }
-            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY) {
+            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY || e.key === RESTAURANT_LAT_KEY || e.key === RESTAURANT_LNG_KEY || e.key === DELIVERY_RADIUS_KEY) {
                 initOrderSettingsUI();
             }
             if (!e.key || e.key === 'perfettoCustomerOrders') {
