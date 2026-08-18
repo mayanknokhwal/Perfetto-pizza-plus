@@ -14,9 +14,6 @@
     <!-- FontAwesome for UI Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Leaflet Map CSS CDN -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-
     <style>
         /* --------------------------------------------------------------------------
            1. ROOT DESIGN SYSTEM TOKENS
@@ -1021,252 +1018,6 @@
         .setting-toggle-box:hover {
             border-color: rgba(255, 107, 0, 0.4);
         }
-
-        /* --------------------------------------------------------------------------
-           8. LEAFLET MAP CONTAINER & OPERATIONAL BOUNDARY STYLING
-           -------------------------------------------------------------------------- */
-        .admin-map-wrapper {
-            margin-top: 20px;
-            background-color: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .map-header-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .map-header-title {
-            font-size: 0.88rem;
-            font-weight: 700;
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .map-header-hints {
-            font-size: 0.78rem;
-            color: var(--primary-orange);
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        #admin-location-map {
-            width: 100%;
-            height: 320px;
-            border-radius: var(--radius-md);
-            border: 1px solid var(--border-color);
-            z-index: 10;
-        }
-
-        .map-actions-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .btn-toggle-location-map {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(255, 56, 92, 0.15));
-            border: 1.5px solid var(--primary-orange);
-            color: var(--primary-orange);
-            padding: 8px 16px;
-            border-radius: var(--radius-md);
-            font-size: 0.84rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-
-        .btn-toggle-location-map:hover {
-            background: var(--primary-orange);
-            color: #ffffff;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 14px var(--primary-glow);
-        }
-
-        .btn-toggle-location-map.active {
-            background: var(--primary-orange);
-            color: #ffffff;
-        }
-
-        /* --------------------------------------------------------------------------
-           9. STEP-BY-STEP RADIUS CONTROLS STYLING (0.5 KM TO 10 KM)
-           -------------------------------------------------------------------------- */
-        .radius-stepper-control {
-            display: inline-flex;
-            align-items: center;
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            overflow: hidden;
-            height: 38px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-        }
-
-        .btn-radius-step {
-            background-color: var(--bg-surface);
-            border: none;
-            color: var(--text-main);
-            width: 38px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.88rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .btn-radius-step:hover:not(:disabled) {
-            background-color: var(--primary-orange);
-            color: #ffffff;
-        }
-
-        .btn-radius-step:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-            background-color: var(--bg-card);
-        }
-
-        /* --------------------------------------------------------------------------
-           10. FLEXIBLE ZONE CHARGES SECTION STYLING
-           -------------------------------------------------------------------------- */
-        .delivery-zones-section {
-            margin-top: 24px;
-            padding-top: 20px;
-            border-top: 1px dashed var(--border-color);
-        }
-
-        .delivery-zones-header {
-            margin-bottom: 16px;
-        }
-
-        .delivery-zones-header h4 {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--text-main);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 4px;
-        }
-
-        .delivery-zones-header p {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .delivery-zones-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-        }
-
-        .zone-charge-card {
-            background-color: var(--bg-surface);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            padding: 12px 14px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .zone-charge-card:hover {
-            border-color: rgba(255, 107, 0, 0.4);
-            transform: translateY(-1px);
-        }
-
-        .zone-badge-label {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.82rem;
-            font-weight: 700;
-            color: var(--text-main);
-        }
-
-        .zone-km-pill {
-            background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(255, 56, 92, 0.15));
-            border: 1px solid var(--primary-orange);
-            color: var(--primary-orange);
-            font-size: 0.72rem;
-            font-weight: 800;
-            padding: 2px 8px;
-            border-radius: 12px;
-        }
-
-        .zone-charge-input-box {
-            display: flex;
-            align-items: center;
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            padding: 0 10px;
-            height: 38px;
-            transition: border-color 0.25s ease;
-        }
-
-        .zone-charge-input-box:focus-within {
-            border-color: var(--primary-orange);
-            box-shadow: 0 0 0 2px var(--primary-glow);
-        }
-
-        .zone-charge-input-box i {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-right: 8px;
-        }
-
-        .zone-charge-input {
-            background: transparent;
-            border: none;
-            outline: none;
-            color: var(--text-main);
-            font-size: 0.9rem;
-            font-weight: 700;
-            width: 100%;
-            font-family: var(--font-heading);
-        }
-
-        .btn-reset-map-location {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            padding: 6px 12px;
-            border-radius: var(--radius-sm);
-            font-size: 0.78rem;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-        }
-
-        .btn-reset-map-location:hover {
-            border-color: var(--primary-orange);
-            color: var(--primary-orange);
-        }
     </style>
 </head>
 <body>
@@ -1449,6 +1200,7 @@
                                     pattern="[0-9]{10}"
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);" 
                                     onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
+                                    onchange="saveCustomerCarePhone(true)"
                                 >
                             </div>
                         </div>
@@ -1460,14 +1212,14 @@
                             <div class="setting-toggle-box">
                                 <span id="customer-care-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Enabled</span>
                                 <label class="switch" style="margin: 0;">
-                                    <input type="checkbox" id="toggle-customer-care-enabled" checked onchange="updateCustomerCareToggleLabel(this.checked)">
+                                    <input type="checkbox" id="toggle-customer-care-enabled" checked onchange="toggleCustomerCareVisibility(this.checked)">
                                     <span class="slider"></span>
                                 </label>
                             </div>
                         </div>
 
-                        <!-- RESTAURANT LOCATION COORDINATES (HIDDEN BY DEFAULT UNTIL MAP IS OPENED) -->
-                        <div class="setting-input-group" id="restaurant-lat-group" style="display: none;">
+                        <!-- RESTAURANT LOCATION COORDINATES & DELIVERY RADIUS -->
+                        <div class="setting-input-group">
                             <label class="setting-input-label">
                                 <i class="fa-solid fa-location-dot" style="color: var(--primary-orange);"></i> Restaurant Latitude
                             </label>
@@ -1477,7 +1229,7 @@
                             </div>
                         </div>
 
-                        <div class="setting-input-group" id="restaurant-lng-group" style="display: none;">
+                        <div class="setting-input-group">
                             <label class="setting-input-label">
                                 <i class="fa-solid fa-location-crosshairs" style="color: var(--primary-orange);"></i> Restaurant Longitude
                             </label>
@@ -1487,133 +1239,13 @@
                             </div>
                         </div>
 
-                        <div class="setting-input-group" id="map-control-group" style="justify-content: flex-end;">
+                        <div class="setting-input-group">
                             <label class="setting-input-label">
-                                <i class="fa-solid fa-map-location-dot" style="color: var(--primary-orange);"></i> Map Control
+                                <i class="fa-solid fa-route" style="color: var(--primary-orange);"></i> Max Delivery Radius (KM)
                             </label>
-                            <button type="button" class="btn-toggle-location-map" id="btn-toggle-map" onclick="toggleAdminLocationMap(event)">
-                                <i class="fa-solid fa-map"></i>
-                                <span id="btn-toggle-map-text">Open Location Map</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- FLEXIBLE ZONE DELIVERY CHARGES (6 INDEPENDENT DISTANCE ZONES) -->
-                    <div class="delivery-zones-section">
-                        <div class="delivery-zones-header">
-                            <h4>
-                                <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Flexible Zone Delivery Charges (₹)
-                            </h4>
-                            <p>Configure custom delivery charges for specific distance ranges from your restaurant location.</p>
-                        </div>
-
-                        <div class="delivery-zones-grid">
-                            <!-- Zone 1: 0 - 0.5 KM -->
-                            <div class="zone-charge-card">
-                                <div class="zone-badge-label">
-                                    <span>Zone 1</span>
-                                    <span class="zone-km-pill">0 - 0.5 KM</span>
-                                </div>
-                                <div class="zone-charge-input-box">
-                                    <i class="fa-solid fa-indian-rupee-sign"></i>
-                                    <input type="number" id="input-zone-charge-1" class="zone-charge-input" min="0" placeholder="0">
-                                </div>
-                            </div>
-
-                            <!-- Zone 2: 0.5 - 2 KM -->
-                            <div class="zone-charge-card">
-                                <div class="zone-badge-label">
-                                    <span>Zone 2</span>
-                                    <span class="zone-km-pill">0.5 - 2 KM</span>
-                                </div>
-                                <div class="zone-charge-input-box">
-                                    <i class="fa-solid fa-indian-rupee-sign"></i>
-                                    <input type="number" id="input-zone-charge-2" class="zone-charge-input" min="0" placeholder="0">
-                                </div>
-                            </div>
-
-                            <!-- Zone 3: 2 - 4 KM -->
-                            <div class="zone-charge-card">
-                                <div class="zone-badge-label">
-                                    <span>Zone 3</span>
-                                    <span class="zone-km-pill">2 - 4 KM</span>
-                                </div>
-                                <div class="zone-charge-input-box">
-                                    <i class="fa-solid fa-indian-rupee-sign"></i>
-                                    <input type="number" id="input-zone-charge-3" class="zone-charge-input" min="0" placeholder="0">
-                                </div>
-                            </div>
-
-                            <!-- Zone 4: 4 - 6 KM -->
-                            <div class="zone-charge-card">
-                                <div class="zone-badge-label">
-                                    <span>Zone 4</span>
-                                    <span class="zone-km-pill">4 - 6 KM</span>
-                                </div>
-                                <div class="zone-charge-input-box">
-                                    <i class="fa-solid fa-indian-rupee-sign"></i>
-                                    <input type="number" id="input-zone-charge-4" class="zone-charge-input" min="0" placeholder="0">
-                                </div>
-                            </div>
-
-                            <!-- Zone 5: 6 - 8 KM -->
-                            <div class="zone-charge-card">
-                                <div class="zone-badge-label">
-                                    <span>Zone 5</span>
-                                    <span class="zone-km-pill">6 - 8 KM</span>
-                                </div>
-                                <div class="zone-charge-input-box">
-                                    <i class="fa-solid fa-indian-rupee-sign"></i>
-                                    <input type="number" id="input-zone-charge-5" class="zone-charge-input" min="0" placeholder="0">
-                                </div>
-                            </div>
-
-                            <!-- Zone 6: 8 - 10 KM -->
-                            <div class="zone-charge-card">
-                                <div class="zone-badge-label">
-                                    <span>Zone 6</span>
-                                    <span class="zone-km-pill">8 - 10 KM</span>
-                                </div>
-                                <div class="zone-charge-input-box">
-                                    <i class="fa-solid fa-indian-rupee-sign"></i>
-                                    <input type="number" id="input-zone-charge-6" class="zone-charge-input" min="0" placeholder="0">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- COLLAPSIBLE LEAFLET MAP CONTAINER (LOCATION & OPERATIONAL RADIUS) -->
-                    <div class="admin-map-wrapper" id="admin-map-wrapper" style="display: none;">
-                        <div class="map-header-bar">
-                            <div class="map-header-title">
-                                <i class="fa-solid fa-map-location-dot" style="color: var(--primary-orange);"></i>
-                                <span>Interactive Restaurant Location & Delivery Radius Map</span>
-                            </div>
-                            <div class="map-header-hints">
-                                <i class="fa-solid fa-hand-pointer"></i> Drag marker or click map to change coordinates (Click "Save All Changes" above to save)
-                            </div>
-                        </div>
-
-                        <div id="admin-location-map"></div>
-
-                        <div class="map-actions-bar">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-circle-info" style="color: var(--accent-blue);"></i>
-                                <span>Delivery Radius:</span>
-                            </div>
-                            
-                            <!-- STEP-BY-STEP RADIUS CONTROLS (0.5 KM TO 10 KM IN 0.5 KM STEPS) -->
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <div class="radius-stepper-control">
-                                    <button type="button" class="btn-radius-step" id="btn-radius-dec" onclick="stepDeliveryRadius(-0.5)" aria-label="Decrease Radius by 0.5 KM" title="Decrease Radius by 0.5 KM">
-                                        <i class="fa-solid fa-minus"></i>
-                                    </button>
-                                    <span class="radius-value-display" id="radius-step-display">10.0 KM</span>
-                                    <button type="button" class="btn-radius-step" id="btn-radius-inc" onclick="stepDeliveryRadius(0.5)" aria-label="Increase Radius by 0.5 KM" title="Increase Radius by 0.5 KM">
-                                        <i class="fa-solid fa-plus"></i>
-                                    </button>
-                                </div>
-                                <span style="font-size: 0.76rem; color: var(--text-muted);">(Min: 0.5 KM, Max: 10 KM)</span>
+                            <div class="search-box">
+                                <i class="fa-solid fa-circle-dot"></i>
+                                <input type="number" step="any" id="input-delivery-radius-km" class="search-input" value="10" min="1" placeholder="e.g. 10">
                             </div>
                         </div>
                     </div>
@@ -2716,12 +2348,7 @@
             if (navLink) navLink.classList.add('active');
             if (panel) panel.classList.add('active');
 
-            if (tabName === 'dashboard') {
-                title.textContent = 'Dashboard Overview';
-                setTimeout(() => {
-                    if (adminLeafletMap) adminLeafletMap.invalidateSize();
-                }, 200);
-            }
+            if (tabName === 'dashboard') title.textContent = 'Dashboard Overview';
             if (tabName === 'menu') title.textContent = 'Menu Management';
             if (tabName === 'team') title.textContent = 'Team & Role Management';
         }
@@ -2799,52 +2426,11 @@
         const RESTAURANT_LAT_KEY = 'restaurantLatitude';
         const RESTAURANT_LNG_KEY = 'restaurantLongitude';
         const DELIVERY_RADIUS_KEY = 'deliveryRadiusKm';
-
-        // 6 Flexible Zone Delivery Charges Keys & Defaults
-        const ZONE_CHARGES_KEY = 'perfettoDeliveryZones';
-        const DEFAULT_ZONE_CHARGES = {
-            zone1: 0,
-            zone2: 0,
-            zone3: 0,
-            zone4: 0,
-            zone5: 0,
-            zone6: 0
-        };
         
         const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
         const DEFAULT_RESTAURANT_LAT = 29.533736;
         const DEFAULT_RESTAURANT_LNG = 73.447895;
-        const DEFAULT_DELIVERY_RADIUS_KM = 10; // Strictly restricted to 10 KM max
-
-        // Leaflet Map Global Instances
-        let adminLeafletMap = null;
-        let adminRestaurantMarker = null;
-        let adminCoverageCircle = null;
-        let isMapVisible = false;
-
-        function getDeliveryZoneCharges() {
-            try {
-                const stored = localStorage.getItem(ZONE_CHARGES_KEY);
-                if (stored) {
-                    const parsed = JSON.parse(stored);
-                    const result = {};
-                    for (let i = 1; i <= 6; i++) {
-                        const key = `zone${i}`;
-                        const raw = parsed[key];
-                        if (raw !== undefined && raw !== null && raw !== '') {
-                            const parsedNum = parseFloat(raw);
-                            result[key] = !isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : 0;
-                        } else {
-                            result[key] = null; // Unconfigured/empty
-                        }
-                    }
-                    return result;
-                }
-            } catch (e) {
-                console.error('Error reading delivery zone charges:', e);
-            }
-            return { zone1: null, zone2: null, zone3: null, zone4: null, zone5: null, zone6: null };
-        }
+        const DEFAULT_DELIVERY_RADIUS_KM = 10;
 
         function getMinOrderValue() {
             const val = localStorage.getItem(MIN_ORDER_KEY);
@@ -2882,257 +2468,22 @@
 
         function getDeliveryRadiusKm() {
             const val = localStorage.getItem(DELIVERY_RADIUS_KEY);
-            let num = val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
-            if (isNaN(num) || num < 0.5) num = 0.5;
-            if (num > 10.0) num = 10.0;
-            return parseFloat(num.toFixed(1));
+            return val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
         }
 
-        // Active in-memory delivery radius (can be stepped by admin before saving)
-        let currentAdminDeliveryRadius = DEFAULT_DELIVERY_RADIUS_KM;
-
-        // --------------------------------------------------------------------------
-        // LEAFLET MAP INITIALIZATION & INTERACTION CONTROLLER (COLLAPSIBLE & DEFERRED)
-        // --------------------------------------------------------------------------
-        function toggleAdminLocationMap(e) {
-            if (e) e.stopPropagation();
-            const mapWrapper = document.getElementById('admin-map-wrapper');
-            const toggleBtn = document.getElementById('btn-toggle-map');
-            const toggleBtnText = document.getElementById('btn-toggle-map-text');
-            const latGroup = document.getElementById('restaurant-lat-group');
-            const lngGroup = document.getElementById('restaurant-lng-group');
-            if (!mapWrapper) return;
-
-            isMapVisible = !isMapVisible;
-
-            if (isMapVisible) {
-                mapWrapper.style.display = 'flex';
-                if (latGroup) latGroup.style.display = 'flex';
-                if (lngGroup) lngGroup.style.display = 'flex';
-                if (toggleBtn) toggleBtn.classList.add('active');
-                if (toggleBtnText) toggleBtnText.textContent = 'Close Location Map';
-
-                updateRadiusStepperUI(currentAdminDeliveryRadius);
-
-                if (!adminLeafletMap) {
-                    initAdminLocationMap();
-                } else {
-                    setTimeout(() => {
-                        if (adminLeafletMap) {
-                            adminLeafletMap.invalidateSize();
-                            const lat = parseFloat(document.getElementById('input-restaurant-lat')?.value) || DEFAULT_RESTAURANT_LAT;
-                            const lng = parseFloat(document.getElementById('input-restaurant-lng')?.value) || DEFAULT_RESTAURANT_LNG;
-                            updateMapFromCoordinates(lat, lng, currentAdminDeliveryRadius);
-                        }
-                    }, 100);
+        function toggleCustomerCareVisibility(enabled) {
+            try {
+                localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, enabled.toString());
+                const statusEl = document.getElementById('customer-care-toggle-status');
+                if (statusEl) {
+                    statusEl.textContent = enabled ? 'Enabled' : 'Disabled';
+                    statusEl.style.color = enabled ? 'var(--accent-green)' : 'var(--text-muted)';
                 }
-                mapWrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            } else {
-                closeAdminLocationMap();
+                showToast(`Customer Care Call Button ${enabled ? 'Enabled' : 'Disabled'}!`);
+            } catch (e) {
+                console.error('Failed to save customerCareEnabled to localStorage:', e);
             }
         }
-
-        function closeAdminLocationMap() {
-            if (!isMapVisible) return;
-            const mapWrapper = document.getElementById('admin-map-wrapper');
-            const toggleBtn = document.getElementById('btn-toggle-map');
-            const toggleBtnText = document.getElementById('btn-toggle-map-text');
-            const latGroup = document.getElementById('restaurant-lat-group');
-            const lngGroup = document.getElementById('restaurant-lng-group');
-
-            isMapVisible = false;
-            if (mapWrapper) mapWrapper.style.display = 'none';
-            if (latGroup) latGroup.style.display = 'none';
-            if (lngGroup) lngGroup.style.display = 'none';
-            if (toggleBtn) toggleBtn.classList.remove('active');
-            if (toggleBtnText) toggleBtnText.textContent = 'Open Location Map';
-        }
-
-        function initAdminLocationMap() {
-            const mapContainer = document.getElementById('admin-location-map');
-            if (!mapContainer || typeof L === 'undefined') return;
-
-            const latInput = document.getElementById('input-restaurant-lat');
-            const lngInput = document.getElementById('input-restaurant-lng');
-            const lat = latInput ? (parseFloat(latInput.value) || getRestaurantLat()) : getRestaurantLat();
-            const lng = lngInput ? (parseFloat(lngInput.value) || getRestaurantLng()) : getRestaurantLng();
-            const radiusKm = currentAdminDeliveryRadius;
-
-            if (!adminLeafletMap) {
-                adminLeafletMap = L.map('admin-location-map', {
-                    center: [lat, lng],
-                    zoom: 14,
-                    zoomControl: true
-                });
-
-                // OpenStreetMap Standard Tiles
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                }).addTo(adminLeafletMap);
-
-                // Custom Brand Marker Icon
-                const customIcon = L.divIcon({
-                    className: 'custom-admin-marker',
-                    html: `
-                        <div style="
-                            background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
-                            width: 38px;
-                            height: 38px;
-                            border-radius: 50% 50% 50% 0;
-                            transform: rotate(-45deg);
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.6);
-                            border: 2.5px solid #ffffff;
-                        ">
-                            <i class="fa-solid fa-pizza-slice" style="
-                                transform: rotate(45deg);
-                                color: #ffffff;
-                                font-size: 16px;
-                            "></i>
-                        </div>
-                    `,
-                    iconSize: [38, 38],
-                    iconAnchor: [19, 38],
-                    popupAnchor: [0, -38]
-                });
-
-                // Draggable Marker
-                adminRestaurantMarker = L.marker([lat, lng], {
-                    draggable: true,
-                    icon: customIcon
-                }).addTo(adminLeafletMap);
-
-                adminRestaurantMarker.bindPopup(`
-                    <div style="text-align: center; padding: 4px;">
-                        <strong style="color: #ff6b00; font-size: 0.95rem;">Perfetto Pizza</strong><br>
-                        <span style="font-size: 0.8rem; color: #475569;">Raisingh Nagar Outlet</span><br>
-                        <small style="color: #94a3b8; font-size: 0.72rem;">Drag marker to adjust location</small>
-                    </div>
-                `);
-
-                // Delivery Coverage Circle
-                adminCoverageCircle = L.circle([lat, lng], {
-                    color: '#ff6b00',
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.15,
-                    weight: 2,
-                    radius: radiusKm * 1000
-                }).addTo(adminLeafletMap);
-
-                // Marker Drag Handler (Updates UI inputs temporarily without saving immediately)
-                adminRestaurantMarker.on('drag', (e) => {
-                    const pos = e.target.getLatLng();
-                    if (adminCoverageCircle) adminCoverageCircle.setLatLng(pos);
-                    syncInputsFromMapPosition(pos.lat, pos.lng);
-                });
-
-                adminRestaurantMarker.on('dragend', (e) => {
-                    const pos = e.target.getLatLng();
-                    syncInputsFromMapPosition(pos.lat, pos.lng);
-                });
-
-                // Map Click Handler to Move Marker (Updates UI inputs temporarily)
-                adminLeafletMap.on('click', (e) => {
-                    const pos = e.latlng;
-                    if (adminRestaurantMarker) adminRestaurantMarker.setLatLng(pos);
-                    if (adminCoverageCircle) adminCoverageCircle.setLatLng(pos);
-                    syncInputsFromMapPosition(pos.lat, pos.lng);
-                });
-
-                // Invalidate map size on display
-                setTimeout(() => {
-                    if (adminLeafletMap) adminLeafletMap.invalidateSize();
-                }, 200);
-            } else {
-                updateMapFromCoordinates(lat, lng, radiusKm);
-            }
-        }
-
-        function syncInputsFromMapPosition(lat, lng) {
-            const latInput = document.getElementById('input-restaurant-lat');
-            const lngInput = document.getElementById('input-restaurant-lng');
-            const formattedLat = parseFloat(lat.toFixed(6));
-            const formattedLng = parseFloat(lng.toFixed(6));
-
-            if (latInput) latInput.value = formattedLat;
-            if (lngInput) lngInput.value = formattedLng;
-        }
-
-        function updateMapFromCoordinates(lat, lng, radiusKm = currentAdminDeliveryRadius) {
-            if (!adminLeafletMap) return;
-            const targetLat = parseFloat(lat) || DEFAULT_RESTAURANT_LAT;
-            const targetLng = parseFloat(lng) || DEFAULT_RESTAURANT_LNG;
-            const targetRadius = parseFloat(radiusKm) || currentAdminDeliveryRadius;
-
-            const newPos = [targetLat, targetLng];
-            if (adminRestaurantMarker) adminRestaurantMarker.setLatLng(newPos);
-            if (adminCoverageCircle) {
-                adminCoverageCircle.setLatLng(newPos);
-                adminCoverageCircle.setRadius(targetRadius * 1000);
-            }
-            adminLeafletMap.panTo(newPos);
-        }
-
-        // STEP-BY-STEP RADIUS CONTROLLER (0.5 KM INCREMENTS/DECREMENTS, MIN 0.5 KM, MAX 10.0 KM)
-        function stepDeliveryRadius(step) {
-            let nextVal = parseFloat((currentAdminDeliveryRadius + step).toFixed(1));
-            if (nextVal < 0.5) nextVal = 0.5;
-            if (nextVal > 10.0) nextVal = 10.0;
-
-            currentAdminDeliveryRadius = nextVal;
-            updateRadiusStepperUI(currentAdminDeliveryRadius);
-
-            if (adminCoverageCircle) {
-                adminCoverageCircle.setRadius(currentAdminDeliveryRadius * 1000);
-            }
-        }
-
-        function updateRadiusStepperUI(val) {
-            const displayEl = document.getElementById('radius-step-display');
-            const btnDec = document.getElementById('btn-radius-dec');
-            const btnInc = document.getElementById('btn-radius-inc');
-
-            if (displayEl) {
-                displayEl.textContent = `${val.toFixed(1)} KM`;
-            }
-            if (btnDec) {
-                btnDec.disabled = (val <= 0.5);
-            }
-            if (btnInc) {
-                btnInc.disabled = (val >= 10.0);
-            }
-        }
-
-        function updateCustomerCareToggleLabel(enabled) {
-            const statusEl = document.getElementById('customer-care-toggle-status');
-            if (statusEl) {
-                statusEl.textContent = enabled ? 'Enabled' : 'Disabled';
-                statusEl.style.color = enabled ? 'var(--accent-green)' : 'var(--text-muted)';
-            }
-        }
-
-        // Global outside-click detector to auto-collapse map and coordinates
-        document.addEventListener('click', (e) => {
-            if (!isMapVisible) return;
-
-            const mapWrapper = document.getElementById('admin-map-wrapper');
-            const mapControlGroup = document.getElementById('map-control-group');
-            const latGroup = document.getElementById('restaurant-lat-group');
-            const lngGroup = document.getElementById('restaurant-lng-group');
-
-            // If click is outside the map wrapper, toggle button, and coordinate groups, auto-close
-            const isClickInsideMap = (mapWrapper && mapWrapper.contains(e.target));
-            const isClickInsideControl = (mapControlGroup && mapControlGroup.contains(e.target));
-            const isClickInsideLat = (latGroup && latGroup.contains(e.target));
-            const isClickInsideLng = (lngGroup && lngGroup.contains(e.target));
-
-            if (!isClickInsideMap && !isClickInsideControl && !isClickInsideLat && !isClickInsideLng) {
-                closeAdminLocationMap();
-            }
-        });
 
         function initOrderSettingsUI() {
             const minInput = document.getElementById('input-min-order-value');
@@ -3142,40 +2493,14 @@
             const statusEl = document.getElementById('customer-care-toggle-status');
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
-
-            const currentLat = getRestaurantLat();
-            const currentLng = getRestaurantLng();
-            currentAdminDeliveryRadius = getDeliveryRadiusKm();
-            const zoneCharges = getDeliveryZoneCharges();
+            const radiusInput = document.getElementById('input-delivery-radius-km');
 
             if (minInput) minInput.value = getMinOrderValue();
             if (freeInput) freeInput.value = getFreeDeliveryLimit();
             if (phoneInput) phoneInput.value = getCustomerCarePhone();
-            if (latInput) latInput.value = currentLat;
-            if (lngInput) lngInput.value = currentLng;
-
-            // Pre-fill 6 flexible zone charges (keep empty if not set, or show exact number including 0)
-            for (let i = 1; i <= 6; i++) {
-                const zoneInput = document.getElementById(`input-zone-charge-${i}`);
-                if (zoneInput) {
-                    const val = zoneCharges[`zone${i}`];
-                    zoneInput.value = (val !== null && val !== undefined) ? val : '';
-                }
-            }
-
-            updateRadiusStepperUI(currentAdminDeliveryRadius);
-
-            // Bind input changes to update map in real-time
-            if (latInput) {
-                latInput.oninput = () => {
-                    updateMapFromCoordinates(latInput.value, lngInput ? lngInput.value : currentLng, currentAdminDeliveryRadius);
-                };
-            }
-            if (lngInput) {
-                lngInput.oninput = () => {
-                    updateMapFromCoordinates(latInput ? latInput.value : currentLat, lngInput.value, currentAdminDeliveryRadius);
-                };
-            }
+            if (latInput) latInput.value = getRestaurantLat();
+            if (lngInput) lngInput.value = getRestaurantLng();
+            if (radiusInput) radiusInput.value = getDeliveryRadiusKm();
 
             if (toggleCare) {
                 const isEnabled = getCustomerCareEnabled();
@@ -3187,6 +2512,33 @@
             }
         }
 
+        function saveCustomerCarePhone(showToastMsg = true) {
+            const phoneInput = document.getElementById('input-customer-care-phone');
+            if (!phoneInput) return false;
+
+            const phoneVal = phoneInput.value.replace(/[^0-9]/g, '').trim();
+
+            // Strict exactly 10 digits validation check
+            if (phoneVal.length !== 10) {
+                alert('⚠️ Error: Customer Care Phone Number must be exactly 10 digits.');
+                phoneInput.focus();
+                return false;
+            }
+
+            phoneInput.value = phoneVal;
+
+            try {
+                localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, phoneVal);
+                if (showToastMsg) {
+                    showToast(`Customer care phone saved: ${phoneVal}`);
+                }
+                return true;
+            } catch (e) {
+                console.error('Failed to save customer care phone to localStorage:', e);
+                return false;
+            }
+        }
+
         function saveOrderSettings(showToastMsg = true) {
             const minInput = document.getElementById('input-min-order-value');
             const freeInput = document.getElementById('input-free-delivery-limit');
@@ -3194,25 +2546,14 @@
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
+            const radiusInput = document.getElementById('input-delivery-radius-km');
 
             const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
             const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
             const phoneVal = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').trim() : DEFAULT_CUSTOMER_CARE_PHONE;
             const latVal = latInput ? (parseFloat(latInput.value) || DEFAULT_RESTAURANT_LAT) : DEFAULT_RESTAURANT_LAT;
             const lngVal = lngInput ? (parseFloat(lngInput.value) || DEFAULT_RESTAURANT_LNG) : DEFAULT_RESTAURANT_LNG;
-            const radiusVal = currentAdminDeliveryRadius;
-
-            // Collect 6 Flexible Zone Delivery Charges (safely handle 0, 00, positive numbers, or empty)
-            const zoneCharges = {};
-            for (let i = 1; i <= 6; i++) {
-                const zInput = document.getElementById(`input-zone-charge-${i}`);
-                if (zInput && zInput.value.trim() !== '') {
-                    const parsed = parseFloat(zInput.value.trim());
-                    zoneCharges[`zone${i}`] = (!isNaN(parsed) && parsed >= 0) ? parsed : 0;
-                } else {
-                    zoneCharges[`zone${i}`] = 0; // Empty input treated safely as 0 charge
-                }
-            }
+            const radiusVal = radiusInput ? (parseFloat(radiusInput.value) || DEFAULT_DELIVERY_RADIUS_KM) : DEFAULT_DELIVERY_RADIUS_KM;
 
             // Strict exactly 10 digits validation check
             if (phoneVal.length !== 10) {
@@ -3232,12 +2573,8 @@
                 localStorage.setItem(RESTAURANT_LAT_KEY, latVal.toString());
                 localStorage.setItem(RESTAURANT_LNG_KEY, lngVal.toString());
                 localStorage.setItem(DELIVERY_RADIUS_KEY, radiusVal.toString());
-                localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(zoneCharges));
-
-                updateMapFromCoordinates(latVal, lngVal, radiusVal);
-
                 if (showToastMsg) {
-                    showToast(`Settings & Zone Charges saved! Radius: ${radiusVal.toFixed(1)} km`);
+                    showToast(`Settings saved! Coordinates: [${latVal}, ${lngVal}], Radius: ${radiusVal} km`);
                 }
                 return true;
             } catch (e) {
@@ -3294,8 +2631,5 @@
             }
         });
     </script>
-
-    <!-- Leaflet Map JS CDN -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </body>
 </html>

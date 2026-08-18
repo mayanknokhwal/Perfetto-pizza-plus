@@ -116,16 +116,6 @@ function setupNavigation() {
 }
 
 function switchTab(tabName, forceRootHome = false, isPopState = false) {
-    // If accessing Cart, check if profile is complete. If new/incomplete, redirect to Profile completion
-    if (tabName === 'cart') {
-        const savedProfile = getSavedDeliveryProfile();
-        if (!savedProfile) {
-            tabName = 'profile';
-            toggleEditProfileForm(true);
-            showToast('👋 Welcome! Please complete your profile and delivery address first.');
-        }
-    }
-
     // Save scroll position before leaving category-detail
     if (activeTabName === 'category-detail') {
         lastCategoryState.scrollY = window.scrollY || window.pageYOffset || 0;
@@ -673,110 +663,6 @@ function getDeliveryRadiusKm() {
     return val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
 }
 
-// 6 Flexible Zone Delivery Charges Keys & Logic
-const ZONE_CHARGES_KEY = 'perfettoDeliveryZones';
-
-function getDeliveryZoneCharges() {
-    try {
-        const stored = localStorage.getItem(ZONE_CHARGES_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            const result = {};
-            for (let i = 1; i <= 6; i++) {
-                const key = `zone${i}`;
-                const raw = parsed[key];
-                if (raw !== undefined && raw !== null && raw !== '') {
-                    const parsedNum = parseFloat(raw);
-                    result[key] = !isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : 0;
-                } else {
-                    result[key] = null;
-                }
-            }
-            return result;
-        }
-    } catch (e) {
-        console.error('Error reading delivery zone charges:', e);
-    }
-    return { zone1: null, zone2: null, zone3: null, zone4: null, zone5: null, zone6: null };
-}
-
-// Determines the delivery fee based on customer distance from store and configured zones
-function calculateDynamicDeliveryFee(distanceKm) {
-    const charges = getDeliveryZoneCharges();
-    
-    // Default fallback fees if admin has not set specific zone charges
-    const fallbackFees = {
-        zone1: 0,   // 0 - 0.5 KM (Free by default or configured)
-        zone2: 20,  // 0.5 - 2 KM
-        zone3: 30,  // 2 - 4 KM
-        zone4: 40,  // 4 - 6 KM
-        zone5: 50,  // 6 - 8 KM
-        zone6: 60   // 8 - 10 KM
-    };
-
-    const getFee = (key) => (charges[key] !== null && charges[key] !== undefined) ? charges[key] : fallbackFees[key];
-
-    if (distanceKm <= 0.5) return getFee('zone1');
-    if (distanceKm <= 2.0) return getFee('zone2');
-    if (distanceKm <= 4.0) return getFee('zone3');
-    if (distanceKm <= 6.0) return getFee('zone4');
-    if (distanceKm <= 8.0) return getFee('zone5');
-    if (distanceKm <= 10.0) return getFee('zone6');
-
-    return getFee('zone6'); // Beyond 8 KM up to max boundary
-}
-
-// Retrieves current customer's distance in KM to restaurant if GPS is pinned
-function getCurrentCustomerDistanceKm() {
-    let lat = null;
-    let lng = null;
-
-    const latHidden = document.getElementById('customer-gps-lat');
-    const lngHidden = document.getElementById('customer-gps-lng');
-
-    if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
-        lat = parseFloat(latHidden.value);
-        lng = parseFloat(lngHidden.value);
-    } else if (typeof currentCustomerGps !== 'undefined' && currentCustomerGps) {
-        lat = currentCustomerGps.lat;
-        lng = currentCustomerGps.lng;
-    } else {
-        const saved = getSavedDeliveryProfile();
-        if (saved && saved.gpsLat && saved.gpsLng) {
-            lat = saved.gpsLat;
-            lng = saved.gpsLng;
-        }
-    }
-
-    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
-        const restLat = getRestaurantLat();
-        const restLng = getRestaurantLng();
-        return calculateDistanceHaversine(restLat, restLng, lat, lng);
-    }
-
-    return null;
-}
-
-// Gets the active customer delivery fee (0 if free delivery unlocked or dynamically calculated based on GPS zone)
-function getActiveCustomerDeliveryFee(subtotal) {
-    if (cart.length === 0 || subtotal <= 0) return 0.00;
-    
-    // Free delivery limit check
-    const freeDeliveryLim = getFreeDeliveryLimit();
-    if (subtotal >= freeDeliveryLim) {
-        return 0.00;
-    }
-
-    const distKm = getCurrentCustomerDistanceKm();
-    if (distKm !== null) {
-        return calculateDynamicDeliveryFee(distKm);
-    }
-
-    // Default to Zone 1/2 charge or first configured zone if no GPS verified yet
-    const charges = getDeliveryZoneCharges();
-    return charges.zone2 !== null ? charges.zone2 : 30.00;
-}
-
 // Calculate distance in kilometers between two coordinates using Haversine formula
 function calculateDistanceHaversine(lat1, lon1, lat2, lon2) {
     const R = 6371; // Earth's radius in kilometers
@@ -817,118 +703,144 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         return;
     }
 
-    // CONDITION A: Subtotal < Min Order Value (Strict Barrier)
+    banner.style.display = 'block';
+
+    const isShopClosed = getCustomerShopStatus() === 'closed';
+
     if (subtotal < minOrderVal) {
+        // CONDITION A: Below Minimum Order Value
         const diff = (minOrderVal - subtotal).toFixed(2);
-        banner.className = 'cart-threshold-banner min-order-warn';
-        banner.style.display = 'block';
+        banner.className = 'cart-threshold-banner status-below-min';
         content.innerHTML = `
             <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>Add <strong>${formatPrice(diff)}</strong> more to reach minimum order of <strong>${formatPrice(minOrderVal)}</strong></span>
+            <span>Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.</span>
         `;
         if (checkoutBtn) {
             checkoutBtn.setAttribute('disabled', 'true');
         }
-        return;
-    }
-
-    // Enable button once min order is met
-    if (checkoutBtn) {
-        checkoutBtn.removeAttribute('disabled');
-    }
-
-    // CONDITION B: Subtotal >= Min Order BUT < Free Delivery Limit
-    if (subtotal < freeDeliveryLim) {
+    } else if (subtotal < freeDeliveryLim) {
+        // CONDITION B: Above Minimum, Below Free Delivery Limit
         const diff = (freeDeliveryLim - subtotal).toFixed(2);
-        banner.className = 'cart-threshold-banner free-delivery-hint';
-        banner.style.display = 'block';
+        banner.className = 'cart-threshold-banner status-upsell-free';
         content.innerHTML = `
-            <i class="fa-solid fa-truck-fast"></i>
-            <span>Add <strong>${formatPrice(diff)}</strong> more to get <strong>FREE Delivery!</strong></span>
+            <i class="fa-solid fa-truck-arrow-right"></i>
+            <span>Add ${formatPrice(diff)} more to get FREE Home Delivery!</span>
         `;
-        return;
+        if (checkoutBtn && !isShopClosed) {
+            checkoutBtn.removeAttribute('disabled');
+        }
+    } else {
+        // CONDITION C: Free Delivery Unlocked!
+        banner.className = 'cart-threshold-banner status-unlocked-free';
+        content.innerHTML = `
+            <i class="fa-solid fa-circle-check"></i>
+            <span>Congratulations! You have unlocked FREE Delivery.</span>
+        `;
+        if (checkoutBtn && !isShopClosed) {
+            checkoutBtn.removeAttribute('disabled');
+        }
     }
+}
 
-    // CONDITION C: Subtotal >= Free Delivery Limit
-    banner.className = 'cart-threshold-banner free-delivery-unlocked';
-    banner.style.display = 'block';
-    content.innerHTML = `
-        <i class="fa-solid fa-circle-check"></i>
-        <span>🎉 You unlocked <strong>FREE Delivery!</strong></span>
-    `;
+// REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
+window.addEventListener('storage', (e) => {
+    if (!e.key || e.key === SHOP_STATUS_KEY) {
+        checkAndUpdateShopStatusUI();
+    }
+    if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
+        updateCartUI();
+    }
+    if (!e.key || e.key === MENU_STORAGE_KEY) {
+        if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
+            openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+        }
+    }
+    if (!e.key || e.key === CART_STORAGE_KEY) {
+        cart = loadCartFromStorage();
+        updateCartUI();
+    }
+});
+
+// --------------------------------------------------------------------------
+// 5. FAST FOOD CARD INTERACTION (NAVIGATE TO CATEGORY DETAIL)
+// --------------------------------------------------------------------------
+function setupFastFoodCards() {
+    const cards = document.querySelectorAll('.fast-food-card');
+    cards.forEach(card => {
+        card.addEventListener('click', (e) => {
+            e.preventDefault(); // Prevent full page refresh
+            const categoryName = card.getAttribute('data-category') || card.getAttribute('aria-label') || 'Category';
+            const categoryImg = card.querySelector('img').src;
+            
+            // Navigate to dynamic sub-category detail view (direct add-to-cart disabled)
+            openCategoryDetail(categoryName, categoryImg);
+        });
+    });
 }
 
 // --------------------------------------------------------------------------
-// 2. DYNAMIC CART SYSTEM (ADD, REMOVE, QUANTITY, UPDATE)
+// 6. CART MANAGEMENT & CALCULATIONS
 // --------------------------------------------------------------------------
-function addToCart(item, sizeKey = null) {
-    let finalPrice = item.price;
-    let finalSize = sizeKey;
-
-    if (item.prices && sizeKey && item.prices[sizeKey]) {
-        finalPrice = item.prices[sizeKey];
-    } else if (item.isMultiSize && item.prices) {
-        finalSize = 'S';
-        finalPrice = item.prices.S;
+function addToCart(name, price, img) {
+    if (getCustomerShopStatus() === 'closed') {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
     }
-
-    const uniqueId = `${item.id || item.name}-${finalSize || 'std'}`;
-    const existingIndex = cart.findIndex(cartItem => (cartItem.uniqueId === uniqueId) || (cartItem.name === item.name && cartItem.size === finalSize));
-
+    const existingIndex = cart.findIndex(item => item.name === name);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
     } else {
-        cart.push({
-            id: item.id || item.name,
-            uniqueId: uniqueId,
-            name: item.name,
-            price: finalPrice,
-            img: item.img || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop',
-            size: finalSize,
-            qty: 1
-        });
+        cart.push({ name, price, qty: 1, img });
     }
-
+    saveCartToStorage();
     updateCartUI();
-    showToast(`Added ${item.name} (${finalSize || 'Std'}) to cart!`);
+    showToast(`Added ${name} to your cart!`);
 }
 
-function updateQuantity(index, delta) {
-    if (cart[index]) {
-        cart[index].qty += delta;
-        if (cart[index].qty <= 0) {
-            cart.splice(index, 1);
-        }
-        updateCartUI();
+function updateQuantity(index, change) {
+    if (getCustomerShopStatus() === 'closed' && change > 0) {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
     }
+    cart[index].qty += change;
+    if (cart[index].qty <= 0) {
+        cart.splice(index, 1);
+    }
+    saveCartToStorage();
+    updateCartUI();
 }
 
 function clearCart() {
-    if (cart.length === 0) return;
-    if (confirm('Are you sure you want to clear your entire cart?')) {
-        cart = [];
-        updateCartUI();
-        showToast('Cart cleared!');
-    }
+    cart = [];
+    saveCartToStorage();
+    updateCartUI();
+    showToast('Cart cleared');
 }
 
 function updateCartUI() {
-    // 1. Update Cart Badge Count
-    const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
-    cartBadgeCount.textContent = totalItems;
-    cartBadgeCount.style.display = totalItems > 0 ? 'inline-block' : 'none';
+    // 1. Update Cart Badge Count & Clear All Button Visibility
+    const totalCount = cart.reduce((sum, item) => sum + item.qty, 0);
+    cartBadge.textContent = totalCount;
+    cartBadge.style.display = totalCount > 0 ? 'flex' : 'none';
+
+    const clearCartBtn = document.getElementById('clear-cart-btn') || document.querySelector('.clear-cart-btn');
+    if (clearCartBtn) {
+        clearCartBtn.style.display = cart.length > 0 ? 'block' : 'none';
+    }
 
     // 2. Render Cart Items List
+    if (!cartContainer) return;
+
     if (cart.length === 0) {
-        cartItemsContainer.innerHTML = `
+        cartContainer.innerHTML = `
             <div class="empty-cart-view">
-                <i class="fa-solid fa-basket-shopping empty-cart-icon"></i>
+                <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
                 <h4>Your cart is empty</h4>
-                <p>Add some delicious meals from the menu!</p>
+                <p>Browse categories on Home and add items to your cart!</p>
             </div>
         `;
     } else {
-        cartItemsContainer.innerHTML = cart.map((item, index) => `
+        cartContainer.innerHTML = cart.map((item, index) => `
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
@@ -944,31 +856,40 @@ function updateCartUI() {
         `).join('');
     }
 
-    // 3. Recalculate Subtotal, Thresholds & Dynamic Delivery Fee (No Tax)
+    // 3. Recalculate Subtotal, Thresholds & Delivery Fee
     const minOrderVal = getMinOrderValue();
     const freeDeliveryLim = getFreeDeliveryLimit();
+
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
-    const delivery = getActiveCustomerDeliveryFee(subtotal);
-    const total = subtotal + delivery;
+    let delivery = 0.00;
+    if (cart.length > 0) {
+        if (subtotal >= freeDeliveryLim) {
+            delivery = 0.00; // Condition C: Free Delivery Unlocked
+        } else {
+            delivery = 49.00; // Standard Delivery Fee
+        }
+    }
+
+    const tax = subtotal * 0.05;
+    const total = subtotal + delivery + tax;
 
     const subtotalEl = document.getElementById('cart-subtotal');
     const deliveryEl = document.getElementById('cart-delivery');
+    const taxEl = document.getElementById('cart-tax');
     const totalEl = document.getElementById('cart-total');
 
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
 
     if (deliveryEl) {
         if (cart.length > 0 && subtotal >= freeDeliveryLim) {
-            const rawBaseFee = getActiveCustomerDeliveryFee(0);
-            deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">${formatPrice(rawBaseFee)}</span><span class="free-delivery-tag">FREE</span>`;
-        } else if (delivery === 0 && cart.length > 0) {
-            deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+            deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">₹49</span><span class="free-delivery-tag">FREE</span>`;
         } else {
             deliveryEl.textContent = formatPrice(delivery);
         }
     }
 
+    if (taxEl) taxEl.textContent = formatPrice(tax);
     if (totalEl) totalEl.textContent = formatPrice(total);
 
     // 4. Update Cart Threshold Banner & Checkout Button State
@@ -990,11 +911,9 @@ function getSavedDeliveryProfile() {
                 const nearBy = (profile.nearBy || '').trim();
                 const streetName = (profile.streetName || '').trim();
                 const wardNo = (profile.wardNo || '').trim();
-                const gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
-                const gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
 
-                if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null) {
-                    return { fullName, phone, colonyName, nearBy, streetName, wardNo, gpsLat, gpsLng };
+                if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo) {
+                    return { fullName, phone, colonyName, nearBy, streetName, wardNo };
                 }
             }
         }
@@ -1042,8 +961,9 @@ function processCheckout() {
 
 function executeOrderPlacement(profile) {
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const deliveryFee = getActiveCustomerDeliveryFee(subtotal);
-    const grandTotal = subtotal + deliveryFee;
+    const tax = subtotal * 0.05;
+    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
+    const grandTotal = subtotal + tax + deliveryFee;
 
     // Calculate Sequential Order Number (#1, #2, #3, ...)
     let nextOrderSeq = 1;
@@ -1097,7 +1017,7 @@ function executeOrderPlacement(profile) {
         timeAgo: `${timeFormatted} • Just now`,
         items: orderItems,
         subtotal: Math.round(subtotal),
-        tax: 0,
+        tax: Math.round(tax),
         deliveryFee: deliveryFee,
         total: Math.round(grandTotal),
         paymentStatus: 'Cash on Delivery',
@@ -1236,477 +1156,6 @@ let isPhoneVerified = false;
 let currentTargetPhone = null;
 let otpResendCountdown = 0;
 let otpResendTimerId = null;
-
-// --------------------------------------------------------------------------
-// CUSTOMER INTERACTIVE LOCATION MAP CONTROLLER (LEAFLET + LIVE GPS)
-// --------------------------------------------------------------------------
-let customerLeafletMap = null;
-let customerLocationMarker = null;
-let customerStoreMarker = null;
-let customerCoverageCircle = null;
-let customerTempCoords = { lat: 29.533736, lng: 73.447895 }; // Raisingh Nagar default
-let currentCustomerGps = null; // Confirmed coords { lat: number, lng: number }
-let lastGpsAccuracyMeters = null; // Accuracy in meters from Geolocation API
-const MAX_ALLOWED_ACCURACY_METERS = 250; // Threshold for precise location (anything higher is approximate/rough IP/cell fix)
-
-function openCustomerMapModal() {
-    const modal = document.getElementById('customer-map-modal');
-    const openBtn = document.getElementById('btn-open-map-modal');
-    const openBtnText = document.getElementById('gps-btn-text');
-    if (!modal) return;
-
-    // Check if we already have confirmed or saved coordinates
-    const latHidden = document.getElementById('customer-gps-lat');
-    const lngHidden = document.getElementById('customer-gps-lng');
-    const hasExistingCoords = (latHidden && latHidden.value && lngHidden && lngHidden.value) || currentCustomerGps;
-
-    // If geolocation is available and no existing coords, try detecting live GPS
-    if (!hasExistingCoords && navigator.geolocation) {
-        if (openBtn) openBtn.disabled = true;
-        if (openBtnText) openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
-
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const liveLat = parseFloat(position.coords.latitude.toFixed(6));
-                const liveLng = parseFloat(position.coords.longitude.toFixed(6));
-                lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
-
-                resetOpenMapButton(openBtn, openBtnText);
-
-                // If accuracy is high/rough, clamp to delivery zone if needed and open modal for manual adjustment
-                const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
-                let initialLat = liveLat;
-                let initialLng = liveLng;
-                if (!radiusCheck.isAllowed) {
-                    const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
-                    initialLat = clamped.lat;
-                    initialLng = clamped.lng;
-                }
-
-                launchCustomerMapModal(initialLat, initialLng);
-            },
-            (error) => {
-                console.warn('Initial GPS detection fallback:', error);
-                resetOpenMapButton(openBtn, openBtnText);
-                lastGpsAccuracyMeters = null;
-
-                // Fallback to store/default coordinates so user can still manually pin
-                const storeLat = getRestaurantLat();
-                const storeLng = getRestaurantLng();
-                launchCustomerMapModal(storeLat, storeLng);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 8000,
-                maximumAge: 60000
-            }
-        );
-    } else {
-        let initialLat = getRestaurantLat();
-        let initialLng = getRestaurantLng();
-
-        if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
-            initialLat = parseFloat(latHidden.value) || initialLat;
-            initialLng = parseFloat(lngHidden.value) || initialLng;
-        } else if (currentCustomerGps) {
-            initialLat = currentCustomerGps.lat;
-            initialLng = currentCustomerGps.lng;
-        }
-
-        launchCustomerMapModal(initialLat, initialLng);
-    }
-}
-
-function resetOpenMapButton(btn, btnText) {
-    if (btn) btn.disabled = false;
-    if (btnText) {
-        const isVerified = currentCustomerGps !== null || (document.getElementById('customer-gps-lat')?.value);
-        btnText.innerHTML = isVerified ? '<i class="fa-solid fa-map-pin"></i> Change Location on Map' : '<i class="fa-solid fa-map"></i> Open Location Map';
-    }
-}
-
-function launchCustomerMapModal(initialLat, initialLng) {
-    const modal = document.getElementById('customer-map-modal');
-    if (!modal) return;
-
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-
-    customerTempCoords = { lat: initialLat, lng: initialLng };
-    updateMapModalCoordsDisplay(initialLat, initialLng);
-
-    setTimeout(() => {
-        initCustomerLeafletMap(initialLat, initialLng);
-    }, 150);
-}
-
-function closeCustomerMapModal() {
-    const modal = document.getElementById('customer-map-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.setAttribute('aria-hidden', 'true');
-    }
-}
-
-function initCustomerLeafletMap(lat, lng) {
-    const mapContainer = document.getElementById('customer-location-map');
-    if (!mapContainer || typeof L === 'undefined') return;
-
-    const customMarkerHtml = `
-        <div style="
-            background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
-            width: 36px;
-            height: 36px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.6);
-            border: 2.5px solid #ffffff;
-        ">
-            <i class="fa-solid fa-house-chimney" style="
-                transform: rotate(45deg);
-                color: #ffffff;
-                font-size: 15px;
-            "></i>
-        </div>
-    `;
-
-    const customIcon = L.divIcon({
-        className: 'customer-delivery-marker',
-        html: customMarkerHtml,
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -36]
-    });
-
-    const storeLat = getRestaurantLat();
-    const storeLng = getRestaurantLng();
-    const radiusKm = getDeliveryRadiusKm();
-
-    const storeMarkerHtml = `
-        <div style="
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            width: 38px;
-            height: 38px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
-            border: 2.5px solid #ff6b00;
-        ">
-            <i class="fa-solid fa-pizza-slice" style="
-                transform: rotate(45deg);
-                color: #ff6b00;
-                font-size: 16px;
-            "></i>
-        </div>
-    `;
-
-    const storeIcon = L.divIcon({
-        className: 'store-location-marker',
-        html: storeMarkerHtml,
-        iconSize: [38, 38],
-        iconAnchor: [19, 38],
-        popupAnchor: [0, -38]
-    });
-
-    if (!customerLeafletMap) {
-        customerLeafletMap = L.map('customer-location-map', {
-            center: [lat, lng],
-            zoom: 15,
-            zoomControl: true
-        });
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(customerLeafletMap);
-
-        // Store Location Marker
-        customerStoreMarker = L.marker([storeLat, storeLng], {
-            icon: storeIcon,
-            zIndexOffset: 500
-        }).addTo(customerLeafletMap);
-
-        customerStoreMarker.bindPopup(`
-            <div style="text-align: center; padding: 4px;">
-                <strong style="color: #ff6b00; font-size: 0.95rem;">🍕 Perfetto Pizza Store</strong><br>
-                <small style="color: #64748b; font-size: 0.76rem;">Kitchen & Pickup Hub</small>
-            </div>
-        `);
-
-        // Delivery Coverage Circle
-        if (radiusKm && !isNaN(radiusKm) && radiusKm > 0) {
-            customerCoverageCircle = L.circle([storeLat, storeLng], {
-                color: '#ff6b00',
-                weight: 1.5,
-                dashArray: '5, 5',
-                fillColor: '#ff6b00',
-                fillOpacity: 0.07,
-                radius: radiusKm * 1000
-            }).addTo(customerLeafletMap);
-        }
-
-        // Customer Location Marker
-        customerLocationMarker = L.marker([lat, lng], {
-            draggable: true,
-            icon: customIcon,
-            zIndexOffset: 1000
-        }).addTo(customerLeafletMap);
-
-        customerLocationMarker.bindPopup(`
-            <div style="text-align: center; padding: 4px;">
-                <strong style="color: #ff6b00; font-size: 0.9rem;">📍 Your Delivery Location</strong><br>
-                <small style="color: #64748b; font-size: 0.72rem;">Drag or tap anywhere to fine-tune</small>
-            </div>
-        `);
-
-        customerLocationMarker.on('drag', (e) => {
-            const pos = e.target.getLatLng();
-            let newLat = parseFloat(pos.lat.toFixed(6));
-            let newLng = parseFloat(pos.lng.toFixed(6));
-            const clamped = clampCoordsToDeliveryRadius(newLat, newLng);
-            if (clamped.wasClamped) {
-                newLat = clamped.lat;
-                newLng = clamped.lng;
-                customerLocationMarker.setLatLng([newLat, newLng]);
-            }
-            customerTempCoords = { lat: newLat, lng: newLng };
-            updateMapModalCoordsDisplay(newLat, newLng);
-        });
-
-        customerLeafletMap.on('click', (e) => {
-            const pos = e.latlng;
-            let newLat = parseFloat(pos.lat.toFixed(6));
-            let newLng = parseFloat(pos.lng.toFixed(6));
-            const clamped = clampCoordsToDeliveryRadius(newLat, newLng);
-            if (clamped.wasClamped) {
-                newLat = clamped.lat;
-                newLng = clamped.lng;
-                showToast(`⚠️ Location is outside our ${getDeliveryRadiusKm()} km delivery area. Pinned to nearest boundary point!`);
-            }
-            customerTempCoords = { lat: newLat, lng: newLng };
-            if (customerLocationMarker) {
-                customerLocationMarker.setLatLng([newLat, newLng]);
-            }
-            updateMapModalCoordsDisplay(newLat, newLng);
-        });
-    } else {
-        customerLeafletMap.invalidateSize();
-        customerLeafletMap.setView([lat, lng], 15);
-        if (customerLocationMarker) {
-            customerLocationMarker.setLatLng([lat, lng]);
-        }
-        if (customerStoreMarker) {
-            customerStoreMarker.setLatLng([storeLat, storeLng]);
-        }
-        if (customerCoverageCircle) {
-            customerCoverageCircle.setLatLng([storeLat, storeLng]);
-            if (radiusKm && !isNaN(radiusKm) && radiusKm > 0) {
-                customerCoverageCircle.setRadius(radiusKm * 1000);
-            }
-        }
-    }
-}
-
-// Restricts / clamps a coordinate to lie strictly within the delivery radius circle if dragged outside
-function clampCoordsToDeliveryRadius(lat, lng) {
-    const storeLat = getRestaurantLat();
-    const storeLng = getRestaurantLng();
-    const radiusKm = getDeliveryRadiusKm();
-    const dist = calculateDistanceHaversine(storeLat, storeLng, lat, lng);
-
-    if (dist <= radiusKm) {
-        return { lat, lng, wasClamped: false, distanceKm: parseFloat(dist.toFixed(2)) };
-    }
-
-    // Project coordinates onto circle perimeter (bearing projection)
-    const dLat = (lat - storeLat) * (Math.PI / 180);
-    const dLon = (lng - storeLng) * (Math.PI / 180);
-    const y = Math.sin(dLon) * Math.cos(lat * (Math.PI / 180));
-    const x = Math.cos(storeLat * (Math.PI / 180)) * Math.sin(lat * (Math.PI / 180)) -
-              Math.sin(storeLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.cos(dLon);
-    const bearing = Math.atan2(y, x);
-
-    const R = 6371; // Earth's radius in KM
-    const maxSafeRadius = Math.max(0.1, radiusKm - 0.05); // slight safety inset
-    const angularDist = maxSafeRadius / R;
-    const storeLatRad = storeLat * (Math.PI / 180);
-    const storeLngRad = storeLng * (Math.PI / 180);
-
-    const clampedLatRad = Math.asin(Math.sin(storeLatRad) * Math.cos(angularDist) +
-                          Math.cos(storeLatRad) * Math.sin(angularDist) * Math.cos(bearing));
-    const clampedLngRad = storeLngRad + Math.atan2(Math.sin(bearing) * Math.sin(angularDist) * Math.cos(storeLatRad),
-                          Math.cos(angularDist) - Math.sin(storeLatRad) * Math.sin(clampedLatRad));
-
-    return {
-        lat: parseFloat((clampedLatRad * (180 / Math.PI)).toFixed(6)),
-        lng: parseFloat((clampedLngRad * (180 / Math.PI)).toFixed(6)),
-        wasClamped: true,
-        distanceKm: parseFloat(dist.toFixed(2))
-    };
-}
-
-function updateMapModalCoordsDisplay(lat, lng) {
-    const banner = document.getElementById('map-zone-status-banner');
-    const icon = document.getElementById('zone-status-icon');
-    const text = document.getElementById('zone-status-text');
-    const confirmBtn = document.getElementById('btn-confirm-map-location');
-
-    const check = isWithinDeliveryRadius(lat, lng);
-
-    if (banner && icon && text) {
-        if (!check.isAllowed) {
-            banner.className = 'map-zone-status-banner out-zone';
-            if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
-            text.textContent = `Outside Delivery Zone (${check.distanceKm} km > ${check.maxRadiusKm} km limit)`;
-        } else {
-            banner.className = 'map-zone-status-banner in-zone';
-            if (icon) icon.className = 'fa-solid fa-circle-check';
-            text.textContent = `Within Delivery Zone (${check.distanceKm} km from store)`;
-        }
-    }
-
-    if (confirmBtn) {
-        confirmBtn.disabled = !check.isAllowed;
-    }
-}
-
-function handleDetectLiveGps() {
-    const btn = document.getElementById('btn-detect-live-gps');
-    const btnText = document.getElementById('detect-gps-btn-text');
-
-    if (!navigator.geolocation) {
-        showToast('⚠️ Geolocation is not supported on this device/browser.');
-        return;
-    }
-
-    if (btn) {
-        btn.disabled = true;
-        if (btnText) btnText.innerHTML = '<span class="btn-spinner"></span> Detecting GPS...';
-    }
-
-    showToast('📡 Detecting your current live coordinates...');
-
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            let lat = parseFloat(position.coords.latitude.toFixed(6));
-            let lng = parseFloat(position.coords.longitude.toFixed(6));
-            const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
-            lastGpsAccuracyMeters = accuracy;
-
-            const radiusCheck = isWithinDeliveryRadius(lat, lng);
-            if (!radiusCheck.isAllowed) {
-                const clamped = clampCoordsToDeliveryRadius(lat, lng);
-                showToast(`⚠️ Location (${radiusCheck.distanceKm} km) is outside our ${radiusCheck.maxRadiusKm} km delivery zone. Marker placed at nearest point.`);
-                lat = clamped.lat;
-                lng = clamped.lng;
-            } else {
-                showToast(`📍 Location detected! Drag marker or tap anywhere to fine-tune.`);
-            }
-
-            customerTempCoords = { lat, lng };
-
-            if (customerLeafletMap) {
-                customerLeafletMap.setView([lat, lng], 16);
-                if (customerLocationMarker) {
-                    customerLocationMarker.setLatLng([lat, lng]);
-                    customerLocationMarker.openPopup();
-                }
-            }
-
-            updateMapModalCoordsDisplay(lat, lng);
-
-            if (btn) {
-                btn.disabled = false;
-                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
-            }
-        },
-        (error) => {
-            console.error('Geolocation Error:', error);
-            if (btn) {
-                btn.disabled = false;
-                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Detect My Live GPS';
-            }
-
-            let errorMsg = '⚠️ Unable to detect location. You can manually drag the pin to your address.';
-            if (error.code === error.PERMISSION_DENIED) {
-                errorMsg = '⚠️ Location permission not granted. Please drag the map pin manually to set your address.';
-            } else if (error.code === error.POSITION_UNAVAILABLE) {
-                errorMsg = '⚠️ Location unavailable. Please drag the map pin manually.';
-            } else if (error.code === error.TIMEOUT) {
-                errorMsg = '⚠️ Location request timed out. Please drag the map pin manually or tap retry.';
-            }
-
-            showToast(errorMsg);
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000
-        }
-    );
-}
-
-function handleConfirmMapLocation() {
-    if (!customerTempCoords || isNaN(customerTempCoords.lat) || isNaN(customerTempCoords.lng)) {
-        showToast('⚠️ Please select a location on the map first!');
-        return;
-    }
-
-    const lat = customerTempCoords.lat;
-    const lng = customerTempCoords.lng;
-
-    // Delivery Radius Boundary Validation
-    const radiusCheck = isWithinDeliveryRadius(lat, lng);
-    if (!radiusCheck.isAllowed) {
-        showToast(`🚫 Out of Delivery Area: Your selected location is ${radiusCheck.distanceKm} km away. We only deliver within ${radiusCheck.maxRadiusKm} km of our store. Please move your pin inside the circle.`);
-        const banner = document.getElementById('map-zone-status-banner');
-        if (banner) {
-            banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        return;
-    }
-
-    currentCustomerGps = { lat, lng };
-
-    const latHidden = document.getElementById('customer-gps-lat');
-    const lngHidden = document.getElementById('customer-gps-lng');
-    const statusBadge = document.getElementById('gps-status-badge');
-    const coordsDisplay = document.getElementById('gps-coordinates-display');
-    const gpsContainer = document.querySelector('.full-width-gps-field');
-    const gpsBtnText = document.getElementById('gps-btn-text');
-
-    if (latHidden) latHidden.value = lat;
-    if (lngHidden) lngHidden.value = lng;
-
-    if (statusBadge) {
-        statusBadge.className = 'gps-status-badge verified';
-        statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
-    }
-
-    if (coordsDisplay) {
-        coordsDisplay.style.display = 'flex';
-    }
-
-    if (gpsContainer) {
-        gpsContainer.classList.remove('invalid-gps');
-        gpsContainer.classList.add('gps-verified');
-    }
-
-    if (gpsBtnText) {
-        gpsBtnText.innerHTML = '<i class="fa-solid fa-map-pin"></i> Change Location on Map';
-    }
-
-    closeCustomerMapModal();
-    updateCartUI();
-    updateProfileTotalsUI();
-    showToast(`📍 Delivery location verified (${radiusCheck.distanceKm} km from store)!`);
-}
 
 function handlePhoneInputChange(input) {
     if (!input) return;
@@ -2059,6 +1508,7 @@ function handleSaveProfile(event) {
         }
         if (verifyBtn) {
             verifyBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Subtle pulse animation to highlight verify button
             verifyBtn.style.animation = 'none';
             setTimeout(() => {
                 verifyBtn.style.animation = 'pulseGlow 1.2s ease infinite';
@@ -2067,37 +1517,8 @@ function handleSaveProfile(event) {
         return;
     }
 
-    // MANDATORY AUTO GPS LOCATION VERIFICATION CHECK
-    const latHidden = document.getElementById('customer-gps-lat');
-    const lngHidden = document.getElementById('customer-gps-lng');
-    const latVal = latHidden && latHidden.value ? parseFloat(latHidden.value) : (currentCustomerGps ? currentCustomerGps.lat : null);
-    const lngVal = lngHidden && lngHidden.value ? parseFloat(lngHidden.value) : (currentCustomerGps ? currentCustomerGps.lng : null);
-
-    if (latVal === null || lngVal === null || isNaN(latVal) || isNaN(lngVal)) {
-        showToast('⚠️ Mandatory: Please tap "Open Location Map" to pin & confirm your delivery location!');
-        const gpsContainer = document.querySelector('.full-width-gps-field');
-        const mapBtn = document.getElementById('btn-open-map-modal');
-        if (gpsContainer) {
-            gpsContainer.classList.add('invalid-gps');
-            gpsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        if (mapBtn) mapBtn.focus();
-        return;
-    }
-
-    // Save profile with GPS Coordinates to localStorage
-    const profile = { 
-        fullName, 
-        phone: cleanPhone, 
-        colonyName, 
-        nearBy, 
-        streetName, 
-        wardNo, 
-        isVerified: true,
-        gpsLat: latVal,
-        gpsLng: lngVal
-    };
-
+    // Save profile to localStorage
+    const profile = { fullName, phone: cleanPhone, colonyName, nearBy, streetName, wardNo, isVerified: true };
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
     } catch (e) {
@@ -2109,7 +1530,7 @@ function handleSaveProfile(event) {
     updateProfileTotalsUI();
     toggleEditProfileForm(false);
 
-    showToast('✅ Profile & Home Address saved successfully!');
+    showToast('✅ Profile saved successfully!');
 }
 
 function handleFinalOrderSubmit(event) {
@@ -2124,14 +1545,6 @@ function renderProfileHeaderAndInputs(profile) {
     const changeBtn = document.getElementById('btn-change-phone');
     const verifyBtn = document.getElementById('btn-request-otp');
     const phoneInput = document.getElementById('customer-phone');
-
-    const latHidden = document.getElementById('customer-gps-lat');
-    const lngHidden = document.getElementById('customer-gps-lng');
-    const statusBadge = document.getElementById('gps-status-badge');
-    const coordsDisplay = document.getElementById('gps-coordinates-display');
-    const coordsText = document.getElementById('gps-coords-text');
-    const gpsContainer = document.querySelector('.full-width-gps-field');
-    const gpsBtnText = document.getElementById('gps-btn-text');
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
@@ -2164,27 +1577,6 @@ function renderProfileHeaderAndInputs(profile) {
             }
         }
 
-        // Pre-fill GPS coordinate state
-        if (profile.gpsLat !== undefined && profile.gpsLat !== null && profile.gpsLng !== undefined && profile.gpsLng !== null) {
-            currentCustomerGps = { lat: profile.gpsLat, lng: profile.gpsLng };
-            if (latHidden) latHidden.value = profile.gpsLat;
-            if (lngHidden) lngHidden.value = profile.gpsLng;
-            if (statusBadge) {
-                statusBadge.className = 'gps-status-badge verified';
-                statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
-            }
-            if (coordsDisplay) {
-                coordsDisplay.style.display = 'flex';
-            }
-            if (gpsContainer) {
-                gpsContainer.classList.add('gps-verified');
-                gpsContainer.classList.remove('invalid-gps');
-            }
-            if (gpsBtnText) {
-                gpsBtnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh GPS Location';
-            }
-        }
-
         // Pre-fill form inputs
         const fullNameInput = document.getElementById('customer-fullname');
         const colonyInput = document.getElementById('customer-colony-name');
@@ -2205,7 +1597,6 @@ function renderProfileHeaderAndInputs(profile) {
         if (profile.wardNo && wardInput && (!wardInput.value || wardInput.value === '')) wardInput.value = profile.wardNo;
     } else {
         isPhoneVerified = false;
-        currentCustomerGps = null;
         if (nameEl) nameEl.textContent = 'Customer Name';
         if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
         if (badge) badge.style.display = 'none';
@@ -2215,8 +1606,6 @@ function renderProfileHeaderAndInputs(profile) {
             const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
             verifyBtn.disabled = currentPhoneLen !== 10;
         }
-        if (statusBadge) statusBadge.style.display = 'none';
-        if (coordsDisplay) coordsDisplay.style.display = 'none';
     }
 }
 
@@ -2224,8 +1613,9 @@ function updateProfileTotalsUI() {
     // Update order total inside modal / summary if needed
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const deliveryFee = (cart.length > 0 && subtotal > 0) ? getActiveCustomerDeliveryFee(subtotal) : 0;
-    const total = subtotal + deliveryFee;
+    const tax = subtotal * 0.05;
+    const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= 499 ? 0 : 49) : 0;
+    const total = subtotal + tax + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
     const orderTotalEl = document.getElementById('modal-order-total');
@@ -2288,12 +1678,6 @@ function renderSavedAddressDetails() {
         if (savedProfile) {
             const p = JSON.parse(savedProfile);
             if (p.fullName || p.colonyName || p.streetName) {
-                const gpsInfo = (p.gpsLat && p.gpsLng) 
-                    ? `<div style="margin-top: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 700;">
-                         <i class="fa-solid fa-location-crosshairs"></i> GPS: ${p.gpsLat}, ${p.gpsLng}
-                       </div>`
-                    : '';
-
                 textContentEl.innerHTML = `
                     <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
                         <i class="fa-solid fa-user" style="color: var(--primary-orange); margin-right: 6px;"></i>${p.fullName || 'Customer'} (${p.phone || ''})
@@ -2302,7 +1686,6 @@ function renderSavedAddressDetails() {
                     <div><strong style="color: var(--text-muted);">Landmark:</strong> ${p.nearBy || 'N/A'}</div>
                     <div><strong style="color: var(--text-muted);">Street:</strong> ${p.streetName || 'N/A'}</div>
                     <div><strong style="color: var(--text-muted);">Ward No:</strong> ${p.wardNo || 'N/A'}</div>
-                    ${gpsInfo}
                 `;
                 return;
             }
