@@ -313,9 +313,7 @@
                                     <input type="hidden" id="customer-gps-lng" value="">
                                 </div>
                                 <div class="gps-coordinates-display" id="gps-coordinates-display" style="display: none;">
-                                    <i class="fa-solid fa-map-pin"></i>
-                                    <span id="gps-coords-text">Lat: --, Lng: --</span>
-                                    <span class="gps-verified-tag"><i class="fa-solid fa-check"></i> Pinned on Map</span>
+                                    <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location Pinned on Map</span>
                                 </div>
                             </div>
 
@@ -601,13 +599,25 @@
                     <div id="customer-location-map"></div>
                 </div>
 
+                <!-- DYNAMIC DELIVERY RADIUS STATUS / WARNING BANNER -->
+                <div class="map-zone-status-banner in-zone" id="map-zone-status-banner">
+                    <i class="fa-solid fa-circle-check" id="zone-status-icon"></i>
+                    <span id="zone-status-text">Within Delivery Zone (0.0 km from store)</span>
+                </div>
+
+                <!-- PRECISE LOCATION ERROR / WARNING NOTICE (SHOWN WHEN APPROXIMATE LOCATION IS DETECTED) -->
+                <div class="map-precision-alert" id="map-precision-alert" style="display: none;">
+                    <div class="precision-alert-header">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>Precise Location Required</strong>
+                    </div>
+                    <p class="precision-alert-body" id="precision-alert-text">
+                        Approximate location detected. Food delivery requires exact pinpoint accuracy. Please allow <strong>"Precise"</strong> location access in your browser or device settings to confirm your order.
+                    </p>
+                </div>
+
                 <!-- SELECTED COORDINATES & ADDRESS SUMMARY FOOTER -->
                 <div class="map-modal-footer">
-                    <div class="map-coordinates-pill">
-                        <i class="fa-solid fa-location-pin" style="color: var(--primary-orange);"></i>
-                        <span id="modal-selected-coords-text">Lat: 29.533736, Lng: 73.447895</span>
-                    </div>
-
                     <div class="map-modal-buttons-row">
                         <button type="button" class="btn-cancel-map" onclick="closeCustomerMapModal()">
                             Cancel
