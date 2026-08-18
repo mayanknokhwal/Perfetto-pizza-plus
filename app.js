@@ -691,12 +691,113 @@ function getRestaurantLat() {
 
 function getRestaurantLng() {
     const val = localStorage.getItem(RESTAURANT_LNG_KEY);
-    return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LNG;
-}
-
 function getDeliveryRadiusKm() {
     const val = localStorage.getItem(DELIVERY_RADIUS_KEY);
     return val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
+}
+
+// 6 Flexible Zone Delivery Charges Keys & Logic
+const ZONE_CHARGES_KEY = 'perfettoDeliveryZones';
+
+function getDeliveryZoneCharges() {
+    try {
+        const stored = localStorage.getItem(ZONE_CHARGES_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            const result = {};
+            for (let i = 1; i <= 6; i++) {
+                const key = `zone${i}`;
+                const raw = parsed[key];
+                if (raw !== undefined && raw !== null && raw !== '') {
+                    const parsedNum = parseFloat(raw);
+                    result[key] = !isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : 0;
+                } else {
+                    result[key] = null;
+                }
+            }
+            return result;
+        }
+    } catch (e) {
+        console.error('Error reading delivery zone charges:', e);
+    }
+    return { zone1: null, zone2: null, zone3: null, zone4: null, zone5: null, zone6: null };
+}
+
+// Determines the delivery fee based on customer distance from store and configured zones
+function calculateDynamicDeliveryFee(distanceKm) {
+    const charges = getDeliveryZoneCharges();
+    
+    // Default fallback fees if admin has not set specific zone charges
+    const fallbackFees = {
+        zone1: 0,   // 0 - 0.5 KM (Free by default or configured)
+        zone2: 20,  // 0.5 - 2 KM
+        zone3: 30,  // 2 - 4 KM
+        zone4: 40,  // 4 - 6 KM
+        zone5: 50,  // 6 - 8 KM
+        zone6: 60   // 8 - 10 KM
+    };
+
+    const getFee = (key) => (charges[key] !== null && charges[key] !== undefined) ? charges[key] : fallbackFees[key];
+
+    if (distanceKm <= 0.5) return getFee('zone1');
+    if (distanceKm <= 2.0) return getFee('zone2');
+    if (distanceKm <= 4.0) return getFee('zone3');
+    if (distanceKm <= 6.0) return getFee('zone4');
+    if (distanceKm <= 8.0) return getFee('zone5');
+    if (distanceKm <= 10.0) return getFee('zone6');
+
+    return getFee('zone6'); // Beyond 8 KM up to max boundary
+}
+
+// Retrieves current customer's distance in KM to restaurant if GPS is pinned
+function getCurrentCustomerDistanceKm() {
+    let lat = null;
+    let lng = null;
+
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+
+    if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
+        lat = parseFloat(latHidden.value);
+        lng = parseFloat(lngHidden.value);
+    } else if (typeof currentCustomerGps !== 'undefined' && currentCustomerGps) {
+        lat = currentCustomerGps.lat;
+        lng = currentCustomerGps.lng;
+    } else {
+        const saved = getSavedDeliveryProfile();
+        if (saved && saved.gpsLat && saved.gpsLng) {
+            lat = saved.gpsLat;
+            lng = saved.gpsLng;
+        }
+    }
+
+    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+        const restLat = getRestaurantLat();
+        const restLng = getRestaurantLng();
+        return calculateDistanceHaversine(restLat, restLng, lat, lng);
+    }
+
+    return null;
+}
+
+// Gets the active customer delivery fee (0 if free delivery unlocked or dynamically calculated based on GPS zone)
+function getActiveCustomerDeliveryFee(subtotal) {
+    if (cart.length === 0 || subtotal <= 0) return 0.00;
+    
+    // Free delivery limit check
+    const freeDeliveryLim = getFreeDeliveryLimit();
+    if (subtotal >= freeDeliveryLim) {
+        return 0.00;
+    }
+
+    const distKm = getCurrentCustomerDistanceKm();
+    if (distKm !== null) {
+        return calculateDynamicDeliveryFee(distKm);
+    }
+
+    // Default to Zone 1/2 charge or first configured zone if no GPS verified yet
+    const charges = getDeliveryZoneCharges();
+    return charges.zone2 !== null ? charges.zone2 : 30.00;
 }
 
 // Calculate distance in kilometers between two coordinates using Haversine formula
@@ -739,144 +840,118 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         return;
     }
 
-    banner.style.display = 'block';
-
-    const isShopClosed = getCustomerShopStatus() === 'closed';
-
+    // CONDITION A: Subtotal < Min Order Value (Strict Barrier)
     if (subtotal < minOrderVal) {
-        // CONDITION A: Below Minimum Order Value
         const diff = (minOrderVal - subtotal).toFixed(2);
-        banner.className = 'cart-threshold-banner status-below-min';
+        banner.className = 'cart-threshold-banner min-order-warn';
+        banner.style.display = 'block';
         content.innerHTML = `
             <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.</span>
+            <span>Add <strong>${formatPrice(diff)}</strong> more to reach minimum order of <strong>${formatPrice(minOrderVal)}</strong></span>
         `;
         if (checkoutBtn) {
             checkoutBtn.setAttribute('disabled', 'true');
         }
-    } else if (subtotal < freeDeliveryLim) {
-        // CONDITION B: Above Minimum, Below Free Delivery Limit
-        const diff = (freeDeliveryLim - subtotal).toFixed(2);
-        banner.className = 'cart-threshold-banner status-upsell-free';
-        content.innerHTML = `
-            <i class="fa-solid fa-truck-arrow-right"></i>
-            <span>Add ${formatPrice(diff)} more to get FREE Home Delivery!</span>
-        `;
-        if (checkoutBtn && !isShopClosed) {
-            checkoutBtn.removeAttribute('disabled');
-        }
-    } else {
-        // CONDITION C: Free Delivery Unlocked!
-        banner.className = 'cart-threshold-banner status-unlocked-free';
-        content.innerHTML = `
-            <i class="fa-solid fa-circle-check"></i>
-            <span>Congratulations! You have unlocked FREE Delivery.</span>
-        `;
-        if (checkoutBtn && !isShopClosed) {
-            checkoutBtn.removeAttribute('disabled');
-        }
-    }
-}
-
-// REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
-window.addEventListener('storage', (e) => {
-    if (!e.key || e.key === SHOP_STATUS_KEY) {
-        checkAndUpdateShopStatusUI();
-    }
-    if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
-        updateCartUI();
-    }
-    if (!e.key || e.key === MENU_STORAGE_KEY) {
-        if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
-            openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
-        }
-    }
-    if (!e.key || e.key === CART_STORAGE_KEY) {
-        cart = loadCartFromStorage();
-        updateCartUI();
-    }
-});
-
-// --------------------------------------------------------------------------
-// 5. FAST FOOD CARD INTERACTION (NAVIGATE TO CATEGORY DETAIL)
-// --------------------------------------------------------------------------
-function setupFastFoodCards() {
-    const cards = document.querySelectorAll('.fast-food-card');
-    cards.forEach(card => {
-        card.addEventListener('click', (e) => {
-            e.preventDefault(); // Prevent full page refresh
-            const categoryName = card.getAttribute('data-category') || card.getAttribute('aria-label') || 'Category';
-            const categoryImg = card.querySelector('img').src;
-            
-            // Navigate to dynamic sub-category detail view (direct add-to-cart disabled)
-            openCategoryDetail(categoryName, categoryImg);
-        });
-    });
-}
-
-// --------------------------------------------------------------------------
-// 6. CART MANAGEMENT & CALCULATIONS
-// --------------------------------------------------------------------------
-function addToCart(name, price, img) {
-    if (getCustomerShopStatus() === 'closed') {
-        showToast('This time shop is closed. We are not accepting orders right now.');
         return;
     }
-    const existingIndex = cart.findIndex(item => item.name === name);
+
+    // Enable button once min order is met
+    if (checkoutBtn) {
+        checkoutBtn.removeAttribute('disabled');
+    }
+
+    // CONDITION B: Subtotal >= Min Order BUT < Free Delivery Limit
+    if (subtotal < freeDeliveryLim) {
+        const diff = (freeDeliveryLim - subtotal).toFixed(2);
+        banner.className = 'cart-threshold-banner free-delivery-hint';
+        banner.style.display = 'block';
+        content.innerHTML = `
+            <i class="fa-solid fa-truck-fast"></i>
+            <span>Add <strong>${formatPrice(diff)}</strong> more to get <strong>FREE Delivery!</strong></span>
+        `;
+        return;
+    }
+
+    // CONDITION C: Subtotal >= Free Delivery Limit
+    banner.className = 'cart-threshold-banner free-delivery-unlocked';
+    banner.style.display = 'block';
+    content.innerHTML = `
+        <i class="fa-solid fa-circle-check"></i>
+        <span>🎉 You unlocked <strong>FREE Delivery!</strong></span>
+    `;
+}
+
+// --------------------------------------------------------------------------
+// 2. DYNAMIC CART SYSTEM (ADD, REMOVE, QUANTITY, UPDATE)
+// --------------------------------------------------------------------------
+function addToCart(item, sizeKey = null) {
+    let finalPrice = item.price;
+    let finalSize = sizeKey;
+
+    if (item.prices && sizeKey && item.prices[sizeKey]) {
+        finalPrice = item.prices[sizeKey];
+    } else if (item.isMultiSize && item.prices) {
+        finalSize = 'S';
+        finalPrice = item.prices.S;
+    }
+
+    const uniqueId = `${item.id || item.name}-${finalSize || 'std'}`;
+    const existingIndex = cart.findIndex(cartItem => (cartItem.uniqueId === uniqueId) || (cartItem.name === item.name && cartItem.size === finalSize));
+
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
     } else {
-        cart.push({ name, price, qty: 1, img });
+        cart.push({
+            id: item.id || item.name,
+            uniqueId: uniqueId,
+            name: item.name,
+            price: finalPrice,
+            img: item.img || 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop',
+            size: finalSize,
+            qty: 1
+        });
     }
-    saveCartToStorage();
+
     updateCartUI();
-    showToast(`Added ${name} to your cart!`);
+    showToast(`Added ${item.name} (${finalSize || 'Std'}) to cart!`);
 }
 
-function updateQuantity(index, change) {
-    if (getCustomerShopStatus() === 'closed' && change > 0) {
-        showToast('This time shop is closed. We are not accepting orders right now.');
-        return;
+function updateQuantity(index, delta) {
+    if (cart[index]) {
+        cart[index].qty += delta;
+        if (cart[index].qty <= 0) {
+            cart.splice(index, 1);
+        }
+        updateCartUI();
     }
-    cart[index].qty += change;
-    if (cart[index].qty <= 0) {
-        cart.splice(index, 1);
-    }
-    saveCartToStorage();
-    updateCartUI();
 }
 
 function clearCart() {
-    cart = [];
-    saveCartToStorage();
-    updateCartUI();
-    showToast('Cart cleared');
+    if (cart.length === 0) return;
+    if (confirm('Are you sure you want to clear your entire cart?')) {
+        cart = [];
+        updateCartUI();
+        showToast('Cart cleared!');
+    }
 }
 
 function updateCartUI() {
-    // 1. Update Cart Badge Count & Clear All Button Visibility
-    const totalCount = cart.reduce((sum, item) => sum + item.qty, 0);
-    cartBadge.textContent = totalCount;
-    cartBadge.style.display = totalCount > 0 ? 'flex' : 'none';
-
-    const clearCartBtn = document.getElementById('clear-cart-btn') || document.querySelector('.clear-cart-btn');
-    if (clearCartBtn) {
-        clearCartBtn.style.display = cart.length > 0 ? 'block' : 'none';
-    }
+    // 1. Update Cart Badge Count
+    const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
+    cartBadgeCount.textContent = totalItems;
+    cartBadgeCount.style.display = totalItems > 0 ? 'inline-block' : 'none';
 
     // 2. Render Cart Items List
-    if (!cartContainer) return;
-
     if (cart.length === 0) {
-        cartContainer.innerHTML = `
+        cartItemsContainer.innerHTML = `
             <div class="empty-cart-view">
-                <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
+                <i class="fa-solid fa-basket-shopping empty-cart-icon"></i>
                 <h4>Your cart is empty</h4>
-                <p>Browse categories on Home and add items to your cart!</p>
+                <p>Add some delicious meals from the menu!</p>
             </div>
         `;
     } else {
-        cartContainer.innerHTML = cart.map((item, index) => `
+        cartItemsContainer.innerHTML = cart.map((item, index) => `
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
@@ -892,40 +967,31 @@ function updateCartUI() {
         `).join('');
     }
 
-    // 3. Recalculate Subtotal, Thresholds & Delivery Fee
+    // 3. Recalculate Subtotal, Thresholds & Dynamic Delivery Fee (No Tax)
     const minOrderVal = getMinOrderValue();
     const freeDeliveryLim = getFreeDeliveryLimit();
-
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
-    let delivery = 0.00;
-    if (cart.length > 0) {
-        if (subtotal >= freeDeliveryLim) {
-            delivery = 0.00; // Condition C: Free Delivery Unlocked
-        } else {
-            delivery = 49.00; // Standard Delivery Fee
-        }
-    }
-
-    const tax = subtotal * 0.05;
-    const total = subtotal + delivery + tax;
+    const delivery = getActiveCustomerDeliveryFee(subtotal);
+    const total = subtotal + delivery;
 
     const subtotalEl = document.getElementById('cart-subtotal');
     const deliveryEl = document.getElementById('cart-delivery');
-    const taxEl = document.getElementById('cart-tax');
     const totalEl = document.getElementById('cart-total');
 
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
 
     if (deliveryEl) {
         if (cart.length > 0 && subtotal >= freeDeliveryLim) {
-            deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">₹49</span><span class="free-delivery-tag">FREE</span>`;
+            const rawBaseFee = getActiveCustomerDeliveryFee(0);
+            deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">${formatPrice(rawBaseFee)}</span><span class="free-delivery-tag">FREE</span>`;
+        } else if (delivery === 0 && cart.length > 0) {
+            deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
         } else {
             deliveryEl.textContent = formatPrice(delivery);
         }
     }
 
-    if (taxEl) taxEl.textContent = formatPrice(tax);
     if (totalEl) totalEl.textContent = formatPrice(total);
 
     // 4. Update Cart Threshold Banner & Checkout Button State
@@ -999,9 +1065,8 @@ function processCheckout() {
 
 function executeOrderPlacement(profile) {
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const tax = subtotal * 0.05;
-    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
-    const grandTotal = subtotal + tax + deliveryFee;
+    const deliveryFee = getActiveCustomerDeliveryFee(subtotal);
+    const grandTotal = subtotal + deliveryFee;
 
     // Calculate Sequential Order Number (#1, #2, #3, ...)
     let nextOrderSeq = 1;
@@ -1055,7 +1120,7 @@ function executeOrderPlacement(profile) {
         timeAgo: `${timeFormatted} • Just now`,
         items: orderItems,
         subtotal: Math.round(subtotal),
-        tax: Math.round(tax),
+        tax: 0,
         deliveryFee: deliveryFee,
         total: Math.round(grandTotal),
         paymentStatus: 'Cash on Delivery',
@@ -1661,6 +1726,8 @@ function handleConfirmMapLocation() {
     }
 
     closeCustomerMapModal();
+    updateCartUI();
+    updateProfileTotalsUI();
     showToast(`📍 Delivery location verified (${radiusCheck.distanceKm} km from store)!`);
 }
 
@@ -2171,10 +2238,7 @@ function renderProfileHeaderAndInputs(profile) {
             const currentPhoneLen = (phoneInput && phoneInput.value) ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
             verifyBtn.disabled = currentPhoneLen !== 10;
         }
-        if (statusBadge) {
-            statusBadge.className = 'gps-status-badge';
-            statusBadge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Required';
-        }
+        if (statusBadge) statusBadge.style.display = 'none';
         if (coordsDisplay) coordsDisplay.style.display = 'none';
     }
 }
@@ -2183,9 +2247,8 @@ function updateProfileTotalsUI() {
     // Update order total inside modal / summary if needed
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const tax = subtotal * 0.05;
-    const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= getFreeDeliveryLimit() ? 0 : 49) : 0;
-    const total = subtotal + tax + deliveryFee;
+    const deliveryFee = (cart.length > 0 && subtotal > 0) ? getActiveCustomerDeliveryFee(subtotal) : 0;
+    const total = subtotal + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
     const orderTotalEl = document.getElementById('modal-order-total');

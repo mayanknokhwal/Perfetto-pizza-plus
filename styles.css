@@ -2390,9 +2390,17 @@ body.shop-closed .checkout-btn {
 }
 
 .full-width-gps-field.invalid-gps {
-    border-color: var(--accent-red);
-    background-color: rgba(239, 68, 68, 0.04);
+    border-color: var(--accent-red) !important;
+    background-color: rgba(239, 68, 68, 0.06);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
     animation: shakeGps 0.4s ease;
+}
+
+.full-width-gps-field.invalid-gps .btn-open-map-selector {
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
 }
 
 @keyframes shakeGps {
