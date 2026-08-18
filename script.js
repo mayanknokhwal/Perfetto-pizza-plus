@@ -1172,7 +1172,7 @@ async function handleRequestOtp(isResend = false) {
     // UI Loading state
     if (verifyBtn && !isResend) {
         verifyBtn.disabled = true;
-        verifyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span class="verify-text">Sending...</span>';
+        verifyBtn.innerHTML = '<span class="btn-spinner"></span><span class="verify-text">Sending...</span>';
     }
 
     showToast(`📲 Sending OTP to +91 ${cleanDigits}...`);
@@ -1192,7 +1192,7 @@ async function handleRequestOtp(isResend = false) {
             otpInput.value = '';
             otpInput.focus();
         }
-        startOtpResendTimer(30);
+        startOtpResendTimer(45);
         showToast('✅ OTP sent successfully! Please enter code below.');
     };
 

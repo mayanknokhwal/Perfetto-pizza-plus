@@ -2432,6 +2432,26 @@ body.shop-closed .checkout-btn {
     line-height: 1;
 }
 
+.btn-verify-otp .btn-spinner {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    border-top-color: #ffffff;
+    animation: btnOtpSpin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    margin-right: 2px;
+}
+
+@keyframes btnOtpSpin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
 .btn-verify-otp span,
 .btn-verify-otp .verify-text {
     display: inline-block;
