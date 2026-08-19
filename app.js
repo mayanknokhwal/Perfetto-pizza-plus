@@ -907,12 +907,10 @@ function updateCartUI() {
         }
     }
 
-    const tax = subtotal * 0.05;
-    const total = subtotal + delivery + tax;
+    const total = subtotal + delivery;
 
     const subtotalEl = document.getElementById('cart-subtotal');
     const deliveryEl = document.getElementById('cart-delivery');
-    const taxEl = document.getElementById('cart-tax');
     const totalEl = document.getElementById('cart-total');
 
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
@@ -925,7 +923,6 @@ function updateCartUI() {
         }
     }
 
-    if (taxEl) taxEl.textContent = formatPrice(tax);
     if (totalEl) totalEl.textContent = formatPrice(total);
 
     // 4. Update Cart Threshold Banner & Checkout Button State
@@ -999,9 +996,8 @@ function processCheckout() {
 
 function executeOrderPlacement(profile) {
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const tax = subtotal * 0.05;
     const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
-    const grandTotal = subtotal + tax + deliveryFee;
+    const grandTotal = subtotal + deliveryFee;
 
     // Calculate Sequential Order Number (#1, #2, #3, ...)
     let nextOrderSeq = 1;
@@ -1055,7 +1051,6 @@ function executeOrderPlacement(profile) {
         timeAgo: `${timeFormatted} • Just now`,
         items: orderItems,
         subtotal: Math.round(subtotal),
-        tax: Math.round(tax),
         deliveryFee: deliveryFee,
         total: Math.round(grandTotal),
         paymentStatus: 'Cash on Delivery',
@@ -1086,9 +1081,8 @@ function openDeliveryModal() {
     // Update order summary inside modal
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const tax = subtotal * 0.05;
     const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= getFreeDeliveryLimit() ? 0 : 49) : 0;
-    const total = subtotal + tax + deliveryFee;
+    const total = subtotal + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
     const orderTotalEl = document.getElementById('modal-order-total');
@@ -2200,9 +2194,8 @@ function updateProfileTotalsUI() {
     // Update order total inside modal / summary if needed
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const tax = subtotal * 0.05;
     const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= getFreeDeliveryLimit() ? 0 : 49) : 0;
-    const total = subtotal + tax + deliveryFee;
+    const total = subtotal + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
     const orderTotalEl = document.getElementById('modal-order-total');
