@@ -670,9 +670,44 @@ const RESTAURANT_LAT_KEY = 'restaurantLatitude';
 const RESTAURANT_LNG_KEY = 'restaurantLongitude';
 const DELIVERY_RADIUS_KEY = 'deliveryRadiusKm';
 
+// 6 Flexible Zone Delivery Charges Keys & Defaults
+const ZONE_CHARGES_KEY = 'perfettoDeliveryZones';
+const DEFAULT_ZONE_CHARGES = {
+    zone1: 0,
+    zone2: 0,
+    zone3: 0,
+    zone4: 0,
+    zone5: 0,
+    zone6: 0
+};
+
 const DEFAULT_RESTAURANT_LAT = 29.533736;
 const DEFAULT_RESTAURANT_LNG = 73.447895;
 const DEFAULT_DELIVERY_RADIUS_KM = 10;
+
+function getDeliveryZoneCharges() {
+    try {
+        const stored = localStorage.getItem(ZONE_CHARGES_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            const result = {};
+            for (let i = 1; i <= 6; i++) {
+                const key = `zone${i}`;
+                const raw = parsed[key];
+                if (raw !== undefined && raw !== null && raw !== '') {
+                    const parsedNum = parseFloat(raw);
+                    result[key] = !isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : 0;
+                } else {
+                    result[key] = DEFAULT_ZONE_CHARGES[key] || 0;
+                }
+            }
+            return result;
+        }
+    } catch (e) {
+        console.error('Error reading delivery zone charges:', e);
+    }
+    return { ...DEFAULT_ZONE_CHARGES };
+}
 
 function getMinOrderValue() {
     const val = localStorage.getItem(MIN_ORDER_KEY);
@@ -710,6 +745,105 @@ function calculateDistanceHaversine(lat1, lon1, lat2, lon2) {
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in KM
+}
+
+// Map calculated distance (KM) to one of the 6 admin-configured distance zones
+function getDeliveryZoneForDistance(distKm) {
+    if (distKm <= 0.5) {
+        return { zoneNum: 1, zoneKey: 'zone1', zoneLabel: 'Zone 1 (0 - 0.5 KM)', range: '0 - 0.5 KM' };
+    } else if (distKm <= 2.0) {
+        return { zoneNum: 2, zoneKey: 'zone2', zoneLabel: 'Zone 2 (0.5 - 2 KM)', range: '0.5 - 2 KM' };
+    } else if (distKm <= 4.0) {
+        return { zoneNum: 3, zoneKey: 'zone3', zoneLabel: 'Zone 3 (2 - 4 KM)', range: '2 - 4 KM' };
+    } else if (distKm <= 6.0) {
+        return { zoneNum: 4, zoneKey: 'zone4', zoneLabel: 'Zone 4 (4 - 6 KM)', range: '4 - 6 KM' };
+    } else if (distKm <= 8.0) {
+        return { zoneNum: 5, zoneKey: 'zone5', zoneLabel: 'Zone 5 (6 - 8 KM)', range: '6 - 8 KM' };
+    } else {
+        return { zoneNum: 6, zoneKey: 'zone6', zoneLabel: 'Zone 6 (8 - 10 KM)', range: '8 - 10 KM' };
+    }
+}
+
+// Retrieve verified customer GPS coordinates from active state, form hidden fields, or saved profile
+function getCustomerVerifiedCoordinates() {
+    // 1. In-memory confirmed GPS coordinates
+    if (currentCustomerGps && typeof currentCustomerGps.lat === 'number' && typeof currentCustomerGps.lng === 'number' && !isNaN(currentCustomerGps.lat) && !isNaN(currentCustomerGps.lng)) {
+        return { lat: currentCustomerGps.lat, lng: currentCustomerGps.lng };
+    }
+
+    // 2. Hidden inputs in profile form
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    if (latHidden && lngHidden && latHidden.value && lngHidden.value) {
+        const lat = parseFloat(latHidden.value);
+        const lng = parseFloat(lngHidden.value);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            return { lat, lng };
+        }
+    }
+
+    // 3. Saved profile in localStorage
+    try {
+        const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
+        if (stored) {
+            const p = JSON.parse(stored);
+            if (p && p.gpsLat !== undefined && p.gpsLng !== undefined && p.gpsLat !== null && p.gpsLng !== null) {
+                const lat = parseFloat(p.gpsLat);
+                const lng = parseFloat(p.gpsLng);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    return { lat, lng };
+                }
+            }
+        }
+    } catch (e) {}
+
+    return null;
+}
+
+// Calculate dynamic delivery fee and zone information based on distance and order subtotal
+function calculateDynamicDeliveryInfo(subtotal, customCoords = null) {
+    const freeDeliveryLim = getFreeDeliveryLimit();
+    const coords = customCoords || getCustomerVerifiedCoordinates();
+    const restLat = getRestaurantLat();
+    const restLng = getRestaurantLng();
+    const zoneCharges = getDeliveryZoneCharges();
+
+    let distanceKm = null;
+    let zoneInfo = null;
+    let baseDeliveryFee = 0;
+    let hasVerifiedGps = false;
+
+    if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number' && !isNaN(coords.lat) && !isNaN(coords.lng)) {
+        hasVerifiedGps = true;
+        const rawDist = calculateDistanceHaversine(restLat, restLng, coords.lat, coords.lng);
+        distanceKm = parseFloat(rawDist.toFixed(2));
+        zoneInfo = getDeliveryZoneForDistance(distanceKm);
+        const configuredCharge = zoneCharges[zoneInfo.zoneKey];
+        baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge)) 
+            ? parseFloat(configuredCharge) 
+            : 0;
+    } else {
+        // Default to Zone 1 base charge when coordinates are not yet set
+        zoneInfo = getDeliveryZoneForDistance(0);
+        const configuredCharge = zoneCharges[zoneInfo.zoneKey];
+        baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge))
+            ? parseFloat(configuredCharge)
+            : 0;
+    }
+
+    const isFreeDelivery = (subtotal >= freeDeliveryLim && subtotal > 0);
+    const finalDeliveryFee = isFreeDelivery ? 0 : baseDeliveryFee;
+
+    return {
+        hasVerifiedGps,
+        coords,
+        distanceKm,
+        zoneInfo,
+        baseDeliveryFee,
+        isFreeDelivery,
+        finalDeliveryFee,
+        freeDeliveryLimit: freeDeliveryLim
+    };
 }
 
 function isWithinDeliveryRadius(userLat, userLng) {
@@ -892,19 +1026,16 @@ function updateCartUI() {
         `).join('');
     }
 
-    // 3. Recalculate Subtotal, Thresholds & Delivery Fee
+    // 3. Recalculate Subtotal, Thresholds & Dynamic Delivery Fee
     const minOrderVal = getMinOrderValue();
     const freeDeliveryLim = getFreeDeliveryLimit();
 
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
 
     let delivery = 0.00;
     if (cart.length > 0) {
-        if (subtotal >= freeDeliveryLim) {
-            delivery = 0.00; // Condition C: Free Delivery Unlocked
-        } else {
-            delivery = 49.00; // Standard Delivery Fee
-        }
+        delivery = deliveryInfo.finalDeliveryFee;
     }
 
     const total = subtotal + delivery;
@@ -916,10 +1047,20 @@ function updateCartUI() {
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
 
     if (deliveryEl) {
-        if (cart.length > 0 && subtotal >= freeDeliveryLim) {
-            deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">₹49</span><span class="free-delivery-tag">FREE</span>`;
+        if (cart.length > 0 && deliveryInfo.isFreeDelivery) {
+            if (deliveryInfo.baseDeliveryFee > 0) {
+                deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">${formatPrice(deliveryInfo.baseDeliveryFee)}</span><span class="free-delivery-tag">FREE</span>`;
+            } else {
+                deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+            }
+        } else if (cart.length > 0) {
+            if (delivery === 0) {
+                deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+            } else {
+                deliveryEl.textContent = formatPrice(delivery);
+            }
         } else {
-            deliveryEl.textContent = formatPrice(delivery);
+            deliveryEl.textContent = formatPrice(0);
         }
     }
 
@@ -996,7 +1137,11 @@ function processCheckout() {
 
 function executeOrderPlacement(profile) {
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const deliveryFee = subtotal >= getFreeDeliveryLimit() ? 0 : 49;
+    const customCoords = (profile && profile.gpsLat !== undefined && profile.gpsLng !== undefined && profile.gpsLat !== null && profile.gpsLng !== null)
+        ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
+        : null;
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
+    const deliveryFee = deliveryInfo.finalDeliveryFee;
     const grandTotal = subtotal + deliveryFee;
 
     // Calculate Sequential Order Number (#1, #2, #3, ...)
@@ -1046,7 +1191,10 @@ function executeOrderPlacement(profile) {
             colonyName: profile.colonyName,
             nearBy: profile.nearBy,
             streetName: profile.streetName,
-            wardNo: profile.wardNo
+            wardNo: profile.wardNo,
+            distanceKm: deliveryInfo.distanceKm,
+            zone: deliveryInfo.zoneInfo ? deliveryInfo.zoneInfo.zoneNum : null,
+            zoneLabel: deliveryInfo.zoneInfo ? deliveryInfo.zoneInfo.zoneLabel : ''
         },
         timeAgo: `${timeFormatted} • Just now`,
         items: orderItems,
@@ -1081,7 +1229,8 @@ function openDeliveryModal() {
     // Update order summary inside modal
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= getFreeDeliveryLimit() ? 0 : 49) : 0;
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
+    const deliveryFee = (cart.length > 0 && subtotal > 0) ? deliveryInfo.finalDeliveryFee : 0;
     const total = subtotal + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
@@ -1663,6 +1812,10 @@ function handleConfirmMapLocation() {
 
     closeCustomerMapModal();
     showToast(`📍 Delivery location verified (${radiusCheck.distanceKm} km from store)!`);
+
+    // Recalculate dynamic delivery fee & update cart / profile UI in real-time
+    updateCartUI();
+    updateProfileTotalsUI();
 }
 
 function handlePhoneInputChange(input) {
@@ -2064,9 +2217,10 @@ function handleSaveProfile(event) {
         console.error('Error saving delivery profile to localStorage:', e);
     }
 
-    // Immediately update header UI & form inputs
+    // Immediately update header UI, form inputs & cart totals in real-time
     renderProfileHeaderAndInputs(profile);
     updateProfileTotalsUI();
+    updateCartUI();
     toggleEditProfileForm(false);
 
     showToast('✅ Profile & Home Address saved successfully!');
@@ -2191,10 +2345,11 @@ function renderProfileHeaderAndInputs(profile) {
 }
 
 function updateProfileTotalsUI() {
-    // Update order total inside modal / summary if needed
+    // Update order total inside modal / summary with dynamic delivery fee
     const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const deliveryFee = (cart.length > 0 && subtotal > 0) ? (subtotal >= getFreeDeliveryLimit() ? 0 : 49) : 0;
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
+    const deliveryFee = (cart.length > 0 && subtotal > 0) ? deliveryInfo.finalDeliveryFee : 0;
     const total = subtotal + deliveryFee;
 
     const itemCountEl = document.getElementById('modal-item-count');
@@ -3162,9 +3317,10 @@ function setupLocalStorageSync() {
             checkAndUpdateShopStatusUI();
             updateCartUI();
         }
-        // 2. Thresholds changed by Admin (Min Order, Free Delivery)
-        if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
+        // 2. Thresholds or Zone Charges changed by Admin (Min Order, Free Delivery, Zones, Restaurant Coords, Delivery Radius)
+        if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === ZONE_CHARGES_KEY || e.key === RESTAURANT_LAT_KEY || e.key === RESTAURANT_LNG_KEY || e.key === DELIVERY_RADIUS_KEY) {
             updateCartUI();
+            updateProfileTotalsUI();
         }
         // 3. Menu changed by Admin
         if (!e.key || e.key === MENU_STORAGE_KEY) {
@@ -3181,9 +3337,8 @@ function setupLocalStorageSync() {
         }
         // 5. Customer Profile changed
         if (!e.key || e.key === DELIVERY_PROFILE_KEY) {
-            if (activeTabName === 'profile') {
-                updateProfileTotalsUI();
-            }
+            updateCartUI();
+            updateProfileTotalsUI();
         }
         // 6. Customer Care Phone or Visibility changed by Admin
         if (!e.key || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY) {
@@ -3196,6 +3351,12 @@ function setupLocalStorageSync() {
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize customer GPS coords from saved profile if available
+    const savedProfile = getSavedDeliveryProfile();
+    if (savedProfile && savedProfile.gpsLat !== null && savedProfile.gpsLng !== null) {
+        currentCustomerGps = { lat: savedProfile.gpsLat, lng: savedProfile.gpsLng };
+    }
+
     initTheme();
     setupNavigation();
     setupFastFoodCards();
