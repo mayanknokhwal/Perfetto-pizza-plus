@@ -2390,9 +2390,30 @@ body.shop-closed .checkout-btn {
 }
 
 .full-width-gps-field.invalid-gps {
-    border-color: var(--accent-red);
+    border-color: var(--accent-red) !important;
     background-color: rgba(239, 68, 68, 0.04);
     animation: shakeGps 0.4s ease;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.full-width-gps-field.invalid-gps .btn-open-map-selector,
+.btn-open-map-selector.invalid-gps-btn {
+    border-color: var(--accent-red) !important;
+    color: var(--accent-red) !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
+    animation: pulseRedBorder 1.2s ease infinite;
+}
+
+@keyframes pulseRedBorder {
+    0%, 100% {
+        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+        border-color: #ef4444;
+    }
+    50% {
+        box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.4);
+        border-color: #dc2626;
+    }
 }
 
 @keyframes shakeGps {

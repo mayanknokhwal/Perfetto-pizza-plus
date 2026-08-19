@@ -1639,12 +1639,15 @@ function handleConfirmMapLocation() {
     const gpsContainer = document.querySelector('.full-width-gps-field');
     const gpsBtnText = document.getElementById('gps-btn-text');
 
+    const mapBtn = document.getElementById('btn-open-map-modal');
+
     if (latHidden) latHidden.value = lat;
     if (lngHidden) lngHidden.value = lng;
 
     if (statusBadge) {
         statusBadge.className = 'gps-status-badge verified';
         statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
+        statusBadge.style.display = 'inline-flex';
     }
 
     if (coordsDisplay) {
@@ -1654,6 +1657,10 @@ function handleConfirmMapLocation() {
     if (gpsContainer) {
         gpsContainer.classList.remove('invalid-gps');
         gpsContainer.classList.add('gps-verified');
+    }
+
+    if (mapBtn) {
+        mapBtn.classList.remove('invalid-gps-btn');
     }
 
     if (gpsBtnText) {
@@ -2037,7 +2044,10 @@ function handleSaveProfile(event) {
             gpsContainer.classList.add('invalid-gps');
             gpsContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        if (mapBtn) mapBtn.focus();
+        if (mapBtn) {
+            mapBtn.classList.add('invalid-gps-btn');
+            mapBtn.focus();
+        }
         return;
     }
 
@@ -2088,6 +2098,7 @@ function renderProfileHeaderAndInputs(profile) {
     const coordsText = document.getElementById('gps-coords-text');
     const gpsContainer = document.querySelector('.full-width-gps-field');
     const gpsBtnText = document.getElementById('gps-btn-text');
+    const mapBtn = document.getElementById('btn-open-map-modal');
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
@@ -2128,6 +2139,7 @@ function renderProfileHeaderAndInputs(profile) {
             if (statusBadge) {
                 statusBadge.className = 'gps-status-badge verified';
                 statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
+                statusBadge.style.display = 'inline-flex';
             }
             if (coordsDisplay) {
                 coordsDisplay.style.display = 'flex';
@@ -2135,6 +2147,9 @@ function renderProfileHeaderAndInputs(profile) {
             if (gpsContainer) {
                 gpsContainer.classList.add('gps-verified');
                 gpsContainer.classList.remove('invalid-gps');
+            }
+            if (mapBtn) {
+                mapBtn.classList.remove('invalid-gps-btn');
             }
             if (gpsBtnText) {
                 gpsBtnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh GPS Location';
@@ -2173,9 +2188,11 @@ function renderProfileHeaderAndInputs(profile) {
         }
         if (statusBadge) {
             statusBadge.className = 'gps-status-badge';
-            statusBadge.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Required';
+            statusBadge.innerHTML = '';
+            statusBadge.style.display = 'none';
         }
         if (coordsDisplay) coordsDisplay.style.display = 'none';
+        if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
     }
 }
 

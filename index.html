@@ -294,28 +294,6 @@
                                 </div>
                             </div>
 
-                            <!-- INTERACTIVE GPS LOCATION CAPTURE FIELD (MANDATORY WITH MAP POPUP) -->
-                            <div class="hyperlocal-field full-width-gps-field">
-                                <div class="gps-field-header">
-                                    <label for="btn-open-map-modal">
-                                        <i class="fa-solid fa-map-location-dot" style="color: var(--primary-orange);"></i> GPS Location Verification <span class="req-star">*</span>
-                                    </label>
-                                    <span class="gps-status-badge" id="gps-status-badge">
-                                        <i class="fa-solid fa-circle-exclamation"></i> Required
-                                    </span>
-                                </div>
-                                <div class="gps-action-container">
-                                    <button type="button" class="btn-open-map-selector" id="btn-open-map-modal" onclick="openCustomerMapModal()">
-                                        <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
-                                    </button>
-                                    <input type="hidden" id="customer-gps-lat" value="">
-                                    <input type="hidden" id="customer-gps-lng" value="">
-                                </div>
-                                <div class="gps-coordinates-display" id="gps-coordinates-display" style="display: none;">
-                                    <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location Pinned on Map</span>
-                                </div>
-                            </div>
-
                             <div class="hyperlocal-field">
                                 <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
@@ -345,6 +323,26 @@
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-hashtag"></i>
                                     <input type="text" id="customer-ward-no" required placeholder="Ward No.">
+                                </div>
+                            </div>
+
+                            <!-- INTERACTIVE GPS LOCATION CAPTURE FIELD (MANDATORY WITH MAP POPUP) -->
+                            <div class="hyperlocal-field full-width-gps-field">
+                                <div class="gps-field-header">
+                                    <label for="btn-open-map-modal">
+                                        <i class="fa-solid fa-map-location-dot" style="color: var(--primary-orange);"></i> GPS Location Verification <span class="req-star">*</span>
+                                    </label>
+                                    <span class="gps-status-badge" id="gps-status-badge" style="display: none;"></span>
+                                </div>
+                                <div class="gps-action-container">
+                                    <button type="button" class="btn-open-map-selector" id="btn-open-map-modal" onclick="openCustomerMapModal()">
+                                        <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
+                                    </button>
+                                    <input type="hidden" id="customer-gps-lat" value="">
+                                    <input type="hidden" id="customer-gps-lng" value="">
+                                </div>
+                                <div class="gps-coordinates-display" id="gps-coordinates-display" style="display: none;">
+                                    <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location Pinned on Map</span>
                                 </div>
                             </div>
                         </div>
