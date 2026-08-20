@@ -93,12 +93,29 @@ const categoryThemeToggleBtn = document.getElementById('category-theme-toggle');
 if (categoryThemeToggleBtn) categoryThemeToggleBtn.addEventListener('click', toggleTheme);
 
 // --------------------------------------------------------------------------
+// PROFILE REDIRECTION NOTICE BANNER CONTROLLER
+// --------------------------------------------------------------------------
+function showProfileRedirectNotice(show) {
+    const banner = document.getElementById('profile-redirect-notice');
+    if (banner) {
+        banner.style.display = show ? 'block' : 'none';
+        if (show) {
+            banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+// --------------------------------------------------------------------------
 // 3. FIXED BOTTOM NAVIGATION TAB CONTROLLER
 // --------------------------------------------------------------------------
 function setupNavigation() {
     navItems.forEach(item => {
         item.addEventListener('click', () => {
             const targetTab = item.getAttribute('data-tab');
+            if (targetTab === 'profile') {
+                // When manually navigating to Profile tab, do not show the cart redirection banner
+                showProfileRedirectNotice(false);
+            }
             switchTab(targetTab);
         });
     });
@@ -121,8 +138,8 @@ function switchTab(tabName, forceRootHome = false, isPopState = false) {
         const savedProfile = getSavedDeliveryProfile();
         if (!savedProfile) {
             tabName = 'profile';
+            showProfileRedirectNotice(true);
             toggleEditProfileForm(true);
-            showToast('👋 Welcome! Please complete your profile and delivery address first.');
         }
     }
 
@@ -392,7 +409,7 @@ function getSubItems(categoryName, categoryImg) {
             available: true
         }));
     }
-    
+
     return [
         { id: `${categoryName}-1`, name: `${categoryName} Option 1`, desc: `Freshly prepared item variation for ${categoryName}`, price: 179.00, tag: "Variety 1", img: categoryImg, available: true },
         { id: `${categoryName}-2`, name: `${categoryName} Option 2`, desc: `Special chef recipe variation for ${categoryName}`, price: 199.00, tag: "Variety 2", img: categoryImg, available: true },
@@ -403,13 +420,13 @@ function getSubItems(categoryName, categoryImg) {
 
 function changePizzaSize(pizzaId, size, price, event) {
     if (event) event.stopPropagation();
-    
+
     const card = document.querySelector(`.pizza-card[data-pizza-id="${pizzaId}"]`);
     if (!card) return;
-    
+
     card.setAttribute('data-selected-size', size);
     card.setAttribute('data-current-price', price);
-    
+
     const sizeBtns = card.querySelectorAll('.size-btn');
     sizeBtns.forEach(btn => {
         if (btn.getAttribute('data-size') === size) {
@@ -419,7 +436,7 @@ function changePizzaSize(pizzaId, size, price, event) {
         }
         btn.classList.remove('active');
     });
-    
+
     const priceEl = card.querySelector('.pizza-card-price');
     if (priceEl) {
         priceEl.classList.remove('price-pop-orange', 'animating');
@@ -433,11 +450,11 @@ function toggleIngredients(pizzaId, event) {
     if (event) event.stopPropagation();
     const descEl = document.getElementById(`desc-${pizzaId}`);
     if (!descEl) return;
-    
+
     const textSpan = descEl.querySelector('.desc-text');
     const btn = descEl.querySelector('.more-btn');
     if (!textSpan || !btn) return;
-    
+
     const fullText = textSpan.getAttribute('data-full') || textSpan.textContent;
     const shortText = textSpan.getAttribute('data-short') || fullText;
 
@@ -456,19 +473,19 @@ function toggleIngredients(pizzaId, event) {
 
 function addPizzaToCart(pizzaId, event) {
     if (event) event.stopPropagation();
-    
+
     const card = document.querySelector(`.pizza-card[data-pizza-id="${pizzaId}"]`);
     if (!card) return;
 
     if (card.classList.contains('out-of-stock')) return;
-    
+
     const pizzaList = getSubItems("Pizza");
     const item = pizzaList.find(p => p.id === pizzaId);
     if (!item || item.available === false) return;
-    
+
     const selectedSize = card.getAttribute('data-selected-size') || 'M';
     const price = parseFloat(card.getAttribute('data-current-price')) || (item.prices ? item.prices[selectedSize] : 299);
-    
+
     const cartItemTitle = `${item.name} (${selectedSize})`;
     addToCart(cartItemTitle, price, item.img);
 }
@@ -478,7 +495,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
     const heroImgEl = document.getElementById('category-hero-img');
     const heroCountEl = document.getElementById('category-hero-count');
     const subItemsGrid = document.getElementById('sub-items-grid');
-    
+
     if (!isRestoringState) {
         lastCategoryState.categoryName = categoryName;
         lastCategoryState.categoryImg = categoryImg;
@@ -494,19 +511,19 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
     }
 
     const items = getSubItems(categoryName, categoryImg);
-    
+
     const titleText = categoryName.toLowerCase().includes('menu') ? categoryName : `${categoryName} Menu`;
     if (heroTitleEl) heroTitleEl.textContent = titleText;
     if (heroImgEl) heroImgEl.src = categoryImg;
     if (heroCountEl) heroCountEl.textContent = `${items.length} options available`;
-    
+
     if (subItemsGrid) {
         if (categoryName === "Pizza") {
             subItemsGrid.classList.add('pizza-grid-container');
             subItemsGrid.innerHTML = items.map(item => {
                 const ingredients = item.desc ? item.desc.split(/[,&]/).map(s => s.trim()).filter(Boolean) : [];
                 const hasMoreThanFive = ingredients.length > 5;
-                
+
                 let descMarkup = '';
                 if (hasMoreThanFive) {
                     const shortText = ingredients.slice(0, 5).join(', ') + '...';
@@ -530,7 +547,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                 const prices = item.prices || { S: 199, M: 299, L: 399 };
-                       
+
                 return `
                 <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${prices.M}">
                     ${outOfStockBadge}
@@ -591,7 +608,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             }).join('');
         }
     }
-    
+
     switchTab('category-detail', false, true);
 
     if (isRestoringState && lastCategoryState.scrollY > 0) {
@@ -713,9 +730,9 @@ function calculateDistanceHaversine(lat1, lon1, lat2, lon2) {
     const R = 6371; // Earth's radius in kilometers
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = 
+    const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in KM
@@ -769,7 +786,7 @@ function getCustomerVerifiedCoordinates() {
                 }
             }
         }
-    } catch (e) {}
+    } catch (e) { }
 
     return null;
 }
@@ -793,8 +810,8 @@ function calculateDynamicDeliveryInfo(subtotal, customCoords = null) {
         distanceKm = parseFloat(rawDist.toFixed(2));
         zoneInfo = getDeliveryZoneForDistance(distanceKm);
         const configuredCharge = zoneCharges[zoneInfo.zoneKey];
-        baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge)) 
-            ? parseFloat(configuredCharge) 
+        baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge))
+            ? parseFloat(configuredCharge)
             : 0;
     } else {
         // Default to Zone 1 base charge when coordinates are not yet set
@@ -915,7 +932,7 @@ function setupFastFoodCards() {
             e.preventDefault(); // Prevent full page refresh
             const categoryName = card.getAttribute('data-category') || card.getAttribute('aria-label') || 'Category';
             const categoryImg = card.querySelector('img').src;
-            
+
             // Navigate to dynamic sub-category detail view (direct add-to-cart disabled)
             openCategoryDetail(categoryName, categoryImg);
         });
@@ -938,6 +955,15 @@ function addToCart(name, price, img) {
     }
     saveCartToStorage();
     updateCartUI();
+
+    const savedProfile = getSavedDeliveryProfile();
+    if (!savedProfile) {
+        showProfileRedirectNotice(true);
+        switchTab('profile', true);
+        toggleEditProfileForm(true);
+        return;
+    }
+
     showToast(`Added ${name} to your cart!`);
 }
 
@@ -1073,6 +1099,11 @@ function getSavedDeliveryProfile() {
     return null;
 }
 
+// --------------------------------------------------------------------------
+// CHECKOUT & PAYMENT FLOW CONTROLLER
+// --------------------------------------------------------------------------
+let isCheckoutAddressConfirmed = false;
+
 function processCheckout() {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
@@ -1097,19 +1128,160 @@ function processCheckout() {
     // Check if delivery profile already exists and is complete
     const savedProfile = getSavedDeliveryProfile();
     if (savedProfile) {
-        // Automatically place the order with existing profile
-        executeOrderPlacement(savedProfile);
+        openCheckoutModal(savedProfile);
         return;
     }
 
     // If missing or incomplete, redirect directly to Profile tab form and open it!
+    showProfileRedirectNotice(true);
     switchTab('profile', true);
     updateProfileTotalsUI();
     toggleEditProfileForm(true);
-    showToast('Please enter your delivery details to complete checkout.');
 }
 
-function executeOrderPlacement(profile) {
+function openCheckoutModal(profile) {
+    const modal = document.getElementById('checkout-modal');
+    if (!modal) return;
+
+    const itemCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    const customCoords = (profile && profile.gpsLat !== undefined && profile.gpsLng !== undefined && profile.gpsLat !== null && profile.gpsLng !== null)
+        ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
+        : null;
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
+    const deliveryFee = deliveryInfo.finalDeliveryFee;
+    const grandTotal = subtotal + deliveryFee;
+
+    // 1. Update Order Summary inside Checkout Modal
+    const itemCountEl = document.getElementById('checkout-item-count');
+    const subtotalEl = document.getElementById('checkout-subtotal');
+    const deliveryEl = document.getElementById('checkout-delivery');
+    const totalEl = document.getElementById('checkout-total');
+
+    if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+    if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
+    if (deliveryEl) {
+        if (deliveryInfo.isFreeDelivery) {
+            if (deliveryInfo.baseDeliveryFee > 0) {
+                deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.82rem; margin-right: 4px;">${formatPrice(deliveryInfo.baseDeliveryFee)}</span><span class="free-delivery-tag">FREE</span>`;
+            } else {
+                deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+            }
+        } else if (deliveryFee === 0) {
+            deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+        } else {
+            deliveryEl.textContent = formatPrice(deliveryFee);
+        }
+    }
+    if (totalEl) totalEl.textContent = formatPrice(grandTotal);
+
+    // 2. Render Saved Address Summary Card inside Checkout
+    const addressContentEl = document.getElementById('checkout-address-content');
+    if (addressContentEl && profile) {
+        const gpsInfo = (profile.gpsLat && profile.gpsLng)
+            ? `<div style="margin-top: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 700;">
+                 <i class="fa-solid fa-location-crosshairs"></i> GPS Verified (${deliveryInfo.distanceKm !== null ? deliveryInfo.distanceKm + ' km from store' : 'Location pinned'})
+               </div>`
+            : '';
+
+        addressContentEl.innerHTML = `
+            <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
+                <i class="fa-solid fa-user" style="color: var(--primary-orange); margin-right: 6px;"></i>${profile.fullName || 'Customer'} (${profile.phone || ''})
+            </div>
+            <div><strong style="color: var(--text-muted);">Colony:</strong> ${profile.colonyName || 'N/A'}</div>
+            <div><strong style="color: var(--text-muted);">Landmark:</strong> ${profile.nearBy || 'N/A'}</div>
+            <div><strong style="color: var(--text-muted);">Street:</strong> ${profile.streetName || 'N/A'}</div>
+            <div><strong style="color: var(--text-muted);">Ward No:</strong> ${profile.wardNo || 'N/A'}</div>
+            ${gpsInfo}
+        `;
+    }
+
+    // Reset Address confirmation state & hide payment alert
+    isCheckoutAddressConfirmed = false;
+    const confirmBtn = document.getElementById('btn-confirm-address-action');
+    const paymentSection = document.getElementById('checkout-payment-section');
+    const onlineAlert = document.getElementById('online-payment-alert');
+
+    if (confirmBtn) {
+        confirmBtn.className = 'btn-confirm-address-action';
+        confirmBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Confirm Address';
+    }
+    if (paymentSection) {
+        paymentSection.style.opacity = '0.5';
+        paymentSection.style.pointerEvents = 'none';
+    }
+    if (onlineAlert) {
+        onlineAlert.style.display = 'none';
+    }
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeCheckoutModal() {
+    const modal = document.getElementById('checkout-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+}
+
+function handleEditAddressFromCheckout() {
+    closeCheckoutModal();
+    switchTab('profile', true);
+    toggleEditProfileForm(true);
+    showToast('Update your profile and address details below.');
+}
+
+function handleConfirmAddressForCheckout() {
+    isCheckoutAddressConfirmed = true;
+    const confirmBtn = document.getElementById('btn-confirm-address-action');
+    const paymentSection = document.getElementById('checkout-payment-section');
+
+    if (confirmBtn) {
+        confirmBtn.className = 'btn-confirm-address-action address-confirmed';
+        confirmBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Address Confirmed ✓';
+    }
+    if (paymentSection) {
+        paymentSection.style.opacity = '1';
+        paymentSection.style.pointerEvents = 'auto';
+        paymentSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    showToast('✅ Address confirmed! Please select your payment mode.');
+}
+
+function handleSelectOnlinePayment() {
+    if (!isCheckoutAddressConfirmed) {
+        showToast('⚠️ Please tap "Confirm Address" first.');
+        return;
+    }
+    const onlineAlert = document.getElementById('online-payment-alert');
+    if (onlineAlert) {
+        onlineAlert.style.display = 'flex';
+        onlineAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    showToast('⚠️ Online Payment is currently under development. Please choose Cash on Delivery (COD).');
+}
+
+function handleSelectCodPayment() {
+    if (!isCheckoutAddressConfirmed) {
+        showToast('⚠️ Please tap "Confirm Address" first.');
+        return;
+    }
+    const savedProfile = getSavedDeliveryProfile();
+    if (!savedProfile) {
+        closeCheckoutModal();
+        switchTab('profile', true);
+        toggleEditProfileForm(true);
+        showToast('Please complete your delivery address first.');
+        return;
+    }
+
+    closeCheckoutModal();
+    executeOrderPlacement(savedProfile, 'Cash on Delivery');
+}
+
+function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery') {
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     const customCoords = (profile && profile.gpsLat !== undefined && profile.gpsLng !== undefined && profile.gpsLat !== null && profile.gpsLng !== null)
         ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
@@ -1175,7 +1347,7 @@ function executeOrderPlacement(profile) {
         subtotal: Math.round(subtotal),
         deliveryFee: deliveryFee,
         total: Math.round(grandTotal),
-        paymentStatus: 'Cash on Delivery',
+        paymentStatus: paymentMethod || 'Cash on Delivery',
         status: 'new',
         createdAt: now.toISOString()
     };
@@ -1194,54 +1366,6 @@ function executeOrderPlacement(profile) {
     updateCartUI();
     updateProfileTotalsUI();
     switchTab('home', true);
-}
-
-function openDeliveryModal() {
-    const modal = document.getElementById('delivery-modal');
-    if (!modal) return;
-
-    // Update order summary inside modal
-    const itemCount = cart.reduce((sum, i) => sum + (i.qty || 0), 0);
-    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
-    const deliveryFee = (cart.length > 0 && subtotal > 0) ? deliveryInfo.finalDeliveryFee : 0;
-    const total = subtotal + deliveryFee;
-
-    const itemCountEl = document.getElementById('modal-item-count');
-    const orderTotalEl = document.getElementById('modal-order-total');
-    if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
-    if (orderTotalEl) orderTotalEl.textContent = formatPrice(total);
-
-    // Pre-fill profile if saved previously in localStorage
-    try {
-        const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
-        if (savedProfile) {
-            const profile = JSON.parse(savedProfile);
-            if (profile.fullName && document.getElementById('customer-fullname')) {
-                document.getElementById('customer-fullname').value = profile.fullName;
-            }
-            if (profile.phone && document.getElementById('customer-phone')) {
-                document.getElementById('customer-phone').value = profile.phone;
-            }
-            if (profile.colonyName && document.getElementById('customer-colony-name')) {
-                document.getElementById('customer-colony-name').value = profile.colonyName;
-            }
-            if (profile.nearBy && document.getElementById('customer-nearby')) {
-                document.getElementById('customer-nearby').value = profile.nearBy;
-            }
-            if (profile.streetName && document.getElementById('customer-street-name')) {
-                document.getElementById('customer-street-name').value = profile.streetName;
-            }
-            if (profile.wardNo && document.getElementById('customer-ward-no')) {
-                document.getElementById('customer-ward-no').value = profile.wardNo;
-            }
-        }
-    } catch (e) {
-        console.error('Error loading saved delivery profile:', e);
-    }
-
-    setupDeliveryInputValidation();
-    updateProfileTotalsUI();
 }
 
 function setupDeliveryInputValidation() {
@@ -1604,7 +1728,7 @@ function clampCoordsToDeliveryRadius(lat, lng) {
     const dLon = (lng - storeLng) * (Math.PI / 180);
     const y = Math.sin(dLon) * Math.cos(lat * (Math.PI / 180));
     const x = Math.cos(storeLat * (Math.PI / 180)) * Math.sin(lat * (Math.PI / 180)) -
-              Math.sin(storeLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.cos(dLon);
+        Math.sin(storeLat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.cos(dLon);
     const bearing = Math.atan2(y, x);
 
     const R = 6371; // Earth's radius in KM
@@ -1614,9 +1738,9 @@ function clampCoordsToDeliveryRadius(lat, lng) {
     const storeLngRad = storeLng * (Math.PI / 180);
 
     const clampedLatRad = Math.asin(Math.sin(storeLatRad) * Math.cos(angularDist) +
-                          Math.cos(storeLatRad) * Math.sin(angularDist) * Math.cos(bearing));
+        Math.cos(storeLatRad) * Math.sin(angularDist) * Math.cos(bearing));
     const clampedLngRad = storeLngRad + Math.atan2(Math.sin(bearing) * Math.sin(angularDist) * Math.cos(storeLatRad),
-                          Math.cos(angularDist) - Math.sin(storeLatRad) * Math.sin(clampedLatRad));
+        Math.cos(angularDist) - Math.sin(storeLatRad) * Math.sin(clampedLatRad));
 
     return {
         lat: parseFloat((clampedLatRad * (180 / Math.PI)).toFixed(6)),
@@ -2173,13 +2297,13 @@ function handleSaveProfile(event) {
     }
 
     // Save profile with GPS Coordinates to localStorage
-    const profile = { 
-        fullName, 
-        phone: cleanPhone, 
-        colonyName, 
-        nearBy, 
-        streetName, 
-        wardNo, 
+    const profile = {
+        fullName,
+        phone: cleanPhone,
+        colonyName,
+        nearBy,
+        streetName,
+        wardNo,
         isVerified: true,
         gpsLat: latVal,
         gpsLng: lngVal
@@ -2190,6 +2314,9 @@ function handleSaveProfile(event) {
     } catch (e) {
         console.error('Error saving delivery profile to localStorage:', e);
     }
+
+    // Hide the cart redirection notice banner upon successful profile completion & save
+    showProfileRedirectNotice(false);
 
     // Immediately update header UI, form inputs & cart totals in real-time
     renderProfileHeaderAndInputs(profile);
@@ -2339,7 +2466,7 @@ function updateProfileTotalsUI() {
             const list = JSON.parse(storedOrders);
             if (Array.isArray(list)) orderCount = list.length;
         }
-    } catch (e) {}
+    } catch (e) { }
 
     const totalOrdersEl = document.getElementById('stat-total-orders');
     if (totalOrdersEl) totalOrdersEl.textContent = orderCount;
@@ -2351,7 +2478,7 @@ function updateProfileTotalsUI() {
         if (savedProfile) {
             currentProfile = JSON.parse(savedProfile);
         }
-    } catch (e) {}
+    } catch (e) { }
 
     renderProfileHeaderAndInputs(currentProfile);
 }
@@ -2387,7 +2514,7 @@ function renderSavedAddressDetails() {
         if (savedProfile) {
             const p = JSON.parse(savedProfile);
             if (p.fullName || p.colonyName || p.streetName) {
-                const gpsInfo = (p.gpsLat && p.gpsLng) 
+                const gpsInfo = (p.gpsLat && p.gpsLng)
                     ? `<div style="margin-top: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 700;">
                          <i class="fa-solid fa-location-crosshairs"></i> GPS: ${p.gpsLat}, ${p.gpsLng}
                        </div>`
@@ -2406,7 +2533,7 @@ function renderSavedAddressDetails() {
                 return;
             }
         }
-    } catch (e) {}
+    } catch (e) { }
 
     textContentEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No saved address found. Click 'Edit Details' to set your delivery address.</span>`;
 }
@@ -2467,7 +2594,7 @@ function renderOrderHistoryDetails() {
                 return;
             }
         }
-    } catch (e) {}
+    } catch (e) { }
 
     if (clearBtn) clearBtn.style.display = 'none';
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No order history found yet.</span>`;
@@ -3036,7 +3163,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
 
             const ingredients = item.desc ? item.desc.split(/[,&]/).map(s => s.trim()).filter(Boolean) : [];
             const hasMoreThanFive = ingredients.length > 5;
-            
+
             let descMarkup = '';
             if (hasMoreThanFive) {
                 const shortText = ingredients.slice(0, 5).join(', ') + '...';
