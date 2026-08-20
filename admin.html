@@ -1366,7 +1366,7 @@
                     <div class="stat-card">
                         <div class="stat-info">
                             <div class="stat-label">Total Revenue</div>
-                            <div class="stat-value">₹48,250</div>
+                            <div class="stat-value" id="stat-total-revenue">₹0</div>
                         </div>
                         <div class="stat-icon icon-green">
                             <i class="fa-solid fa-indian-rupee-sign"></i>
@@ -2688,20 +2688,40 @@
             updateRevenueStats();
         }
 
-        function updateRevenueStats() {
+        async function updateRevenueStats() {
+            let orders = [];
             try {
                 const storedOrders = localStorage.getItem('perfettoCustomerOrders');
                 if (storedOrders) {
-                    const orders = JSON.parse(storedOrders);
-                    if (Array.isArray(orders)) {
-                        const totalRevenue = orders.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
-                        const revenueEl = document.querySelector('.stat-value');
-                        if (revenueEl && totalRevenue > 0) {
-                            revenueEl.textContent = `₹${totalRevenue.toLocaleString('en-IN')}`;
-                        }
-                    }
+                    const parsed = JSON.parse(storedOrders);
+                    if (Array.isArray(parsed)) orders = parsed;
                 }
             } catch (e) {}
+
+            function applyRevenueUI(orderList) {
+                if (!Array.isArray(orderList) || orderList.length === 0) return;
+                const totalRevenue = orderList.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
+                const revenueEl = document.querySelector('.stat-value');
+                if (revenueEl && totalRevenue > 0) {
+                    revenueEl.textContent = `₹${totalRevenue.toLocaleString('en-IN')}`;
+                }
+            }
+
+            applyRevenueUI(orders);
+
+            // Fetch live orders from MongoDB Atlas backend
+            try {
+                const res = await fetch('/api/orders');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.orders)) {
+                    applyRevenueUI(data.orders);
+                    try {
+                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(data.orders));
+                    } catch (e) {}
+                }
+            } catch (err) {
+                console.warn('Admin revenue MongoDB sync notice (local resilience active):', err.message);
+            }
         }
 
         // 8. TAB NAVIGATION CONTROLLER
@@ -3254,12 +3274,82 @@
             }
         });
 
+        // 13. LIVE REVENUE STATS & 5-SECOND BACKEND POLLING
+        function updateRevenueStats(ordersData) {
+            let ordersList = [];
+            if (Array.isArray(ordersData)) {
+                ordersList = ordersData;
+            } else {
+                try {
+                    const stored = localStorage.getItem('perfettoCustomerOrders');
+                    if (stored) {
+                        ordersList = JSON.parse(stored) || [];
+                    }
+                } catch (e) { }
+            }
+
+            const revEl = document.getElementById('stat-total-revenue');
+            if (revEl) {
+                if (ordersList.length > 0) {
+                    const totalRev = ordersList.reduce((sum, o) => {
+                        const amount = Number(o.total || (o.costs && o.costs.total) || 0);
+                        return sum + (isNaN(amount) ? 0 : amount);
+                    }, 0);
+                    revEl.textContent = `₹${totalRev.toLocaleString('en-IN')}`;
+                } else {
+                    revEl.textContent = '₹0';
+                }
+            }
+        }
+
+        async function fetchAdminOrdersFromBackend() {
+            try {
+                const res = await fetch('/api/orders');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.orders)) {
+                    const serverOrders = data.orders;
+                    let localOrders = [];
+                    try {
+                        const stored = localStorage.getItem('perfettoCustomerOrders');
+                        if (stored) localOrders = JSON.parse(stored) || [];
+                    } catch (e) { }
+
+                    const mergedMap = new Map();
+                    serverOrders.forEach(o => {
+                        const id = String(o.orderId || o.id);
+                        mergedMap.set(id, o);
+                    });
+                    localOrders.forEach(o => {
+                        const id = String(o.orderId || o.id);
+                        if (!mergedMap.has(id)) mergedMap.set(id, o);
+                    });
+
+                    const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
+                        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                    });
+
+                    try {
+                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(mergedList));
+                    } catch (e) { }
+
+                    updateRevenueStats(mergedList);
+                }
+            } catch (err) {
+                // Fallback to local storage
+                updateRevenueStats();
+            }
+        }
+
         // INITIALIZE ON LOAD, HISTORY STATE & CROSS-TAB STORAGE SYNCHRONIZATION
         window.addEventListener('DOMContentLoaded', () => {
             initMenuData();
             initShopStatus();
             initOrderSettingsUI();
             updateRevenueStats();
+            fetchAdminOrdersFromBackend();
+
+            // Set lightweight polling interval to refresh revenue and orders every 5 seconds
+            setInterval(fetchAdminOrdersFromBackend, 5000);
 
             // Set initial History API state for root category grid
             if (!history.state) {

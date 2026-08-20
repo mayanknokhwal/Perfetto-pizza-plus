@@ -22,58 +22,133 @@
     <!-- APP CONTAINER (Mobile Frame Max Width centered on desktop) -->
     <div class="staff-app">
         
-        <!-- HEADER BAR -->
-        <header class="staff-header">
-            <div class="header-top">
-                <div class="brand-info">
-                    <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-logo">
-                    <div>
-                        <h1 class="brand-title">Perfetto Pizza</h1>
-                        <div class="brand-tag">Staff Portal</div>
+        <!-- ========================================================== -->
+        <!-- 1. SECURE STAFF LOGIN SCREEN (Access Guard) -->
+        <!-- ========================================================== -->
+        <section id="staff-login-screen" class="staff-login-screen" aria-label="Staff Login">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="login-logo-wrap">
+                        <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Pizza Logo" class="login-logo">
+                    </div>
+                    <h1 class="login-title">Perfetto Pizza</h1>
+                    <div class="login-tag">
+                        <i class="fa-solid fa-fire-burner"></i> Staff Portal
+                    </div>
+                    <p class="login-instruction">Please enter your email to access Staff Portal.</p>
+                </div>
+
+                <form id="staff-login-form" class="login-form" novalidate>
+                    <div class="form-group">
+                        <label for="staff-email-input" class="form-label">Staff Email</label>
+                        <div class="input-wrapper">
+                            <i class="fa-regular fa-envelope input-icon"></i>
+                            <input 
+                                type="email" 
+                                id="staff-email-input" 
+                                class="login-input" 
+                                placeholder="e.g. abc@gmail.com" 
+                                autocomplete="email" 
+                                required
+                                spellcheck="false"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- ERROR MESSAGE ALERT -->
+                    <div id="login-error-msg" class="login-error-alert" style="display: none;" role="alert">
+                        <i class="fa-solid fa-circle-exclamation error-icon"></i>
+                        <span id="login-error-text">Access denied. Please enter an authorized email.</span>
+                    </div>
+
+                    <!-- LOGIN ACTION BUTTON -->
+                    <button type="submit" id="staff-login-btn" class="login-submit-btn">
+                        <span>Login</span>
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                    </button>
+
+                    <!-- TESTING HINT PILL -->
+                    <div class="demo-hint-box">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Testing Account: <strong>abc@gmail.com</strong></span>
+                    </div>
+                </form>
+
+                <div class="login-card-footer">
+                    <span>Authorized Kitchen Staff Access Only</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================== -->
+        <!-- 2. STAFF DASHBOARD (Protected View) -->
+        <!-- ========================================================== -->
+        <div id="staff-dashboard-view" class="staff-dashboard-view" style="display: none;">
+            
+            <!-- HEADER BAR -->
+            <header class="staff-header">
+                <div class="header-top">
+                    <div class="brand-info">
+                        <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-logo">
+                        <div>
+                            <h2 class="brand-title">Perfetto Pizza</h2>
+                            <div class="brand-tag">Staff Portal</div>
+                        </div>
+                    </div>
+
+                    <!-- LOGOUT BUTTON -->
+                    <div class="header-actions">
+                        <button type="button" id="staff-logout-btn" class="btn-logout" title="Log out from Staff Portal">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>Logout</span>
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            <!-- ROLE & USER INFO (STATIC CHEF DISPLAY) -->
-            <div class="role-bar">
-                <div class="user-role-pill">
-                    <i class="fa-solid fa-utensils"></i>
-                    <span>Role: <strong id="current-role-label">Chef (Kitchen)</strong></span>
+                <!-- ROLE & USER INFO (STATIC CHEF DISPLAY) -->
+                <div class="role-bar">
+                    <div class="user-role-pill">
+                        <i class="fa-solid fa-utensils"></i>
+                        <span>Role: <strong id="current-role-label">Chef (Kitchen)</strong></span>
+                    </div>
+                    <div class="user-email-pill" id="logged-in-user-email">
+                        <i class="fa-solid fa-circle-user"></i>
+                        <span id="staff-email-display">abc@gmail.com</span>
+                    </div>
                 </div>
-            </div>
-        </header>
+            </header>
 
-        <!-- MAIN CONTENT AREA -->
-        <main class="staff-main">
-            
-            <!-- LIVE ORDERS FEED -->
-            <section class="orders-section">
-                <div class="section-title-bar">
-                    <h2 id="section-heading">Orders</h2>
-                    <span class="live-pulse-badge">
-                        <span class="pulse-dot"></span> Live
-                    </span>
-                </div>
+            <!-- MAIN CONTENT AREA -->
+            <main class="staff-main">
+                
+                <!-- LIVE ORDERS FEED -->
+                <section class="orders-section">
+                    <div class="section-title-bar">
+                        <h3 id="section-heading">Kitchen Orders</h3>
+                        <span class="live-pulse-badge">
+                            <span class="pulse-dot"></span> Live
+                        </span>
+                    </div>
 
-                <!-- CARDS CONTAINER -->
-                <div class="orders-cards-container" id="orders-list-container">
-                    <!-- Dynamic rendering via JS -->
-                </div>
+                    <!-- CARDS CONTAINER -->
+                    <div class="orders-cards-container" id="orders-list-container">
+                        <!-- Dynamic rendering via JS -->
+                    </div>
 
-                <!-- EMPTY STATE -->
-                <div class="empty-state" id="empty-state" style="display: none;">
-                    <i class="fa-solid fa-bell-slash"></i>
-                    <h3>No Active Orders</h3>
-                    <p>There are currently no orders in this queue filter.</p>
-                </div>
-            </section>
+                    <!-- EMPTY STATE -->
+                    <div class="empty-state" id="empty-state" style="display: none;">
+                        <i class="fa-solid fa-bell-slash"></i>
+                        <h4>No Active Orders</h4>
+                        <p>There are currently no orders in the kitchen queue.</p>
+                    </div>
+                </section>
 
-        </main>
+            </main>
 
-
+        </div>
 
         <!-- TOAST NOTIFICATION CONTAINER -->
-        <div id="staff-toast" class="staff-toast">
+        <div id="staff-toast" class="staff-toast" role="status" aria-live="polite">
             <i class="fa-solid fa-circle-check" id="toast-icon"></i>
             <span id="toast-message">Action updated successfully</span>
         </div>

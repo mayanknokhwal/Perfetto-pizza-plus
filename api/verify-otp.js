@@ -5,7 +5,7 @@
 
 const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY || '561143ADQBWRQ2O6a818769P1';
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS for Vercel deployment
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');

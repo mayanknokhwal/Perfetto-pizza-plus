@@ -2369,7 +2369,8 @@ body.shop-closed .checkout-btn {
     margin-left: 2px;
 }
 
-.phone-verified-badge {
+.phone-verified-badge,
+.email-verified-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -3828,4 +3829,232 @@ body.shop-closed .checkout-btn {
     margin: 0;
     color: var(--text-main);
     line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   FIREBASE GOOGLE AUTHENTICATION CARD & BUTTONS
+   -------------------------------------------------------------------------- */
+.google-auth-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+[data-theme="dark"] .google-auth-card {
+    background: #1a233a;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.google-auth-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.google-auth-icon-wrap {
+    width: 40px;
+    height: 40px;
+    background: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.google-auth-text {
+    flex: 1;
+    min-width: 160px;
+}
+
+.google-auth-title {
+    font-family: var(--font-heading);
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-main);
+    line-height: 1.2;
+}
+
+.google-auth-subtext {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.btn-google-signin {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ffffff;
+    color: #1f2937;
+    border: 1px solid #e5e7eb;
+    padding: 9px 16px;
+    border-radius: 24px;
+    font-family: var(--font-heading);
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.btn-google-signin:hover {
+    background-color: #f9fafb;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+    transform: translateY(-1px);
+}
+
+.btn-google-signin:active {
+    transform: translateY(1px);
+}
+
+.google-auth-content.logged-in {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.google-user-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.google-avatar-img {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #22c55e;
+}
+
+.google-brand-icon {
+    font-size: 1.4rem;
+    color: #ea4335;
+    background: #ffffff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.google-user-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.google-user-name {
+    font-family: var(--font-heading);
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.google-user-email {
+    font-size: 0.76rem;
+    color: #22c55e;
+    font-weight: 600;
+}
+
+.btn-google-signout {
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.btn-google-signout:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   PHONEPE PAYMENT GATEWAY UI
+   -------------------------------------------------------------------------- */
+.payment-option-card.phonepe-gateway-card {
+    border: 1.5px solid rgba(103, 57, 183, 0.35);
+    background: linear-gradient(135deg, rgba(103, 57, 183, 0.04) 0%, rgba(255, 107, 0, 0.04) 100%);
+}
+
+.payment-option-card.phonepe-gateway-card:hover {
+    border-color: #6739b7;
+    background: linear-gradient(135deg, rgba(103, 57, 183, 0.08) 0%, rgba(255, 107, 0, 0.08) 100%);
+}
+
+.phonepe-icon-wrap {
+    background: linear-gradient(135deg, #6739b7 0%, #512da8 100%) !important;
+    color: #ffffff !important;
+}
+
+.phonepe-icon-wrap i {
+    color: #ffffff !important;
+}
+
+.phonepe-tag {
+    background-color: rgba(103, 57, 183, 0.15) !important;
+    color: #6739b7 !important;
+    border: 1px solid rgba(103, 57, 183, 0.3) !important;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+}
+
+[data-theme="dark"] .phonepe-tag {
+    color: #a78bfa !important;
+    border-color: rgba(167, 139, 250, 0.4) !important;
+}
+
+.btn-place-order-pill.phonepe-pay-pill {
+    background: linear-gradient(135deg, #6739b7 0%, #7c3aed 100%);
+    box-shadow: 0 4px 10px rgba(103, 57, 183, 0.35);
+}
+
+.payment-processing-box {
+    background: rgba(103, 57, 183, 0.08);
+    border: 1.5px solid rgba(103, 57, 183, 0.3);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: fadeIn 0.3s ease;
+    margin-top: 10px;
+}
+
+.payment-processing-box .processing-text-content strong {
+    display: block;
+    color: #6739b7;
+    font-size: 0.88rem;
+}
+
+[data-theme="dark"] .payment-processing-box .processing-text-content strong {
+    color: #c4b5fd;
+}
+
+.payment-processing-box .processing-text-content p {
+    margin: 2px 0 0 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
 }
