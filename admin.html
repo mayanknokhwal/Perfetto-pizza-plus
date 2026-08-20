@@ -17,6 +17,10 @@
     <!-- Leaflet Map CSS CDN -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 
+    <!-- Firebase App & Auth SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
     <style>
         /* --------------------------------------------------------------------------
            1. ROOT DESIGN SYSTEM TOKENS
@@ -1267,9 +1271,327 @@
             border-color: var(--primary-orange);
             color: var(--primary-orange);
         }
+
+        /* --------------------------------------------------------------------------
+           11. AUTH GUARD, LOGIN & PENDING WAITING SCREEN
+           -------------------------------------------------------------------------- */
+        #admin-auth-guard-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at top right, rgba(255, 107, 0, 0.12), transparent 45%),
+                        radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.08), transparent 40%),
+                        #0b0f19;
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(16px);
+        }
+
+        .auth-card {
+            background: rgba(30, 41, 59, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 30px rgba(255, 107, 0, 0.1);
+            padding: 38px 32px;
+            width: 100%;
+            max-width: 440px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            animation: authCardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes authCardFadeIn {
+            from { opacity: 0; transform: translateY(16px) scale(0.97); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .auth-brand-logo {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            border: 3px solid var(--primary-orange);
+            box-shadow: 0 0 20px var(--primary-glow);
+            margin: 0 auto 16px auto;
+            display: block;
+            object-fit: cover;
+        }
+
+        .auth-title {
+            font-family: var(--font-heading);
+            font-size: 1.55rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+            margin-bottom: 4px;
+        }
+
+        .auth-subtitle {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            line-height: 1.45;
+            margin-bottom: 24px;
+        }
+
+        .btn-google-signin {
+            width: 100%;
+            background-color: #ffffff;
+            color: #1f2937;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 13px 20px;
+            border: none;
+            border-radius: var(--radius-md);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            transition: all 0.2s ease;
+        }
+
+        .btn-google-signin:hover {
+            background-color: #f3f4f6;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .btn-google-signin:active {
+            transform: translateY(0);
+        }
+
+        .btn-google-signin svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .auth-error-box {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+            font-size: 0.85rem;
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            margin-top: 16px;
+            display: none;
+            text-align: left;
+            line-height: 1.4;
+        }
+
+        .auth-user-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(51, 65, 85, 0.5);
+            border: 1px solid var(--border-color);
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            margin: 18px 0;
+            text-align: left;
+        }
+
+        .auth-user-badge img {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary-orange);
+        }
+
+        .pending-pulse-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin: 0 auto 16px auto;
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.3);
+            animation: pendingPulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pendingPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.8; }
+        }
+
+        .badge-counter {
+            background: var(--primary-orange);
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        .role-select-dropdown {
+            background-color: var(--bg-surface);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.82rem;
+            font-family: var(--font-body);
+            outline: none;
+            cursor: pointer;
+        }
+        .role-select-dropdown:focus {
+            border-color: var(--primary-orange);
+        }
+
+        .btn-danger {
+            background-color: var(--accent-red);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.82rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline-danger {
+            background: transparent;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #f87171;
+            padding: 5px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.78rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+        .btn-outline-danger:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: var(--accent-red);
+            color: #fff;
+        }
+
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 0.8rem;
+        }
+
+        .empty-team-state {
+            padding: 36px 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        .empty-team-state i {
+            font-size: 2.2rem;
+            color: var(--accent-green);
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* Access Guard: keep entire sidebar and main dashboard hidden until verified */
+        body.auth-locked .admin-sidebar,
+        body.auth-locked .main-wrapper {
+            display: none !important;
+        }
     </style>
 </head>
-<body>
+<body class="auth-locked">
+
+    <!-- --------------------------------------------------------------------------
+       FULL-SCREEN ADMIN AUTHENTICATION & ACCESS GUARD
+       -------------------------------------------------------------------------- -->
+    <div id="admin-auth-guard-container">
+        
+        <!-- 1. LOGIN SCREEN -->
+        <div class="auth-card" id="admin-login-view">
+            <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="auth-brand-logo">
+            <h2 class="auth-title">Perfetto Pizza</h2>
+            <div style="font-size: 0.8rem; font-weight: 700; color: var(--primary-orange); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">Admin Management Portal</div>
+            <p class="auth-subtitle">Restricted to Primary Master Admin & verified staff members. Sign in with Google to continue.</p>
+
+            <button type="button" class="btn-google-signin" id="btn-admin-google-signin" onclick="signInWithAdminGoogle()">
+                <svg viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                <span id="btn-google-text">Sign in with Google</span>
+            </button>
+
+            <div id="admin-login-error" class="auth-error-box"></div>
+
+            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); font-size: 0.76rem; color: var(--text-muted);">
+                <i class="fa-solid fa-shield-halved" style="color: var(--primary-orange); margin-right: 4px;"></i>
+                Master Admin (<code style="color: var(--primary-orange);">44website.com44@gmail.com</code>) receives immediate superuser access.
+            </div>
+        </div>
+
+        <!-- 2. PENDING WAITING SCREEN -->
+        <div class="auth-card" id="admin-pending-view" style="display: none;">
+            <div class="pending-pulse-icon">
+                <i class="fa-solid fa-hourglass-half"></i>
+            </div>
+            <h2 class="auth-title">Access Request Pending</h2>
+            <div style="display: inline-block; background: rgba(245,158,11,0.15); color: #f59e0b; padding: 4px 12px; border-radius: 12px; font-size: 0.78rem; font-weight: 700; margin-bottom: 14px;">
+                Status: Pending Approval
+            </div>
+
+            <div class="auth-user-badge">
+                <img id="pending-user-avatar" src="https://ui-avatars.com/api/?name=User&background=334155&color=fff" alt="User Avatar">
+                <div style="overflow: hidden;">
+                    <strong id="pending-user-name" style="display: block; font-size: 0.92rem; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">User Name</strong>
+                    <span id="pending-user-email" style="font-size: 0.78rem; color: var(--text-muted); display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">user@example.com</span>
+                </div>
+            </div>
+
+            <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 22px;">
+                Your access request has been sent to the Master Admin. Please check back after some time.
+            </p>
+
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button type="button" class="btn-primary" id="btn-check-status" onclick="checkPendingAuthStatus()" style="flex: 1; padding: 12px;">
+                    <i class="fa-solid fa-arrows-rotate"></i> Check Status
+                </button>
+                <button type="button" class="btn-outline" onclick="adminSignOut()" style="padding: 12px 18px;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. REJECTED SCREEN -->
+        <div class="auth-card" id="admin-rejected-view" style="display: none;">
+            <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); color: var(--accent-red); display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; margin: 0 auto 16px auto;">
+                <i class="fa-solid fa-ban"></i>
+            </div>
+            <h2 class="auth-title">Access Request Rejected</h2>
+            <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin: 14px 0 24px 0;">
+                Your access request for the Admin Dashboard was rejected by the Master Admin. If this is a mistake, please contact management.
+            </p>
+            <button type="button" class="btn-outline" onclick="adminSignOut()" style="width: 100%; padding: 12px;">
+                <i class="fa-solid fa-right-from-bracket"></i> Sign Out & Switch Account
+            </button>
+        </div>
+
+    </div>
 
     <aside class="admin-sidebar">
         <div class="sidebar-brand">
@@ -1345,13 +1667,17 @@
                     <i class="fa-solid fa-floppy-disk"></i> Save All Changes
                 </button>
 
-                <div class="admin-profile">
-                    <div class="avatar">AD</div>
+                <div class="admin-profile" id="header-admin-profile">
+                    <img id="header-admin-avatar" src="https://ui-avatars.com/api/?name=Admin&background=ff6b00&color=fff" alt="Admin Avatar" class="avatar" style="object-fit: cover; border: 2px solid var(--primary-orange);">
                     <div>
-                        <strong>Admin Panel</strong>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Super User</div>
+                        <strong id="header-admin-name">Admin Panel</strong>
+                        <div id="header-admin-role" style="font-size: 0.75rem; color: var(--primary-orange); font-weight: 700;">Master Admin</div>
                     </div>
                 </div>
+
+                <button class="btn-outline" id="btn-admin-logout" onclick="adminSignOut()" title="Sign Out of Admin Portal" style="padding: 8px 14px; border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
             </div>
         </header>
 
@@ -1749,92 +2075,53 @@
 
             <!-- TAB 4: TEAM & ROLE MANAGEMENT SCREEN -->
             <section class="view-panel" id="panel-team">
-                <div style="background-color: var(--bg-card); padding: 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <div>
-                            <h3 style="font-family: var(--font-heading); font-size: 1.25rem;">Team & Role Management</h3>
-                            <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 4px;">Assign user permissions, manage staff members, and configure access roles.</p>
+                <div style="display: flex; flex-direction: column; gap: 28px;">
+                    
+                    <!-- SECTION 1: PENDING ACCESS REQUESTS -->
+                    <div style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                            <div>
+                                <h3 style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
+                                    <i class="fa-solid fa-user-clock" style="color: #f59e0b; margin-right: 10px;"></i>
+                                    Pending Access Requests
+                                    <span id="team-pending-badge" class="badge-counter" style="background: #f59e0b;">0</span>
+                                </h3>
+                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Review new Google sign-in requests, assign authorized roles, and grant admin access.</p>
+                            </div>
+                            <button class="btn-outline btn-sm" onclick="loadTeamManagementData()">
+                                <i class="fa-solid fa-arrows-rotate"></i> Refresh Requests
+                            </button>
                         </div>
-                        <button class="btn-primary" onclick="showToast('Add team member feature coming soon!')">
-                            <i class="fa-solid fa-user-plus"></i> Add Team Member
-                        </button>
+
+                        <div id="pending-requests-container" class="table-container">
+                            <div class="empty-team-state">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <p>No pending access requests at the moment.</p>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Staff Member</th>
-                                    <th>Email Address</th>
-                                    <th>Assigned Role</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(255,107,0,0.2); color: var(--primary-orange);">MA</div>
-                                            <div>
-                                                <strong>Master Admin</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Super User</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>your_email@gmail.com</code></td>
-                                    <td><span class="badge" style="background: rgba(255,107,0,0.15); color: var(--primary-orange); padding: 4px 10px; border-radius: 6px; font-weight: 700;">Master Admin</span></td>
-                                    <td><span class="status-text available"><i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 4px;"></i> Active</span></td>
-                                    <td><span style="font-size: 0.78rem; color: var(--text-muted);">Full Privileges</span></td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(59,130,246,0.2); color: #3b82f6;">SA</div>
-                                            <div>
-                                                <strong>Sarah Jenkins</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Branch Manager</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>admin@test.com</code></td>
-                                    <td><span class="badge" style="background: rgba(59,130,246,0.15); color: #3b82f6; padding: 4px 10px; border-radius: 6px; font-weight: 700;">Admin</span></td>
-                                    <td><span class="status-text available"><i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 4px;"></i> Active</span></td>
-                                    <td><button class="btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="showToast('Edit role')">Edit</button></td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(245,158,11,0.2); color: #f59e0b;">CA</div>
-                                            <div>
-                                                <strong>Alex Chef</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Head Kitchen Chef</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>chef@test.com</code></td>
-                                    <td><span class="badge" style="background: rgba(245,158,11,0.15); color: #f59e0b; padding: 4px 10px; border-radius: 6px; font-weight: 700;">Chef</span></td>
-                                    <td><span class="status-text available"><i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 4px;"></i> Active</span></td>
-                                    <td><button class="btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="showToast('Edit role')">Edit</button></td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(168,85,247,0.2); color: #a855f7;">DB</div>
-                                            <div>
-                                                <strong>Sam Delivery</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Express Rider</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>delivery@test.com</code></td>
-                                    <td><span class="badge" style="background: rgba(168,85,247,0.15); color: #a855f7; padding: 4px 10px; border-radius: 6px; font-weight: 700;">Delivery Boy</span></td>
-                                    <td><span class="status-text available"><i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 4px;"></i> Active</span></td>
-                                    <td><button class="btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="showToast('Edit role')">Edit</button></td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- SECTION 2: ACTIVE TEAM MEMBERS -->
+                    <div style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                            <div>
+                                <h3 style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
+                                    <i class="fa-solid fa-users-gear" style="color: var(--primary-orange); margin-right: 10px;"></i>
+                                    Active Team Members
+                                    <span id="team-active-badge" class="badge-counter" style="background: var(--accent-green);">0</span>
+                                </h3>
+                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Staff and management members currently approved with dashboard access.</p>
+                            </div>
+                        </div>
+
+                        <div id="active-members-container" class="table-container">
+                            <div class="empty-team-state">
+                                <i class="fa-solid fa-users"></i>
+                                <p>Loading active team members...</p>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </section>
 
@@ -2815,7 +3102,10 @@
                 }, 200);
             }
             if (tabName === 'menu') title.textContent = 'Menu Management';
-            if (tabName === 'team') title.textContent = 'Team & Role Management';
+            if (tabName === 'team') {
+                title.textContent = 'Team & Role Management';
+                loadTeamManagementData();
+            }
         }
 
         // 9. TOAST NOTIFICATION UTILITY
@@ -3412,8 +3702,660 @@
             }
         }
 
+        // --------------------------------------------------------------------------
+        // 11. FIREBASE GOOGLE AUTHENTICATION & ADMIN ACCESS GUARD
+        // --------------------------------------------------------------------------
+        const MASTER_ADMIN_EMAIL = '44website.com44@gmail.com';
+        const ADMIN_SESSION_STORAGE_KEY = 'perfetto_admin_session_user';
+
+        let currentAdminUser = null;
+        let adminFirebaseAuth = null;
+        let adminGoogleProvider = null;
+
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+            authDomain: "website-fa79c.firebaseapp.com",
+            projectId: "website-fa79c",
+            storageBucket: "website-fa79c.appspot.com",
+            messagingSenderId: "29523182317",
+            appId: "1:29523182317:web:perfetto-pizza"
+        };
+
+        function initAdminFirebaseAuth() {
+            try {
+                if (typeof firebase !== 'undefined' && firebase.apps) {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(FIREBASE_CONFIG);
+                    }
+                    adminFirebaseAuth = firebase.auth();
+                    adminGoogleProvider = new firebase.auth.GoogleAuthProvider();
+                    adminGoogleProvider.addScope('email');
+                    adminGoogleProvider.addScope('profile');
+                    adminGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+
+                    if (firebase.auth.Auth && firebase.auth.Auth.Persistence) {
+                        adminFirebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => {});
+                    }
+
+                    // Auth State Changed Observer
+                    adminFirebaseAuth.onAuthStateChanged(async (user) => {
+                        if (user) {
+                            await handleAdminAuthSuccess(user);
+                        } else {
+                            // Check local session
+                            const savedSession = sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+                            if (savedSession) {
+                                try {
+                                    const parsed = JSON.parse(savedSession);
+                                    if (parsed && parsed.email && parsed.status === 'active') {
+                                        currentAdminUser = parsed;
+                                        unlockAdminDashboard(parsed);
+                                        return;
+                                    }
+                                } catch (e) {}
+                            }
+                            showAdminLoginScreen();
+                        }
+                    });
+                } else {
+                    console.warn('Firebase SDK not loaded, checking session storage');
+                    const savedSession = sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+                    if (savedSession) {
+                        try {
+                            const parsed = JSON.parse(savedSession);
+                            if (parsed && parsed.email && parsed.status === 'active') {
+                                currentAdminUser = parsed;
+                                unlockAdminDashboard(parsed);
+                                return;
+                            }
+                        } catch (e) {}
+                    }
+                    showAdminLoginScreen();
+                }
+            } catch (err) {
+                console.error('Error initializing Admin Firebase Auth:', err);
+                showAdminLoginScreen();
+            }
+        }
+
+        async function signInWithAdminGoogle() {
+            const errorBox = document.getElementById('admin-login-error');
+            const btn = document.getElementById('btn-admin-google-signin');
+            const btnText = document.getElementById('btn-google-text');
+            if (errorBox) errorBox.style.display = 'none';
+
+            if (btnText) btnText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Signing in...';
+            if (btn) btn.disabled = true;
+
+            try {
+                if (!adminFirebaseAuth || !adminGoogleProvider) {
+                    throw new Error('Firebase Auth not initialized.');
+                }
+
+                const result = await adminFirebaseAuth.signInWithPopup(adminGoogleProvider);
+                if (result && result.user) {
+                    await handleAdminAuthSuccess(result.user);
+                }
+            } catch (error) {
+                console.error('Admin Google sign-in error:', error);
+                if (error.code === 'auth/popup-blocked') {
+                    try {
+                        await adminFirebaseAuth.signInWithRedirect(adminGoogleProvider);
+                        return;
+                    } catch (redirErr) {
+                        console.error('Redirect signin error:', redirErr);
+                    }
+                }
+                if (errorBox) {
+                    errorBox.textContent = error.message || 'Google Sign-in failed. Please try again.';
+                    errorBox.style.display = 'block';
+                }
+            } finally {
+                if (btnText) btnText.textContent = 'Sign in with Google';
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function handleAdminAuthSuccess(firebaseUser) {
+            const email = firebaseUser.email ? firebaseUser.email.toLowerCase().trim() : '';
+            const fullName = firebaseUser.displayName || 'Google User';
+            const photoURL = firebaseUser.photoURL || '';
+            const firebaseUid = firebaseUser.uid || '';
+
+            // If Primary Master Admin: instant unconditional access
+            const isMaster = email === MASTER_ADMIN_EMAIL.toLowerCase();
+
+            try {
+                // Send login attempt to backend /api/admin-auth
+                const response = await fetch('/api/admin-auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, fullName, photoURL, firebaseUid })
+                });
+                const data = await response.json();
+
+                const role = data.role || (isMaster ? 'Master Admin' : 'Pending');
+                const status = data.status || (isMaster ? 'active' : 'pending');
+                const userObj = data.user || { email, fullName, photoURL, firebaseUid, role, status };
+
+                currentAdminUser = { ...userObj, email, fullName, photoURL, firebaseUid, role, status };
+
+                if (status === 'active' && (role === 'Master Admin' || role === 'Admin')) {
+                    sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
+                    unlockAdminDashboard(currentAdminUser);
+                    showToast(`Welcome back, ${fullName}!`);
+                } else if (status === 'pending') {
+                    sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+                    showAdminPendingScreen(currentAdminUser);
+                } else if (status === 'rejected') {
+                    sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+                    showAdminRejectedScreen();
+                } else {
+                    // For other active roles
+                    sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
+                    unlockAdminDashboard(currentAdminUser);
+                }
+            } catch (err) {
+                console.warn('Backend auth sync notice (offline mode fallback):', err.message);
+                if (isMaster) {
+                    currentAdminUser = { email, fullName, photoURL, firebaseUid, role: 'Master Admin', status: 'active' };
+                    sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
+                    unlockAdminDashboard(currentAdminUser);
+                } else {
+                    currentAdminUser = { email, fullName, photoURL, firebaseUid, role: 'Pending', status: 'pending' };
+                    showAdminPendingScreen(currentAdminUser);
+                }
+            }
+        }
+
+        function unlockAdminDashboard(user) {
+            document.body.classList.remove('auth-locked');
+            const guard = document.getElementById('admin-auth-guard-container');
+            if (guard) guard.style.display = 'none';
+
+            // Update Header UI
+            const avatarEl = document.getElementById('header-admin-avatar');
+            const nameEl = document.getElementById('header-admin-name');
+            const roleEl = document.getElementById('header-admin-role');
+
+            if (avatarEl) {
+                if (user.photoURL) {
+                    avatarEl.src = user.photoURL;
+                } else {
+                    avatarEl.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || 'Admin')}&background=ff6b00&color=fff`;
+                }
+            }
+            if (nameEl) nameEl.textContent = user.fullName || 'Admin Panel';
+            if (roleEl) roleEl.textContent = user.role || 'Master Admin';
+
+            // If on team tab, refresh team data
+            const teamPanel = document.getElementById('panel-team');
+            if (teamPanel && teamPanel.classList.contains('active')) {
+                loadTeamManagementData();
+            }
+        }
+
+        function showAdminLoginScreen() {
+            document.body.classList.add('auth-locked');
+            const guard = document.getElementById('admin-auth-guard-container');
+            const loginView = document.getElementById('admin-login-view');
+            const pendingView = document.getElementById('admin-pending-view');
+            const rejectedView = document.getElementById('admin-rejected-view');
+
+            if (guard) guard.style.display = 'flex';
+            if (loginView) loginView.style.display = 'block';
+            if (pendingView) pendingView.style.display = 'none';
+            if (rejectedView) rejectedView.style.display = 'none';
+        }
+
+        function showAdminPendingScreen(user) {
+            document.body.classList.add('auth-locked');
+            const guard = document.getElementById('admin-auth-guard-container');
+            const loginView = document.getElementById('admin-login-view');
+            const pendingView = document.getElementById('admin-pending-view');
+            const rejectedView = document.getElementById('admin-rejected-view');
+
+            const avatarEl = document.getElementById('pending-user-avatar');
+            const nameEl = document.getElementById('pending-user-name');
+            const emailEl = document.getElementById('pending-user-email');
+
+            if (avatarEl) avatarEl.src = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.fullName || 'User')}&background=334155&color=fff`;
+            if (nameEl) nameEl.textContent = user.fullName || 'Staff User';
+            if (emailEl) emailEl.textContent = user.email || '';
+
+            if (guard) guard.style.display = 'flex';
+            if (loginView) loginView.style.display = 'none';
+            if (pendingView) pendingView.style.display = 'block';
+            if (rejectedView) rejectedView.style.display = 'none';
+        }
+
+        function showAdminRejectedScreen() {
+            document.body.classList.add('auth-locked');
+            const guard = document.getElementById('admin-auth-guard-container');
+            const loginView = document.getElementById('admin-login-view');
+            const pendingView = document.getElementById('admin-pending-view');
+            const rejectedView = document.getElementById('admin-rejected-view');
+
+            if (guard) guard.style.display = 'flex';
+            if (loginView) loginView.style.display = 'none';
+            if (pendingView) pendingView.style.display = 'none';
+            if (rejectedView) rejectedView.style.display = 'block';
+        }
+
+        async function checkPendingAuthStatus() {
+            if (!currentAdminUser || !currentAdminUser.email) {
+                showToast('Please sign in first');
+                showAdminLoginScreen();
+                return;
+            }
+
+            const btn = document.getElementById('btn-check-status');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+            }
+
+            try {
+                const res = await fetch(`/api/admin-auth?email=${encodeURIComponent(currentAdminUser.email)}`);
+                const data = await res.json();
+
+                if (data && data.success && data.status === 'active') {
+                    showToast('🎉 Your request has been approved! Unlocking dashboard...');
+                    currentAdminUser = { ...currentAdminUser, ...data.user, status: 'active', role: data.role };
+                    sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
+                    unlockAdminDashboard(currentAdminUser);
+                } else if (data && data.status === 'rejected') {
+                    showAdminRejectedScreen();
+                } else {
+                    showToast('⏳ Status is still Pending. Please wait for Master Admin approval.');
+                }
+            } catch (err) {
+                console.error('Error checking auth status:', err);
+                showToast('Unable to reach server. Please try again in a moment.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Check Status';
+                }
+            }
+        }
+
+        async function adminSignOut() {
+            try {
+                if (adminFirebaseAuth) {
+                    await adminFirebaseAuth.signOut();
+                }
+            } catch (e) {
+                console.warn('Error signing out from Firebase:', e);
+            }
+            sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+            currentAdminUser = null;
+            showAdminLoginScreen();
+            showToast('Signed out successfully.');
+        }
+
+        // --------------------------------------------------------------------------
+        // 12. TEAM MANAGEMENT & ROLE ASSIGNMENT CONTROLLER
+        // --------------------------------------------------------------------------
+        let teamManagementData = { users: [], team: [], pending: [], rejected: [] };
+
+        async function loadTeamManagementData() {
+            const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+            const pendingContainer = document.getElementById('pending-requests-container');
+            const activeContainer = document.getElementById('active-members-container');
+            const pendingBadge = document.getElementById('team-pending-badge');
+            const activeBadge = document.getElementById('team-active-badge');
+
+            try {
+                const response = await fetch(`/api/admin-auth?list=all&requesterEmail=${encodeURIComponent(requesterEmail)}`, {
+                    headers: { 'x-admin-email': requesterEmail }
+                });
+                const data = await response.json();
+
+                if (data && data.success) {
+                    teamManagementData = data;
+                    renderPendingRequests(data.pending || []);
+                    renderActiveTeamMembers(data.team || []);
+
+                    if (pendingBadge) pendingBadge.textContent = (data.pending || []).length;
+                    if (activeBadge) activeBadge.textContent = (data.team || []).length;
+                } else {
+                    console.warn('Team management API notice:', data.message);
+                    if (data.message && data.message.includes('Forbidden')) {
+                        if (pendingContainer) pendingContainer.innerHTML = `<div class="empty-team-state"><i class="fa-solid fa-lock" style="color: #f59e0b;"></i><p>Restricted to Master Admin access only.</p></div>`;
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching team management data:', err);
+            }
+        }
+
+        function renderPendingRequests(pendingList) {
+            const container = document.getElementById('pending-requests-container');
+            if (!container) return;
+
+            if (!pendingList || pendingList.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-team-state">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <p>No pending access requests at the moment.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Requested By</th>
+                            <th>Email Address</th>
+                            <th>Assign Role</th>
+                            <th>Requested At</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            pendingList.forEach((user, index) => {
+                const avatar = user.photoURL 
+                    ? `<img src="${user.photoURL}" alt="${escapeHtml(user.fullName || 'User')}" class="avatar" style="object-fit: cover;">`
+                    : `<div class="avatar" style="background-color: rgba(245,158,11,0.2); color: #f59e0b;">${getInitials(user.fullName || 'User')}</div>`;
+
+                const requestedDate = user.requestedAt ? new Date(user.requestedAt).toLocaleDateString() : 'Recent';
+
+                html += `
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                ${avatar}
+                                <div>
+                                    <strong>${escapeHtml(user.fullName || 'Google User')}</strong>
+                                    <div style="font-size: 0.78rem; color: var(--text-muted);">Access Requested</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><code>${escapeHtml(user.email)}</code></td>
+                        <td>
+                            <select class="role-select-dropdown" id="role-select-${index}">
+                                <option value="Chef" selected>Chef (Kitchen)</option>
+                                <option value="Admin">Admin (Full Access)</option>
+                                <option value="Delivery Boy">Delivery Boy (Rider)</option>
+                            </select>
+                        </td>
+                        <td><span style="font-size: 0.8rem; color: var(--text-muted);">${requestedDate}</span></td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn-primary btn-sm" onclick="approvePendingUser('${escapeHtml(user.email)}', 'role-select-${index}')">
+                                    <i class="fa-solid fa-check"></i> Accept
+                                </button>
+                                <button class="btn-danger btn-sm" onclick="rejectPendingUser('${escapeHtml(user.email)}')">
+                                    <i class="fa-solid fa-xmark"></i> Reject
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function renderActiveTeamMembers(activeList) {
+            const container = document.getElementById('active-members-container');
+            if (!container) return;
+
+            if (!activeList || activeList.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-team-state">
+                        <i class="fa-solid fa-users"></i>
+                        <p>No active team members found.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Staff Member</th>
+                            <th>Email Address</th>
+                            <th>Assigned Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            activeList.forEach((user) => {
+                const isMaster = user.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
+                
+                let roleBadgeColor = 'var(--primary-orange)';
+                let roleBgColor = 'rgba(255,107,0,0.15)';
+                let roleSubtitle = 'Super User';
+
+                if (user.role === 'Admin') {
+                    roleBadgeColor = '#3b82f6';
+                    roleBgColor = 'rgba(59,130,246,0.15)';
+                    roleSubtitle = 'Branch Manager';
+                } else if (user.role === 'Chef') {
+                    roleBadgeColor = '#f59e0b';
+                    roleBgColor = 'rgba(245,158,11,0.15)';
+                    roleSubtitle = 'Head Kitchen Chef';
+                } else if (user.role === 'Delivery Boy') {
+                    roleBadgeColor = '#a855f7';
+                    roleBgColor = 'rgba(168,85,247,0.15)';
+                    roleSubtitle = 'Express Rider';
+                }
+
+                const avatar = user.photoURL
+                    ? `<img src="${user.photoURL}" alt="${escapeHtml(user.fullName || 'User')}" class="avatar" style="object-fit: cover; border: 1.5px solid ${roleBadgeColor};">`
+                    : `<div class="avatar" style="background-color: ${roleBgColor}; color: ${roleBadgeColor};">${getInitials(user.fullName || (isMaster ? 'Master Admin' : 'Staff'))}</div>`;
+
+                let actionCell = '';
+                if (isMaster) {
+                    actionCell = `<span style="font-size: 0.78rem; color: var(--text-muted);"><i class="fa-solid fa-shield-halved" style="color: var(--primary-orange);"></i> Primary Superuser</span>`;
+                } else {
+                    actionCell = `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <select class="role-select-dropdown" style="padding: 4px 8px; font-size: 0.75rem;" onchange="changeActiveUserRole('${escapeHtml(user.email)}', this.value)">
+                                <option value="Admin" ${user.role === 'Admin' ? 'selected' : ''}>Admin</option>
+                                <option value="Chef" ${user.role === 'Chef' ? 'selected' : ''}>Chef</option>
+                                <option value="Delivery Boy" ${user.role === 'Delivery Boy' ? 'selected' : ''}>Delivery Boy</option>
+                            </select>
+                            <button class="btn-outline-danger btn-sm" onclick="revokeUserAccess('${escapeHtml(user.email)}')" title="Revoke Access">
+                                <i class="fa-solid fa-user-xmark"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                ${avatar}
+                                <div>
+                                    <strong>${escapeHtml(user.fullName || (isMaster ? 'Master Admin' : 'Team Member'))}</strong>
+                                    <div style="font-size: 0.78rem; color: var(--text-muted);">${roleSubtitle}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><code>${escapeHtml(user.email)}</code></td>
+                        <td>
+                            <span class="badge" style="background: ${roleBgColor}; color: ${roleBadgeColor}; padding: 4px 10px; border-radius: 6px; font-weight: 700;">
+                                ${escapeHtml(user.role || 'Staff')}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-text available">
+                                <i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 4px;"></i> Active
+                            </span>
+                        </td>
+                        <td>${actionCell}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        async function approvePendingUser(targetEmail, selectElementId) {
+            const roleSelect = document.getElementById(selectElementId);
+            const assignedRole = roleSelect ? roleSelect.value : 'Chef';
+            const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+
+            try {
+                const response = await fetch('/api/admin-auth', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-email': requesterEmail,
+                    },
+                    body: JSON.stringify({
+                        requesterEmail,
+                        targetEmail,
+                        action: 'approve',
+                        role: assignedRole,
+                    }),
+                });
+
+                const data = await response.json();
+                if (data && data.success) {
+                    showToast(`Approved ${targetEmail} as ${assignedRole}!`);
+                    loadTeamManagementData();
+                } else {
+                    showToast(`Failed: ${data.message || 'Error approving user'}`);
+                }
+            } catch (err) {
+                console.error('Error approving user:', err);
+                showToast('Server error while approving user');
+            }
+        }
+
+        async function rejectPendingUser(targetEmail) {
+            const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+
+            if (!confirm(`Are you sure you want to reject access for ${targetEmail}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/admin-auth', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-email': requesterEmail,
+                    },
+                    body: JSON.stringify({
+                        requesterEmail,
+                        targetEmail,
+                        action: 'reject',
+                    }),
+                });
+
+                const data = await response.json();
+                if (data && data.success) {
+                    showToast(`Access rejected for ${targetEmail}.`);
+                    loadTeamManagementData();
+                } else {
+                    showToast(`Failed: ${data.message || 'Error rejecting user'}`);
+                }
+            } catch (err) {
+                console.error('Error rejecting user:', err);
+                showToast('Server error while rejecting user');
+            }
+        }
+
+        async function changeActiveUserRole(targetEmail, newRole) {
+            const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+
+            try {
+                const response = await fetch('/api/admin-auth', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-email': requesterEmail,
+                    },
+                    body: JSON.stringify({
+                        requesterEmail,
+                        targetEmail,
+                        role: newRole,
+                        status: 'active',
+                    }),
+                });
+
+                const data = await response.json();
+                if (data && data.success) {
+                    showToast(`Role updated to ${newRole} for ${targetEmail}!`);
+                    loadTeamManagementData();
+                } else {
+                    showToast(`Failed: ${data.message || 'Error updating role'}`);
+                }
+            } catch (err) {
+                console.error('Error updating role:', err);
+                showToast('Server error while updating role');
+            }
+        }
+
+        async function revokeUserAccess(targetEmail) {
+            if (!confirm(`Revoke access for ${targetEmail}? They will no longer be able to log in.`)) {
+                return;
+            }
+            const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+
+            try {
+                const response = await fetch('/api/admin-auth', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-email': requesterEmail,
+                    },
+                    body: JSON.stringify({
+                        requesterEmail,
+                        targetEmail,
+                        action: 'reject',
+                    }),
+                });
+
+                const data = await response.json();
+                if (data && data.success) {
+                    showToast(`Access revoked for ${targetEmail}.`);
+                    loadTeamManagementData();
+                } else {
+                    showToast(`Failed: ${data.message || 'Error revoking access'}`);
+                }
+            } catch (err) {
+                console.error('Error revoking access:', err);
+                showToast('Server error while revoking access');
+            }
+        }
+
+        function getInitials(name) {
+            if (!name) return 'U';
+            const parts = name.trim().split(/\s+/);
+            if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         // INITIALIZE ON LOAD, HISTORY STATE & CROSS-TAB STORAGE SYNCHRONIZATION
         window.addEventListener('DOMContentLoaded', () => {
+            initAdminFirebaseAuth();
             initMenuData();
             initShopStatus();
             initOrderSettingsUI();
