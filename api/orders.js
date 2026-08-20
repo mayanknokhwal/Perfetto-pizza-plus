@@ -3,8 +3,8 @@
  * Route: /api/orders
  */
 
-const { connectToDatabase } = require('./lib/mongodb');
-const Order = require('./models/Order');
+const { connectToDatabase } = require('../lib/mongodb');
+const Order = require('../models/Order');
 
 module.exports = async function handler(req, res) {
     // Enable CORS

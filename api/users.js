@@ -3,8 +3,8 @@
  * Route: /api/users
  */
 
-const { connectToDatabase } = require('./lib/mongodb');
-const User = require('./models/User');
+const { connectToDatabase } = require('../lib/mongodb');
+const User = require('../models/User');
 
 module.exports = async function handler(req, res) {
     // Enable CORS

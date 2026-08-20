@@ -3,8 +3,8 @@
  * Route: /api/menu
  */
 
-const { connectToDatabase } = require('./lib/mongodb');
-const MenuItem = require('./models/MenuItem');
+const { connectToDatabase } = require('../lib/mongodb');
+const MenuItem = require('../models/MenuItem');
 
 const DEFAULT_MENU_ITEMS = [
     // 1. PIZZAS (18 Multi-Size Pizzas)

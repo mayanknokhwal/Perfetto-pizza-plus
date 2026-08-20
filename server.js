@@ -108,11 +108,6 @@ const server = http.createServer((req, res) => {
         return adaptServerless(req, res, usersHandler);
     }
 
-    if (pathname === '/api/team' || pathname === '/api/team/') {
-        const teamHandler = require('./api/team');
-        return adaptServerless(req, res, teamHandler);
-    }
-
     if (pathname === '/api/payment/initiate') {
         const initiateHandler = require('./api/payment/initiate');
         return adaptServerless(req, res, initiateHandler);
@@ -138,9 +133,13 @@ const server = http.createServer((req, res) => {
         return adaptServerless(req, res, otpVerifyHandler);
     }
 
-    // 2. STATIC FILES SERVING
+    // 2. STATIC FILES SERVING & CLEAN URLS
     if (pathname === '/' || pathname === '') {
         pathname = '/index.html';
+    } else if (pathname === '/admin' || pathname === '/admin/') {
+        pathname = '/admin.html';
+    } else if (pathname === '/staff' || pathname === '/staff/') {
+        pathname = '/staff.html';
     }
 
     const safePath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, '');

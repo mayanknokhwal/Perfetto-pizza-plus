@@ -13,19 +13,21 @@ A full-stack mobile-first food delivery platform, kitchen staff portal, and admi
 
 ```
 ├── api/
-│   ├── lib/
-│   │   └── mongodb.js         # MongoDB Atlas connection pooling
-│   ├── models/
-│   │   ├── Order.js           # Mongoose Order schema
-│   │   └── User.js            # Mongoose User schema
 │   ├── payment/
 │   │   ├── callback.js        # PhonePe webhook handler
 │   │   ├── initiate.js        # PhonePe payment initiation
 │   │   └── status.js          # PhonePe status verification
+│   ├── menu.js                # Menu CRUD endpoint (/api/menu)
 │   ├── orders.js              # Orders CRUD endpoint (/api/orders)
 │   ├── send-voice-otp.js      # Voice/Flash call OTP dispatcher
 │   ├── users.js               # Users profile sync endpoint (/api/users)
 │   └── verify-otp.js          # OTP verification endpoint
+├── lib/
+│   └── mongodb.js             # MongoDB Atlas connection pooling
+├── models/
+│   ├── MenuItem.js            # Mongoose MenuItem schema
+│   ├── Order.js               # Mongoose Order schema
+│   └── User.js                # Mongoose User schema
 ├── admin.html                 # Admin Dashboard
 ├── index.html                 # Customer Ordering App
 ├── staff.html                 # Staff Kitchen Portal

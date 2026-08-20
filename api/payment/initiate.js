@@ -10,8 +10,8 @@ if (!process.env.PHONEPE_MERCHANT_ID) {
 }
 
 const crypto = require('crypto');
-const { connectToDatabase } = require('../lib/mongodb');
-const Order = require('../models/Order');
+const { connectToDatabase } = require('../../lib/mongodb');
+const Order = require('../../models/Order');
 
 const PHONEPE_MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID || 'PGTESTPAYUAT';
 const PHONEPE_SALT_KEY = process.env.PHONEPE_SALT_KEY || '099eb0cd-02cf-4e2a-8aca-3e6c6aff0399';
