@@ -14,6 +14,10 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Firebase App and Auth SDKs (Compat for Client-Side Scripting) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
     <!-- Custom Staff Styles -->
     <link rel="stylesheet" href="staff.css">
 </head>
@@ -35,47 +39,34 @@
                     <div class="login-tag">
                         <i class="fa-solid fa-fire-burner"></i> Staff Portal
                     </div>
-                    <p class="login-instruction">Please enter your email to access Staff Portal.</p>
+                    <p class="login-instruction">Sign in with your authorized Google Account to manage kitchen orders and delivery queue.</p>
                 </div>
 
-                <form id="staff-login-form" class="login-form" novalidate>
-                    <div class="form-group">
-                        <label for="staff-email-input" class="form-label">Staff Email</label>
-                        <div class="input-wrapper">
-                            <i class="fa-regular fa-envelope input-icon"></i>
-                            <input 
-                                type="email" 
-                                id="staff-email-input" 
-                                class="login-input" 
-                                placeholder="e.g. abc@gmail.com" 
-                                autocomplete="email" 
-                                required
-                                spellcheck="false"
-                            >
-                        </div>
-                    </div>
+                <!-- ERROR MESSAGE ALERT -->
+                <div id="login-error-msg" class="login-error-alert" style="display: none; margin-bottom: 16px;" role="alert">
+                    <i class="fa-solid fa-circle-exclamation error-icon"></i>
+                    <span id="login-error-text">Access denied. Please sign in with an authorized staff Google account.</span>
+                </div>
 
-                    <!-- ERROR MESSAGE ALERT -->
-                    <div id="login-error-msg" class="login-error-alert" style="display: none;" role="alert">
-                        <i class="fa-solid fa-circle-exclamation error-icon"></i>
-                        <span id="login-error-text">Access denied. Please enter an authorized email.</span>
-                    </div>
+                <!-- GOOGLE LOGIN ACTION BUTTON -->
+                <button type="button" id="staff-google-login-btn" class="btn-staff-google-auth" onclick="handleStaffGoogleLogin()">
+                    <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
+                </button>
 
-                    <!-- LOGIN ACTION BUTTON -->
-                    <button type="submit" id="staff-login-btn" class="login-submit-btn">
-                        <span>Login</span>
-                        <i class="fa-solid fa-arrow-right-to-bracket"></i>
-                    </button>
-
-                    <!-- TESTING HINT PILL -->
-                    <div class="demo-hint-box">
-                        <i class="fa-solid fa-shield-halved"></i>
-                        <span>Testing Account: <strong>abc@gmail.com</strong></span>
-                    </div>
-                </form>
+                <!-- ACCESS HINT PILL -->
+                <div class="demo-hint-box" style="margin-top: 16px;">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>Authorized Kitchen Staff & Logistics Access Only</span>
+                </div>
 
                 <div class="login-card-footer">
-                    <span>Authorized Kitchen Staff Access Only</span>
+                    <span>Protected by Perfetto Team Security & Firebase Auth</span>
                 </div>
             </div>
         </section>
@@ -98,22 +89,22 @@
 
                     <!-- LOGOUT BUTTON -->
                     <div class="header-actions">
-                        <button type="button" id="staff-logout-btn" class="btn-logout" title="Log out from Staff Portal">
+                        <button type="button" id="staff-logout-btn" class="btn-logout" onclick="handleStaffLogout()" title="Log out from Staff Portal">
                             <i class="fa-solid fa-right-from-bracket"></i>
                             <span>Logout</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- ROLE & USER INFO (STATIC CHEF DISPLAY) -->
+                <!-- ROLE & USER INFO -->
                 <div class="role-bar">
                     <div class="user-role-pill">
-                        <i class="fa-solid fa-utensils"></i>
+                        <i class="fa-solid fa-utensils" id="role-icon"></i>
                         <span>Role: <strong id="current-role-label">Chef (Kitchen)</strong></span>
                     </div>
                     <div class="user-email-pill" id="logged-in-user-email">
-                        <i class="fa-solid fa-circle-user"></i>
-                        <span id="staff-email-display">abc@gmail.com</span>
+                        <i class="fa-solid fa-circle-user" id="user-avatar-icon"></i>
+                        <span id="staff-email-display">staff@gmail.com</span>
                     </div>
                 </div>
             </header>

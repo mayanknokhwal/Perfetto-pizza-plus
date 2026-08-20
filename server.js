@@ -108,6 +108,11 @@ const server = http.createServer((req, res) => {
         return adaptServerless(req, res, usersHandler);
     }
 
+    if (pathname === '/api/team' || pathname === '/api/team/') {
+        const teamHandler = require('./api/team');
+        return adaptServerless(req, res, teamHandler);
+    }
+
     if (pathname === '/api/payment/initiate') {
         const initiateHandler = require('./api/payment/initiate');
         return adaptServerless(req, res, initiateHandler);

@@ -17,6 +17,10 @@
     <!-- Leaflet Map CSS CDN -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 
+    <!-- Firebase App and Auth SDKs (Compat for Client-Side Scripting) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
     <style>
         /* --------------------------------------------------------------------------
            1. ROOT DESIGN SYSTEM TOKENS
@@ -1267,13 +1271,203 @@
             border-color: var(--primary-orange);
             color: var(--primary-orange);
         }
+
+        /* --------------------------------------------------------------------------
+           ADMIN AUTHENTICATION GUARD & MODALS
+           -------------------------------------------------------------------------- */
+        .admin-auth-guard {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: rgba(30, 41, 59, 0.9);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            padding: 40px 32px;
+            max-width: 440px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 107, 0, 0.15);
+        }
+
+        .auth-logo-badge {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 107, 0, 0.12);
+            border: 2px solid var(--primary-orange);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            padding: 10px;
+        }
+
+        .auth-logo {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .auth-title {
+            font-family: var(--font-heading);
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .auth-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 107, 0, 0.15);
+            color: var(--primary-orange);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .auth-subtitle {
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        .btn-google-auth {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            background: #ffffff;
+            color: #1f2937;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn-google-auth:hover {
+            background: #f3f4f6;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-google-auth:active {
+            transform: translateY(0);
+        }
+
+        .auth-alert {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .auth-hint {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-align: left;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(6px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            max-width: 480px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: var(--shadow-card);
+        }
     </style>
 </head>
 <body>
 
+    <!-- ========================================================== -->
+    <!-- FULL-SCREEN ADMIN GOOGLE SIGN-IN AUTHENTICATION GUARD -->
+    <!-- ========================================================== -->
+    <div id="admin-auth-guard" class="admin-auth-guard" style="display: flex;">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo-badge">
+                    <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="auth-logo">
+                </div>
+                <h2 class="auth-title">Perfetto Admin</h2>
+                <div class="auth-tag"><i class="fa-solid fa-shield-halved"></i> Master Admin & Manager Access</div>
+                <p class="auth-subtitle">Sign in with your authorized Google Account to manage menu items, team roles, and store operations.</p>
+            </div>
 
+            <div id="auth-alert" class="auth-alert" style="display: none;">
+                <i class="fa-solid fa-circle-exclamation" id="auth-alert-icon"></i>
+                <span id="auth-alert-text">Access Denied: Not registered as team member.</span>
+            </div>
 
-    <!-- 1. FIXED LEFT SIDEBAR NAVIGATION -->
+            <button type="button" id="btn-admin-google-login" class="btn-google-auth" onclick="handleAdminGoogleLogin()">
+                <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Sign in with Google</span>
+            </button>
+
+            <div class="auth-hint">
+                <i class="fa-solid fa-crown" style="color: #f59e0b; font-size: 1rem;"></i>
+                <span><strong>First-Time Setup:</strong> The very first Google account to sign in is automatically granted <strong>Master Admin</strong> status.</span>
+            </div>
+        </div>
+    </div>
     <aside class="admin-sidebar">
         <div class="sidebar-brand">
             <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="brand-logo-img">
@@ -1352,8 +1546,14 @@
                     <div class="avatar" id="user-avatar">AD</div>
                     <div style="font-size: 0.82rem; line-height: 1.2;" class="profile-info-text">
                         <div id="user-profile-name" style="font-weight: 700; color: var(--text-main);">Admin Panel</div>
+                        <div id="user-profile-role" style="color: var(--primary-orange); font-size: 0.75rem; font-weight: 600;">Super User</div>
                     </div>
                 </div>
+
+                <button class="btn-outline" id="btn-admin-logout" onclick="adminSignOut()" title="Sign out of Admin Dashboard" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 0.85rem;">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span>Logout</span>
+                </button>
             </div>
         </header>
 
@@ -1757,7 +1957,7 @@
                             <h3 style="font-family: var(--font-heading); font-size: 1.25rem;">Team & Role Management</h3>
                             <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 4px;">Assign user permissions, manage staff members, and configure access roles.</p>
                         </div>
-                        <button class="btn-primary" onclick="showToast('Add Team Member feature coming soon!')">
+                        <button class="btn-primary" onclick="openAddTeamMemberModal()">
                             <i class="fa-solid fa-user-plus"></i> Add Team Member
                         </button>
                     </div>
@@ -1770,101 +1970,62 @@
                                     <th>Email Address</th>
                                     <th>Assigned Role</th>
                                     <th>Status</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="team-table-body">
                                 <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(255,107,0,0.2); color: var(--primary-orange);">MA</div>
-                                            <div>
-                                                <strong>Master Admin</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Super User</div>
-                                            </div>
-                                        </div>
+                                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                        <i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px;"></i> Loading team members...
                                     </td>
-                                    <td><code>your_email@gmail.com</code></td>
-                                    <td>
-                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
-                                            <option value="Master Admin" selected>Master Admin</option>
-                                            <option value="Admin">Admin</option>
-                                            <option value="Chef">Chef</option>
-                                            <option value="Delivery Boy">Delivery Boy</option>
-                                        </select>
-                                    </td>
-                                    <td><span class="status-text available">Active</span></td>
-                                </tr>
-
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(59,130,246,0.2); color: #3b82f6;">SA</div>
-                                            <div>
-                                                <strong>Admin Sarah</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Manager</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>admin@test.com</code></td>
-                                    <td>
-                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
-                                            <option value="Master Admin">Master Admin</option>
-                                            <option value="Admin" selected>Admin</option>
-                                            <option value="Chef">Chef</option>
-                                            <option value="Delivery Boy">Delivery Boy</option>
-                                        </select>
-                                    </td>
-                                    <td><span class="status-text available">Active</span></td>
-                                </tr>
-
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(245,158,11,0.2); color: #f59e0b;">CA</div>
-                                            <div>
-                                                <strong>Chef Alex</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Kitchen Staff</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>chef@test.com</code></td>
-                                    <td>
-                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
-                                            <option value="Master Admin">Master Admin</option>
-                                            <option value="Admin">Admin</option>
-                                            <option value="Chef" selected>Chef</option>
-                                            <option value="Delivery Boy">Delivery Boy</option>
-                                        </select>
-                                    </td>
-                                    <td><span class="status-text available">Active</span></td>
-                                </tr>
-
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div class="avatar" style="background-color: rgba(168,85,247,0.2); color: #a855f7;">DS</div>
-                                            <div>
-                                                <strong>Delivery Boy Sam</strong>
-                                                <div style="font-size: 0.78rem; color: var(--text-muted);">Logistics</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td><code>delivery@test.com</code></td>
-                                    <td>
-                                        <select class="role-select-dropdown" onchange="showToast('Role updated to ' + this.value)">
-                                            <option value="Master Admin">Master Admin</option>
-                                            <option value="Admin">Admin</option>
-                                            <option value="Chef">Chef</option>
-                                            <option value="Delivery Boy" selected>Delivery Boy</option>
-                                        </select>
-                                    </td>
-                                    <td><span class="status-text available">Active</span></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </section>
+
+    <!-- ADD TEAM MEMBER MODAL -->
+    <div id="add-team-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-family: var(--font-heading); font-size: 1.2rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-user-plus" style="color: var(--primary-orange);"></i> Add Team Member
+                </h3>
+                <button type="button" onclick="closeAddTeamMemberModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <form id="add-team-form" onsubmit="handleAddTeamMember(event)">
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">Staff Full Name</label>
+                    <input type="text" id="new-member-name" placeholder="e.g. Rahul Sharma" required style="width: 100%; background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+                </div>
+
+                <div style="margin-bottom: 14px;">
+                    <label style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">Staff Google Email Address</label>
+                    <input type="email" id="new-member-email" placeholder="e.g. staff@gmail.com" required style="width: 100%; background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.82rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">Assigned Role</label>
+                    <select id="new-member-role" style="width: 100%; background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 0.9rem;">
+                        <option value="Admin">Admin (Manager)</option>
+                        <option value="Chef" selected>Chef (Kitchen Staff)</option>
+                        <option value="Delivery Boy">Delivery Boy (Logistics)</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button type="button" class="btn-outline" onclick="closeAddTeamMemberModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="btn-save-member">
+                        <i class="fa-solid fa-plus"></i> Add Member
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
         </main>
     </div>
@@ -2843,7 +3004,10 @@
                 }, 200);
             }
             if (tabName === 'menu') title.textContent = 'Menu Management';
-            if (tabName === 'team') title.textContent = 'Team & Role Management';
+            if (tabName === 'team') {
+                title.textContent = 'Team & Role Management';
+                fetchTeamMembers();
+            }
         }
 
         // 9. TOAST NOTIFICATION UTILITY
@@ -3440,13 +3604,455 @@
             }
         }
 
+        // --------------------------------------------------------------------------
+        // 12. ADMIN FIREBASE GOOGLE AUTHENTICATION & ACCESS GUARD
+        // --------------------------------------------------------------------------
+        let adminFirebaseAuth = null;
+        let adminGoogleProvider = null;
+        let currentAdminUser = null;
+
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+            authDomain: "website-fa79c.firebaseapp.com",
+            projectId: "website-fa79c",
+            storageBucket: "website-fa79c.appspot.com",
+            messagingSenderId: "29523182317",
+            appId: "1:29523182317:web:perfetto-pizza"
+        };
+
+        function initAdminFirebaseGoogleAuth() {
+            try {
+                if (typeof firebase !== 'undefined' && firebase.apps) {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(FIREBASE_CONFIG);
+                    }
+                    adminFirebaseAuth = firebase.auth();
+
+                    if (firebase.auth.Auth && firebase.auth.Auth.Persistence) {
+                        adminFirebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
+                            console.warn('Firebase persistence warning:', err.message);
+                        });
+                    }
+
+                    adminGoogleProvider = new firebase.auth.GoogleAuthProvider();
+                    adminGoogleProvider.addScope('email');
+                    adminGoogleProvider.addScope('profile');
+                    adminGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+
+                    adminFirebaseAuth.getRedirectResult().then(result => {
+                        if (result && result.user) {
+                            verifyAdminWithBackend(result.user);
+                        }
+                    }).catch(err => {
+                        console.warn('Redirect auth result notice:', err);
+                    });
+
+                    adminFirebaseAuth.onAuthStateChanged(user => {
+                        if (user) {
+                            verifyAdminWithBackend(user);
+                        } else {
+                            renderAdminUnauthenticatedState();
+                        }
+                    });
+                } else {
+                    console.warn('Firebase SDK not loaded, checking session');
+                    checkStoredAdminSession();
+                }
+            } catch (e) {
+                console.error('Error initializing admin auth:', e);
+            }
+        }
+
+        async function verifyAdminWithBackend(firebaseUser) {
+            const authAlert = document.getElementById('auth-alert');
+            const authAlertText = document.getElementById('auth-alert-text');
+            const authGuard = document.getElementById('admin-auth-guard');
+
+            if (authAlert) authAlert.style.display = 'none';
+
+            try {
+                const payload = {
+                    action: 'auth',
+                    portal: 'admin',
+                    email: firebaseUser.email,
+                    fullName: firebaseUser.displayName || 'Admin User',
+                    photoURL: firebaseUser.photoURL || '',
+                    firebaseUid: firebaseUser.uid
+                };
+
+                const res = await fetch('/api/team', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+
+                if (data && data.success && data.authorized) {
+                    currentAdminUser = data.user;
+                    localStorage.setItem('perfetto_admin_user', JSON.stringify(currentAdminUser));
+
+                    // Hide auth guard and show dashboard
+                    if (authGuard) authGuard.style.display = 'none';
+                    renderAdminProfileHeader(currentAdminUser);
+
+                    if (data.isFirstUser) {
+                        showToast('👑 Welcome Master Admin! Full privileges granted.');
+                    }
+
+                    // Fetch team members if team tab is active
+                    fetchTeamMembers();
+                } else {
+                    // Access Denied
+                    if (authGuard) authGuard.style.display = 'flex';
+                    if (authAlert && authAlertText) {
+                        authAlertText.textContent = data.message || 'Access Denied: You are not authorized to view the Admin Dashboard.';
+                        authAlert.style.display = 'flex';
+                    }
+                    if (adminFirebaseAuth) {
+                        adminFirebaseAuth.signOut();
+                    }
+                    localStorage.removeItem('perfetto_admin_user');
+                }
+            } catch (err) {
+                console.error('Admin verification error:', err);
+                const stored = localStorage.getItem('perfetto_admin_user');
+                if (stored) {
+                    try {
+                        currentAdminUser = JSON.parse(stored);
+                        if (authGuard) authGuard.style.display = 'none';
+                        renderAdminProfileHeader(currentAdminUser);
+                        return;
+                    } catch (e) {}
+                }
+                if (authAlert && authAlertText) {
+                    authAlertText.textContent = 'Server connection error. Please try signing in again.';
+                    authAlert.style.display = 'flex';
+                }
+            }
+        }
+
+        async function handleAdminGoogleLogin() {
+            const authAlert = document.getElementById('auth-alert');
+            const authAlertText = document.getElementById('auth-alert-text');
+            if (authAlert) authAlert.style.display = 'none';
+
+            try {
+                if (adminFirebaseAuth && adminGoogleProvider) {
+                    const result = await adminFirebaseAuth.signInWithPopup(adminGoogleProvider);
+                    if (result && result.user) {
+                        verifyAdminWithBackend(result.user);
+                    }
+                } else {
+                    throw new Error('Firebase Auth is not ready. Please refresh the page.');
+                }
+            } catch (err) {
+                console.warn('Google sign-in popup notice:', err.message);
+                if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+                    try {
+                        await adminFirebaseAuth.signInWithRedirect(adminGoogleProvider);
+                    } catch (redirErr) {
+                        if (authAlert && authAlertText) {
+                            authAlertText.textContent = redirErr.message || 'Sign in failed. Please try again.';
+                            authAlert.style.display = 'flex';
+                        }
+                    }
+                } else if (err.code !== 'auth/popup-closed-by-user') {
+                    if (authAlert && authAlertText) {
+                        authAlertText.textContent = err.message || 'Google sign-in failed. Please try again.';
+                        authAlert.style.display = 'flex';
+                    }
+                }
+            }
+        }
+
+        function renderAdminProfileHeader(user) {
+            if (!user) return;
+            const nameEl = document.getElementById('user-profile-name');
+            const roleEl = document.getElementById('user-profile-role');
+            const avatarEl = document.getElementById('user-avatar');
+
+            if (nameEl) nameEl.textContent = user.fullName || user.email.split('@')[0];
+            if (roleEl) roleEl.textContent = user.role || 'Admin';
+
+            if (avatarEl) {
+                if (user.photoURL) {
+                    avatarEl.innerHTML = `<img src="${user.photoURL}" alt="${user.fullName}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+                    avatarEl.style.backgroundColor = 'transparent';
+                } else {
+                    const initials = (user.fullName || user.email || 'AD').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+                    avatarEl.textContent = initials;
+                    avatarEl.style.backgroundColor = user.isMasterAdmin ? 'rgba(255,107,0,0.2)' : 'rgba(59,130,246,0.2)';
+                    avatarEl.style.color = user.isMasterAdmin ? 'var(--primary-orange)' : '#3b82f6';
+                }
+            }
+        }
+
+        function renderAdminUnauthenticatedState() {
+            const authGuard = document.getElementById('admin-auth-guard');
+            if (authGuard) authGuard.style.display = 'flex';
+            localStorage.removeItem('perfetto_admin_user');
+            currentAdminUser = null;
+        }
+
+        function checkStoredAdminSession() {
+            const stored = localStorage.getItem('perfetto_admin_user');
+            const authGuard = document.getElementById('admin-auth-guard');
+            if (stored) {
+                try {
+                    currentAdminUser = JSON.parse(stored);
+                    if (currentAdminUser && currentAdminUser.email) {
+                        if (authGuard) authGuard.style.display = 'none';
+                        renderAdminProfileHeader(currentAdminUser);
+                        return;
+                    }
+                } catch (e) {}
+            }
+            renderAdminUnauthenticatedState();
+        }
+
+        function adminSignOut() {
+            if (confirm('Are you sure you want to sign out of the Admin Dashboard?')) {
+                localStorage.removeItem('perfetto_admin_user');
+                currentAdminUser = null;
+                if (adminFirebaseAuth) {
+                    adminFirebaseAuth.signOut();
+                }
+                renderAdminUnauthenticatedState();
+                showToast('Signed out successfully');
+            }
+        }
+
+        // --------------------------------------------------------------------------
+        // 13. TEAM & ROLE MANAGEMENT CONTROLLER
+        // --------------------------------------------------------------------------
+        let teamMembers = [];
+
+        async function fetchTeamMembers() {
+            const tableBody = document.getElementById('team-table-body');
+            try {
+                const res = await fetch('/api/team');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.members)) {
+                    teamMembers = data.members;
+                    renderTeamTable(teamMembers);
+                } else {
+                    if (tableBody) {
+                        tableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 30px; color: var(--text-muted);">No team members found. Add team members to get started.</td></tr>`;
+                    }
+                }
+            } catch (err) {
+                console.warn('Error fetching team members:', err);
+            }
+        }
+
+        function renderTeamTable(members) {
+            const tableBody = document.getElementById('team-table-body');
+            if (!tableBody) return;
+
+            if (!members || members.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                            <div style="font-size: 2rem; margin-bottom: 8px;">👥</div>
+                            <strong>No team members registered yet</strong>
+                            <div style="font-size: 0.85rem; margin-top: 4px;">Click "Add Team Member" to invite staff members to your store.</div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tableBody.innerHTML = members.map(m => {
+                const isMaster = m.isMasterAdmin || m.role === 'Master Admin';
+                const roleColor = isMaster ? 'rgba(255,107,0,0.2)' : (m.role === 'Admin' ? 'rgba(59,130,246,0.2)' : (m.role === 'Chef' ? 'rgba(245,158,11,0.2)' : 'rgba(168,85,247,0.2)'));
+                const textColor = isMaster ? 'var(--primary-orange)' : (m.role === 'Admin' ? '#3b82f6' : (m.role === 'Chef' ? '#f59e0b' : '#a855f7'));
+                const initials = (m.fullName || m.email || 'TM').split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+                const avatarMarkup = m.photoURL
+                    ? `<img src="${m.photoURL}" alt="${m.fullName}" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">`
+                    : `<div class="avatar" style="background-color: ${roleColor}; color: ${textColor}; width: 36px; height: 36px; font-size: 0.85rem;">${initials}</div>`;
+
+                const statusClass = m.status === 'Active' ? 'available' : 'unavailable';
+                const memberId = m._id || m.id;
+
+                const roleSelectDisabled = (isMaster && currentAdminUser && !currentAdminUser.isMasterAdmin) ? 'disabled' : '';
+
+                const actionsMarkup = isMaster
+                    ? `<span style="font-size: 0.78rem; color: var(--primary-orange); font-weight: 700;"><i class="fa-solid fa-crown"></i> Master Owner</span>`
+                    : `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button class="btn-outline" style="padding: 4px 8px; font-size: 0.75rem;" onclick="toggleMemberStatus('${memberId}', '${m.status}')">
+                                ${m.status === 'Active' ? '<i class="fa-solid fa-user-slash"></i> Deactivate' : '<i class="fa-solid fa-user-check"></i> Activate'}
+                            </button>
+                            <button class="btn-outline" style="padding: 4px 8px; font-size: 0.75rem; color: #ef4444; border-color: rgba(239,68,68,0.4);" onclick="deleteTeamMember('${memberId}', '${m.email}', '${m.fullName}')" title="Delete Member">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    `;
+
+                return `
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                ${avatarMarkup}
+                                <div>
+                                    <strong>${m.fullName || 'Team Member'}</strong>
+                                    <div style="font-size: 0.78rem; color: var(--text-muted);">${isMaster ? 'Master Super User' : (m.role || 'Staff')}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><code>${m.email}</code></td>
+                        <td>
+                            ${isMaster ? `<span class="badge" style="background: rgba(255,107,0,0.15); color: var(--primary-orange); padding: 4px 10px; border-radius: 6px; font-weight: 700;"><i class="fa-solid fa-crown"></i> Master Admin</span>` : `
+                            <select class="role-select-dropdown" onchange="updateMemberRole('${memberId}', this.value)" ${roleSelectDisabled}>
+                                <option value="Admin" ${m.role === 'Admin' ? 'selected' : ''}>Admin (Manager)</option>
+                                <option value="Chef" ${m.role === 'Chef' ? 'selected' : ''}>Chef (Kitchen Staff)</option>
+                                <option value="Delivery Boy" ${m.role === 'Delivery Boy' ? 'selected' : ''}>Delivery Boy</option>
+                            </select>`}
+                        </td>
+                        <td>
+                            <span class="status-text ${statusClass}">
+                                <i class="fa-solid fa-circle" style="font-size: 0.55rem; margin-right: 4px;"></i>
+                                ${m.status || 'Active'}
+                            </span>
+                        </td>
+                        <td>${actionsMarkup}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openAddTeamMemberModal() {
+            const modal = document.getElementById('add-team-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closeAddTeamMemberModal() {
+            const modal = document.getElementById('add-team-modal');
+            if (modal) modal.style.display = 'none';
+            const form = document.getElementById('add-team-form');
+            if (form) form.reset();
+        }
+
+        async function handleAddTeamMember(e) {
+            e.preventDefault();
+            const nameInput = document.getElementById('new-member-name');
+            const emailInput = document.getElementById('new-member-email');
+            const roleSelect = document.getElementById('new-member-role');
+            const btn = document.getElementById('btn-save-member');
+
+            if (!nameInput || !emailInput || !roleSelect) return;
+
+            const fullName = nameInput.value.trim();
+            const email = emailInput.value.trim().toLowerCase();
+            const role = roleSelect.value;
+
+            if (!email) {
+                showToast('Please enter a valid Google email address');
+                return;
+            }
+
+            if (btn) btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/team', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email,
+                        fullName,
+                        role,
+                        status: 'Active',
+                        addedBy: (currentAdminUser && currentAdminUser.email) || 'Admin'
+                    })
+                });
+
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast(`✅ Added ${fullName} (${role}) to the Team!`);
+                    closeAddTeamMemberModal();
+                    fetchTeamMembers();
+                } else {
+                    showToast(`❌ ${data.message || 'Failed to add team member'}`);
+                }
+            } catch (err) {
+                showToast(`❌ Error: ${err.message}`);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function updateMemberRole(memberId, newRole) {
+            try {
+                const res = await fetch('/api/team', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: memberId, role: newRole })
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast(`Role updated to ${newRole}`);
+                    fetchTeamMembers();
+                } else {
+                    showToast(`❌ ${data.message || 'Failed to update role'}`);
+                }
+            } catch (err) {
+                showToast(`❌ Error: ${err.message}`);
+            }
+        }
+
+        async function toggleMemberStatus(memberId, currentStatus) {
+            const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+            try {
+                const res = await fetch('/api/team', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: memberId, status: newStatus })
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast(`Member marked as ${newStatus}`);
+                    fetchTeamMembers();
+                } else {
+                    showToast(`❌ ${data.message || 'Failed to update status'}`);
+                }
+            } catch (err) {
+                showToast(`❌ Error: ${err.message}`);
+            }
+        }
+
+        async function deleteTeamMember(memberId, email, name) {
+            if (!confirm(`Are you sure you want to remove ${name || email} from the team? They will no longer be able to log in.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/team', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: memberId, email })
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast(`Removed ${name || email} from team`);
+                    fetchTeamMembers();
+                } else {
+                    showToast(`❌ ${data.message || 'Failed to remove member'}`);
+                }
+            } catch (err) {
+                showToast(`❌ Error: ${err.message}`);
+            }
+        }
+
         // INITIALIZE ON LOAD, HISTORY STATE & CROSS-TAB STORAGE SYNCHRONIZATION
         window.addEventListener('DOMContentLoaded', () => {
+            initAdminFirebaseGoogleAuth();
             initMenuData();
             initShopStatus();
             initOrderSettingsUI();
             updateRevenueStats();
             fetchAdminOrdersFromBackend();
+            fetchTeamMembers();
 
             // Set lightweight polling interval to refresh revenue and orders every 5 seconds
             setInterval(fetchAdminOrdersFromBackend, 5000);

@@ -1,66 +1,250 @@
 // --------------------------------------------------------------------------
-// PERFETTO PIZZA - MOBILE STAFF PORTAL LOGIC (CHEF ROLE ONLY)
+// PERFETTO PIZZA - MOBILE STAFF PORTAL (GOOGLE AUTH & ORDERS CONTROLLER)
 // --------------------------------------------------------------------------
 
-// 1. AUTHENTICATION & ACCESS GUARD
-const STAFF_AUTH_SESSION_KEY = 'perfetto_staff_authenticated_email';
-const AUTHORIZED_TEST_EMAIL = 'abc@gmail.com';
+// 1. FIREBASE GOOGLE AUTHENTICATION & ACCESS GUARD
+let staffFirebaseAuth = null;
+let staffGoogleProvider = null;
+let currentStaffUser = null;
 
-function getAuthenticatedStaffEmail() {
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+    authDomain: "website-fa79c.firebaseapp.com",
+    projectId: "website-fa79c",
+    storageBucket: "website-fa79c.appspot.com",
+    messagingSenderId: "29523182317",
+    appId: "1:29523182317:web:perfetto-pizza"
+};
+
+function initStaffFirebaseGoogleAuth() {
     try {
-        const sessionAuth = sessionStorage.getItem(STAFF_AUTH_SESSION_KEY);
-        if (sessionAuth && sessionAuth.trim().toLowerCase() === AUTHORIZED_TEST_EMAIL) {
-            return sessionAuth.trim();
+        if (typeof firebase !== 'undefined' && firebase.apps) {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(FIREBASE_CONFIG);
+            }
+            staffFirebaseAuth = firebase.auth();
+
+            if (firebase.auth.Auth && firebase.auth.Auth.Persistence) {
+                staffFirebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
+                    console.warn('Firebase persistence warning:', err.message);
+                });
+            }
+
+            staffGoogleProvider = new firebase.auth.GoogleAuthProvider();
+            staffGoogleProvider.addScope('email');
+            staffGoogleProvider.addScope('profile');
+            staffGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+
+            staffFirebaseAuth.getRedirectResult().then(result => {
+                if (result && result.user) {
+                    verifyStaffWithBackend(result.user);
+                }
+            }).catch(err => {
+                console.warn('Redirect auth result notice:', err);
+            });
+
+            staffFirebaseAuth.onAuthStateChanged(user => {
+                if (user) {
+                    verifyStaffWithBackend(user);
+                } else {
+                    renderStaffUnauthenticatedState();
+                }
+            });
+        } else {
+            console.warn('Firebase SDK not loaded, checking session');
+            checkStoredStaffSession();
         }
     } catch (e) {
-        console.error('Error reading staff session:', e);
-    }
-    return null;
-}
-
-function setAuthenticatedStaffEmail(email) {
-    try {
-        sessionStorage.setItem(STAFF_AUTH_SESSION_KEY, email);
-    } catch (e) {
-        console.error('Error setting staff session:', e);
+        console.error('Error initializing staff auth:', e);
     }
 }
 
-function clearStaffSession() {
-    try {
-        sessionStorage.removeItem(STAFF_AUTH_SESSION_KEY);
-    } catch (e) {
-        console.error('Error clearing staff session:', e);
-    }
-}
-
-function checkStaffAuth() {
+async function verifyStaffWithBackend(firebaseUser) {
+    const errorMsg = document.getElementById('login-error-msg');
+    const errorText = document.getElementById('login-error-text');
     const loginScreen = document.getElementById('staff-login-screen');
     const dashboardView = document.getElementById('staff-dashboard-view');
-    const emailDisplay = document.getElementById('staff-email-display');
-    const emailInput = document.getElementById('staff-email-input');
-    const errorMsg = document.getElementById('login-error-msg');
 
-    const authEmail = getAuthenticatedStaffEmail();
+    if (errorMsg) errorMsg.style.display = 'none';
 
-    if (authEmail) {
-        // Authenticated: Show Dashboard, Hide Login Screen
-        if (loginScreen) loginScreen.style.display = 'none';
-        if (dashboardView) dashboardView.style.display = 'flex';
-        if (emailDisplay) emailDisplay.textContent = authEmail;
+    try {
+        const payload = {
+            action: 'auth',
+            portal: 'staff',
+            email: firebaseUser.email,
+            fullName: firebaseUser.displayName || 'Staff Member',
+            photoURL: firebaseUser.photoURL || '',
+            firebaseUid: firebaseUser.uid
+        };
 
-        // Load & render orders
-        loadCustomerOrders();
-        renderOrders();
-    } else {
-        // Unauthenticated: Show Login Screen, Hide Dashboard
-        if (dashboardView) dashboardView.style.display = 'none';
-        if (loginScreen) loginScreen.style.display = 'flex';
+        const res = await fetch('/api/team', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-        if (errorMsg) errorMsg.style.display = 'none';
-        if (emailInput) {
-            emailInput.classList.remove('input-error');
+        const data = await res.json();
+
+        if (data && data.success && data.authorized) {
+            currentStaffUser = data.user;
+            localStorage.setItem('perfetto_staff_user', JSON.stringify(currentStaffUser));
+
+            // Show dashboard
+            if (loginScreen) loginScreen.style.display = 'none';
+            if (dashboardView) dashboardView.style.display = 'flex';
+
+            renderStaffRoleBar(currentStaffUser);
+
+            if (data.isFirstUser) {
+                showStaffToast('👑 Welcome Master Admin! Staff access granted.');
+            }
+
+            // Load and render orders
+            loadCustomerOrders();
+            renderOrders();
+        } else {
+            // Access Denied
+            if (loginScreen) loginScreen.style.display = 'flex';
+            if (dashboardView) dashboardView.style.display = 'none';
+
+            if (errorMsg && errorText) {
+                errorText.textContent = data.message || 'Access Denied: You are not authorized to access the Staff Portal.';
+                errorMsg.style.display = 'flex';
+            }
+
+            if (staffFirebaseAuth) {
+                staffFirebaseAuth.signOut();
+            }
+            localStorage.removeItem('perfetto_staff_user');
         }
+    } catch (err) {
+        console.error('Staff verification error:', err);
+        const stored = localStorage.getItem('perfetto_staff_user');
+        if (stored) {
+            try {
+                currentStaffUser = JSON.parse(stored);
+                if (loginScreen) loginScreen.style.display = 'none';
+                if (dashboardView) dashboardView.style.display = 'flex';
+                renderStaffRoleBar(currentStaffUser);
+                loadCustomerOrders();
+                renderOrders();
+                return;
+            } catch (e) {}
+        }
+        if (errorMsg && errorText) {
+            errorText.textContent = 'Server connection error. Please try again.';
+            errorMsg.style.display = 'flex';
+        }
+    }
+}
+
+async function handleStaffGoogleLogin() {
+    const errorMsg = document.getElementById('login-error-msg');
+    const errorText = document.getElementById('login-error-text');
+    if (errorMsg) errorMsg.style.display = 'none';
+
+    try {
+        if (staffFirebaseAuth && staffGoogleProvider) {
+            const result = await staffFirebaseAuth.signInWithPopup(staffGoogleProvider);
+            if (result && result.user) {
+                verifyStaffWithBackend(result.user);
+            }
+        } else {
+            throw new Error('Firebase Auth is not ready. Please refresh.');
+        }
+    } catch (err) {
+        console.warn('Google sign-in popup notice:', err.message);
+        if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
+            try {
+                await staffFirebaseAuth.signInWithRedirect(staffGoogleProvider);
+            } catch (redirErr) {
+                if (errorMsg && errorText) {
+                    errorText.textContent = redirErr.message || 'Sign in failed. Please try again.';
+                    errorMsg.style.display = 'flex';
+                }
+            }
+        } else if (err.code !== 'auth/popup-closed-by-user') {
+            if (errorMsg && errorText) {
+                errorText.textContent = err.message || 'Google sign-in failed. Please try again.';
+                errorMsg.style.display = 'flex';
+            }
+        }
+    }
+}
+
+function renderStaffRoleBar(user) {
+    if (!user) return;
+    const roleLabel = document.getElementById('current-role-label');
+    const emailDisplay = document.getElementById('staff-email-display');
+    const roleIcon = document.getElementById('role-icon');
+    const avatarWrap = document.getElementById('logged-in-user-email');
+
+    if (roleLabel) {
+        if (user.role === 'Master Admin') {
+            roleLabel.textContent = 'Master Admin';
+            if (roleIcon) roleIcon.className = 'fa-solid fa-crown';
+        } else if (user.role === 'Admin') {
+            roleLabel.textContent = 'Admin (Manager)';
+            if (roleIcon) roleIcon.className = 'fa-solid fa-user-tie';
+        } else if (user.role === 'Delivery Boy') {
+            roleLabel.textContent = 'Delivery Boy';
+            if (roleIcon) roleIcon.className = 'fa-solid fa-motorcycle';
+        } else {
+            roleLabel.textContent = 'Chef (Kitchen)';
+            if (roleIcon) roleIcon.className = 'fa-solid fa-fire-burner';
+        }
+    }
+
+    if (emailDisplay) {
+        emailDisplay.textContent = user.fullName || user.email;
+    }
+
+    if (avatarWrap && user.photoURL) {
+        avatarWrap.innerHTML = `
+            <img src="${user.photoURL}" alt="${user.fullName}" style="width: 20px; height: 20px; border-radius: 50%; object-fit: cover; margin-right: 6px;">
+            <span id="staff-email-display">${user.fullName || user.email}</span>
+        `;
+    }
+}
+
+function renderStaffUnauthenticatedState() {
+    const loginScreen = document.getElementById('staff-login-screen');
+    const dashboardView = document.getElementById('staff-dashboard-view');
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (dashboardView) dashboardView.style.display = 'none';
+    localStorage.removeItem('perfetto_staff_user');
+    currentStaffUser = null;
+}
+
+function checkStoredStaffSession() {
+    const stored = localStorage.getItem('perfetto_staff_user');
+    const loginScreen = document.getElementById('staff-login-screen');
+    const dashboardView = document.getElementById('staff-dashboard-view');
+    if (stored) {
+        try {
+            currentStaffUser = JSON.parse(stored);
+            if (currentStaffUser && currentStaffUser.email) {
+                if (loginScreen) loginScreen.style.display = 'none';
+                if (dashboardView) dashboardView.style.display = 'flex';
+                renderStaffRoleBar(currentStaffUser);
+                loadCustomerOrders();
+                renderOrders();
+                return;
+            }
+        } catch (e) {}
+    }
+    renderStaffUnauthenticatedState();
+}
+
+function handleStaffLogout() {
+    if (confirm('Are you sure you want to log out of the Staff Portal?')) {
+        localStorage.removeItem('perfetto_staff_user');
+        currentStaffUser = null;
+        if (staffFirebaseAuth) {
+            staffFirebaseAuth.signOut();
+        }
+        renderStaffUnauthenticatedState();
+        showStaffToast('Logged out successfully');
     }
 }
 
@@ -481,6 +665,20 @@ function showStaffToast(msg) {
         toast.classList.remove('show');
     }, 2800);
 }
+
+// --------------------------------------------------------------------------
+// 9. INITIALIZATION ON DOM LOAD
+// --------------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+    initStaffFirebaseGoogleAuth();
+
+    // Background orders polling (every 3.5s for real-time kitchen feed)
+    setInterval(() => {
+        if (currentStaffUser) {
+            fetchOrdersFromMongoDBBackend();
+        }
+    }, 3500);
+});
 
 
 
