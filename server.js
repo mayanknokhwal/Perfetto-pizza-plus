@@ -93,6 +93,11 @@ const server = http.createServer((req, res) => {
     }
 
     // 1. API ROUTES
+    if (pathname === '/api/menu' || pathname === '/api/menu/') {
+        const menuHandler = require('./api/menu');
+        return adaptServerless(req, res, menuHandler);
+    }
+
     if (pathname === '/api/orders' || pathname === '/api/orders/') {
         const ordersHandler = require('./api/orders');
         return adaptServerless(req, res, ordersHandler);

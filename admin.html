@@ -2028,7 +2028,7 @@
             "Wrap": { name: "Wrap", img: "https://i.ibb.co/V0c7gf6d/wrap.png" }
         };
 
-        // 1. INITIALIZE DATABASE FROM LOCALSTORAGE
+        // 1. INITIALIZE DATABASE FROM LOCALSTORAGE & MONGODB BACKEND
         function initMenuData() {
             try {
                 const stored = localStorage.getItem(STORAGE_KEY);
@@ -2051,6 +2051,37 @@
 
             renderCategoryGrid();
             updateStats();
+
+            // Asynchronously fetch live menu items from MongoDB backend
+            fetchMenuFromBackend();
+        }
+
+        async function fetchMenuFromBackend() {
+            try {
+                const res = await fetch('/api/menu');
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+                    menuItems = data.items.filter(item => item.category && item.name);
+                    saveToLocalStorage();
+                    updateStats();
+
+                    // Re-render whichever view is active if admin is not actively typing in an input
+                    const activeEl = document.activeElement;
+                    const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+                    if (!isTyping) {
+                        if (currentSearchQuery.trim() !== '') {
+                            renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
+                        } else if (activeCategory) {
+                            renderCategoryItemsTable();
+                        } else {
+                            renderCategoryGrid();
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Backend menu sync notice (local resilience active):', err.message);
+            }
         }
 
         // SAVE TO LOCALSTORAGE
@@ -2593,19 +2624,52 @@
             });
         }
 
-        // TOGGLE STATUS BADGE IN TABLE
+        // TOGGLE STATUS BADGE IN TABLE (INSTANT DATABASE SYNC)
         function toggleStatusBadge(id) {
             const toggleInput = document.getElementById(`toggle-${id}`);
             const statusText = document.getElementById(`status-text-${id}`);
-            if (toggleInput && statusText) {
-                const isAvail = toggleInput.checked;
+            if (!toggleInput) return;
+
+            const isAvail = toggleInput.checked;
+            if (statusText) {
                 statusText.textContent = isAvail ? 'Available' : 'Out of Stock';
                 statusText.className = `status-text ${isAvail ? 'available' : 'unavailable'}`;
             }
+
+            // Update in-memory item
+            const item = menuItems.find(i => i.id === id);
+            if (item) {
+                item.available = isAvail;
+            }
+
+            saveToLocalStorage();
+            updateStats();
+
+            // Instantly sync availability toggle to MongoDB Atlas backend
+            syncSingleItemToBackend({ id, available: isAvail });
+
+            const itemName = item ? item.name : id;
+            showToast(`${itemName}: marked ${isAvail ? 'Available' : 'Out of Stock'}`);
         }
 
-        // 6. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS)
-        function saveAllChanges() {
+        async function syncSingleItemToBackend(payload) {
+            try {
+                const res = await fetch('/api/menu', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    console.log('MongoDB Atlas synced item:', payload.id, payload);
+                }
+            } catch (err) {
+                console.warn('Backend item sync notice (local resilience active):', err.message);
+            }
+        }
+
+        // 6. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS & BULK SYNC TO MONGODB)
+        async function saveAllChanges() {
             // Read active DOM inputs and update menuItems memory
             menuItems.forEach(item => {
                 const toggleInput = document.getElementById(`toggle-${item.id}`);
@@ -2642,11 +2706,29 @@
                 renderCategoryGrid();
             }
 
-            showToast('All menu changes, prices & settings saved to Local database!');
+            showToast('Saving menu changes to Database...');
+
+            // Bulk sync all menu changes to MongoDB Atlas backend
+            try {
+                const res = await fetch('/api/menu', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items: menuItems })
+                });
+                const data = await res.json();
+                if (data && data.success) {
+                    showToast('All menu changes, prices & settings saved to Database!');
+                } else {
+                    showToast('Saved to local database (offline mode).');
+                }
+            } catch (err) {
+                console.warn('MongoDB Atlas bulk save notice (local resilience active):', err.message);
+                showToast('Saved to local database (offline mode).');
+            }
         }
 
         // 7. RESET TO DEFAULTS
-        function resetToDefaults() {
+        async function resetToDefaults() {
             if (confirm('Reset menu database back to original defaults?')) {
                 menuItems = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
                 saveToLocalStorage();
@@ -2659,7 +2741,25 @@
                 } else {
                     renderCategoryGrid();
                 }
-                showToast('Menu database reset to defaults!');
+
+                showToast('Resetting menu database to defaults...');
+
+                try {
+                    const res = await fetch('/api/menu', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ reset: true, items: DEFAULT_MENU_ITEMS })
+                    });
+                    const data = await res.json();
+                    if (data && data.success) {
+                        showToast('Menu database reset to defaults on Database!');
+                    } else {
+                        showToast('Menu database reset to defaults locally!');
+                    }
+                } catch (err) {
+                    console.warn('MongoDB Atlas reset notice (local resilience active):', err.message);
+                    showToast('Menu database reset to defaults locally!');
+                }
             }
         }
 

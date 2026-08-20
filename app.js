@@ -415,6 +415,168 @@ function getStoredMenuItems() {
     return null;
 }
 
+function computeMenuHash(items) {
+    if (!Array.isArray(items)) return '';
+    return items.map(i => `${i.id}:${i.available !== false}:${i.price || 0}:${JSON.stringify(i.prices || {})}`).join('|');
+}
+
+// Seamlessly refresh active customer view in-place without page jump or loss of scroll position
+function refreshActiveCustomerView(freshItems) {
+    if (!Array.isArray(freshItems)) return;
+
+    if (activeTabName === 'category-detail' && lastCategoryState.categoryName) {
+        const subItemsGrid = document.getElementById('sub-items-grid');
+        const heroCountEl = document.getElementById('category-hero-count');
+        const categoryName = lastCategoryState.categoryName;
+        const categoryImg = lastCategoryState.categoryImg;
+
+        const items = getSubItems(categoryName, categoryImg);
+        if (heroCountEl) heroCountEl.textContent = `${items.length} options available`;
+
+        if (subItemsGrid) {
+            if (categoryName === "Pizza") {
+                subItemsGrid.classList.add('pizza-grid-container');
+                subItemsGrid.innerHTML = items.map(item => {
+                    const ingredients = item.desc ? item.desc.split(/[,&]/).map(s => s.trim()).filter(Boolean) : [];
+                    const hasMoreThanFive = ingredients.length > 5;
+
+                    let descMarkup = '';
+                    if (hasMoreThanFive) {
+                        const shortText = ingredients.slice(0, 5).join(', ') + '...';
+                        const escFull = item.desc.replace(/"/g, '&quot;');
+                        const escShort = shortText.replace(/"/g, '&quot;');
+                        descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
+                            <span class="desc-text truncated" data-full="${escFull}" data-short="${escShort}">${shortText}</span>
+                            <button class="more-btn" onclick="toggleIngredients('${item.id}', event)">More</button>
+                           </p>`;
+                    } else {
+                        descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
+                            <span class="desc-text">${item.desc}</span>
+                           </p>`;
+                    }
+
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    const prices = item.prices || { S: 199, M: 299, L: 399 };
+
+                    return `
+                    <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${prices.M}">
+                        ${outOfStockBadge}
+                        <div class="pizza-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
+                        </div>
+                        <div class="pizza-card-body">
+                            <h4 class="pizza-card-title">${item.name}</h4>
+                            ${descMarkup}
+                            
+                            <div class="pizza-size-selector">
+                                <span class="size-label">Size:</span>
+                                <div class="size-options">
+                                    <button class="size-btn" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${prices.S}, event)">S</button>
+                                    <button class="size-btn selected" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${prices.M}, event)">M</button>
+                                    <button class="size-btn" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
+                                </div>
+                            </div>
+                            
+                            <div class="pizza-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="pizza-card-price" id="price-${item.id}">${formatPrice(prices.M)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else {
+                subItemsGrid.classList.remove('pizza-grid-container');
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')"><i class="fa-solid fa-plus"></i> Add</button>`
+                        : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> Out of Stock</button>`;
+
+                    return `
+                    <div class="sub-item-card ${outOfStockClass}">
+                        ${outOfStockBadge}
+                        <div class="sub-item-img-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="sub-item-img" loading="lazy">
+                        </div>
+                        <div class="sub-item-details">
+                            <div class="sub-item-top-row">
+                                <span class="sub-item-name">${item.name}</span>
+                                ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
+                            </div>
+                            <p class="sub-item-desc">${item.desc}</p>
+                            <div class="sub-item-bottom-row">
+                                <span class="sub-item-price">${formatPrice(item.price)}</span>
+                                ${addBtnMarkup}
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            }
+        }
+    } else if (activeTabName === 'search-results') {
+        const searchInput = document.getElementById('customer-search-input');
+        if (searchInput && searchInput.value.trim() !== '') {
+            renderCustomerSearchResults(searchInput.value.toLowerCase().trim(), searchInput.value);
+        }
+    }
+
+    // Refresh cart in case prices or availability of in-cart items changed
+    updateCartUI();
+}
+
+// Background Live Menu Poller & Server Synchronization
+async function fetchLiveMenuFromBackend() {
+    try {
+        const res = await fetch('/api/menu');
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+            const freshItems = data.items;
+            const newHash = computeMenuHash(freshItems);
+            const stored = getStoredMenuItems();
+            const oldHash = computeMenuHash(stored || []);
+
+            if (newHash !== oldHash || !stored || stored.length === 0) {
+                try {
+                    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                } catch (e) { }
+                refreshActiveCustomerView(freshItems);
+            }
+        }
+    } catch (err) {
+        // Graceful offline fallback - continue using local cached menu
+    }
+}
+
+// Check if any items currently in customer's cart are marked unavailable in the latest menu
+function validateCartAvailability() {
+    const allItems = getAllCustomerMenuItems();
+    const unavailableInCart = [];
+
+    cart.forEach(cartItem => {
+        const cleanName = (cartItem.name || '').replace(/\s*\([SML]\)$/i, '').trim();
+        const found = allItems.find(i => 
+            (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) || 
+            (i.id && cartItem.id && i.id === cartItem.id)
+        );
+        if (found && found.available === false) {
+            unavailableInCart.push(cartItem.name);
+        }
+    });
+
+    return unavailableInCart;
+}
+
 function getSubItems(categoryName, categoryImg) {
     const storedItems = getStoredMenuItems();
     if (storedItems) {
@@ -501,16 +663,20 @@ function addPizzaToCart(pizzaId, event) {
     if (event) event.stopPropagation();
 
     const card = document.querySelector(`.pizza-card[data-pizza-id="${pizzaId}"]`);
-    if (!card) return;
-
-    if (card.classList.contains('out-of-stock')) return;
+    if (card && card.classList.contains('out-of-stock')) {
+        showToast('⚠️ This pizza is currently out of stock.');
+        return;
+    }
 
     const pizzaList = getSubItems("Pizza");
     const item = pizzaList.find(p => p.id === pizzaId);
-    if (!item || item.available === false) return;
+    if (!item || item.available === false) {
+        showToast('⚠️ This pizza is currently out of stock.');
+        return;
+    }
 
-    const selectedSize = card.getAttribute('data-selected-size') || 'M';
-    const price = parseFloat(card.getAttribute('data-current-price')) || (item.prices ? item.prices[selectedSize] : 299);
+    const selectedSize = (card && card.getAttribute('data-selected-size')) || 'M';
+    const price = parseFloat(card && card.getAttribute('data-current-price')) || (item.prices ? item.prices[selectedSize] : 299);
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
     addToCart(cartItemTitle, price, item.img);
@@ -973,6 +1139,16 @@ function addToCart(name, price, img) {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
     }
+
+    // Check if item is marked out-of-stock in latest menu data
+    const allItems = getAllCustomerMenuItems();
+    const cleanName = (name || '').replace(/\s*\([SML]\)$/i, '').trim();
+    const menuItem = allItems.find(i => (i.name && i.name.toLowerCase() === cleanName.toLowerCase()));
+    if (menuItem && menuItem.available === false) {
+        showToast(`⚠️ "${cleanName}" is currently out of stock.`);
+        return;
+    }
+
     const existingIndex = cart.findIndex(item => item.name === name);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
@@ -1147,6 +1323,13 @@ function processCheckout() {
         return;
     }
 
+    // Check if any cart item is currently out of stock
+    const unavailableItems = validateCartAvailability();
+    if (unavailableItems.length > 0) {
+        showToast(`⚠️ "${unavailableItems[0]}" is currently out of stock. Please remove it from your cart.`);
+        return;
+    }
+
     const minOrderVal = getMinOrderValue();
     if (subtotal < minOrderVal) {
         const diff = (minOrderVal - subtotal).toFixed(2);
@@ -1287,6 +1470,11 @@ async function handleSelectOnlinePayment() {
         showToast('⚠️ Please tap "Confirm Address" first.');
         return;
     }
+    const unavailableItems = validateCartAvailability();
+    if (unavailableItems.length > 0) {
+        showToast(`⚠️ "${unavailableItems[0]}" is currently out of stock. Please remove it from your cart.`);
+        return;
+    }
     const savedProfile = getSavedDeliveryProfile();
     if (!savedProfile) {
         closeCheckoutModal();
@@ -1361,6 +1549,11 @@ async function handleSelectOnlinePayment() {
 function handleSelectCodPayment() {
     if (!isCheckoutAddressConfirmed) {
         showToast('⚠️ Please tap "Confirm Address" first.');
+        return;
+    }
+    const unavailableItems = validateCartAvailability();
+    if (unavailableItems.length > 0) {
+        showToast(`⚠️ "${unavailableItems[0]}" is currently out of stock. Please remove it from your cart.`);
         return;
     }
     const savedProfile = getSavedDeliveryProfile();
@@ -4075,6 +4268,22 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLocalStorageSync();
     initFirebaseGoogleAuth();
     checkPaymentReturnParams();
+
+    // 1. Initial live menu fetch from MongoDB backend
+    fetchLiveMenuFromBackend();
+
+    // 2. Real-Time Background Polling (Every 3.5s for instant multi-device synchronization)
+    setInterval(fetchLiveMenuFromBackend, 3500);
+
+    // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            fetchLiveMenuFromBackend();
+        }
+    });
+    window.addEventListener('focus', () => {
+        fetchLiveMenuFromBackend();
+    });
 });
 
 
