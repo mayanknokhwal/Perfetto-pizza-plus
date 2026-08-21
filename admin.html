@@ -3803,6 +3803,19 @@
         function checkAdminOAuthCallbackParams() {
             try {
                 const urlParams = new URLSearchParams(window.location.search);
+                const authError = urlParams.get('auth_error');
+                if (authError) {
+                    showToast(`⚠️ Authentication note: ${decodeURIComponent(authError)}`);
+                    const errorBox = document.getElementById('admin-login-error');
+                    if (errorBox) {
+                        errorBox.textContent = `Sign-in note: ${decodeURIComponent(authError)}`;
+                        errorBox.style.display = 'block';
+                    }
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }
+
                 const authStatus = urlParams.get('auth');
                 if (authStatus === 'success') {
                     const email = (urlParams.get('email') || '').trim();

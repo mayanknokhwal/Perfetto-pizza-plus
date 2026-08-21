@@ -14,15 +14,40 @@ const { connectToDatabase } = require('../lib/mongodb');
 const AdminUser = require('../models/AdminUser');
 const User = require('../models/User');
 
-const MASTER_ADMIN_EMAIL = '44website.com44@gmail.com';
-const AUTHORIZED_TEST_CHEF = 'abc@gmail.com';
+const MASTER_ADMIN_EMAIL = (process.env.MASTER_ADMIN_EMAIL || '44website.com44@gmail.com').toLowerCase().trim();
+const AUTHORIZED_TEST_CHEF = (process.env.AUTHORIZED_TEST_CHEF || 'abc@gmail.com').toLowerCase().trim();
 
 function getGoogleCredentials() {
     return {
-        clientId: process.env.GOOGLE_CLIENT_ID || '',
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-        redirectUri: process.env.GOOGLE_REDIRECT_URI || '',
+        clientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
+        clientSecret: (process.env.GOOGLE_CLIENT_SECRET || '').trim(),
+        redirectUri: (process.env.GOOGLE_REDIRECT_URI || '').trim(),
     };
+}
+
+function getRedirectUri(req, creds) {
+    const rawHost = req.headers['x-forwarded-host'] || req.headers.host || 'perfetto-pizza.vercel.app';
+    const host = rawHost.split(',')[0].trim();
+    const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+
+    let protocol = 'https';
+    if (isLocal) {
+        protocol = req.headers['x-forwarded-proto'] || 'http';
+    } else {
+        const protoHeader = req.headers['x-forwarded-proto'];
+        protocol = protoHeader ? protoHeader.split(',')[0].trim() : 'https';
+    }
+
+    if (creds && creds.redirectUri) {
+        const configuredUri = creds.redirectUri.trim();
+        // If configuredUri points to localhost but we are running in production on Vercel, use current host
+        if (!isLocal && configuredUri.includes('localhost')) {
+            return `${protocol}://${host}/api/auth/google/callback`;
+        }
+        return configuredUri;
+    }
+
+    return `${protocol}://${host}/api/auth/google/callback`;
 }
 
 function httpsPost(urlStr, data, headers = {}) {
@@ -106,7 +131,7 @@ function httpsGet(urlStr, headers = {}) {
     });
 }
 
-async function resolveUserRoleAndSync(profile) {
+async function resolveUserRoleAndSync(profile, targetHint = '') {
     const email = (profile.email || '').trim().toLowerCase();
     const fullName = profile.name || profile.fullName || (email ? email.split('@')[0] : 'User');
     const photoURL = profile.picture || profile.photoURL || '';
@@ -197,6 +222,10 @@ async function resolveUserRoleAndSync(profile) {
         destination = '/staff.html';
     } else if (status === 'pending') {
         destination = '/admin.html';
+    } else if (targetHint === 'admin') {
+        destination = '/admin.html';
+    } else if (targetHint === 'staff') {
+        destination = '/staff.html';
     } else {
         destination = '/index.html';
     }
@@ -214,12 +243,18 @@ async function resolveUserRoleAndSync(profile) {
 
 async function handleGoogleAuthRequest(req, res, pathname) {
     const creds = getGoogleCredentials();
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:8080';
-    const protocol = req.headers['x-forwarded-proto'] || 'http';
-    const dynamicRedirectUri = `${protocol}://${host}/api/auth/google/callback`;
+    const dynamicRedirectUri = getRedirectUri(req, creds);
+    const rawPath = (pathname || req.headers['x-matched-path'] || req.headers['x-invoke-path'] || req.originalUrl || req.url || '').split('?')[0];
+    const cleanPath = rawPath.replace(/\/+$/, '').toLowerCase();
+    const expressPath = (req.path || '').replace(/\/+$/, '').toLowerCase();
 
-    // 1. GET /api/auth/config
-    if (pathname === '/api/auth/config' || req.path === '/config') {
+    // 1. GET /api/auth/config or /auth/config
+    const isConfig = cleanPath === '/api/auth/config' ||
+                     cleanPath === '/auth/config' ||
+                     cleanPath.endsWith('/config') ||
+                     expressPath === '/config';
+
+    if (isConfig && req.method === 'GET') {
         return res.status(200).json({
             success: true,
             clientId: creds.clientId,
@@ -227,51 +262,42 @@ async function handleGoogleAuthRequest(req, res, pathname) {
         });
     }
 
-    // 2. GET /api/auth/google
-    if (pathname === '/api/auth/google' || req.path === '/google' || req.path === '/' || req.path === '') {
-        if (!creds.clientId) {
-            return res.status(500).json({
-                success: false,
-                message: 'GOOGLE_CLIENT_ID is not configured in server environment variables.'
-            });
-        }
+    // 2. GET /api/auth/google/callback or /auth/google/callback (Check callback before generic /google)
+    const isCallback = cleanPath === '/api/auth/google/callback' ||
+                       cleanPath === '/auth/google/callback' ||
+                       cleanPath === '/api/auth/callback' ||
+                       cleanPath === '/auth/callback' ||
+                       cleanPath.endsWith('/callback') ||
+                       expressPath === '/google/callback' ||
+                       expressPath === '/callback';
 
-        const state = JSON.stringify({
-            returnUrl: req.query.returnUrl || req.query.target || '',
-            ts: Date.now(),
-        });
-        const encodedState = Buffer.from(state).toString('base64');
-
-        const params = new URLSearchParams({
-            client_id: creds.clientId,
-            redirect_uri: dynamicRedirectUri,
-            response_type: 'code',
-            scope: 'openid email profile',
-            access_type: 'offline',
-            prompt: 'select_account',
-            state: encodedState,
-        });
-
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-        return res.redirect(302, authUrl);
-    }
-
-    // 3. GET /api/auth/google/callback
-    if (pathname === '/api/auth/google/callback' || req.path === '/google/callback' || req.path === '/callback') {
+    if (isCallback && req.method === 'GET') {
         const code = req.query.code;
         const error = req.query.error;
 
+        let returnTarget = '';
+        let initialRedirectUri = dynamicRedirectUri;
+        if (req.query.state) {
+            try {
+                const parsedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString('utf8'));
+                if (parsedState.returnUrl) returnTarget = parsedState.returnUrl;
+                if (parsedState.redirectUri) initialRedirectUri = parsedState.redirectUri;
+            } catch (e) { }
+        }
+
+        const errorDest = returnTarget === 'admin' ? '/admin.html' : (returnTarget === 'staff' ? '/staff.html' : '/index.html');
+
         if (error) {
             console.warn('Google OAuth error from callback:', error);
-            return res.redirect(302, `/index.html?auth_error=${encodeURIComponent(error)}`);
+            return res.redirect(302, `${errorDest}?auth_error=${encodeURIComponent(error)}`);
         }
 
         if (!code) {
-            return res.redirect(302, `/index.html?auth_error=missing_code`);
+            return res.redirect(302, `${errorDest}?auth_error=missing_code`);
         }
 
         if (!creds.clientId || !creds.clientSecret) {
-            return res.redirect(302, `/index.html?auth_error=${encodeURIComponent('Google OAuth credentials not configured on server')}`);
+            return res.redirect(302, `${errorDest}?auth_error=${encodeURIComponent('Google OAuth credentials not configured on server')}`);
         }
 
         try {
@@ -279,7 +305,7 @@ async function handleGoogleAuthRequest(req, res, pathname) {
                 code,
                 client_id: creds.clientId,
                 client_secret: creds.clientSecret,
-                redirect_uri: dynamicRedirectUri,
+                redirect_uri: initialRedirectUri || dynamicRedirectUri,
                 grant_type: 'authorization_code',
             });
 
@@ -298,7 +324,7 @@ async function handleGoogleAuthRequest(req, res, pathname) {
                 Authorization: `Bearer ${accessToken}`,
             });
 
-            const userAuth = await resolveUserRoleAndSync(profile);
+            const userAuth = await resolveUserRoleAndSync(profile, returnTarget);
 
             const targetParams = new URLSearchParams({
                 auth: 'success',
@@ -314,12 +340,61 @@ async function handleGoogleAuthRequest(req, res, pathname) {
             return res.redirect(302, redirectUrl);
         } catch (err) {
             console.error('Google OAuth callback exchange error:', err);
-            return res.redirect(302, `/index.html?auth_error=${encodeURIComponent(err.message || 'OAuth error')}`);
+            return res.redirect(302, `${errorDest}?auth_error=${encodeURIComponent(err.message || 'OAuth error')}`);
         }
     }
 
-    // 4. POST /api/auth/google/verify
-    if ((pathname === '/api/auth/google/verify' || req.path === '/google/verify' || req.path === '/verify') && req.method === 'POST') {
+    // 3. GET /api/auth/google or /auth/google (Initiate Google OAuth Flow)
+    const isGoogleInit = cleanPath === '/api/auth/google' ||
+                         cleanPath === '/auth/google' ||
+                         cleanPath === '/api/auth' ||
+                         cleanPath === '/auth' ||
+                         cleanPath.endsWith('/google') ||
+                         cleanPath.endsWith('/auth') ||
+                         expressPath === '/google' ||
+                         expressPath === '/' ||
+                         expressPath === '';
+
+    if (isGoogleInit && req.method === 'GET') {
+        if (!creds.clientId) {
+            return res.status(500).json({
+                success: false,
+                message: 'GOOGLE_CLIENT_ID is not configured in server environment variables.'
+            });
+        }
+
+        const returnTarget = req.query.returnUrl || req.query.target || '';
+        const state = JSON.stringify({
+            returnUrl: returnTarget,
+            redirectUri: dynamicRedirectUri,
+            ts: Date.now(),
+        });
+        const encodedState = Buffer.from(state).toString('base64');
+
+        const params = new URLSearchParams({
+            client_id: creds.clientId,
+            redirect_uri: dynamicRedirectUri,
+            response_type: 'code',
+            scope: 'openid email profile',
+            access_type: 'offline',
+            prompt: 'select_account',
+            state: encodedState,
+        });
+
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+        return res.redirect(302, authUrl);
+    }
+
+    // 4. POST /api/auth/google/verify or /auth/google/verify
+    const isVerify = (cleanPath === '/api/auth/google/verify' ||
+                      cleanPath === '/auth/google/verify' ||
+                      cleanPath === '/api/auth/verify' ||
+                      cleanPath === '/auth/verify' ||
+                      cleanPath.endsWith('/verify') ||
+                      expressPath === '/google/verify' ||
+                      expressPath === '/verify') && req.method === 'POST';
+
+    if (isVerify) {
         let body = req.body;
         if (typeof body === 'string') {
             try { body = JSON.parse(body); } catch (e) { body = {}; }
@@ -362,10 +437,11 @@ async function handleGoogleAuthRequest(req, res, pathname) {
         });
     }
 
-    return res.status(404).json({ success: false, message: 'Auth endpoint not found' });
+    return res.status(404).json({ success: false, message: `Auth endpoint not found: ${req.method} ${cleanPath}` });
 }
 
 module.exports = {
     handleGoogleAuthRequest,
-    getGoogleCredentials
+    getGoogleCredentials,
+    getRedirectUri
 };

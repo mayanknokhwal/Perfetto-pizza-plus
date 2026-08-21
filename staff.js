@@ -51,6 +51,20 @@ function initStaffFirebaseAuth() {
 function checkStaffOAuthCallbackParams() {
     try {
         const urlParams = new URLSearchParams(window.location.search);
+        const authError = urlParams.get('auth_error');
+        if (authError) {
+            showStaffToast(`⚠️ Authentication note: ${decodeURIComponent(authError)}`);
+            const errorMsg = document.getElementById('login-error-msg');
+            const errorText = document.getElementById('login-error-text');
+            if (errorMsg && errorText) {
+                errorText.textContent = `Sign-in note: ${decodeURIComponent(authError)}`;
+                errorMsg.style.display = 'flex';
+            }
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+
         const authStatus = urlParams.get('auth');
         if (authStatus === 'success') {
             const email = (urlParams.get('email') || '').trim().toLowerCase();

@@ -6,14 +6,15 @@
 const { connectToDatabase } = require('../lib/mongodb');
 const AdminUser = require('../models/AdminUser');
 
-const MASTER_ADMIN_EMAIL = '44website.com44@gmail.com';
+const MASTER_ADMIN_EMAIL = (process.env.MASTER_ADMIN_EMAIL || '44website.com44@gmail.com').toLowerCase().trim();
+const AUTHORIZED_TEST_CHEF = (process.env.AUTHORIZED_TEST_CHEF || 'abc@gmail.com').toLowerCase().trim();
 const VALID_ROLES = ['Master Admin', 'Admin', 'Chef', 'Delivery Boy', 'Pending'];
 const ASSIGNABLE_ROLES = ['Admin', 'Chef', 'Delivery Boy', 'Pending'];
 const VALID_STATUSES = ['active', 'pending', 'rejected'];
 
 function isMasterAdmin(email) {
     if (!email || typeof email !== 'string') return false;
-    return email.trim().toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
+    return email.trim().toLowerCase() === MASTER_ADMIN_EMAIL;
 }
 
 function extractRequesterEmail(req) {
@@ -158,20 +159,20 @@ async function handleAdminAuthRequest(req, res) {
                 });
             }
 
-            if (normalizedEmail === 'abc@gmail.com') {
+            if (normalizedEmail === AUTHORIZED_TEST_CHEF) {
                 let chefRecord = null;
                 if (db) {
                     try {
-                        chefRecord = await AdminUser.findOne({ email: 'abc@gmail.com' }).lean();
+                        chefRecord = await AdminUser.findOne({ email: AUTHORIZED_TEST_CHEF }).lean();
                     } catch (e) {}
                 }
                 return res.status(200).json({
                     success: true,
-                    email: 'abc@gmail.com',
+                    email: AUTHORIZED_TEST_CHEF,
                     role: chefRecord?.role || 'Chef',
                     status: chefRecord?.status || 'active',
                     user: chefRecord || {
-                        email: 'abc@gmail.com',
+                        email: AUTHORIZED_TEST_CHEF,
                         fullName: 'Kitchen Chef',
                         role: 'Chef',
                         status: 'active',

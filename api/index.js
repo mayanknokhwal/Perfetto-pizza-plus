@@ -67,9 +67,22 @@ app.use(['/api/users', '/users'], (req, res) => handleUsersRequest(req, res));
 // 4. Admin Auth & Team API: /api/admin-auth
 app.use(['/api/admin-auth', '/admin-auth'], (req, res) => handleAdminAuthRequest(req, res));
 
-// 5. Google Auth API: /api/auth
+// 5. Google Auth API: /api/auth, /auth, /api/auth/google, /auth/google, etc.
+app.all([
+    '/api/auth/config', '/auth/config',
+    '/api/auth/google', '/auth/google',
+    '/api/auth/google/callback', '/auth/google/callback',
+    '/api/auth/callback', '/auth/callback',
+    '/api/auth/google/verify', '/auth/google/verify',
+    '/api/auth/verify', '/auth/verify',
+    '/api/auth', '/auth'
+], (req, res) => {
+    const rawPath = (req.headers['x-matched-path'] || req.headers['x-invoke-path'] || req.originalUrl || req.url || '').split('?')[0];
+    return handleGoogleAuthRequest(req, res, rawPath);
+});
+
 app.use(['/api/auth', '/auth'], (req, res) => {
-    const rawPath = (req.originalUrl || req.url || '').split('?')[0];
+    const rawPath = (req.headers['x-matched-path'] || req.headers['x-invoke-path'] || req.originalUrl || req.url || '').split('?')[0];
     return handleGoogleAuthRequest(req, res, rawPath);
 });
 

@@ -3945,6 +3945,14 @@ function initFirebaseGoogleAuth() {
 function checkOAuthCallbackParams() {
     try {
         const urlParams = new URLSearchParams(window.location.search);
+        const authError = urlParams.get('auth_error');
+        if (authError) {
+            showToast(`⚠️ Authentication note: ${decodeURIComponent(authError)}`);
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+
         const authStatus = urlParams.get('auth');
         if (authStatus === 'success') {
             const email = (urlParams.get('email') || '').trim();
