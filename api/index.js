@@ -1,6 +1,6 @@
 /**
- * Perfetto Pizza - Unified Serverless API Router (Single Entry Point for Vercel)
- * Consolidates all backend endpoints into 1 Serverless Function to stay under the Vercel Hobby Limit (Max 12)
+ * Perfetto Pizza - Single Express Serverless Entrypoint (Vercel)
+ * Consolidates all backend routes into 1 Express Serverless Function to stay under the Vercel Hobby Limit
  */
 
 if (!process.env.MONGODB_URI) {
@@ -9,117 +9,103 @@ if (!process.env.MONGODB_URI) {
     } catch (e) { }
 }
 
-const { handleMenuRequest } = require('./controllers/menuController');
-const { handleOrdersRequest } = require('./controllers/ordersController');
-const { handleUsersRequest } = require('./controllers/usersController');
-const { handleAdminAuthRequest } = require('./controllers/adminAuthController');
-const { handleGoogleAuthRequest } = require('./controllers/authGoogleController');
-const { handlePaymentRequest } = require('./controllers/paymentController');
-const { handleOtpRequest } = require('./controllers/otpController');
+const express = require('express');
+const cors = require('cors');
 
-module.exports = async function handler(req, res) {
-    // 1. Set Global CORS & Cross-Origin Headers
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, X-VERIFY, authkey, x-admin-email, x-requester-email, x-user-email'
-    );
+const { handleMenuRequest } = require('../controllers/menuController');
+const { handleOrdersRequest } = require('../controllers/ordersController');
+const { handleUsersRequest } = require('../controllers/usersController');
+const { handleAdminAuthRequest } = require('../controllers/adminAuthController');
+const { handleGoogleAuthRequest } = require('../controllers/authGoogleController');
+const { handlePaymentRequest } = require('../controllers/paymentController');
+const { handleOtpRequest } = require('../controllers/otpController');
+
+const app = express();
+
+// Global CORS & Cross-Origin Headers
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'X-VERIFY',
+        'authkey',
+        'x-admin-email',
+        'x-requester-email',
+        'x-user-email',
+        'X-CSRF-Token',
+        'Accept',
+        'Accept-Version',
+        'Content-Length',
+        'Content-MD5',
+        'Date',
+        'X-Api-Version'
+    ],
+    credentials: true,
+}));
+
+app.use((req, res, next) => {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    next();
+});
 
-    // 2. Immediate Preflight OPTIONS Handling
-    if (req.method === 'OPTIONS') {
-        if (typeof res.status === 'function') {
-            return res.status(200).end();
-        }
-        res.writeHead(204);
-        return res.end();
-    }
+// JSON & URL-Encoded Body Parsers with 10MB limit
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // 3. Resolve Clean Pathname & Query Params
-    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:8080';
-    const parsedUrl = new URL(req.url, `http://${host}`);
-    let pathname = parsedUrl.pathname || '/';
+// 1. Menu API: /api/menu
+app.use(['/api/menu', '/menu'], (req, res) => handleMenuRequest(req, res));
 
-    // Normalize trailing slashes (e.g. /api/menu/ -> /api/menu)
-    if (pathname.endsWith('/') && pathname.length > 1) {
-        pathname = pathname.slice(0, -1);
-    }
+// 2. Orders API: /api/orders
+app.use(['/api/orders', '/orders'], (req, res) => handleOrdersRequest(req, res));
 
-    // Ensure query object is populated
-    if (!req.query) {
-        const queryObj = {};
-        for (const [key, value] of parsedUrl.searchParams.entries()) {
-            queryObj[key] = value;
-        }
-        req.query = queryObj;
-    }
+// 3. Users API: /api/users
+app.use(['/api/users', '/users'], (req, res) => handleUsersRequest(req, res));
 
-    // Parse body if coming as string or buffer
-    if (typeof req.body === 'string' && req.body.length > 0) {
-        try {
-            req.body = JSON.parse(req.body);
-        } catch (e) {
-            // keep raw string if not JSON
-        }
-    }
+// 4. Admin Auth & Team API: /api/admin-auth
+app.use(['/api/admin-auth', '/admin-auth'], (req, res) => handleAdminAuthRequest(req, res));
 
-    try {
-        // ----------------------------------------------------------------------
-        // ROUTE DISPATCHER
-        // ----------------------------------------------------------------------
+// 5. Google Auth API: /api/auth
+app.use(['/api/auth', '/auth'], (req, res) => {
+    const rawPath = (req.originalUrl || req.url || '').split('?')[0];
+    return handleGoogleAuthRequest(req, res, rawPath);
+});
 
-        // A. Menu API: /api/menu
-        if (pathname === '/api/menu') {
-            return await handleMenuRequest(req, res);
-        }
+// 6. PhonePe Payment API: /api/payment
+app.use(['/api/payment', '/payment'], (req, res) => {
+    const rawPath = (req.originalUrl || req.url || '').split('?')[0];
+    return handlePaymentRequest(req, res, rawPath);
+});
 
-        // B. Orders API: /api/orders
-        if (pathname === '/api/orders') {
-            return await handleOrdersRequest(req, res);
-        }
+// 7. MSG91 OTP API: /api/send-voice-otp, /api/verify-otp, /api/msg91
+app.use([
+    '/api/send-voice-otp', '/send-voice-otp',
+    '/api/verify-otp', '/verify-otp',
+    '/api/msg91', '/msg91'
+], (req, res) => {
+    const rawPath = (req.originalUrl || req.url || '').split('?')[0];
+    return handleOtpRequest(req, res, rawPath);
+});
 
-        // C. Users API: /api/users
-        if (pathname === '/api/users') {
-            return await handleUsersRequest(req, res);
-        }
+// 404 Handler for undefined API routes
+app.use('/api', (req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Endpoint not found: ${req.method} ${req.originalUrl || req.url}`
+    });
+});
 
-        // D. Admin Auth & Team API: /api/admin-auth
-        if (pathname === '/api/admin-auth') {
-            return await handleAdminAuthRequest(req, res);
-        }
-
-        // E. Google Auth API: /api/auth/config, /api/auth/google, /api/auth/google/callback, /api/auth/google/verify
-        if (pathname.startsWith('/api/auth')) {
-            return await handleGoogleAuthRequest(req, res, pathname);
-        }
-
-        // F. PhonePe Payment API: /api/payment/initiate, /api/payment/status, /api/payment/callback
-        if (pathname.startsWith('/api/payment')) {
-            return await handlePaymentRequest(req, res, pathname);
-        }
-
-        // G. MSG91 OTP API: /api/send-voice-otp, /api/verify-otp, /api/msg91/*
-        if (
-            pathname.includes('send-voice-otp') ||
-            pathname.includes('verify-otp') ||
-            pathname.startsWith('/api/msg91')
-        ) {
-            return await handleOtpRequest(req, res, pathname);
-        }
-
-        // 404 for unknown endpoints
-        return res.status(404).json({
-            success: false,
-            message: `Endpoint not found: ${pathname}`
-        });
-
-    } catch (err) {
-        console.error(`Error handling ${req.method} ${pathname}:`, err);
-        return res.status(500).json({
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Express Serverless Error:', err);
+    if (!res.headersSent) {
+        res.status(500).json({
             success: false,
             message: err.message || 'Internal Server Error'
         });
     }
-};
+});
+
+module.exports = app;
