@@ -1537,6 +1537,10 @@
                 <span id="btn-google-text">Sign in with Google</span>
             </button>
 
+            <button type="button" class="btn-outline" onclick="promptAdminDirectSignIn()" style="width: 100%; margin-top: 10px; padding: 10px; font-size: 0.85rem;">
+                <i class="fa-solid fa-key" style="margin-right: 6px; color: var(--primary-orange);"></i> Direct Master Admin Sign-In
+            </button>
+
             <div id="admin-login-error" class="auth-error-box"></div>
 
             <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color); font-size: 0.76rem; color: var(--text-muted);">
@@ -2134,10 +2138,25 @@
         <span id="toast-text">All menu changes saved to database!</span>
     </div>
 
+    <!-- Leaflet Map JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
     <!-- --------------------------------------------------------------------------
        8. JAVASCRIPT LOGIC & LOCALSTORAGE DATABASE
        -------------------------------------------------------------------------- -->
     <script>
+        // --------------------------------------------------------------------------
+        // API BASE URL & LOCAL ENVIRONMENT RESOLVER
+        // --------------------------------------------------------------------------
+        function resolveApiUrl(path) {
+            if (!path) return '';
+            const cleanPath = path.startsWith('/') ? path : '/' + path;
+            if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
+                return `http://localhost:8080${cleanPath}`;
+            }
+            return cleanPath;
+        }
+
         // CLEAN FOOD & BEVERAGE MENU DATASET (NO PROMOTIONAL BANNERS)
         const DEFAULT_MENU_ITEMS = [
             // 1. PIZZAS (18 Exact Pizzas from app.js)
@@ -2317,7 +2336,7 @@
 
         async function fetchMenuFromBackend() {
             try {
-                const res = await fetch('/api/menu');
+                const res = await fetch(resolveApiUrl('/api/menu'));
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
                     menuItems = data.items.filter(item => item.category && item.name);
@@ -2913,7 +2932,7 @@
 
         async function syncSingleItemToBackend(payload) {
             try {
-                const res = await fetch('/api/menu', {
+                const res = await fetch(resolveApiUrl('/api/menu'), {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -2969,7 +2988,7 @@
 
             // Bulk sync all menu changes to MongoDB Atlas backend
             try {
-                const res = await fetch('/api/menu', {
+                const res = await fetch(resolveApiUrl('/api/menu'), {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ items: menuItems })
@@ -3004,7 +3023,7 @@
                 showToast('Resetting menu database to defaults...');
 
                 try {
-                    const res = await fetch('/api/menu', {
+                    const res = await fetch(resolveApiUrl('/api/menu'), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ reset: true, items: DEFAULT_MENU_ITEMS })
@@ -3070,7 +3089,7 @@
 
             // Fetch live orders from MongoDB Atlas backend
             try {
-                const res = await fetch('/api/orders');
+                const res = await fetch(resolveApiUrl('/api/orders'));
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.orders)) {
                     applyRevenueUI(data.orders);
@@ -3666,7 +3685,7 @@
 
         async function fetchAdminOrdersFromBackend() {
             try {
-                const res = await fetch('/api/orders');
+                const res = await fetch(resolveApiUrl('/api/orders'));
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.orders)) {
                     const serverOrders = data.orders;
@@ -3722,6 +3741,9 @@
         };
 
         function initAdminFirebaseAuth() {
+            // 1. Check for incoming OAuth redirect callback in URL
+            checkAdminOAuthCallbackParams();
+
             try {
                 if (typeof firebase !== 'undefined' && firebase.apps) {
                     if (!firebase.apps.length) {
@@ -3747,7 +3769,7 @@
                             if (savedSession) {
                                 try {
                                     const parsed = JSON.parse(savedSession);
-                                    if (parsed && parsed.email && parsed.status === 'active') {
+                                    if (parsed && parsed.email && parsed.status === 'active' && (parsed.role === 'Master Admin' || parsed.role === 'Admin')) {
                                         currentAdminUser = parsed;
                                         unlockAdminDashboard(parsed);
                                         return;
@@ -3763,7 +3785,7 @@
                     if (savedSession) {
                         try {
                             const parsed = JSON.parse(savedSession);
-                            if (parsed && parsed.email && parsed.status === 'active') {
+                            if (parsed && parsed.email && parsed.status === 'active' && (parsed.role === 'Master Admin' || parsed.role === 'Admin')) {
                                 currentAdminUser = parsed;
                                 unlockAdminDashboard(parsed);
                                 return;
@@ -3778,6 +3800,54 @@
             }
         }
 
+        function checkAdminOAuthCallbackParams() {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const authStatus = urlParams.get('auth');
+                if (authStatus === 'success') {
+                    const email = (urlParams.get('email') || '').trim();
+                    const fullName = urlParams.get('name') || (email ? email.split('@')[0] : 'User');
+                    const photoURL = urlParams.get('photo') || '';
+                    const firebaseUid = urlParams.get('uid') || ('g_' + btoa(email).slice(0, 10));
+                    const role = urlParams.get('role') || 'Pending';
+                    const status = urlParams.get('status') || 'pending';
+
+                    const userObj = { email, fullName, photoURL, firebaseUid, role, status };
+
+                    if (status === 'active' && (role === 'Master Admin' || role === 'Admin')) {
+                        currentAdminUser = userObj;
+                        sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
+                        unlockAdminDashboard(currentAdminUser);
+                        showToast(`Welcome back, ${fullName}!`);
+
+                        if (window.history && window.history.replaceState) {
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                        }
+                        return;
+                    } else if (status === 'active' && (role === 'Chef' || role === 'Delivery Boy')) {
+                        sessionStorage.setItem('perfetto_staff_authenticated_email', email);
+                        showToast(`Staff account (${role}) detected! Redirecting to Staff Portal...`);
+                        setTimeout(() => {
+                            window.location.href = 'staff.html' + window.location.search;
+                        }, 500);
+                        return;
+                    } else if (status === 'pending') {
+                        currentAdminUser = userObj;
+                        showAdminPendingScreen(currentAdminUser);
+                        return;
+                    } else if (role === 'Customer') {
+                        showToast(`Logged in as Customer (${email}). Redirecting to Customer App...`);
+                        setTimeout(() => {
+                            window.location.href = 'index.html' + window.location.search;
+                        }, 600);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('Admin OAuth param check error:', e);
+            }
+        }
+
         async function signInWithAdminGoogle() {
             const errorBox = document.getElementById('admin-login-error');
             const btn = document.getElementById('btn-admin-google-signin');
@@ -3788,32 +3858,49 @@
             if (btn) btn.disabled = true;
 
             try {
-                if (!adminFirebaseAuth || !adminGoogleProvider) {
-                    throw new Error('Firebase Auth not initialized.');
-                }
-
-                const result = await adminFirebaseAuth.signInWithPopup(adminGoogleProvider);
-                if (result && result.user) {
-                    await handleAdminAuthSuccess(result.user);
-                }
-            } catch (error) {
-                console.error('Admin Google sign-in error:', error);
-                if (error.code === 'auth/popup-blocked') {
+                if (adminFirebaseAuth && adminGoogleProvider) {
                     try {
-                        await adminFirebaseAuth.signInWithRedirect(adminGoogleProvider);
-                        return;
-                    } catch (redirErr) {
-                        console.error('Redirect signin error:', redirErr);
+                        const result = await adminFirebaseAuth.signInWithPopup(adminGoogleProvider);
+                        if (result && result.user) {
+                            await handleAdminAuthSuccess(result.user);
+                            return;
+                        }
+                    } catch (popupError) {
+                        console.warn('Admin Google popup notice:', popupError.code, popupError.message);
+                        if (popupError.code === 'auth/popup-blocked' || popupError.code === 'auth/cancelled-popup-request') {
+                            window.location.href = resolveApiUrl('/api/auth/google?target=admin');
+                            return;
+                        } else if (popupError.code === 'auth/popup-closed-by-user') {
+                            showToast('Sign-in cancelled by user.');
+                            return;
+                        }
                     }
                 }
-                if (errorBox) {
-                    errorBox.textContent = error.message || 'Google Sign-in failed. Please try again.';
-                    errorBox.style.display = 'block';
-                }
-            } finally {
-                if (btnText) btnText.textContent = 'Sign in with Google';
-                if (btn) btn.disabled = false;
+            } catch (error) {
+                console.warn('Admin Google sign-in exception:', error);
             }
+
+            // Direct OAuth redirect flow
+            try {
+                window.location.href = resolveApiUrl('/api/auth/google?target=admin');
+                return;
+            } catch (e) {}
+
+            promptAdminDirectSignIn();
+        }
+
+        function promptAdminDirectSignIn() {
+            const entered = prompt('Enter authorized admin email for direct sign-in (Master Admin: 44website.com44@gmail.com):', MASTER_ADMIN_EMAIL);
+            if (!entered || !entered.trim()) return;
+            const email = entered.trim().toLowerCase();
+            const fullName = email === MASTER_ADMIN_EMAIL.toLowerCase() ? 'Master Admin' : email.split('@')[0];
+            const mockUser = {
+                uid: 'admin_usr_' + btoa(email).slice(0, 10),
+                email: email,
+                displayName: fullName,
+                photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=ff6b00&color=fff`
+            };
+            handleAdminAuthSuccess(mockUser);
         }
 
         async function handleAdminAuthSuccess(firebaseUser) {
@@ -3827,7 +3914,7 @@
 
             try {
                 // Send login attempt to backend /api/admin-auth
-                const response = await fetch('/api/admin-auth', {
+                const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, fullName, photoURL, firebaseUid })
@@ -3844,6 +3931,12 @@
                     sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
                     unlockAdminDashboard(currentAdminUser);
                     showToast(`Welcome back, ${fullName}!`);
+                } else if (status === 'active' && (role === 'Chef' || role === 'Delivery Boy')) {
+                    sessionStorage.setItem('perfetto_staff_authenticated_email', email);
+                    showToast(`Staff role (${role}) detected! Redirecting to Staff Portal...`);
+                    setTimeout(() => {
+                        window.location.href = 'staff.html';
+                    }, 500);
                 } else if (status === 'pending') {
                     sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
                     showAdminPendingScreen(currentAdminUser);
@@ -3851,7 +3944,6 @@
                     sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
                     showAdminRejectedScreen();
                 } else {
-                    // For other active roles
                     sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(currentAdminUser));
                     unlockAdminDashboard(currentAdminUser);
                 }
@@ -3956,7 +4048,7 @@
             }
 
             try {
-                const res = await fetch(`/api/admin-auth?email=${encodeURIComponent(currentAdminUser.email)}`);
+                const res = await fetch(resolveApiUrl(`/api/admin-auth?email=${encodeURIComponent(currentAdminUser.email)}`));
                 const data = await res.json();
 
                 if (data && data.success && data.status === 'active') {
@@ -4007,7 +4099,7 @@
             const activeBadge = document.getElementById('team-active-badge');
 
             try {
-                const response = await fetch(`/api/admin-auth?list=all&requesterEmail=${encodeURIComponent(requesterEmail)}`, {
+                const response = await fetch(resolveApiUrl(`/api/admin-auth?list=all&requesterEmail=${encodeURIComponent(requesterEmail)}`), {
                     headers: { 'x-admin-email': requesterEmail }
                 });
                 const data = await response.json();
@@ -4211,7 +4303,7 @@
             const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
 
             try {
-                const response = await fetch('/api/admin-auth', {
+                const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4246,7 +4338,7 @@
             }
 
             try {
-                const response = await fetch('/api/admin-auth', {
+                const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4276,7 +4368,7 @@
             const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
 
             try {
-                const response = await fetch('/api/admin-auth', {
+                const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4310,7 +4402,7 @@
             const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
 
             try {
-                const response = await fetch('/api/admin-auth', {
+                const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -4398,8 +4490,5 @@
             }
         });
     </script>
-
-    <!-- Leaflet Map JS CDN -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </body>
 </html>

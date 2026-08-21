@@ -793,6 +793,37 @@ body {
     box-shadow: 0 2px 8px var(--primary-glow);
 }
 
+/* GOOGLE LOGIN BUTTON */
+.login-google-btn {
+    width: 100%;
+    height: 48px;
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-md);
+    color: #1e293b;
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.login-google-btn:hover {
+    background-color: #f8fafc;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.login-google-btn:active {
+    transform: translateY(1px);
+}
+
 /* DEMO ACCOUNT HINT */
 .demo-hint-box {
     display: flex;

@@ -55,6 +55,25 @@ function getCustomerCareEnabled() {
     }
 }
 
+// --------------------------------------------------------------------------
+// API BASE URL & LOCAL ENVIRONMENT RESOLVER
+// --------------------------------------------------------------------------
+function resolveApiUrl(path) {
+    if (!path) return '';
+    const cleanPath = path.startsWith('/') ? path : '/' + path;
+    if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
+        return `http://localhost:8080${cleanPath}`;
+    }
+    return cleanPath;
+}
+
+function getAppOrigin() {
+    if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
+        return 'http://localhost:8080';
+    }
+    return window.location.origin;
+}
+
 function loadCartFromStorage() {
     try {
         const stored = localStorage.getItem(CART_STORAGE_KEY);
@@ -538,7 +557,7 @@ function refreshActiveCustomerView(freshItems) {
 // Background Live Menu Poller & Server Synchronization
 async function fetchLiveMenuFromBackend() {
     try {
-        const res = await fetch('/api/menu');
+        const res = await fetch(resolveApiUrl('/api/menu'));
         const data = await res.json();
         if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
             const freshItems = data.items;
@@ -1504,7 +1523,7 @@ async function handleSelectOnlinePayment() {
     const orderId = nextOrderSeq.toString();
 
     try {
-        const response = await fetch('/api/payment/initiate', {
+        const response = await fetch(resolveApiUrl('/api/payment/initiate'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1513,7 +1532,7 @@ async function handleSelectOnlinePayment() {
                 customerPhone: savedProfile.phone,
                 customerName: savedProfile.fullName,
                 customerEmail: (currentUserProfile && currentUserProfile.email) || '',
-                redirectUrl: `${window.location.origin}/index.html?payment=success&orderId=${orderId}`
+                redirectUrl: `${getAppOrigin()}/index.html?payment=success&orderId=${orderId}`
             })
         });
 
@@ -1677,7 +1696,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
 // Backend API Order Saver
 async function saveOrderToBackendAPI(order) {
     try {
-        const response = await fetch('/api/orders', {
+        const response = await fetch(resolveApiUrl('/api/orders'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(order)
@@ -1715,21 +1734,17 @@ function setupDeliveryInputValidation() {
 }
 
 function closeDeliveryModal() {
-    const modal = document.getElementById('delivery-modal');
-    if (!modal) return;
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
+    closeCheckoutModal();
 }
 
-// Attach input restrictions to mobile number field (10 digits only)
-document.addEventListener('DOMContentLoaded', () => {
+function initPhoneInputRestrictions() {
     const phoneInput = document.getElementById('customer-phone');
     if (phoneInput) {
         phoneInput.addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
         });
     }
-});
+}
 
 function toggleEditProfileForm(show) {
     const formCard = document.getElementById('profile-edit-form-card');
@@ -2665,7 +2680,7 @@ function handleSaveProfile(event) {
 
 async function syncProfileToMongoDBBackend(profile) {
     try {
-        await fetch('/api/users', {
+        await fetch(resolveApiUrl('/api/users'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -3858,6 +3873,9 @@ const FIREBASE_CONFIG = {
 };
 
 function initFirebaseGoogleAuth() {
+    // 1. Check for incoming OAuth redirect callback in URL
+    checkOAuthCallbackParams();
+
     try {
         if (typeof firebase !== 'undefined' && firebase.apps) {
             // 1. Initialize Firebase App
@@ -3924,6 +3942,64 @@ function initFirebaseGoogleAuth() {
     }
 }
 
+function checkOAuthCallbackParams() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authStatus = urlParams.get('auth');
+        if (authStatus === 'success') {
+            const email = (urlParams.get('email') || '').trim();
+            const fullName = urlParams.get('name') || (email ? email.split('@')[0] : 'User');
+            const photoURL = urlParams.get('photo') || '';
+            const uid = urlParams.get('uid') || ('g_' + btoa(email).slice(0, 10));
+            const role = urlParams.get('role') || 'Customer';
+            const status = urlParams.get('status') || 'active';
+
+            // Check role redirection
+            if (status === 'active' && (role === 'Master Admin' || role === 'Admin')) {
+                sessionStorage.setItem('perfetto_admin_session_user', JSON.stringify({
+                    email,
+                    fullName,
+                    photoURL,
+                    role,
+                    status
+                }));
+                showToast(`Redirecting to Admin Panel for ${email}...`);
+                setTimeout(() => {
+                    window.location.href = 'admin.html' + window.location.search;
+                }, 400);
+                return;
+            } else if (status === 'active' && (role === 'Chef' || role === 'Delivery Boy')) {
+                sessionStorage.setItem('perfetto_staff_authenticated_email', email);
+                showToast(`Redirecting to Staff Portal for ${email}...`);
+                setTimeout(() => {
+                    window.location.href = 'staff.html' + window.location.search;
+                }, 400);
+                return;
+            }
+
+            // Customer User
+            const userObj = {
+                uid,
+                displayName: fullName,
+                email,
+                photoURL,
+                role,
+                status,
+                isGoogleAuth: true
+            };
+
+            onGoogleAuthSuccess(userObj, true);
+
+            // Clean query parameters from URL
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+    } catch (e) {
+        console.warn('OAuth param check notice:', e);
+    }
+}
+
 function checkStoredGoogleUser() {
     try {
         const stored = localStorage.getItem('perfetto_google_user');
@@ -3944,30 +4020,29 @@ async function handleGoogleSignIn() {
                 // One-tap popup authentication
                 const result = await firebaseAuthInstance.signInWithPopup(googleAuthProvider);
                 if (result && result.user) {
-                    onGoogleAuthSuccess(result.user, true);
+                    await onGoogleAuthSuccess(result.user, true);
                     return;
                 }
             } catch (popupErr) {
                 console.warn('Popup sign-in notice:', popupErr.code, popupErr.message);
-                // Fallback to redirect sign-in if popup is blocked by mobile browser
                 if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
-                    showToast('Redirecting to Google Sign-In...');
-                    await firebaseAuthInstance.signInWithRedirect(googleAuthProvider);
+                    window.location.href = resolveApiUrl('/api/auth/google?target=customer');
                     return;
                 } else if (popupErr.code === 'auth/popup-closed-by-user') {
                     showToast('Sign-in cancelled by user.');
                     return;
-                } else if (popupErr.code === 'auth/unauthorized-domain') {
-                    console.warn('Firebase auth domain note:', popupErr.message);
-                    showToast('ℹ️ Connecting via direct authentication fallback...');
-                } else {
-                    showToast(`Auth notice: ${popupErr.message || 'Connecting...'}`);
                 }
             }
         }
     } catch (err) {
         console.warn('Firebase sign-in exception:', err.message);
     }
+
+    // Direct Google OAuth redirect
+    try {
+        window.location.href = resolveApiUrl('/api/auth/google?target=customer');
+        return;
+    } catch (e) {}
 
     // Local / Offline interactive fallback
     simulateGoogleSignInPrompt();
@@ -3992,7 +4067,7 @@ function simulateGoogleSignInPrompt() {
     onGoogleAuthSuccess(mockUser, true);
 }
 
-function onGoogleAuthSuccess(user, isUserAction = false) {
+async function onGoogleAuthSuccess(user, isUserAction = false) {
     // 1. Instant Account Verification (Bypasses MSG91 OTP requirement)
     isGoogleVerified = true;
     isPhoneVerified = true;
@@ -4001,7 +4076,7 @@ function onGoogleAuthSuccess(user, isUserAction = false) {
     currentUserProfile = {
         firebaseUid: user.uid || (user.id ? user.id : 'usr_' + Date.now()),
         displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Customer'),
-        email: user.email || '',
+        email: (user.email || '').trim().toLowerCase(),
         photoURL: user.photoURL || '',
         isGoogleAuth: true
     };
@@ -4009,6 +4084,41 @@ function onGoogleAuthSuccess(user, isUserAction = false) {
     try {
         localStorage.setItem('perfetto_google_user', JSON.stringify(currentUserProfile));
     } catch (e) { }
+
+    // Check user role via backend
+    if (currentUserProfile.email) {
+        try {
+            const roleRes = await fetch(resolveApiUrl(`/api/admin-auth?email=${encodeURIComponent(currentUserProfile.email)}`));
+            const roleData = await roleRes.json();
+            if (roleData && roleData.success && roleData.status === 'active') {
+                if (roleData.role === 'Master Admin' || roleData.role === 'Admin') {
+                    sessionStorage.setItem('perfetto_admin_session_user', JSON.stringify({
+                        ...currentUserProfile,
+                        role: roleData.role,
+                        status: 'active'
+                    }));
+                    if (isUserAction) {
+                        showToast(`🔑 Admin role detected! Redirecting to Admin Dashboard...`);
+                        setTimeout(() => {
+                            window.location.href = 'admin.html';
+                        }, 500);
+                        return;
+                    }
+                } else if (roleData.role === 'Chef' || roleData.role === 'Delivery Boy') {
+                    sessionStorage.setItem('perfetto_staff_authenticated_email', currentUserProfile.email);
+                    if (isUserAction) {
+                        showToast(`👨‍🍳 Staff role (${roleData.role}) detected! Redirecting to Staff Portal...`);
+                        setTimeout(() => {
+                            window.location.href = 'staff.html';
+                        }, 500);
+                        return;
+                    }
+                }
+            }
+        } catch (rErr) {
+            console.warn('Role verification check notice:', rErr.message);
+        }
+    }
 
     // 3. Auto-populate Full Name if empty in edit profile form
     const nameInput = document.getElementById('customer-fullname');
@@ -4175,7 +4285,7 @@ function renderGoogleLoggedOutState() {
 async function syncGoogleUserToBackend(user) {
     const savedProfile = getSavedDeliveryProfile() || {};
     try {
-        await fetch('/api/users', {
+        await fetch(resolveApiUrl('/api/users'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -4213,7 +4323,7 @@ async function checkPaymentReturnParams() {
 
     if (isPaymentReturn && orderId) {
         try {
-            const statusRes = await fetch(`/api/payment/status?orderId=${orderId}&txnId=${txnId || ''}`);
+            const statusRes = await fetch(resolveApiUrl(`/api/payment/status?orderId=${orderId}&txnId=${txnId || ''}`));
             const statusData = await statusRes.json();
 
             // Mark order as paid in LocalStorage
@@ -4267,6 +4377,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateProfileTotalsUI();
     setupLocalStorageSync();
     initFirebaseGoogleAuth();
+    initPhoneInputRestrictions();
     checkPaymentReturnParams();
 
     // 1. Initial live menu fetch from MongoDB backend

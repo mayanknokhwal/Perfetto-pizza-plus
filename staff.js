@@ -2,33 +2,238 @@
 // PERFETTO PIZZA - MOBILE STAFF PORTAL LOGIC (CHEF ROLE ONLY)
 // --------------------------------------------------------------------------
 
+function resolveApiUrl(path) {
+    if (!path) return '';
+    const cleanPath = path.startsWith('/') ? path : '/' + path;
+    if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
+        return `http://localhost:8080${cleanPath}`;
+    }
+    return cleanPath;
+}
+
 // 1. AUTHENTICATION & ACCESS GUARD
 const STAFF_AUTH_SESSION_KEY = 'perfetto_staff_authenticated_email';
+const STAFF_AUTH_USER_KEY = 'perfetto_staff_authenticated_user';
 const AUTHORIZED_TEST_EMAIL = 'abc@gmail.com';
 
-function getAuthenticatedStaffEmail() {
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+    authDomain: "website-fa79c.firebaseapp.com",
+    projectId: "website-fa79c",
+    storageBucket: "website-fa79c.appspot.com",
+    messagingSenderId: "29523182317",
+    appId: "1:29523182317:web:perfetto-pizza"
+};
+
+let staffFirebaseAuth = null;
+let staffGoogleProvider = null;
+
+function initStaffFirebaseAuth() {
+    // 1. Check for incoming OAuth redirect callback in URL
+    checkStaffOAuthCallbackParams();
+
     try {
-        const sessionAuth = sessionStorage.getItem(STAFF_AUTH_SESSION_KEY);
-        if (sessionAuth && sessionAuth.trim().toLowerCase() === AUTHORIZED_TEST_EMAIL) {
-            return sessionAuth.trim();
+        if (typeof firebase !== 'undefined' && firebase.apps) {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(FIREBASE_CONFIG);
+            }
+            staffFirebaseAuth = firebase.auth();
+            staffGoogleProvider = new firebase.auth.GoogleAuthProvider();
+            staffGoogleProvider.addScope('email');
+            staffGoogleProvider.addScope('profile');
+            staffGoogleProvider.setCustomParameters({ prompt: 'select_account' });
         }
     } catch (e) {
-        console.error('Error reading staff session:', e);
+        console.warn('Staff Firebase init notice:', e.message);
     }
+}
+
+function checkStaffOAuthCallbackParams() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authStatus = urlParams.get('auth');
+        if (authStatus === 'success') {
+            const email = (urlParams.get('email') || '').trim().toLowerCase();
+            const fullName = urlParams.get('name') || (email ? email.split('@')[0] : 'Staff Member');
+            const photoURL = urlParams.get('photo') || '';
+            const role = urlParams.get('role') || 'Chef';
+            const status = urlParams.get('status') || 'active';
+
+            if (status === 'active' && (role === 'Chef' || role === 'Delivery Boy')) {
+                setAuthenticatedStaffUser({ email, fullName, photoURL, role, status });
+                showStaffToast(`👨‍🍳 Welcome, ${fullName}! Signed in as ${role}.`);
+
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+                return;
+            } else if (status === 'active' && (role === 'Master Admin' || role === 'Admin')) {
+                sessionStorage.setItem('perfetto_admin_session_user', JSON.stringify({
+                    email,
+                    fullName,
+                    photoURL,
+                    role,
+                    status
+                }));
+                showStaffToast(`Admin account detected! Redirecting to Admin Dashboard...`);
+                setTimeout(() => {
+                    window.location.href = 'admin.html' + window.location.search;
+                }, 500);
+                return;
+            } else if (role === 'Customer') {
+                showStaffToast(`Customer account detected (${email}). Redirecting to Customer App...`);
+                setTimeout(() => {
+                    window.location.href = 'index.html' + window.location.search;
+                }, 600);
+                return;
+            } else if (status === 'pending') {
+                showStaffToast(`⏳ Access Request Pending. Please wait for Master Admin approval.`);
+                const errorMsg = document.getElementById('login-error-msg');
+                const errorText = document.getElementById('login-error-text');
+                if (errorMsg && errorText) {
+                    errorText.textContent = `Access pending for ${email}. Master Admin approval required.`;
+                    errorMsg.style.display = 'flex';
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Staff OAuth param check error:', e);
+    }
+}
+
+async function handleStaffGoogleSignIn() {
+    showStaffToast('🔑 Connecting to Google Sign-In...');
+
+    try {
+        if (staffFirebaseAuth && staffGoogleProvider) {
+            try {
+                const result = await staffFirebaseAuth.signInWithPopup(staffGoogleProvider);
+                if (result && result.user) {
+                    await handleStaffAuthSuccess(result.user);
+                    return;
+                }
+            } catch (popupErr) {
+                console.warn('Staff Google popup notice:', popupErr.code, popupErr.message);
+                if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+                    window.location.href = resolveApiUrl('/api/auth/google?target=staff');
+                    return;
+                } else if (popupErr.code === 'auth/popup-closed-by-user') {
+                    showStaffToast('Sign-in cancelled by user.');
+                    return;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Staff Firebase sign-in exception:', err.message);
+    }
+
+    // Direct Google OAuth redirect
+    try {
+        window.location.href = resolveApiUrl('/api/auth/google?target=staff');
+        return;
+    } catch (e) {}
+
+    // Simulated fallback
+    const entered = prompt('Enter staff email to sign in (Chef: abc@gmail.com):', AUTHORIZED_TEST_EMAIL);
+    if (!entered || !entered.trim()) return;
+    const email = entered.trim().toLowerCase();
+    handleStaffAuthSuccess({ email, displayName: email === AUTHORIZED_TEST_EMAIL ? 'Kitchen Chef' : email.split('@')[0] });
+}
+
+async function handleStaffAuthSuccess(user) {
+    const email = (user.email || '').trim().toLowerCase();
+    const fullName = user.displayName || (email ? email.split('@')[0] : 'Staff Member');
+    const photoURL = user.photoURL || '';
+
+    try {
+        const response = await fetch(resolveApiUrl('/api/admin-auth'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, fullName, photoURL, firebaseUid: user.uid || '' })
+        });
+        const data = await response.json();
+
+        const role = data.role || (email === AUTHORIZED_TEST_EMAIL ? 'Chef' : 'Pending');
+        const status = data.status || (email === AUTHORIZED_TEST_EMAIL ? 'active' : 'pending');
+
+        if (status === 'active' && (role === 'Chef' || role === 'Delivery Boy')) {
+            setAuthenticatedStaffUser({ email, fullName, photoURL, role, status });
+            showStaffToast(`👨‍🍳 Welcome, ${fullName}! Signed in as ${role}.`);
+            checkStaffAuth();
+        } else if (status === 'active' && (role === 'Master Admin' || role === 'Admin')) {
+            sessionStorage.setItem('perfetto_admin_session_user', JSON.stringify({
+                email,
+                fullName,
+                photoURL,
+                role,
+                status
+            }));
+            showStaffToast(`🔑 Admin account detected! Redirecting to Admin Dashboard...`);
+            setTimeout(() => {
+                window.location.href = 'admin.html';
+            }, 500);
+        } else if (role === 'Customer') {
+            showStaffToast(`Customer account detected (${email}). Redirecting to Customer App...`);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 600);
+        } else {
+            const errorMsg = document.getElementById('login-error-msg');
+            const errorText = document.getElementById('login-error-text');
+            if (errorMsg && errorText) {
+                errorText.textContent = `Access pending for ${email}. Master Admin approval required.`;
+                errorMsg.style.display = 'flex';
+            }
+        }
+    } catch (err) {
+        console.warn('Staff auth verification notice:', err.message);
+        if (email === AUTHORIZED_TEST_EMAIL) {
+            setAuthenticatedStaffUser({ email, fullName: 'Kitchen Chef', role: 'Chef', status: 'active' });
+            showStaffToast('👨‍🍳 Access Granted! Welcome to Chef Panel.');
+            checkStaffAuth();
+        }
+    }
+}
+
+function getAuthenticatedStaffUser() {
+    try {
+        const stored = sessionStorage.getItem(STAFF_AUTH_USER_KEY);
+        if (stored) {
+            return JSON.parse(stored);
+        }
+        const email = sessionStorage.getItem(STAFF_AUTH_SESSION_KEY);
+        if (email) {
+            return { email, role: 'Chef', fullName: email.split('@')[0] };
+        }
+    } catch (e) {}
     return null;
 }
 
-function setAuthenticatedStaffEmail(email) {
+function getAuthenticatedStaffEmail() {
+    const u = getAuthenticatedStaffUser();
+    return u ? u.email : null;
+}
+
+function setAuthenticatedStaffUser(user) {
     try {
-        sessionStorage.setItem(STAFF_AUTH_SESSION_KEY, email);
+        sessionStorage.setItem(STAFF_AUTH_USER_KEY, JSON.stringify(user));
+        sessionStorage.setItem(STAFF_AUTH_SESSION_KEY, user.email);
     } catch (e) {
         console.error('Error setting staff session:', e);
     }
 }
 
+function setAuthenticatedStaffEmail(email) {
+    setAuthenticatedStaffUser({ email, role: 'Chef', fullName: email.split('@')[0], status: 'active' });
+}
+
 function clearStaffSession() {
     try {
         sessionStorage.removeItem(STAFF_AUTH_SESSION_KEY);
+        sessionStorage.removeItem(STAFF_AUTH_USER_KEY);
+        if (staffFirebaseAuth) {
+            staffFirebaseAuth.signOut().catch(() => {});
+        }
     } catch (e) {
         console.error('Error clearing staff session:', e);
     }
@@ -40,14 +245,16 @@ function checkStaffAuth() {
     const emailDisplay = document.getElementById('staff-email-display');
     const emailInput = document.getElementById('staff-email-input');
     const errorMsg = document.getElementById('login-error-msg');
+    const roleLabel = document.getElementById('current-role-label');
 
-    const authEmail = getAuthenticatedStaffEmail();
+    const authUser = getAuthenticatedStaffUser();
 
-    if (authEmail) {
+    if (authUser && authUser.email) {
         // Authenticated: Show Dashboard, Hide Login Screen
         if (loginScreen) loginScreen.style.display = 'none';
         if (dashboardView) dashboardView.style.display = 'flex';
-        if (emailDisplay) emailDisplay.textContent = authEmail;
+        if (emailDisplay) emailDisplay.textContent = authUser.email;
+        if (roleLabel) roleLabel.textContent = `${authUser.role || 'Chef'} (Kitchen)`;
 
         // Load & render orders
         loadCustomerOrders();
@@ -92,7 +299,7 @@ function loadCustomerOrders() {
 
 async function fetchOrdersFromMongoDBBackend() {
     try {
-        const response = await fetch('/api/orders');
+        const response = await fetch(resolveApiUrl('/api/orders'));
         const data = await response.json();
 
         if (data && data.success && Array.isArray(data.orders) && data.orders.length > 0) {
@@ -134,7 +341,6 @@ async function fetchOrdersFromMongoDBBackend() {
             renderOrders();
         }
     } catch (err) {
-        // LocalStorage fallback already in place
         console.warn('MongoDB Atlas staff sync notice (local resilience active):', err.message);
     }
 }
@@ -148,14 +354,12 @@ function formatOrderTime(createdAtIso, fallbackTimeAgo) {
     const createdDate = new Date(createdAtIso);
     if (isNaN(createdDate.getTime())) return fallbackTimeAgo || 'Just now';
 
-    // Format exact creation time in AM/PM (e.g., "10:30 AM")
     const timeFormatted = createdDate.toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',
         hour12: true
     });
 
-    // Calculate live elapsed minutes
     const now = new Date();
     const diffSeconds = Math.max(0, Math.floor((now.getTime() - createdDate.getTime()) / 1000));
     const diffMinutes = Math.floor(diffSeconds / 60);
@@ -191,6 +395,9 @@ function syncCustomerOrders() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize Firebase Google Auth for Staff
+    initStaffFirebaseAuth();
+
     // Check initial auth state
     checkStaffAuth();
 
@@ -201,9 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorText = document.getElementById('login-error-text');
 
     if (loginForm && emailInput) {
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const enteredEmail = (emailInput.value || '').trim();
+            const enteredEmail = (emailInput.value || '').trim().toLowerCase();
 
             if (!enteredEmail) {
                 if (errorMsg && errorText) {
@@ -215,24 +422,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Verify email (case-insensitive) against authorized test email
-            if (enteredEmail.toLowerCase() === AUTHORIZED_TEST_EMAIL) {
+            // Check against authorized test email or query backend
+            if (enteredEmail === AUTHORIZED_TEST_EMAIL) {
                 if (errorMsg) errorMsg.style.display = 'none';
                 emailInput.classList.remove('input-error');
 
-                // Set session
-                setAuthenticatedStaffEmail(enteredEmail.toLowerCase());
+                setAuthenticatedStaffUser({ email: enteredEmail, role: 'Chef', fullName: 'Kitchen Chef', status: 'active' });
                 showStaffToast('👨‍🍳 Access Granted! Welcome to Chef Panel.');
                 checkStaffAuth();
-            } else {
-                // Deny access
-                if (errorMsg && errorText) {
-                    errorText.textContent = 'Access Denied: Unrecognized email. For testing, use abc@gmail.com';
-                    errorMsg.style.display = 'flex';
-                }
-                emailInput.classList.add('input-error');
-                emailInput.focus();
+                return;
             }
+
+            try {
+                const res = await fetch(resolveApiUrl(`/api/admin-auth?email=${encodeURIComponent(enteredEmail)}`));
+                const data = await res.json();
+
+                if (data && data.success && data.status === 'active') {
+                    if (data.role === 'Chef' || data.role === 'Delivery Boy') {
+                        if (errorMsg) errorMsg.style.display = 'none';
+                        emailInput.classList.remove('input-error');
+
+                        setAuthenticatedStaffUser({ email: enteredEmail, role: data.role, fullName: data.user?.fullName || enteredEmail.split('@')[0], status: 'active' });
+                        showStaffToast(`👨‍🍳 Access Granted! Welcome ${data.user?.fullName || enteredEmail}.`);
+                        checkStaffAuth();
+                        return;
+                    } else if (data.role === 'Master Admin' || data.role === 'Admin') {
+                        showStaffToast('Admin account detected! Redirecting to Admin Dashboard...');
+                        setTimeout(() => {
+                            window.location.href = 'admin.html';
+                        }, 500);
+                        return;
+                    }
+                }
+            } catch (apiErr) {}
+
+            // Deny access
+            if (errorMsg && errorText) {
+                errorText.textContent = 'Access Denied: Unrecognized or unapproved email. For testing, use abc@gmail.com';
+                errorMsg.style.display = 'flex';
+            }
+            emailInput.classList.add('input-error');
+            emailInput.focus();
         });
 
         // Clear error on input
@@ -252,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Set lightweight polling interval to live-refresh elapsed timer and sync MongoDB Atlas orders every 5 seconds
+    // Polling interval for live timers & order updates
     setInterval(() => {
         if (getAuthenticatedStaffEmail()) {
             if (staffOrders.length > 0) {
@@ -453,7 +683,7 @@ function updateOrderStatus(orderId, newStatus) {
 
 async function syncOrderStatusToMongoDBBackend(orderId, newStatus) {
     try {
-        await fetch('/api/orders', {
+        await fetch(resolveApiUrl('/api/orders'), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -481,60 +711,6 @@ function showStaffToast(msg) {
         toast.classList.remove('show');
     }, 2800);
 }
-
-// --------------------------------------------------------------------------
-// 9. EVENT LISTENERS & INITIALIZATION
-// --------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-    checkStaffAuth();
-
-    const loginForm = document.getElementById('staff-login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const emailInput = document.getElementById('staff-email-input');
-            const errorMsg = document.getElementById('login-error-msg');
-            const errorText = document.getElementById('login-error-text');
-
-            if (!emailInput) return;
-
-            const enteredEmail = emailInput.value.trim().toLowerCase();
-
-            if (enteredEmail === AUTHORIZED_TEST_EMAIL) {
-                if (errorMsg) errorMsg.style.display = 'none';
-                emailInput.classList.remove('input-error');
-                setAuthenticatedStaffEmail(enteredEmail);
-                checkStaffAuth();
-                showStaffToast('Logged in successfully');
-            } else {
-                if (errorMsg) {
-                    if (errorText) errorText.textContent = 'Access denied. Please enter an authorized email.';
-                    errorMsg.style.display = 'flex';
-                }
-                emailInput.classList.add('input-error');
-                emailInput.focus();
-            }
-        });
-    }
-
-    const logoutBtn = document.getElementById('staff-logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to log out of the Staff Portal?')) {
-                clearStaffSession();
-                checkStaffAuth();
-                showStaffToast('Logged out successfully');
-            }
-        });
-    }
-
-    // Background orders polling (every 3.5s for real-time kitchen feed)
-    setInterval(() => {
-        if (getAuthenticatedStaffEmail()) {
-            fetchOrdersFromMongoDBBackend();
-        }
-    }, 3500);
-});
 
 
 
