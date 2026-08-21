@@ -1,0 +1,16 @@
+{
+  "name": "perfetto-pizza",
+  "version": "1.0.0",
+  "description": "Perfetto Pizza - Mobile Food Delivery, Chef Portal & Admin Dashboard with MongoDB Atlas, Firebase Google Auth, and PhonePe Payment Gateway",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "mongoose": "^8.3.1"
+  }
+}
