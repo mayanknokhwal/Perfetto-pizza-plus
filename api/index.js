@@ -55,6 +55,17 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// URL recovery middleware for Vercel Serverless rewrites
+app.use((req, res, next) => {
+    const vercelPath = req.headers['x-matched-path'] || req.headers['x-invoke-path'] || req.headers['x-forwarded-uri'];
+    if (vercelPath && (req.url === '/' || req.url === '/index.js' || req.url.startsWith('/api/index.js') || req.url.startsWith('/api/index'))) {
+        const queryIndex = req.url.indexOf('?');
+        const query = queryIndex !== -1 ? req.url.slice(queryIndex) : '';
+        req.url = (vercelPath.split('?')[0]) + (query || (vercelPath.includes('?') ? '?' + vercelPath.split('?')[1] : ''));
+    }
+    next();
+});
+
 // 1. Menu API: /api/menu
 app.use(['/api/menu', '/menu'], (req, res) => handleMenuRequest(req, res));
 

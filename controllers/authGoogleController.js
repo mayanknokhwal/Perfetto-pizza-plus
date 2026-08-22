@@ -26,25 +26,31 @@ function getGoogleCredentials() {
 }
 
 function getRedirectUri(req, creds) {
-    const rawHost = req.headers['x-forwarded-host'] || req.headers.host || 'perfetto-pizza.vercel.app';
+    if (creds && creds.redirectUri) {
+        const configuredUri = creds.redirectUri.trim();
+        const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || 'perfetto-pizza-plus.vercel.app') : 'perfetto-pizza-plus.vercel.app';
+        const host = rawHost.split(',')[0].trim();
+        const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+
+        // If configuredUri points to localhost but we are running in production on Vercel, use production host
+        if (!isLocal && configuredUri.includes('localhost')) {
+            const protoHeader = req.headers['x-forwarded-proto'];
+            const protocol = protoHeader ? protoHeader.split(',')[0].trim() : 'https';
+            return `${protocol}://${host}/api/auth/google/callback`;
+        }
+        return configuredUri;
+    }
+
+    const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || 'perfetto-pizza-plus.vercel.app') : 'perfetto-pizza-plus.vercel.app';
     const host = rawHost.split(',')[0].trim();
     const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
 
     let protocol = 'https';
     if (isLocal) {
-        protocol = req.headers['x-forwarded-proto'] || 'http';
+        protocol = req?.headers ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
     } else {
-        const protoHeader = req.headers['x-forwarded-proto'];
+        const protoHeader = req?.headers ? req.headers['x-forwarded-proto'] : null;
         protocol = protoHeader ? protoHeader.split(',')[0].trim() : 'https';
-    }
-
-    if (creds && creds.redirectUri) {
-        const configuredUri = creds.redirectUri.trim();
-        // If configuredUri points to localhost but we are running in production on Vercel, use current host
-        if (!isLocal && configuredUri.includes('localhost')) {
-            return `${protocol}://${host}/api/auth/google/callback`;
-        }
-        return configuredUri;
     }
 
     return `${protocol}://${host}/api/auth/google/callback`;

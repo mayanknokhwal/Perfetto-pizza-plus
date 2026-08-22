@@ -128,13 +128,13 @@ async function handleStaffGoogleSignIn() {
                 }
             } catch (popupErr) {
                 console.warn('Staff Google popup notice:', popupErr.code, popupErr.message);
-                if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
-                    window.location.href = resolveApiUrl('/api/auth/google?target=staff');
-                    return;
-                } else if (popupErr.code === 'auth/popup-closed-by-user') {
+                if (popupErr.code === 'auth/popup-closed-by-user') {
                     showStaffToast('Sign-in cancelled by user.');
                     return;
                 }
+                // Any other popup error (blocked popup, unauthorized domain on Vercel, mobile, etc.): Redirect to Google OAuth
+                window.location.href = resolveApiUrl('/api/auth/google?target=staff');
+                return;
             }
         }
     } catch (err) {
@@ -145,13 +145,9 @@ async function handleStaffGoogleSignIn() {
     try {
         window.location.href = resolveApiUrl('/api/auth/google?target=staff');
         return;
-    } catch (e) {}
-
-    // Simulated fallback
-    const entered = prompt('Enter staff email to sign in (Chef: abc@gmail.com):', AUTHORIZED_TEST_EMAIL);
-    if (!entered || !entered.trim()) return;
-    const email = entered.trim().toLowerCase();
-    handleStaffAuthSuccess({ email, displayName: email === AUTHORIZED_TEST_EMAIL ? 'Kitchen Chef' : email.split('@')[0] });
+    } catch (e) {
+        console.error('Staff direct Google OAuth redirect error:', e);
+    }
 }
 
 async function handleStaffAuthSuccess(user) {
