@@ -5,8 +5,8 @@
 function resolveApiUrl(path) {
     if (!path) return '';
     const cleanPath = path.startsWith('/') ? path : '/' + path;
-    if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
-        return `http://localhost:8080${cleanPath}`;
+    if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null' && window.location.protocol !== 'file:') {
+        return `${window.location.origin}${cleanPath}`;
     }
     return cleanPath;
 }
@@ -27,24 +27,63 @@ const FIREBASE_CONFIG = {
 
 let staffFirebaseAuth = null;
 let staffGoogleProvider = null;
+let staffFirestore = null;
+let staffOrdersUnsubscribe = null;
 
-function initStaffFirebaseAuth() {
+async function initStaffFirebase() {
     // 1. Check for incoming OAuth redirect callback in URL
     checkStaffOAuthCallbackParams();
+
+    // Fetch dynamic config if available
+    try {
+        const configRes = await fetch(resolveApiUrl('/api/auth/config'));
+        const configData = await configRes.json();
+        if (configData && configData.firebase) {
+            Object.assign(FIREBASE_CONFIG, configData.firebase);
+        }
+    } catch (e) {}
 
     try {
         if (typeof firebase !== 'undefined' && firebase.apps) {
             if (!firebase.apps.length) {
-                firebase.initializeApp(FIREBASE_CONFIG);
+                const config = window.FIREBASE_CONFIG || FIREBASE_CONFIG;
+                firebase.initializeApp(config);
             }
             staffFirebaseAuth = firebase.auth();
             staffGoogleProvider = new firebase.auth.GoogleAuthProvider();
             staffGoogleProvider.addScope('email');
             staffGoogleProvider.addScope('profile');
             staffGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+
+            if (firebase.firestore) {
+                staffFirestore = firebase.firestore();
+                listenToFirestoreStaffOrders();
+            }
         }
     } catch (e) {
         console.warn('Staff Firebase init notice:', e.message);
+    }
+}
+
+function listenToFirestoreStaffOrders() {
+    if (!staffFirestore || staffOrdersUnsubscribe) return;
+    try {
+        staffOrdersUnsubscribe = staffFirestore.collection('orders')
+            .orderBy('createdAt', 'desc')
+            .limit(50)
+            .onSnapshot((snapshot) => {
+                const liveOrders = [];
+                snapshot.forEach((doc) => {
+                    liveOrders.push(doc.data());
+                });
+                if (liveOrders.length > 0) {
+                    mergeLiveOrdersIntoStaff(liveOrders);
+                }
+            }, (err) => {
+                console.warn('Firestore staff orders real-time notice:', err.message);
+            });
+    } catch (e) {
+        console.warn('Error attaching Firestore staff listener:', e);
     }
 }
 
@@ -313,46 +352,47 @@ async function fetchOrdersFromMongoDBBackend() {
         const data = await response.json();
 
         if (data && data.success && Array.isArray(data.orders) && data.orders.length > 0) {
-            const serverOrders = data.orders;
-            const oldCount = staffOrders.length;
-
-            // Merge server orders with local orders (avoiding duplicates by orderId)
-            const mergedMap = new Map();
-            
-            // Server orders first (ground truth)
-            serverOrders.forEach(o => {
-                const id = String(o.orderId || o.id);
-                mergedMap.set(id, o);
-            });
-
-            // Add any local-only pending orders that haven't synced yet
-            staffOrders.forEach(o => {
-                const id = String(o.orderId || o.id);
-                if (!mergedMap.has(id)) {
-                    mergedMap.set(id, o);
-                }
-            });
-
-            const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-            });
-
-            staffOrders = mergedList;
-
-            // Update localStorage
-            try {
-                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
-            } catch (e) {}
-
-            if (staffOrders.length > oldCount && oldCount > 0) {
-                showStaffToast('🔔 New Customer Order Received!');
-            }
-
-            renderOrders();
+            mergeLiveOrdersIntoStaff(data.orders);
         }
     } catch (err) {
         console.warn('MongoDB Atlas staff sync notice (local resilience active):', err.message);
     }
+}
+
+function mergeLiveOrdersIntoStaff(serverOrders) {
+    if (!Array.isArray(serverOrders) || serverOrders.length === 0) return;
+    const oldCount = staffOrders.length;
+    const mergedMap = new Map();
+    
+    // Server / Firestore orders first (ground truth)
+    serverOrders.forEach(o => {
+        const id = String(o.orderId || o.id);
+        if (id) mergedMap.set(id, o);
+    });
+
+    // Add any local pending orders
+    staffOrders.forEach(o => {
+        const id = String(o.orderId || o.id);
+        if (id && !mergedMap.has(id)) {
+            mergedMap.set(id, o);
+        }
+    });
+
+    const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+
+    staffOrders = mergedList;
+
+    try {
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+    } catch (e) {}
+
+    if (staffOrders.length > oldCount && oldCount > 0) {
+        showStaffToast('🔔 New Customer Order Received in Real-Time!');
+    }
+
+    renderOrders();
 }
 
 // --------------------------------------------------------------------------
@@ -405,8 +445,8 @@ function syncCustomerOrders() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize Firebase Google Auth for Staff
-    initStaffFirebaseAuth();
+    // Initialize Firebase Auth & Real-Time Firestore for Staff
+    initStaffFirebase();
 
     // Check initial auth state
     checkStaffAuth();
@@ -692,6 +732,17 @@ function updateOrderStatus(orderId, newStatus) {
 }
 
 async function syncOrderStatusToMongoDBBackend(orderId, newStatus) {
+    // 1. Instantly update in Firestore for real-time customer and admin notification
+    if (staffFirestore) {
+        try {
+            staffFirestore.collection('orders').doc(String(orderId)).set({
+                status: newStatus,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }).catch(() => {});
+        } catch (e) {}
+    }
+
+    // 2. Sync to MongoDB Atlas backend
     try {
         await fetch(resolveApiUrl('/api/orders'), {
             method: 'PATCH',

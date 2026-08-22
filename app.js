@@ -56,22 +56,22 @@ function getCustomerCareEnabled() {
 }
 
 // --------------------------------------------------------------------------
-// API BASE URL & LOCAL ENVIRONMENT RESOLVER
+// API BASE URL & ENVIRONMENT RESOLVER
 // --------------------------------------------------------------------------
 function resolveApiUrl(path) {
     if (!path) return '';
     const cleanPath = path.startsWith('/') ? path : '/' + path;
-    if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
-        return `http://localhost:8080${cleanPath}`;
+    if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null' && window.location.protocol !== 'file:') {
+        return `${window.location.origin}${cleanPath}`;
     }
     return cleanPath;
 }
 
 function getAppOrigin() {
-    if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
-        return 'http://localhost:8080';
+    if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null' && window.location.protocol !== 'file:') {
+        return window.location.origin;
     }
-    return window.location.origin;
+    return '';
 }
 
 function loadCartFromStorage() {
@@ -1693,8 +1693,25 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     }
 }
 
-// Backend API Order Saver
+// Real-Time & Backend Order Saver
 async function saveOrderToBackendAPI(order) {
+    const finalOrderId = String(order.orderId || order.id || Date.now());
+
+    // 1. Instantly write to Firestore for live Kitchen & Admin display
+    if (customerFirestore) {
+        try {
+            customerFirestore.collection('orders').doc(finalOrderId).set({
+                ...order,
+                orderId: finalOrderId,
+                createdAt: order.createdAt || new Date().toISOString(),
+                serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch((fsErr) => {
+                console.warn('Firestore live order push notice:', fsErr.message);
+            });
+        } catch (e) {}
+    }
+
+    // 2. Sync to MongoDB Atlas backend API
     try {
         const response = await fetch(resolveApiUrl('/api/orders'), {
             method: 'POST',
@@ -3855,12 +3872,15 @@ function setupLocalStorageSync() {
 }
 
 // --------------------------------------------------------------------------
-// 10. FIREBASE GOOGLE AUTHENTICATION SYSTEM
+// 10. FIREBASE AUTHENTICATION & REAL-TIME FIRESTORE SYSTEM
 // --------------------------------------------------------------------------
 let firebaseAuthInstance = null;
 let googleAuthProvider = null;
 let currentUserProfile = null;
 let isGoogleVerified = false;
+let customerFirestore = null;
+let menuRealtimeUnsubscribe = null;
+let settingsRealtimeUnsubscribe = null;
 
 // Official Perfetto Pizza Firebase Configuration
 const FIREBASE_CONFIG = {
@@ -3872,9 +3892,18 @@ const FIREBASE_CONFIG = {
     appId: "1:29523182317:web:perfetto-pizza"
 };
 
-function initFirebaseGoogleAuth() {
+async function initFirebaseGoogleAuth() {
     // 1. Check for incoming OAuth redirect callback in URL
     checkOAuthCallbackParams();
+
+    // Fetch dynamic environment config if available
+    try {
+        const configRes = await fetch(resolveApiUrl('/api/auth/config'));
+        const configData = await configRes.json();
+        if (configData && configData.firebase) {
+            Object.assign(FIREBASE_CONFIG, configData.firebase);
+        }
+    } catch (e) {}
 
     try {
         if (typeof firebase !== 'undefined' && firebase.apps) {
@@ -3885,20 +3914,26 @@ function initFirebaseGoogleAuth() {
             }
             firebaseAuthInstance = firebase.auth();
 
-            // 2. Set browser local session persistence
+            // 2. Initialize Firestore Real-Time Listener
+            if (firebase.firestore) {
+                customerFirestore = firebase.firestore();
+                listenToRealtimeMenuAndRates();
+            }
+
+            // 3. Set browser local session persistence
             if (firebase.auth.Auth && firebase.auth.Auth.Persistence) {
                 firebaseAuthInstance.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch((err) => {
                     console.warn('Firebase setPersistence notice:', err.message);
                 });
             }
 
-            // 3. Configure Google Auth Provider with email & profile scopes
+            // 4. Configure Google Auth Provider with email & profile scopes
             googleAuthProvider = new firebase.auth.GoogleAuthProvider();
             googleAuthProvider.addScope('email');
             googleAuthProvider.addScope('profile');
             googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
 
-            // 4. Handle redirect sign-in result (mobile & returning users)
+            // 5. Handle redirect sign-in result (mobile & returning users)
             firebaseAuthInstance.getRedirectResult().then((result) => {
                 if (result && result.user) {
                     onGoogleAuthSuccess(result.user, true);
@@ -3907,7 +3942,7 @@ function initFirebaseGoogleAuth() {
                 console.warn('Firebase getRedirectResult error:', err);
             });
 
-            // 5. Active Auth State Observer (Persists session across page refreshes & tabs)
+            // 6. Active Auth State Observer (Persists session across page refreshes & tabs)
             firebaseAuthInstance.onAuthStateChanged((user) => {
                 if (user) {
                     onGoogleAuthSuccess(user, false);
@@ -3939,6 +3974,76 @@ function initFirebaseGoogleAuth() {
     } catch (e) {
         console.warn('Firebase init notice:', e.message);
         checkStoredGoogleUser();
+    }
+}
+
+// Real-Time Listeners for Menu Items, Prices, Availability & Store Rates
+function listenToRealtimeMenuAndRates() {
+    if (!customerFirestore) return;
+
+    // A. Real-Time Menu Items, Prices & Availability
+    if (!menuRealtimeUnsubscribe) {
+        try {
+            menuRealtimeUnsubscribe = customerFirestore.collection('settings').doc('menu').onSnapshot((doc) => {
+                if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+                    const freshItems = doc.data().items;
+                    try {
+                        localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                    } catch (e) {}
+                    refreshActiveCustomerView(freshItems);
+                    updateCartUI();
+                }
+            }, (err) => {
+                console.warn('Firestore menu real-time notice:', err.message);
+            });
+        } catch (e) {
+            console.warn('Error setting up menu real-time listener:', e);
+        }
+    }
+
+    // B. Real-Time Store Settings & Service Rates (Delivery charge, Min order, Customer care)
+    if (!settingsRealtimeUnsubscribe) {
+        try {
+            settingsRealtimeUnsubscribe = customerFirestore.collection('settings').doc('storeSettings').onSnapshot((doc) => {
+                if (doc.exists && doc.data()) {
+                    const data = doc.data();
+                    if (data.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
+                    if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
+                    if (data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
+                    if (data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
+                    if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
+                    if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
+                    if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
+                    if (data.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(data.zoneCharges));
+
+                    // Instantly apply updated rates & settings to customer UI
+                    applyRealtimeStoreSettings();
+                }
+            }, (err) => {
+                console.warn('Firestore settings real-time notice:', err.message);
+            });
+        } catch (e) {
+            console.warn('Error setting up settings real-time listener:', e);
+        }
+    }
+}
+
+function applyRealtimeStoreSettings() {
+    try {
+        const phone = getCustomerCarePhone();
+        const careEnabled = getCustomerCareEnabled();
+        const callBtn = document.getElementById('customer-care-btn');
+        const phoneDisplay = document.getElementById('customer-care-number-display');
+        if (callBtn) {
+            callBtn.href = `tel:+91${phone}`;
+            callBtn.style.display = careEnabled ? 'flex' : 'none';
+        }
+        if (phoneDisplay) {
+            phoneDisplay.textContent = `+91 ${phone}`;
+        }
+        updateCartUI();
+    } catch (e) {
+        console.warn('Error applying live store settings:', e);
     }
 }
 

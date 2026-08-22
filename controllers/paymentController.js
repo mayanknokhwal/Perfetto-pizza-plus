@@ -45,8 +45,10 @@ async function handlePaymentRequest(req, res, pathname = '') {
             const merchantTransactionId = `MT_${orderId}_${Date.now()}`;
             const merchantUserId = `USER_${(customerPhone || '9999999999').replace(/[^0-9]/g, '')}`;
 
-            const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:8080';
-            const protocol = req.headers['x-forwarded-proto'] || 'http';
+            const rawHost = req.headers['x-forwarded-host'] || req.headers.host || (process.env.VERCEL_URL ? process.env.VERCEL_URL : 'perfetto-pizza-plus.vercel.app');
+            const host = rawHost.split(',')[0].trim();
+            const protoHeader = req.headers['x-forwarded-proto'];
+            const protocol = protoHeader ? protoHeader.split(',')[0].trim() : (host.includes('localhost') ? 'http' : 'https');
             const defaultRedirectUrl = `${protocol}://${host}/index.html?payment=success&orderId=${orderId}&txnId=${merchantTransactionId}`;
 
             const phonepePayload = {

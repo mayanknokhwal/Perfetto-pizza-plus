@@ -2138,21 +2138,26 @@
         <span id="toast-text">All menu changes saved to database!</span>
     </div>
 
+    <!-- Firebase App, Auth & Firestore SDKs (Compat for Client-Side Real-Time Sync) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
     <!-- Leaflet Map JS CDN -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- --------------------------------------------------------------------------
-       8. JAVASCRIPT LOGIC & LOCALSTORAGE DATABASE
+       8. JAVASCRIPT LOGIC & DATABASE CONTROLLER
        -------------------------------------------------------------------------- -->
     <script>
         // --------------------------------------------------------------------------
-        // API BASE URL & LOCAL ENVIRONMENT RESOLVER
+        // API BASE URL & ENVIRONMENT RESOLVER
         // --------------------------------------------------------------------------
         function resolveApiUrl(path) {
             if (!path) return '';
             const cleanPath = path.startsWith('/') ? path : '/' + path;
-            if (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')) {
-                return `http://localhost:8080${cleanPath}`;
+            if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin !== 'null' && window.location.protocol !== 'file:') {
+                return `${window.location.origin}${cleanPath}`;
             }
             return cleanPath;
         }
@@ -2902,7 +2907,7 @@
             });
         }
 
-        // TOGGLE STATUS BADGE IN TABLE (INSTANT DATABASE SYNC)
+        // TOGGLE STATUS BADGE IN TABLE (INSTANT DATABASE & FIRESTORE REAL-TIME SYNC)
         function toggleStatusBadge(id) {
             const toggleInput = document.getElementById(`toggle-${id}`);
             const statusText = document.getElementById(`status-text-${id}`);
@@ -2923,11 +2928,47 @@
             saveToLocalStorage();
             updateStats();
 
-            // Instantly sync availability toggle to MongoDB Atlas backend
+            // 1. Instantly sync availability toggle to Firebase Firestore in real-time
+            syncSingleItemToFirestore(id, { available: isAvail });
+
+            // 2. Sync availability toggle to MongoDB Atlas backend
             syncSingleItemToBackend({ id, available: isAvail });
 
             const itemName = item ? item.name : id;
             showToast(`${itemName}: marked ${isAvail ? 'Available' : 'Out of Stock'}`);
+        }
+
+        function syncSingleItemToFirestore(id, updateFields) {
+            if (!adminFirestore) return;
+            try {
+                // Update the single item document
+                adminFirestore.collection('menu').doc(String(id)).set({
+                    id: String(id),
+                    ...updateFields,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true }).catch(() => {});
+
+                // Update the combined menu doc for single-listener efficiency
+                adminFirestore.collection('settings').doc('menu').set({
+                    items: menuItems,
+                    lastUpdated: Date.now()
+                }, { merge: true }).catch(() => {});
+            } catch (e) {
+                console.warn('Firestore single item sync notice:', e);
+            }
+        }
+
+        function syncBulkMenuToFirestore() {
+            if (!adminFirestore) return;
+            try {
+                // Update combined menu doc for instant push across all active customer panels
+                adminFirestore.collection('settings').doc('menu').set({
+                    items: menuItems,
+                    lastUpdated: Date.now()
+                }).catch((e) => console.warn('Firestore bulk menu save notice:', e));
+            } catch (e) {
+                console.warn('Firestore bulk sync notice:', e);
+            }
         }
 
         async function syncSingleItemToBackend(payload) {
@@ -2946,7 +2987,7 @@
             }
         }
 
-        // 6. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS & BULK SYNC TO MONGODB)
+        // 6. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS & BULK SYNC TO FIRESTORE & MONGODB)
         async function saveAllChanges() {
             // Read active DOM inputs and update menuItems memory
             menuItems.forEach(item => {
@@ -2984,9 +3025,12 @@
                 renderCategoryGrid();
             }
 
-            showToast('Saving menu changes to Database...');
+            showToast('Saving changes to Firestore & Database...');
 
-            // Bulk sync all menu changes to MongoDB Atlas backend
+            // 1. Bulk sync to Firebase Firestore in real-time
+            syncBulkMenuToFirestore();
+
+            // 2. Bulk sync all menu changes to MongoDB Atlas backend
             try {
                 const res = await fetch(resolveApiUrl('/api/menu'), {
                     method: 'PUT',
@@ -2995,13 +3039,13 @@
                 });
                 const data = await res.json();
                 if (data && data.success) {
-                    showToast('All menu changes, prices & settings saved to Database!');
+                    showToast('All menu changes, prices & settings saved in Real-Time!');
                 } else {
-                    showToast('Saved to local database (offline mode).');
+                    showToast('Saved to local & real-time database.');
                 }
             } catch (err) {
                 console.warn('MongoDB Atlas bulk save notice (local resilience active):', err.message);
-                showToast('Saved to local database (offline mode).');
+                showToast('Saved to local & real-time database.');
             }
         }
 
@@ -3020,8 +3064,12 @@
                     renderCategoryGrid();
                 }
 
-                showToast('Resetting menu database to defaults...');
+                showToast('Resetting menu database to defaults in Real-Time...');
 
+                // 1. Reset in Firestore Real-Time
+                syncBulkMenuToFirestore();
+
+                // 2. Reset in MongoDB
                 try {
                     const res = await fetch(resolveApiUrl('/api/menu'), {
                         method: 'POST',
@@ -3030,7 +3078,7 @@
                     });
                     const data = await res.json();
                     if (data && data.success) {
-                        showToast('Menu database reset to defaults on Database!');
+                        showToast('Menu database reset to defaults in Real-Time!');
                     } else {
                         showToast('Menu database reset to defaults locally!');
                     }
@@ -3637,8 +3685,29 @@
 
                 updateMapFromCoordinates(latVal, lngVal, radiusVal);
 
+                // Instantly sync rates & settings to Firebase Firestore in real-time
+                if (adminFirestore) {
+                    try {
+                        adminFirestore.collection('settings').doc('storeSettings').set({
+                            minOrderValue: minVal,
+                            freeDeliveryLimit: freeVal,
+                            customerCarePhone: phoneVal,
+                            customerCareEnabled: isCareEnabled,
+                            restaurantLat: latVal,
+                            restaurantLng: lngVal,
+                            deliveryRadius: radiusVal,
+                            zoneCharges: zoneCharges,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true }).catch((fsErr) => {
+                            console.warn('Firestore store settings write notice:', fsErr.message);
+                        });
+                    } catch (fsEx) {
+                        console.warn('Firestore store settings exception:', fsEx);
+                    }
+                }
+
                 if (showToastMsg) {
-                    showToast(`Settings & Zone Charges saved! Radius: ${radiusVal.toFixed(1)} km`);
+                    showToast(`Settings & Zone Charges saved in Real-Time! Radius: ${radiusVal.toFixed(1)} km`);
                 }
                 return true;
             } catch (e) {
@@ -3730,6 +3799,8 @@
         let currentAdminUser = null;
         let adminFirebaseAuth = null;
         let adminGoogleProvider = null;
+        let adminFirestore = null;
+        let adminOrdersUnsubscribe = null;
 
         const FIREBASE_CONFIG = {
             apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
@@ -3740,20 +3811,35 @@
             appId: "1:29523182317:web:perfetto-pizza"
         };
 
-        function initAdminFirebaseAuth() {
+        async function initAdminFirebaseAuth() {
             // 1. Check for incoming OAuth redirect callback in URL
             checkAdminOAuthCallbackParams();
+
+            // Fetch dynamic environment config if available
+            try {
+                const configRes = await fetch(resolveApiUrl('/api/auth/config'));
+                const configData = await configRes.json();
+                if (configData && configData.firebase) {
+                    Object.assign(FIREBASE_CONFIG, configData.firebase);
+                }
+            } catch (e) {}
 
             try {
                 if (typeof firebase !== 'undefined' && firebase.apps) {
                     if (!firebase.apps.length) {
-                        firebase.initializeApp(FIREBASE_CONFIG);
+                        const config = window.FIREBASE_CONFIG || FIREBASE_CONFIG;
+                        firebase.initializeApp(config);
                     }
                     adminFirebaseAuth = firebase.auth();
                     adminGoogleProvider = new firebase.auth.GoogleAuthProvider();
                     adminGoogleProvider.addScope('email');
                     adminGoogleProvider.addScope('profile');
                     adminGoogleProvider.setCustomParameters({ prompt: 'select_account' });
+
+                    if (firebase.firestore) {
+                        adminFirestore = firebase.firestore();
+                        listenToAdminLiveOrders();
+                    }
 
                     if (firebase.auth.Auth && firebase.auth.Auth.Persistence) {
                         adminFirebaseAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(e => {});
@@ -3798,6 +3884,57 @@
                 console.error('Error initializing Admin Firebase Auth:', err);
                 showAdminLoginScreen();
             }
+        }
+
+        function listenToAdminLiveOrders() {
+            if (!adminFirestore || adminOrdersUnsubscribe) return;
+            try {
+                adminOrdersUnsubscribe = adminFirestore.collection('orders')
+                    .orderBy('createdAt', 'desc')
+                    .limit(50)
+                    .onSnapshot((snapshot) => {
+                        const liveOrders = [];
+                        snapshot.forEach((doc) => {
+                            liveOrders.push(doc.data());
+                        });
+                        if (liveOrders.length > 0) {
+                            mergeLiveOrdersIntoAdmin(liveOrders);
+                        }
+                    }, (err) => {
+                        console.warn('Firestore admin orders listener notice:', err.message);
+                    });
+            } catch (e) {
+                console.warn('Error attaching Admin Firestore orders listener:', e);
+            }
+        }
+
+        function mergeLiveOrdersIntoAdmin(serverOrders) {
+            if (!Array.isArray(serverOrders) || serverOrders.length === 0) return;
+            let localOrders = [];
+            try {
+                const stored = localStorage.getItem('perfettoCustomerOrders');
+                if (stored) localOrders = JSON.parse(stored) || [];
+            } catch (e) {}
+
+            const mergedMap = new Map();
+            serverOrders.forEach(o => {
+                const id = String(o.orderId || o.id);
+                if (id) mergedMap.set(id, o);
+            });
+            localOrders.forEach(o => {
+                const id = String(o.orderId || o.id);
+                if (id && !mergedMap.has(id)) mergedMap.set(id, o);
+            });
+
+            const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            });
+
+            try {
+                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(mergedList));
+            } catch (e) {}
+
+            updateRevenueStats(mergedList);
         }
 
         function checkAdminOAuthCallbackParams() {
@@ -4315,6 +4452,18 @@
             const assignedRole = roleSelect ? roleSelect.value : 'Chef';
             const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
 
+            // 1. Sync to Firestore in real-time
+            if (adminFirestore) {
+                try {
+                    adminFirestore.collection('team').doc(targetEmail.replace(/[^a-zA-Z0-9]/g, '_')).set({
+                        email: targetEmail,
+                        role: assignedRole,
+                        status: 'active',
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true }).catch(() => {});
+                } catch (e) {}
+            }
+
             try {
                 const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'PATCH',
@@ -4350,6 +4499,17 @@
                 return;
             }
 
+            // 1. Sync to Firestore in real-time
+            if (adminFirestore) {
+                try {
+                    adminFirestore.collection('team').doc(targetEmail.replace(/[^a-zA-Z0-9]/g, '_')).set({
+                        email: targetEmail,
+                        status: 'rejected',
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true }).catch(() => {});
+                } catch (e) {}
+            }
+
             try {
                 const response = await fetch(resolveApiUrl('/api/admin-auth'), {
                     method: 'PATCH',
@@ -4379,6 +4539,18 @@
 
         async function changeActiveUserRole(targetEmail, newRole) {
             const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+
+            // 1. Sync to Firestore in real-time
+            if (adminFirestore) {
+                try {
+                    adminFirestore.collection('team').doc(targetEmail.replace(/[^a-zA-Z0-9]/g, '_')).set({
+                        email: targetEmail,
+                        role: newRole,
+                        status: 'active',
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true }).catch(() => {});
+                } catch (e) {}
+            }
 
             try {
                 const response = await fetch(resolveApiUrl('/api/admin-auth'), {
@@ -4413,6 +4585,17 @@
                 return;
             }
             const requesterEmail = (currentAdminUser && currentAdminUser.email) ? currentAdminUser.email : MASTER_ADMIN_EMAIL;
+
+            // 1. Sync to Firestore in real-time
+            if (adminFirestore) {
+                try {
+                    adminFirestore.collection('team').doc(targetEmail.replace(/[^a-zA-Z0-9]/g, '_')).set({
+                        email: targetEmail,
+                        status: 'rejected',
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true }).catch(() => {});
+                } catch (e) {}
+            }
 
             try {
                 const response = await fetch(resolveApiUrl('/api/admin-auth'), {

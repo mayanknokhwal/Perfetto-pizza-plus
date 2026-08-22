@@ -78,8 +78,9 @@ app.use(['/api/users', '/users'], (req, res) => handleUsersRequest(req, res));
 // 4. Admin Auth & Team API: /api/admin-auth
 app.use(['/api/admin-auth', '/admin-auth'], (req, res) => handleAdminAuthRequest(req, res));
 
-// 5. Google Auth API: /api/auth, /auth, /api/auth/google, /auth/google, etc.
+// 5. Config & Google Auth API: /api/config, /api/auth/config, /api/auth/google, etc.
 app.all([
+    '/api/config', '/config',
     '/api/auth/config', '/auth/config',
     '/api/auth/google', '/auth/google',
     '/api/auth/google/callback', '/auth/google/callback',

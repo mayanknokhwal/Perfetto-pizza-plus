@@ -25,33 +25,27 @@ function getGoogleCredentials() {
     };
 }
 
+function getFirebaseConfig() {
+    return {
+        apiKey: (process.env.FIREBASE_API_KEY || "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg").trim(),
+        authDomain: (process.env.FIREBASE_AUTH_DOMAIN || "website-fa79c.firebaseapp.com").trim(),
+        projectId: (process.env.FIREBASE_PROJECT_ID || "website-fa79c").trim(),
+        storageBucket: (process.env.FIREBASE_STORAGE_BUCKET || "website-fa79c.appspot.com").trim(),
+        messagingSenderId: (process.env.FIREBASE_MESSAGING_SENDER_ID || "29523182317").trim(),
+        appId: (process.env.FIREBASE_APP_ID || "1:29523182317:web:perfetto-pizza").trim(),
+        databaseURL: (process.env.FIREBASE_DATABASE_URL || "https://website-fa79c-default-rtdb.firebaseio.com").trim(),
+    };
+}
+
 function getRedirectUri(req, creds) {
     if (creds && creds.redirectUri) {
-        const configuredUri = creds.redirectUri.trim();
-        const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || 'perfetto-pizza-plus.vercel.app') : 'perfetto-pizza-plus.vercel.app';
-        const host = rawHost.split(',')[0].trim();
-        const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-
-        // If configuredUri points to localhost but we are running in production on Vercel, use production host
-        if (!isLocal && configuredUri.includes('localhost')) {
-            const protoHeader = req.headers['x-forwarded-proto'];
-            const protocol = protoHeader ? protoHeader.split(',')[0].trim() : 'https';
-            return `${protocol}://${host}/api/auth/google/callback`;
-        }
-        return configuredUri;
+        return creds.redirectUri.trim();
     }
 
-    const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || 'perfetto-pizza-plus.vercel.app') : 'perfetto-pizza-plus.vercel.app';
+    const rawHost = req?.headers ? (req.headers['x-forwarded-host'] || req.headers.host || (process.env.VERCEL_URL ? process.env.VERCEL_URL : 'perfetto-pizza-plus.vercel.app')) : 'perfetto-pizza-plus.vercel.app';
     const host = rawHost.split(',')[0].trim();
-    const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-
-    let protocol = 'https';
-    if (isLocal) {
-        protocol = req?.headers ? (req.headers['x-forwarded-proto'] || 'http') : 'http';
-    } else {
-        const protoHeader = req?.headers ? req.headers['x-forwarded-proto'] : null;
-        protocol = protoHeader ? protoHeader.split(',')[0].trim() : 'https';
-    }
+    const protoHeader = req?.headers ? req.headers['x-forwarded-proto'] : null;
+    const protocol = protoHeader ? protoHeader.split(',')[0].trim() : (host.includes('localhost') ? 'http' : 'https');
 
     return `${protocol}://${host}/api/auth/google/callback`;
 }
@@ -265,6 +259,7 @@ async function handleGoogleAuthRequest(req, res, pathname) {
             success: true,
             clientId: creds.clientId,
             redirectUri: dynamicRedirectUri,
+            firebase: getFirebaseConfig(),
         });
     }
 
