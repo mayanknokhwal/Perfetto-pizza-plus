@@ -288,10 +288,17 @@
                 <!-- LIVE ORDERS FEED -->
                 <section class="orders-section">
                     <div class="section-title-bar">
-                        <h3 id="section-heading">Kitchen Orders</h3>
-                        <span class="live-pulse-badge">
-                            <span class="pulse-dot"></span> Live
-                        </span>
+                        <div class="section-title-left" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <h3 id="section-heading">Kitchen Orders</h3>
+                            <span class="live-pulse-badge" id="live-pulse-badge">
+                                <span class="pulse-dot"></span> Live
+                            </span>
+                        </div>
+                        <div class="section-title-right">
+                            <button type="button" class="btn-delete-all-completed" id="btn-delete-all-completed" onclick="handleDeleteAllCompletedOrders()" style="display: none;" title="Delete all completed/archived orders">
+                                <span>🗑️ Delete All Completed</span>
+                            </button>
+                        </div>
                     </div>
 
                     <!-- CARDS CONTAINER -->

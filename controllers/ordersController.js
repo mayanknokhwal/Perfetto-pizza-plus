@@ -397,8 +397,9 @@ async function cleanupCompletedOrdersMidnight() {
         // Ensure fresh orders list from Firestore
         await fetchOrdersFromFirestore();
 
-        const completedOrders = global.__perfettoOrdersList.filter(o => o.status === 'completed');
-        const activeOrders = global.__perfettoOrdersList.filter(o => o.status !== 'completed');
+        const completedStatuses = ['completed', 'rejected', 'delivered', 'cancelled', 'archived'];
+        const completedOrders = global.__perfettoOrdersList.filter(o => completedStatuses.includes(String(o.status || '').toLowerCase()));
+        const activeOrders = global.__perfettoOrdersList.filter(o => !completedStatuses.includes(String(o.status || '').toLowerCase()));
 
         if (completedOrders.length === 0) {
             console.log(`[Midnight Cleanup] No completed orders to clean up. ${activeOrders.length} active order(s) retained.`);

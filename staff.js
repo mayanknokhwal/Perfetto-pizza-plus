@@ -1753,6 +1753,8 @@ function switchStaffTab(tab) {
     const btnPending = document.getElementById('tab-btn-pending');
     const btnCompleted = document.getElementById('tab-btn-completed');
     const heading = document.getElementById('section-heading');
+    const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
+    const liveBadge = document.getElementById('live-pulse-badge');
 
     if (btnPending) {
         btnPending.classList.toggle('active', tab === 'pending');
@@ -1765,6 +1767,14 @@ function switchStaffTab(tab) {
         heading.textContent = tab === 'pending' ? 'Active Kitchen Orders' : 'Completed Orders (Archived)';
     }
 
+    if (deleteCompletedBtn) {
+        deleteCompletedBtn.style.display = tab === 'completed' ? 'inline-flex' : 'none';
+    }
+
+    if (liveBadge) {
+        liveBadge.style.display = tab === 'pending' ? 'inline-flex' : 'none';
+    }
+
     renderOrders();
 }
 window.switchStaffTab = switchStaffTab;
@@ -1774,6 +1784,15 @@ function renderOrders() {
     const emptyState = document.getElementById('empty-state');
     const pendingCountEl = document.getElementById('pending-orders-count');
     const completedCountEl = document.getElementById('completed-orders-count');
+    const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
+    const liveBadge = document.getElementById('live-pulse-badge');
+
+    if (deleteCompletedBtn) {
+        deleteCompletedBtn.style.display = currentStaffTab === 'completed' ? 'inline-flex' : 'none';
+    }
+    if (liveBadge) {
+        liveBadge.style.display = currentStaffTab === 'pending' ? 'inline-flex' : 'none';
+    }
 
     // Filter valid orders first (prevent ghost/undefined orders from rendering)
     const validOrders = staffOrders.filter(isValidStaffOrder);
@@ -2536,6 +2555,106 @@ async function executeStaffMidnightCleanup() {
 
 window.scheduleClientMidnightCleanup = scheduleClientMidnightCleanup;
 window.executeStaffMidnightCleanup = executeStaffMidnightCleanup;
+
+/**
+ * Deletes all completed, declined, and archived orders from Firestore and local cache.
+ * Keeps all pending and active kitchen orders completely safe.
+ */
+async function handleDeleteAllCompletedOrders() {
+    const completedStatuses = ['completed', 'rejected', 'delivered', 'cancelled', 'archived'];
+    const localCompleted = staffOrders.filter(o => completedStatuses.includes(String(o.status || '').toLowerCase()));
+
+    // 1. Confirm dialog using styled theme modal
+    let confirmed = false;
+    if (typeof showStaffConfirmDialog === 'function') {
+        confirmed = await showStaffConfirmDialog({
+            title: 'Delete All Completed Orders?',
+            message: 'Are you sure you want to permanently delete all completed and declined orders? Active pending orders will remain safe.',
+            icon: '<i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>',
+            iconBg: 'rgba(239, 68, 68, 0.12)',
+            iconBorder: 'rgba(239, 68, 68, 0.3)',
+            confirmText: 'Yes, Delete All Completed',
+            cancelText: 'Cancel',
+            confirmType: 'danger'
+        });
+    } else {
+        confirmed = window.confirm('Are you sure you want to permanently delete all completed and declined orders?');
+    }
+
+    if (!confirmed) return;
+
+    const btn = document.getElementById('btn-delete-all-completed');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ Deleting...</span>';
+    }
+
+    try {
+        const db = getStaffFirestore();
+        const ordersToDelete = new Set();
+
+        // 1. Fetch completed docs from Firestore collection 'orders'
+        if (db) {
+            try {
+                const snap = await db.collection('orders').get();
+                snap.forEach(doc => {
+                    const data = doc.data() || {};
+                    const st = String(data.status || '').toLowerCase();
+                    if (completedStatuses.includes(st)) {
+                        ordersToDelete.add(doc.id);
+                    }
+                });
+            } catch (err) {
+                console.warn('Firestore orders read note during deletion:', err.message);
+            }
+        }
+
+        // Add any known completed IDs from local state
+        localCompleted.forEach(o => {
+            const id = String(o.orderId || o.id || '').trim();
+            if (id) ordersToDelete.add(id);
+        });
+
+        // 2. Batch delete from Firestore in chunks of up to 400
+        if (db && ordersToDelete.size > 0) {
+            const idList = Array.from(ordersToDelete);
+            for (let i = 0; i < idList.length; i += 400) {
+                const chunk = idList.slice(i, i + 400);
+                const batch = db.batch();
+                chunk.forEach(id => {
+                    batch.delete(db.collection('orders').doc(id));
+                });
+                await batch.commit();
+            }
+            console.log(`🗑️ [Delete All Completed] Batch deleted ${ordersToDelete.size} order(s) from Firestore.`);
+        }
+
+        // 3. Purge locally from memory and localStorage
+        staffOrders = staffOrders.filter(o => !completedStatuses.includes(String(o.status || '').toLowerCase()));
+        try {
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+        } catch (e) { }
+
+        // 4. Trigger backend server cleanup for synchronized memory caches
+        try {
+            await apiCall('/orders?action=midnight_cleanup', { method: 'DELETE' });
+        } catch (apiErr) {
+            console.warn('Backend cleanup notice:', apiErr.message);
+        }
+
+        renderOrders();
+        showStaffToast('🗑️ All completed orders deleted successfully!');
+    } catch (err) {
+        console.error('Error deleting completed orders:', err);
+        showStaffToast('⚠️ Failed to delete orders: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>🗑️ Delete All Completed</span>';
+        }
+    }
+}
+window.handleDeleteAllCompletedOrders = handleDeleteAllCompletedOrders;
 
 // --------------------------------------------------------------------------
 // 12. WEB AUDIO ALERT SYSTEM & INCOMING ORDER MODAL

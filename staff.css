@@ -408,6 +408,43 @@ body {
     animation: livePulseAnim 1.6s infinite ease-in-out;
 }
 
+.btn-delete-all-completed {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    border: 1px solid #b91c1c;
+    padding: 6px 14px;
+    border-radius: var(--radius-md, 10px);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+    white-space: nowrap;
+}
+
+.btn-delete-all-completed:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    border-color: #991b1b;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.5);
+}
+
+.btn-delete-all-completed:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-all-completed:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
 @keyframes livePulseAnim {
     0% {
         transform: scale(0.9);
