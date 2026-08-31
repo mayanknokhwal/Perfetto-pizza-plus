@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Perfetto Pizza - Staff Portal</title>
+  <meta name="theme-color" content="#070d19">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #070d19;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .logo-container {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: rgba(255, 107, 0, 0.1);
+      border: 2px solid rgba(255, 107, 0, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      box-shadow: 0 0 30px rgba(255, 107, 0, 0.2);
+    }
+    .logo-container img {
+      width: 55px;
+      height: 55px;
+      object-fit: contain;
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 32px;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(255, 107, 0, 0.2);
+      border-top-color: #ff6b00;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .status-text {
+      font-size: 13px;
+      color: #64748b;
+    }
+    .retry-btn {
+      display: none;
+      margin-top: 24px;
+      padding: 12px 24px;
+      background: #ff6b00;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(255, 107, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" onerror="this.style.display='none'">
+  </div>
+  <h1 class="title">Perfetto Staff Portal</h1>
+  <p class="subtitle">Connecting to kitchen management system...</p>
+  <div class="spinner" id="spinner"></div>
+  <p class="status-text" id="status">Loading Staff Portal...</p>
+  <button class="retry-btn" id="retry-btn" onclick="connectToStaff()">Retry Connection</button>
+
+  <script>
+    const STAFF_URL = 'https://perfetto-pizza-plus.vercel.app/staff.html';
+    
+    function connectToStaff() {
+      document.getElementById('spinner').style.display = 'block';
+      document.getElementById('status').textContent = 'Connecting to Staff Portal...';
+      document.getElementById('retry-btn').style.display = 'none';
+
+      window.location.replace(STAFF_URL);
+
+      // Fallback timer if offline
+      setTimeout(() => {
+        if (window.location.href.indexOf('staff.html') === -1) {
+          document.getElementById('spinner').style.display = 'none';
+          document.getElementById('status').textContent = 'Unable to reach server. Please check internet connection.';
+          document.getElementById('retry-btn').style.display = 'inline-block';
+        }
+      }, 5000);
+    }
+
+    // Auto-connect on startup
+    connectToStaff();
+  </script>
+</body>
+</html>

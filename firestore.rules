@@ -1,0 +1,138 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // 1. ORDERS COLLECTION & SUBCOLLECTIONS
+    // Real-time live order processing, updates, status tracking, and deletion.
+    // Used by: Customer App (app.js), Staff Portal (staff.js), Admin Dashboard (admin.html)
+    // =========================================================================
+    match /orders/{orderId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      // Allow any nested subcollections under an order (e.g. items, tracking, history)
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    // =========================================================================
+    // 2. STAFF PUSH NOTIFICATION TOKENS (FCM)
+    // Stores staff device FCM tokens by persistent device ID, token string, and phone.
+    // Used by: Staff APK (staff.js), FCM backend broadcast (lib/firebaseAdmin.js)
+    // =========================================================================
+    match /staff_tokens/{tokenId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    match /staff_fcm_tokens/{tokenId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    match /staff_devices/{deviceId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+    }
+
+    // =========================================================================
+    // 3. TEAM & STAFF ACCESS MANAGEMENT
+    // Staff phone login, instant access approval/rejection, role management.
+    // Used by: Staff APK (staff.js), Admin Panel (admin.html)
+    // =========================================================================
+    match /team/{phone} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    // =========================================================================
+    // 4. STORE SETTINGS & CONFIGURATION
+    // Includes: 'storeSettings' (Open/Closed status, staff payment toggle, master OTP),
+    // 'menu' cache, operating hours, delivery thresholds.
+    // Used by: Customer App (app.js), Staff APK (staff.js), Admin (admin.html)
+    // =========================================================================
+    match /settings/{docId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    // =========================================================================
+    // 5. USERS & CUSTOMER PROFILES
+    // Customer profile records, active sessions, and saved delivery addresses.
+    // Used by: Customer App (app.js), Admin Panel (admin.html)
+    // =========================================================================
+    match /users/{userId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    // =========================================================================
+    // 6. MENU CATALOG & INVENTORY
+    // Pizza catalog, categories, pricing, customizations, addon items.
+    // Used by: Customer App (app.js), Staff APK (staff.js), Admin (admin.html)
+    // =========================================================================
+    match /menu/{itemId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    // =========================================================================
+    // 7. ACTIVITY & AUDIT LOGS
+    // Real-time audit trail and history logs for Admin and Kitchen operations.
+    // Used by: Staff APK (staff.js), Admin Panel (admin.html)
+    // =========================================================================
+    match /activity_logs/{logId} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+        allow create, update, delete: if true;
+      }
+    }
+
+    // =========================================================================
+    // 8. GLOBAL FALLBACK RULE
+    // Ensures uninterrupted read/write access for any additional or nested
+    // collections across Customer, Staff, and Admin interfaces.
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if true;
+      allow create, update, delete: if true;
+    }
+  }
+}

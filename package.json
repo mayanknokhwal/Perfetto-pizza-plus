@@ -1,0 +1,26 @@
+{
+  "name": "perfetto-pizza",
+  "version": "1.0.0",
+  "description": "Perfetto Pizza - Mobile Food Delivery, Chef Portal & Admin Dashboard with Real-Time Firebase Sync, Voice OTP Auth, and PhonePe Payment Gateway",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "cap:sync": "cap sync",
+    "cap:sync:android": "cap sync android",
+    "cap:open:android": "cap open android",
+    "cap:build:android": "cap build android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/push-notifications": "^8.1.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^5.2.1",
+    "firebase-admin": "^14.3.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0"
+  }
+}

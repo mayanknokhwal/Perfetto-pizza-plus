@@ -1,0 +1,32 @@
+{
+  "appId": "com.perfettopizza.staff",
+  "appName": "Perfetto Staff",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://perfetto-pizza-plus.vercel.app/staff.html",
+    "cleartext": false,
+    "allowNavigation": [
+      "perfetto-pizza-plus.vercel.app",
+      "*.firebaseio.com",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "verify.msg91.com",
+      "verify.phone91.com",
+      "cdnjs.cloudflare.com",
+      "i.ibb.co",
+      "fonts.googleapis.com",
+      "fonts.gstatic.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

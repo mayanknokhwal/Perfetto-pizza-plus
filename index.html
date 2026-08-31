@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <title>Perfetto Pizza | Mobile Food Delivery</title>
+    <meta name="theme-color" content="#ff6b00">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/HfRxNYQv/perfetto-Black.png">
+    <!-- Google Fonts: Outfit & Plus Jakarta Sans with bold weights -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome vector icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- App Frame (Mobile-first container) -->
+    <div class="app-frame">
+
+        <!-- STICKY HEADER -->
+        <header class="app-header" id="header">
+            <div class="header-content">
+                <div class="brand-wrapper">
+                    <!-- Dynamic Theme Logo -->
+                    <img id="app-logo" src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Pizza Logo"
+                        class="brand-logo">
+                    <!-- Customer Care Phone Call Button -->
+                    <button class="header-call-btn" id="header-call-btn" aria-label="Customer Care Call"
+                        title="Customer Care">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-phone"></i>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="header-center-title" id="header-center-title">
+                    (Perfetto Pizza Plus)
+                </div>
+
+                <div class="header-actions">
+                    <!-- Theme Toggle Button (Now on the left of search) -->
+                    <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Light and Dark Mode">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-moon moon-icon"></i>
+                            <i class="fa-solid fa-sun sun-icon"></i>
+                        </div>
+                    </button>
+
+                    <!-- Global Search Toggle Button (Now on the right) -->
+                    <button class="search-toggle-btn" id="search-toggle" aria-label="Open Global Search">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- EXPANDABLE HEADER SEARCH BAR -->
+            <div class="app-search-bar" id="app-search-bar" style="display: none;">
+                <div class="search-bar-inner">
+                    <i class="fa-solid fa-magnifying-glass search-bar-icon"></i>
+                    <input type="text" id="customer-search-input" class="customer-search-input"
+                        placeholder="Search pizza, burger, pasta..." autocomplete="off">
+                    <button class="search-clear-btn" id="customer-search-clear" aria-label="Clear Search">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- PROMINENT SHOP CLOSED WARNING BANNER -->
+        <div class="shop-closed-banner" id="shop-closed-banner" style="display: none;">
+            <div class="banner-content">
+                <i class="fa-solid fa-store-slash banner-icon"></i>
+                <span>This time shop is closed. We are not accepting orders right now.</span>
+            </div>
+        </div>
+
+        <!-- PERMANENT FIXED TOP HEADER BAR FOR CATEGORY DETAIL VIEW -->
+        <div class="category-hero-bar" id="category-hero-bar" style="display: none;">
+            <div class="category-hero-content">
+                <button class="hero-back-btn" id="category-back-btn" aria-label="Back to Home">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+                <div class="hero-category-info">
+                    <div class="hero-thumb-wrapper">
+                        <img id="category-hero-img" src="" alt="Category Image" class="category-hero-img">
+                    </div>
+                    <div class="hero-text-wrapper">
+                        <h2 class="category-hero-title" id="category-hero-title">Pizza Menu</h2>
+                        <span class="category-hero-count" id="category-hero-count">18 options available</span>
+                    </div>
+                </div>
+                <button class="theme-toggle-btn hero-theme-toggle" id="category-theme-toggle"
+                    aria-label="Toggle Light and Dark Mode">
+                    <div class="toggle-icon-wrapper">
+                        <i class="fa-solid fa-moon moon-icon"></i>
+                        <i class="fa-solid fa-sun sun-icon"></i>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT CONTAINER -->
+        <main class="main-content-container" id="main-container">
+
+            <!-- HOME TAB VIEW -->
+            <section class="tab-view active-tab" id="view-home">
+
+                <!-- 1. 'DAILY OFFER' SECTION -->
+                <section class="daily-offer-section">
+                    <h2 class="section-title-bold">DAILY OFFER</h2>
+                    <div class="offer-slider-wrapper" id="offer-slider-wrapper">
+                        <div class="offer-slider-track" id="offer-slider-track">
+                            <div class="offer-slide">
+                                <img src="https://i.ibb.co/GQtdNF4v/free-cold-drink.png" alt="Free Cold Drink Offer"
+                                    class="offer-img">
+                            </div>
+                            <div class="offer-slide">
+                                <img src="https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png" alt="Free KitKat Shake Offer"
+                                    class="offer-img">
+                            </div>
+                            <div class="offer-slide">
+                                <img src="https://i.ibb.co/VYqnBKbM/free-medium-pizza.png" alt="Free Medium Pizza Offer"
+                                    class="offer-img">
+                            </div>
+                        </div>
+                        <div class="offer-dots" id="offer-dots">
+                            <span class="dot active" data-index="0"></span>
+                            <span class="dot" data-index="1"></span>
+                            <span class="dot" data-index="2"></span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 'FAST FOOD' SECTION -->
+                <section class="fast-food-section">
+                    <h2 class="section-title-bold">FAST FOOD</h2>
+
+                    <!-- 3. Responsive CSS Grid (2 Columns Mobile View) with 18 clickable image cards -->
+                    <div class="fast-food-grid">
+                        <a href="#" class="fast-food-card" data-category="Bread" aria-label="Bread">
+                            <img src="https://i.ibb.co/fzBqSJJx/bread.png" alt="Bread" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Burger" aria-label="Burger">
+                            <img src="https://i.ibb.co/jZDq51b6/burger.png" alt="Burger" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Chinese Food" aria-label="Chinese Food">
+                            <img src="https://i.ibb.co/YFYwbHmV/chinese-food.png" alt="Chinese Food"
+                                class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Colo Drinks" aria-label="Colo Drinks">
+                            <img src="https://i.ibb.co/dJxnm38L/colo-drinks.png" alt="Colo Drinks" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Desserts" aria-label="Desserts">
+                            <img src="https://i.ibb.co/YBQ73fv2/dasserts.png" alt="Desserts" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Hot Cold Coffee" aria-label="Hot Cold Coffee">
+                            <img src="https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" alt="Hot Cold Coffee"
+                                class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Mojito" aria-label="Mojito">
+                            <img src="https://i.ibb.co/kV2Wvsdq/mojito.png" alt="Mojito" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Momos" aria-label="Momos">
+                            <img src="https://i.ibb.co/gbdrfGJK/momos.png" alt="Momos" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Noodles" aria-label="Noodles">
+                            <img src="https://i.ibb.co/v6LTBqFV/noodles.png" alt="Noodles" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Pasta" aria-label="Pasta">
+                            <img src="https://i.ibb.co/Qvzgv353/pasta.png" alt="Pasta" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Pizza" aria-label="Pizza">
+                            <img src="https://i.ibb.co/21fs0TqL/pizza.png" alt="Pizza" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Rice" aria-label="Rice">
+                            <img src="https://i.ibb.co/gL0Z5F0C/rice.png" alt="Rice" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Salad" aria-label="Salad">
+                            <img src="https://i.ibb.co/W4V8XcNG/salad.png" alt="Salad" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Sandwich" aria-label="Sandwich">
+                            <img src="https://i.ibb.co/DPyPQfsT/sandwich.png" alt="Sandwich" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Shake" aria-label="Shake">
+                            <img src="https://i.ibb.co/XZpkRRpJ/shake.png" alt="Shake" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Side Orders" aria-label="Side Orders">
+                            <img src="https://i.ibb.co/JwXzvd1f/side-orders.png" alt="Side Orders" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Spring Rolls" aria-label="Spring Rolls">
+                            <img src="https://i.ibb.co/HLJWTt1D/spring-rolls.png" alt="Spring Rolls"
+                                class="fast-food-img" loading="lazy">
+                        </a>
+                        <a href="#" class="fast-food-card" data-category="Wrap" aria-label="Wrap">
+                            <img src="https://i.ibb.co/V0c7gf6d/wrap.png" alt="Wrap" class="fast-food-img"
+                                loading="lazy">
+                        </a>
+                    </div>
+                </section>
+
+            </section>
+
+            <!-- CATEGORY DETAIL TAB VIEW -->
+            <section class="tab-view" id="view-category-detail">
+                <div class="sub-items-section">
+                    <div class="sub-items-header">
+                        <h4 class="section-title-bold">VARIETIES & OPTIONS</h4>
+                    </div>
+                    <div class="sub-items-grid" id="sub-items-grid">
+                        <!-- Dynamic sub-category items rendered via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- PROFILE TAB VIEW -->
+            <section class="tab-view" id="view-profile">
+                <!-- CART REDIRECTION NOTICE BANNER (Displayed only when redirected from Cart) -->
+                <div class="profile-redirect-notice-banner" id="profile-redirect-notice" style="display: none;">
+                    <div class="notice-banner-inner">
+                        <div class="notice-banner-icon">
+                            <i class="fa-solid fa-circle-exclamation"></i>
+                        </div>
+                        <div class="notice-banner-text">
+                            <h4 class="notice-banner-title">👋 Welcome! Please complete your profile and delivery
+                                address first.</h4>
+                            <p class="notice-banner-subtext">To access your food cart and place orders, please enter
+                                your details and verify your GPS delivery location below.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROFILE HEADER CARD (User Avatar & Customer Name / Phone) -->
+                <div class="profile-header-card">
+                    <div class="profile-icon-circle" id="profile-avatar-container">
+                        <img id="profile-avatar-img" class="profile-avatar-img" src="" alt="User Avatar"
+                            style="display: none;">
+                        <i class="fa-solid fa-user avatar-placeholder-icon" id="profile-avatar-icon"></i>
+                    </div>
+                    <h3 class="profile-name" id="profile-display-name">Customer Name</h3>
+                    <p class="profile-email" id="profile-display-subtext">+91 Mobile Number</p>
+                    <div class="profile-header-actions">
+                        <button type="button" class="btn-toggle-edit-profile" id="btn-toggle-edit-profile"
+                            onclick="openEditProfileModal()">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STATS ROW (Clean Total Orders Only) -->
+                <div class="profile-stats-row">
+                    <div class="stat-card">
+                        <span class="stat-num" id="stat-total-orders">0</span>
+                        <span class="stat-label">Total Orders</span>
+                    </div>
+                </div>
+
+                <!-- ACCOUNT SETTINGS (ORDER HISTORY, EDIT PROFILE & INFO/LEGAL) -->
+                <div class="menu-list-group">
+                    <h4 class="group-title">Account Settings</h4>
+
+                    <div class="menu-item-row" id="menu-order-history" onclick="toggleOrderHistoryView()">
+                        <div class="menu-item-icon icon-order-history"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Order History</span>
+                            <span class="item-subtitle">View past orders & details</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-order-history"></i>
+                    </div>
+
+                    <!-- ORDER HISTORY ACCORDION DISPLAY BOX (Directly under Order History) -->
+                    <div id="order-history-display-box" class="order-history-card" style="display: none;">
+                        <div class="order-history-card-header">
+                            <div class="saved-title-group">
+                                <i class="fa-solid fa-receipt"
+                                    style="color: var(--primary-orange); margin-right: 6px;"></i>
+                                <span>Recent Orders</span>
+                            </div>
+                            <button type="button" class="btn-clear-history" id="btn-clear-history"
+                                onclick="clearCustomerOrderHistory()">
+                                <i class="fa-solid fa-trash-can"></i> Clear History
+                            </button>
+                        </div>
+                        <div id="order-history-list" class="order-history-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <div class="menu-item-row" id="menu-saved-addresses" onclick="toggleSavedAddressesView()">
+                        <div class="menu-item-icon icon-profile-address"><i class="fa-solid fa-house-chimney-user"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Edit Profile & Home Address</span>
+                            <span class="item-subtitle">View & update your profile and delivery address</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-saved-addresses"></i>
+                    </div>
+
+                    <!-- SAVED ADDRESS DISPLAY BOX -->
+                    <div id="saved-address-display-box" class="saved-address-card" style="display: none;">
+                        <div class="saved-address-card-header">
+                            <div class="saved-title-group">
+                                <i class="fa-solid fa-house-chimney" style="color: var(--primary-orange);"></i>
+                                <span class="saved-address-label">Your Current Home Delivery Address</span>
+                            </div>
+                            <button type="button" class="change-address-btn" onclick="editSavedAddress()">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                            </button>
+                        </div>
+                        <div class="saved-address-content" id="saved-address-text-content">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <div class="menu-item-row" id="menu-legal-info" onclick="toggleLegalInfoView()">
+                        <div class="menu-item-icon icon-legal-info">
+                            <i class="fa-solid fa-circle-info"></i>
+                        </div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Info & Legal Policies</span>
+                            <span class="item-subtitle">Terms, Privacy Policy & Cancellation rules</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-legal-info"></i>
+                    </div>
+
+                    <!-- LEGAL & INFO ACCORDION DISPLAY BOX (Directly under Info & Legal Policies) -->
+                    <div id="legal-info-display-box" class="legal-info-card saved-address-card" style="display: none;">
+                        <div class="saved-address-card-header">
+                            <div class="saved-title-group">
+                                <i class="fa-solid fa-shield-halved" style="color: #2563eb;"></i>
+                                <span class="saved-address-label">Store Policies & Guidelines</span>
+                            </div>
+                            <span class="legal-accordion-badge">Official</span>
+                        </div>
+
+                        <div class="legal-accordion-body">
+                            <div class="legal-accordion-links">
+                                <a href="terms.html" class="legal-accordion-link-item">
+                                    <div class="legal-link-icon terms-icon">
+                                        <i class="fa-solid fa-file-contract"></i>
+                                    </div>
+                                    <div class="legal-link-info">
+                                        <span class="legal-link-title">Terms & Conditions</span>
+                                        <span class="legal-link-desc">Ordering rules, delivery terms & agreement</span>
+                                    </div>
+                                    <i class="fa-solid fa-arrow-up-right-from-square legal-link-arrow"></i>
+                                </a>
+
+                                <a href="privacy.html" class="legal-accordion-link-item">
+                                    <div class="legal-link-icon privacy-icon">
+                                        <i class="fa-solid fa-user-shield"></i>
+                                    </div>
+                                    <div class="legal-link-info">
+                                        <span class="legal-link-title">Privacy Policy</span>
+                                        <span class="legal-link-desc">Data security, encryption & privacy handling</span>
+                                    </div>
+                                    <i class="fa-solid fa-arrow-up-right-from-square legal-link-arrow"></i>
+                                </a>
+
+                                <a href="refund.html" class="legal-accordion-link-item">
+                                    <div class="legal-link-icon refund-icon">
+                                        <i class="fa-solid fa-rotate-left"></i>
+                                    </div>
+                                    <div class="legal-link-info">
+                                        <span class="legal-link-title">Cancellation & Refund</span>
+                                        <span class="legal-link-desc">Cancellation windows & refund turnaround</span>
+                                    </div>
+                                    <i class="fa-solid fa-arrow-up-right-from-square legal-link-arrow"></i>
+                                </a>
+                            </div>
+
+                            <div class="legal-accordion-footer-note">
+                                <p>© 2026 Perfetto Pizza Plus • Raisinghnagar • Version 2.4.0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CART TAB VIEW -->
+            <section class="tab-view" id="view-cart">
+                <div class="cart-view-header">
+                    <h3>Your Food Cart</h3>
+                    <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()">Clear All</button>
+                </div>
+
+                <div id="cart-items-container" class="cart-items-list">
+                    <!-- Dynamic cart items rendered here -->
+                </div>
+
+                <!-- DYNAMIC CART THRESHOLD STATUS BANNER -->
+                <div class="cart-threshold-banner" id="cart-threshold-banner" style="display: none;">
+                    <div class="threshold-banner-inner" id="threshold-banner-content">
+                        <!-- Dynamically populated via JS -->
+                    </div>
+                </div>
+
+                <div class="cart-summary-card" id="cart-summary">
+                    <div class="summary-line">
+                        <span>Subtotal</span>
+                        <span id="cart-subtotal">₹0</span>
+                    </div>
+                    <div class="summary-line">
+                        <span>Delivery Fee</span>
+                        <span id="cart-delivery">₹0</span>
+                    </div>
+                    <div class="summary-line total-line">
+                        <span>Grand Total</span>
+                        <span id="cart-total">₹0</span>
+                    </div>
+                    <button class="checkout-btn" onclick="processCheckout()">
+                        Proceed to Checkout <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- SEARCH RESULTS TAB VIEW -->
+            <section class="tab-view" id="view-search-results">
+                <div class="search-results-header">
+                    <div>
+                        <h2 class="section-title-bold" id="customer-search-title">SEARCH RESULTS</h2>
+                        <span class="search-results-summary" id="customer-search-summary">Type to search items...</span>
+                    </div>
+                    <button class="close-search-view-btn" id="close-search-view-btn" onclick="closeCustomerSearch()">
+                        <i class="fa-solid fa-xmark"></i> Close
+                    </button>
+                </div>
+
+                <!-- MATCHING CATEGORIES SECTION (Exact Home Screen 2-Column Grid) -->
+                <section class="fast-food-section" id="customer-search-categories-wrapper"
+                    style="display: none; margin-bottom: 24px;">
+                    <h2 class="section-title-bold"><i class="fa-solid fa-folder"></i> MATCHING CATEGORIES</h2>
+                    <div class="fast-food-grid" id="customer-search-categories-grid"></div>
+                </section>
+
+                <!-- MATCHING PIZZAS SECTION (Exact 2-Column Pizza Grid) -->
+                <section class="sub-items-section" id="customer-search-pizzas-wrapper"
+                    style="display: none; margin-bottom: 24px;">
+                    <h2 class="section-title-bold"><i class="fa-solid fa-pizza-slice"></i> MATCHING PIZZAS</h2>
+                    <div class="sub-items-grid pizza-grid-container" id="customer-search-pizzas-grid"></div>
+                </section>
+
+                <!-- MATCHING OTHER MENU PRODUCTS SECTION (Exact Standard Sub-Item List) -->
+                <section class="sub-items-section" id="customer-search-products-wrapper"
+                    style="display: none; margin-bottom: 24px;">
+                    <h2 class="section-title-bold"><i class="fa-solid fa-utensils"></i> MATCHING MENU ITEMS</h2>
+                    <div class="sub-items-grid" id="customer-search-products-grid"></div>
+                </section>
+
+                <!-- NO RESULTS EMPTY STATE -->
+                <div class="empty-cart-view" id="customer-search-empty" style="display: none; margin-top: 30px;">
+                    <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
+                    <h4>No matching items found</h4>
+                    <p>Try searching for "Hot Country", "Burger", "Pasta", "Garlic Bread", or "Cola"</p>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- STICKY FLOATING CART PILL BAR (Appears on Home & Category views when cart has items) -->
+        <div class="floating-cart-pill-bar" id="floating-cart-bar" style="display: none;" onclick="switchTab('cart')">
+            <div class="floating-cart-left">
+                <div class="floating-cart-count-badge" id="floating-cart-count">0 ITEMS</div>
+                <div class="floating-cart-price" id="floating-cart-total">₹0</div>
+            </div>
+            <div class="floating-cart-right">
+                <span class="floating-cart-cta-text">View Cart</span>
+                <i class="fa-solid fa-arrow-right floating-cart-arrow"></i>
+            </div>
+        </div>
+
+        <!-- FIXED BOTTOM NAVIGATION BAR -->
+        <nav class="app-bottom-nav" id="bottom-nav">
+            <div class="nav-container">
+
+                <!-- PROFILE BUTTON -->
+                <button class="nav-item" data-tab="profile" aria-label="Profile View">
+                    <div class="nav-icon-wrapper">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <span class="nav-label">Profile</span>
+                </button>
+
+                <!-- HOME BUTTON (CENTER, VISUALLY EMPHASIZED) -->
+                <button class="nav-item nav-item-center active" data-tab="home" aria-label="Home View">
+                    <div class="center-btn-outer">
+                        <div class="center-btn-inner">
+                            <i class="fa-solid fa-house"></i>
+                        </div>
+                    </div>
+                    <span class="nav-label">Home</span>
+                </button>
+
+                <!-- CART BUTTON -->
+                <button class="nav-item" data-tab="cart" aria-label="Cart View">
+                    <div class="nav-icon-wrapper">
+                        <i class="fa-solid fa-basket-shopping"></i>
+                        <span class="cart-badge" id="cart-badge-count">0</span>
+                    </div>
+                    <span class="nav-label">Cart</span>
+                </button>
+
+            </div>
+        </nav>
+
+        <!-- Toast Notification -->
+        <div class="toast-notification" id="toast">
+            <i class="fa-solid fa-circle-check toast-icon"></i>
+            <span id="toast-message">Item selected!</span>
+        </div>
+
+
+
+
+
+        <!-- WHATSAPP DP STYLE LOGO POPUP MODAL -->
+        <div class="logo-modal-overlay" id="logo-modal" aria-hidden="true">
+            <div class="logo-modal-content" id="logo-modal-content">
+                <img id="modal-logo-img" src="" alt="Perfetto Logo DP View" class="modal-logo-img">
+            </div>
+        </div>
+
+        <!-- CUSTOM CLEAR ORDER HISTORY CONFIRMATION MODAL -->
+        <div class="checkout-modal-overlay" id="clear-history-confirm-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card confirm-dialog-card" role="dialog" aria-labelledby="clear-history-dialog-title">
+                <div class="confirm-dialog-icon danger">
+                    <i class="fa-solid fa-trash-can"></i>
+                </div>
+                <h3 class="confirm-dialog-title" id="clear-history-dialog-title">Clear Order History?</h3>
+                <p class="confirm-dialog-message">
+                    Are you sure you want to delete your entire order history? This action is permanent and cannot be undone.
+                </p>
+                <div class="confirm-dialog-actions">
+                    <button type="button" class="btn-dialog-cancel" onclick="closeClearHistoryModal()">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn-dialog-confirm-danger" onclick="confirmClearCustomerOrderHistory()">
+                        <i class="fa-solid fa-trash-can"></i> Clear History
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- EDIT PROFILE & HOME ADDRESS POPUP MODAL -->
+        <div class="checkout-modal-overlay profile-modal-overlay" id="profile-edit-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card profile-modal-card" role="dialog" aria-labelledby="profile-modal-title">
+
+                <!-- MODAL HEADER -->
+                <div class="checkout-modal-header">
+                    <div class="checkout-modal-title-group">
+                        <div class="checkout-icon-badge profile-icon-badge">
+                            <i class="fa-solid fa-house-user"></i>
+                        </div>
+                        <div>
+                            <h3 class="checkout-modal-title" id="profile-modal-title">Edit Profile & Address</h3>
+                            <p class="checkout-modal-subtitle">Update your personal details & home delivery address</p>
+                        </div>
+                    </div>
+                    <button type="button" class="checkout-modal-close-btn" onclick="closeEditProfileModal()"
+                        aria-label="Close Profile Modal">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- MODAL BODY (SCROLLABLE) -->
+                <div class="checkout-modal-body profile-modal-body">
+                    <form id="delivery-details-form" onsubmit="handleSaveProfile(event)" novalidate>
+                        <div class="form-grid-hyperlocal">
+                            <div class="hyperlocal-field">
+                                <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-user"></i>
+                                    <input type="text" id="customer-fullname" required autocomplete="name"
+                                        placeholder="Your full name">
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-phone"
+                                    style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                    <span>Mobile Number <span class="req-star">*</span></span>
+                                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                                        <span id="phone-verified-badge" class="phone-verified-badge"
+                                            style="display: none;">
+                                            <i class="fa-solid fa-circle-check"></i> Verified
+                                        </span>
+                                        <button type="button" class="btn-change-phone" id="btn-change-phone"
+                                            style="display: none;" onclick="handleChangePhoneNumber()">
+                                            <i class="fa-solid fa-pen-to-square"></i> Change
+                                        </button>
+                                    </span>
+                                </label>
+                                <div class="input-icon-group phone-input-with-action">
+                                    <i class="fa-solid fa-phone"></i>
+                                    <input type="tel" id="customer-phone" required autocomplete="tel"
+                                        placeholder="10-digit mobile number" maxlength="10" inputmode="numeric"
+                                        pattern="[0-9]{10}" oninput="handlePhoneInputChange(this)">
+                                    <button type="button" class="btn-verify-otp" id="btn-request-otp"
+                                        onclick="handleRequestOtp()" disabled>
+                                        <i class="fa-solid fa-shield-halved"></i>
+                                        <span class="verify-text">Verify</span>
+                                    </button>
+                                </div>
+
+                                <!-- OTP VERIFICATION CONTAINER (HIDDEN BY DEFAULT) -->
+                                <div class="otp-verification-wrapper" id="otp-verification-box" style="display: none;">
+                                    <div class="otp-box-header">
+                                        <span id="otp-status-title"><i class="fa-solid fa-shield-halved"></i> OTP
+                                            Verification</span>
+                                        <span class="otp-mock-hint" id="otp-instructions-hint">Enter the <strong>OTP
+                                                code</strong> sent to your number.</span>
+                                    </div>
+                                    <div class="otp-input-row">
+                                        <input type="text" id="otp-input" class="otp-input-field" maxlength="6"
+                                            inputmode="numeric" placeholder="• • • •"
+                                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                                        <button type="button" class="btn-submit-otp" id="btn-submit-otp"
+                                            onclick="handleVerifyOtp()">
+                                            Confirm OTP
+                                        </button>
+                                    </div>
+                                    <div class="otp-box-footer"
+                                        style="margin-top: 8px; font-size: 0.75rem; display: flex; justify-content: space-between; width: 100%; max-width: 320px; color: var(--text-muted);">
+                                        <span id="otp-timer-text">Didn't receive OTP?</span>
+                                        <a href="javascript:void(0)" id="btn-resend-voice-otp"
+                                            onclick="handleRequestOtp(true)"
+                                            style="color: var(--primary-orange); font-weight: 700; text-decoration: none;">Resend
+                                            OTP</a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-building"></i>
+                                    <input type="text" id="customer-colony-name" required placeholder="Colony / Area">
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-nearby">Near By <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-location-dot"></i>
+                                    <input type="text" id="customer-nearby" required placeholder="Landmark / Near by">
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-road"></i>
+                                    <input type="text" id="customer-street-name" required
+                                        placeholder="Street / House No.">
+                                </div>
+                            </div>
+
+                            <div class="hyperlocal-field">
+                                <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
+                                <div class="input-icon-group">
+                                    <i class="fa-solid fa-hashtag"></i>
+                                    <input type="text" id="customer-ward-no" required placeholder="Ward No.">
+                                </div>
+                            </div>
+
+                            <!-- INTERACTIVE GPS LOCATION CAPTURE FIELD (MANDATORY WITH MAP POPUP) -->
+                            <div class="hyperlocal-field full-width-gps-field">
+                                <div class="gps-field-header">
+                                    <label for="btn-open-map-modal">
+                                        <i class="fa-solid fa-map-location-dot"
+                                            style="color: var(--primary-orange);"></i> GPS Location Verification <span
+                                            class="req-star">*</span>
+                                    </label>
+                                    <span class="gps-status-badge" id="gps-status-badge" style="display: none;"></span>
+                                </div>
+                                <div class="gps-action-container">
+                                    <button type="button" class="btn-open-map-selector" id="btn-open-map-modal"
+                                        onclick="openCustomerMapModal()">
+                                        <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
+                                    </button>
+                                    <input type="hidden" id="customer-gps-lat" value="">
+                                    <input type="hidden" id="customer-gps-lng" value="">
+                                </div>
+                                <div class="gps-coordinates-display" id="gps-coordinates-display"
+                                    style="display: none;">
+                                    <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location
+                                        Pinned on Map</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-confirm-order" id="btn-save-profile" style="margin-top: 18px;">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Profile & Address
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHECKOUT & ORDER CONFIRMATION MODAL -->
+        <div class="checkout-modal-overlay" id="checkout-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card" role="dialog" aria-labelledby="checkout-modal-title">
+
+                <!-- MODAL HEADER -->
+                <div class="checkout-modal-header">
+                    <div class="checkout-modal-title-group">
+                        <div class="checkout-icon-badge">
+                            <i class="fa-solid fa-bag-shopping"></i>
+                        </div>
+                        <div>
+                            <h3 class="checkout-modal-title" id="checkout-modal-title">Review & Place Order</h3>
+                            <p class="checkout-modal-subtitle">Confirm your delivery address & choose payment</p>
+                        </div>
+                    </div>
+                    <button type="button" class="checkout-modal-close-btn" onclick="closeCheckoutModal()"
+                        aria-label="Close Checkout">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- MODAL BODY (SCROLLABLE) -->
+                <div class="checkout-modal-body">
+
+                    <!-- ORDER SUMMARY PILL -->
+                    <div class="checkout-summary-pill">
+                        <div class="checkout-summary-row">
+                            <span class="checkout-summary-label">Items (<span id="checkout-item-count">0
+                                    items</span>)</span>
+                            <span class="checkout-summary-val" id="checkout-subtotal">₹0</span>
+                        </div>
+                        <div class="checkout-summary-row">
+                            <span class="checkout-summary-label">Delivery Fee</span>
+                            <span class="checkout-summary-val" id="checkout-delivery">₹0</span>
+                        </div>
+                        <div class="checkout-summary-divider"></div>
+                        <div class="checkout-summary-row total-row">
+                            <span>Grand Total</span>
+                            <span class="checkout-total-val" id="checkout-total">₹0</span>
+                        </div>
+                    </div>
+
+                    <!-- STEP 1: DELIVERY ADDRESS SUMMARY CARD -->
+                    <div class="checkout-step-section" id="checkout-address-section">
+                        <div class="checkout-section-header">
+                            <div class="step-badge">1</div>
+                            <h4 class="checkout-section-title">Delivery Address</h4>
+                        </div>
+
+                        <div class="saved-address-card checkout-address-card">
+                            <div class="saved-address-card-header">
+                                <div class="saved-title-group">
+                                    <i class="fa-solid fa-house-chimney" style="color: var(--primary-orange);"></i>
+                                    <span class="saved-address-label">Delivering To</span>
+                                </div>
+                                <button type="button" class="change-address-btn"
+                                    onclick="handleEditAddressFromCheckout()">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                </button>
+                            </div>
+                            <div class="saved-address-content" id="checkout-address-content">
+                                <!-- Populated dynamically via JS -->
+                            </div>
+                        </div>
+
+                        <!-- CONFIRM ADDRESS BUTTON -->
+                        <button type="button" class="btn-confirm-address-action" id="btn-confirm-address-action"
+                            onclick="handleConfirmAddressForCheckout()">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Address
+                        </button>
+                    </div>
+
+                    <!-- STEP 2: PAYMENT METHOD SELECTION (ACTIVE ONCE ADDRESS CONFIRMED) -->
+                    <div class="checkout-step-section" id="checkout-payment-section"
+                        style="opacity: 0.5; pointer-events: none;">
+                        <div class="checkout-section-header">
+                            <div class="step-badge">2</div>
+                            <h4 class="checkout-section-title">Select Payment Mode</h4>
+                        </div>
+
+                        <div class="payment-options-grid">
+                            <!-- OPTION 1: CASH ON DELIVERY (ACTIVE & RECOMMENDED) -->
+                            <div class="payment-option-card cod-pay-card" id="btn-pay-cod"
+                                onclick="handleSelectCodPayment()" role="button" tabindex="0">
+                                <div class="payment-option-left">
+                                    <div class="payment-icon-wrapper cod-icon">
+                                        <i class="fa-solid fa-money-bill-wave"></i>
+                                    </div>
+                                    <div class="payment-option-info">
+                                        <div class="payment-title-row">
+                                            <span class="payment-name">Cash on Delivery (COD)</span>
+                                            <span class="payment-tag-active"><i class="fa-solid fa-circle-check"></i> Available & Recommended</span>
+                                        </div>
+                                        <p class="payment-desc">Pay via cash or scan QR using any UPI app upon delivery</p>
+                                    </div>
+                                </div>
+                                <div class="btn-place-order-pill">
+                                    <span>Place Order</span>
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </div>
+                            </div>
+
+                            <!-- OPTION 2: ONLINE PAYMENT (WORK IN PROGRESS / COMING SOON) -->
+                            <div class="payment-option-card online-pay-card phonepe-gateway-card is-disabled-wip"
+                                id="btn-pay-online" onclick="handleSelectOnlinePayment()" role="button" tabindex="0">
+                                <div class="payment-option-left">
+                                    <div class="payment-icon-wrapper phonepe-icon-wrap">
+                                        <i class="fa-solid fa-bolt-lightning"></i>
+                                    </div>
+                                    <div class="payment-option-info">
+                                        <div class="payment-title-row">
+                                            <span class="payment-name">Online Payment (PhonePe / UPI / Cards)</span>
+                                            <span class="payment-tag-wip"><i class="fa-solid fa-clock-rotate-left"></i> Work in Progress</span>
+                                        </div>
+                                        <p class="payment-desc">PhonePe, Google Pay, Paytm, Cards & Net Banking (Coming Soon)</p>
+                                    </div>
+                                </div>
+                                <div class="btn-place-order-pill btn-pill-disabled">
+                                    <i class="fa-solid fa-lock"></i>
+                                    <span>Coming Soon</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PAYMENT PROCESSING INDICATOR -->
+                        <div class="payment-processing-box" id="payment-processing-box" style="display: none;">
+                            <div class="spinner-border text-primary" role="status">
+                                <i class="fa-solid fa-circle-notch fa-spin"
+                                    style="font-size: 1.6rem; color: #6739b7;"></i>
+                            </div>
+                            <div class="processing-text-content">
+                                <strong>Connecting to Payment Gateway...</strong>
+                                <p>Please do not close or refresh this window.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ORDER SUCCESS & IN-APP DELIVERY OTP MODAL -->
+        <div class="checkout-modal-overlay order-otp-modal-overlay" id="order-otp-success-modal" aria-hidden="true" style="display: none;">
+            <canvas id="order-success-confetti-canvas" class="order-confetti-canvas"></canvas>
+            <div class="checkout-modal-card order-otp-modal-card" role="dialog" aria-labelledby="order-otp-modal-title">
+                
+                <!-- MODAL HEADER (LOCKED - NO X CLOSE BUTTON) -->
+                <div class="checkout-modal-header order-otp-modal-header">
+                    <div class="checkout-modal-title-group">
+                        <div class="checkout-icon-badge order-otp-success-badge">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div>
+                            <h3 class="checkout-modal-title" id="order-otp-modal-title">ORDER PLACED SUCCESSFULLY! 🎉</h3>
+                            <p class="checkout-modal-subtitle">Order <span id="otp-modal-order-id" class="otp-modal-order-tag">#--</span> is being prepared</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODAL BODY (COMPACT - NO SCROLL) -->
+                <div class="checkout-modal-body order-otp-modal-body">
+                    
+                    <!-- SIMPLIFIED YELLOW-HIGHLIGHTED SCREENSHOT ADVICE ALERT BOX -->
+                    <div class="otp-screenshot-alert-card">
+                        <i class="fa-solid fa-camera"></i>
+                        <span class="screenshot-alert-title">PLEASE TAKE A SCREENSHOT OF THIS OTP!</span>
+                    </div>
+
+                    <!-- PROMINENT OTP DISPLAY BOX -->
+                    <div class="otp-display-hero-box">
+                        <span class="otp-hero-label">
+                            <i class="fa-solid fa-shield-halved"></i> Delivery Verification OTP
+                        </span>
+                        <div class="otp-code-digits" id="otp-modal-digits-display">
+                            <span class="otp-digit-box">--</span>
+                            <span class="otp-digit-box">--</span>
+                            <span class="otp-digit-box">--</span>
+                            <span class="otp-digit-box">--</span>
+                        </div>
+                        <div class="otp-actions-bar">
+                            <button type="button" class="btn-copy-otp-code" id="btn-copy-otp" onclick="copyDeliveryOtpToClipboard()">
+                                <i class="fa-solid fa-copy"></i> <span id="copy-otp-btn-text">Copy OTP</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CLEAN DETAILS SUMMARY: PAYMENT METHOD & TOTAL AMOUNT ONLY -->
+                    <div class="otp-order-summary-card">
+                        <div class="otp-summary-row">
+                            <span><i class="fa-solid fa-credit-card" style="color: #22c55e;"></i> Payment Method:</span>
+                            <strong id="otp-modal-payment-mode">Cash on Delivery</strong>
+                        </div>
+                        <div class="otp-summary-row total-row">
+                            <span><i class="fa-solid fa-receipt" style="color: var(--primary-orange);"></i> Total Amount:</span>
+                            <strong class="otp-total-amount" id="otp-modal-total-amount">₹0</strong>
+                        </div>
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="otp-modal-actions-group">
+                        <button type="button" class="btn-touch btn-view-order-history" onclick="viewOrderHistoryFromOtpModal()">
+                            <i class="fa-solid fa-clock-rotate-left"></i> View in Order History
+                        </button>
+                        <button type="button" class="btn-touch btn-got-otp-done" onclick="closeOrderOtpSuccessModal()">
+                            <i class="fa-solid fa-check"></i> Got It &amp; Continue
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <!-- CUSTOMER CARE CALL MODAL -->
+        <div class="customer-care-modal-overlay" id="customer-care-modal" aria-hidden="true">
+            <div class="customer-care-modal-card" role="dialog" aria-labelledby="care-modal-title">
+                <button class="customer-care-close-btn" id="customer-care-close-btn" aria-label="Close Dialog">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="customer-care-icon-badge">
+                    <i class="fa-solid fa-headset"></i>
+                </div>
+                <h3 class="customer-care-title" id="care-modal-title">Customer Care Support</h3>
+                <p class="customer-care-message">
+                    अगर आपको कोई भी दिक्कत आ रही है तो आप कस्टमर केयर से बात कर सकते हैं
+                </p>
+                <div class="customer-care-phone-display" id="customer-care-phone-display">
+                    <i class="fa-solid fa-phone-volume"></i>
+                    <span id="care-phone-number-text">9876543210</span>
+                </div>
+                <a href="tel:9876543210" class="customer-care-action-btn" id="customer-care-call-link">
+                    <i class="fa-solid fa-phone"></i>
+                    <span>कॉल करने के लिए यहां पर टैप करें</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- INTERACTIVE GPS LOCATION SELECTION MAP MODAL (POPUP) -->
+        <div class="customer-map-modal-overlay" id="customer-map-modal" aria-hidden="true" style="display: none;">
+            <div class="customer-map-modal-card" role="dialog" aria-labelledby="map-modal-title">
+                <div class="map-modal-header">
+                    <div class="map-modal-title-group">
+                        <div class="map-icon-badge">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                        </div>
+                        <div>
+                            <h3 class="map-modal-title" id="map-modal-title">Select Delivery Location</h3>
+                            <p class="map-modal-subtitle">Drag the marker or tap "Detect Live GPS" to pin your exact
+                                location</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIVE GPS BUTTON ON TOP OF MAP -->
+                <div class="map-modal-action-bar">
+                    <button type="button" class="btn-detect-live-gps" id="btn-detect-live-gps"
+                        onclick="handleDetectLiveGps()">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span id="detect-gps-btn-text">Detect My Live GPS</span>
+                    </button>
+                </div>
+
+                <!-- MAP CONTAINER -->
+                <div class="customer-map-wrapper">
+                    <div id="customer-location-map"></div>
+                </div>
+
+                <!-- DYNAMIC DELIVERY RADIUS STATUS / WARNING BANNER -->
+                <div class="map-zone-status-banner in-zone" id="map-zone-status-banner">
+                    <i class="fa-solid fa-circle-check" id="zone-status-icon"></i>
+                    <span id="zone-status-text">Within Delivery Zone (0.0 km from store)</span>
+                </div>
+
+                <!-- HELPER GUIDANCE TIP (ENCOURAGING EASY MANUAL PIN ADJUSTMENT) -->
+                <div class="map-drag-helper-tip" id="map-drag-helper-tip">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    <span><strong>Fine-tune location:</strong> Drag the delivery marker or tap anywhere on the map to
+                        set your exact doorstep.</span>
+                </div>
+
+                <!-- SELECTED COORDINATES & ADDRESS SUMMARY FOOTER -->
+                <div class="map-modal-footer">
+                    <div class="map-modal-buttons-row">
+                        <button type="button" class="btn-cancel-map" onclick="closeCustomerMapModal()">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn-confirm-location" id="btn-confirm-map-location"
+                            onclick="handleConfirmMapLocation()">
+                            <i class="fa-solid fa-circle-check"></i> Confirm Location
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Leaflet JS CDN -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- MSG91 OTP Widget Script Loader (Headless Mode / Custom UI) -->
+    <script type="text/javascript">
+        var configuration = {
+            widgetId: "3668716b4f68313937363038",
+            tokenAuth: "561143TsR6UbiIs0v6a82f3f8P1",
+            exposeMethods: true,
+            success: (data) => console.log('OTP Success:', data),
+            failure: (error) => console.error('OTP Error:', error)
+        };
+        (function (urls) {
+            let i = 0;
+            function attempt() {
+                const s = document.createElement('script');
+                s.src = urls[i];
+                s.async = true;
+                s.onload = () => {
+                    if (typeof window.initSendOTP === 'function') {
+                        window.initSendOTP(configuration);
+                    }
+                };
+                s.onerror = () => { i++; if (i < urls.length) attempt(); };
+                document.head.appendChild(s);
+            }
+            attempt();
+        })(['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js']);
+    </script>
+
+    <!-- Firebase 10 SDKs (Compat Mode for universal window.firebase & Firestore real-time listeners) -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
+
+    <!-- Centralized Firebase Configuration -->
+    <script type="module" src="./lib/firebaseConfig.js"></script>
+
+    <script src="app.js?v=2.0"></script>
+</body>
+
+</html>
