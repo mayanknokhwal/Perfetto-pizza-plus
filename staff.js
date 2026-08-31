@@ -99,10 +99,6 @@ async function initStaffFirebase() {
         fetchStaffSettingsFromBackend();
         if (db) {
             listenToFirestoreStaffOrders();
-            const cachedToken = latestStaffFCMToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('perfetto_latest_fcm_token') : null);
-            if (cachedToken) {
-                saveStaffFCMToken(cachedToken).catch(() => {});
-            }
         }
     } catch (e) {
         console.warn('Staff Firebase init notice:', e.message);
@@ -355,16 +351,7 @@ function unlockStaffDashboard(user) {
     loadCustomerOrders();
     renderOrders();
     scheduleClientMidnightCleanup();
-    initStaffPushNotifications();
     stopStaffOrderAlertSound();
-
-    // Ensure FCM registration token is linked to the active staff/admin user
-    try {
-        const cachedToken = latestStaffFCMToken || (typeof localStorage !== 'undefined' ? localStorage.getItem('perfetto_latest_fcm_token') : null);
-        if (cachedToken) {
-            saveStaffFCMToken(cachedToken);
-        }
-    } catch (e) { }
 }
 
 let activeStaffSessionListener = null;
@@ -2551,27 +2538,12 @@ window.scheduleClientMidnightCleanup = scheduleClientMidnightCleanup;
 window.executeStaffMidnightCleanup = executeStaffMidnightCleanup;
 
 // --------------------------------------------------------------------------
-// 12. CAPACITOR PUSH NOTIFICATIONS & CONTINUOUS RINGTONE LOOP INTEGRATION
+// 12. WEB AUDIO ALERT SYSTEM & INCOMING ORDER MODAL
 // --------------------------------------------------------------------------
 
 let staffOrderAlertAudio = null;
 let isOrderAlertAudioPlaying = false;
 let currentAlertingOrderId = null;
-
-function getOrCreateStaffDeviceId() {
-    let deviceId = null;
-    try {
-        deviceId = localStorage.getItem('perfetto_staff_device_id');
-        if (!deviceId) {
-            const randPart = Math.random().toString(36).substring(2, 9);
-            deviceId = 'device_' + Date.now() + '_' + randPart;
-            localStorage.setItem('perfetto_staff_device_id', deviceId);
-        }
-    } catch (e) {
-        deviceId = 'device_' + Date.now();
-    }
-    return deviceId;
-}
 
 /**
  * Initializes HTML5 Audio element for single-play ./order-alert.mp3 alert
@@ -2604,7 +2576,7 @@ function getOrderAlertAudio() {
 
 /**
  * Starts single full track custom MP3 ringtone ('./order-alert.mp3' with audio.loop = false)
- * Plays the full 15-20s alert once without infinite looping.
+ * Plays the full alert track once for new incoming orders.
  */
 function startOrderAlertAudio(orderId = '', details = '') {
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
@@ -2635,14 +2607,7 @@ function startOrderAlertAudio(orderId = '', details = '') {
         console.warn('HTML5 audio play exception:', e.message);
     }
 
-    // 2. Trigger native Android Foreground alarm service if running inside Android APK
-    if (window.StaffAudioAlert && typeof window.StaffAudioAlert.triggerAlert === 'function') {
-        try {
-            window.StaffAudioAlert.triggerAlert(String(orderId || 'New'), String(details || 'New order received'));
-        } catch (e) { }
-    }
-
-    // 3. Show Incoming New Order Popup Modal
+    // 2. Show Incoming New Order Popup Modal
     showIncomingOrderModal(orderId, details);
 }
 
@@ -2663,14 +2628,7 @@ function stopOrderAlertAudio() {
         }
     } catch (e) { }
 
-    // 2. Stop Native Android Foreground alarm service
-    if (window.StaffAudioAlert && typeof window.StaffAudioAlert.stopAlert === 'function') {
-        try {
-            window.StaffAudioAlert.stopAlert();
-        } catch (e) { }
-    }
-
-    // 3. Hide Incoming Order Popup Modal
+    // 2. Hide Incoming Order Popup Modal
     hideIncomingOrderModal();
 }
 
@@ -2759,185 +2717,20 @@ function acceptIncomingOrderFromModal() {
 }
 window.acceptIncomingOrderFromModal = acceptIncomingOrderFromModal;
 
-let latestStaffFCMToken = null;
-
-/**
- * Initializes Capacitor Push Notifications on Android & Web
- * - Requests permissions on app startup
- * - Creates Android Notification Channel 'orders_ringtone_channel_v4'
- * - Listens for registration and registers FCM Token in Firestore collection 'staff_tokens'
- */
-async function initStaffPushNotifications() {
-    try {
-        if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.isNativePlatform()) {
-            const PushNotifications = window.Capacitor.Plugins?.PushNotifications;
-            if (PushNotifications) {
-                // 1. Request Push Notification permissions on startup
-                let permStatus = await PushNotifications.checkPermissions();
-                if (permStatus.receive === 'prompt' || permStatus.receive === 'prompt-with-rationale') {
-                    permStatus = await PushNotifications.requestPermissions();
-                }
-
-                // 2. Create Android Notification Channel: 'orders_channel_v1' (High importance & custom sound enabled)
-                if (window.Capacitor.getPlatform() === 'android') {
-                    try {
-                        await PushNotifications.createChannel({
-                            id: 'orders_channel_v1',
-                            name: 'New Order Alerts',
-                            description: 'Incoming customer order notifications with custom sound and max priority',
-                            importance: 5, // High / Max Importance
-                            visibility: 1, // Public
-                            sound: 'order_alert',
-                            vibration: true,
-                            lights: true,
-                            lightColor: '#ff6b00'
-                        });
-                        console.log('✅ Android Notification Channel [orders_channel_v1] configured successfully with custom sound [order_alert].');
-                    } catch (channelErr) {
-                        console.warn('Notification channel creation notice:', channelErr.message);
-                    }
-                }
-
-                // 3. Register with Apple / Google APNS / FCM
-                if (permStatus.receive === 'granted' || permStatus.receive === true) {
-                    await PushNotifications.register();
-                }
-
-                // 4. Remove previous listeners to prevent duplicate callbacks
-                try {
-                    await PushNotifications.removeAllListeners();
-                } catch (e) { }
-
-                // 5. Listen for FCM Device Token registration & auto-persist to Firestore
-                PushNotifications.addListener('registration', async (token) => {
-                    console.log('📱 Staff FCM Registration Token received:', token?.value);
-                    if (token && token.value) {
-                        await saveStaffFCMToken(token.value);
-                    }
-                });
-
-                PushNotifications.addListener('registrationError', (err) => {
-                    console.warn('⚠️ Staff FCM Registration Error:', err);
-                });
-
-                // 6. Foreground Push Notification: Trigger continuous ringtone loop & refresh orders
-                PushNotifications.addListener('pushNotificationReceived', (notification) => {
-                    console.log('🔔 Push notification received in foreground:', notification);
-                    const orderId = notification.data?.orderId || notification.data?.id || '';
-                    const details = notification.data?.details || notification.notification?.body || 'New order received';
-                    startOrderAlertAudio(orderId, details);
-                    loadCustomerOrders();
-                });
-
-                // 7. Action performed (tapped from notification tray): silence alert & open orders
-                PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-                    console.log('👆 Push notification action performed:', action);
-                    stopOrderAlertAudio();
-                    loadCustomerOrders();
-                });
-            }
-        }
-    } catch (e) {
-        console.warn('Push notification init notice:', e.message);
-    }
-}
-
-/**
- * Saves or updates staff device token in Firestore collection 'staff_tokens'
- * Structure:
- * {
- *   token: tokenString,
- *   phone: currentUserPhone || "staff_admin",
- *   role: "staff",
- *   updatedAt: firebase.firestore.FieldValue.serverTimestamp()
- * }
- */
-async function saveStaffFCMToken(tokenValue) {
-    if (!tokenValue || typeof tokenValue !== 'string') return;
-    const cleanToken = tokenValue.trim();
-    if (cleanToken.length < 10) return;
-
-    latestStaffFCMToken = cleanToken;
-    try {
-        localStorage.setItem('perfetto_latest_fcm_token', cleanToken);
-    } catch (e) { }
-
-    let retries = 0;
-    while (retries < 5) {
-        try {
-            const db = getStaffFirestore();
-            if (db) {
-                const deviceId = getOrCreateStaffDeviceId();
-                let cleanPhone = '';
-                if (currentStaffUser && currentStaffUser.phone) {
-                    cleanPhone = String(currentStaffUser.phone).replace(/[^0-9]/g, '').slice(-10);
-                }
-                if (!cleanPhone && typeof staffCurrentPhone !== 'undefined' && staffCurrentPhone) {
-                    cleanPhone = String(staffCurrentPhone).replace(/[^0-9]/g, '').slice(-10);
-                }
-                if (!cleanPhone) {
-                    try {
-                        const storedPhone = localStorage.getItem(STAFF_VERIFIED_PHONE_KEY);
-                        if (storedPhone) cleanPhone = String(storedPhone).replace(/[^0-9]/g, '').slice(-10);
-                    } catch (e) { }
-                }
-
-                const userPhone = cleanPhone || "staff_admin";
-                const userRole = (currentStaffUser && currentStaffUser.role) ? String(currentStaffUser.role).toLowerCase() : "staff";
-                const serverTimestamp = (typeof firebase !== 'undefined' && firebase.firestore) 
-                    ? firebase.firestore.FieldValue.serverTimestamp() 
-                    : new Date().toISOString();
-
-                const tokenDoc = {
-                    token: cleanToken,
-                    phone: userPhone,
-                    role: userRole || "staff",
-                    updatedAt: serverTimestamp
-                };
-
-                // 1. Write/merge into 'staff_tokens' collection using token as doc ID (ensures unique document per FCM token)
-                await db.collection('staff_tokens').doc(cleanToken).set(tokenDoc, { merge: true });
-
-                // 2. Also write/merge into 'staff_tokens' using deviceId for persistent device binding
-                await db.collection('staff_tokens').doc(deviceId).set({
-                    ...tokenDoc,
-                    deviceId: deviceId,
-                    platform: (typeof window !== 'undefined' && window.Capacitor) ? window.Capacitor.getPlatform() : 'android'
-                }, { merge: true });
-
-                // 3. If phone is known, also record under phone key for direct lookup
-                if (cleanPhone) {
-                    await db.collection('staff_tokens').doc(cleanPhone).set(tokenDoc, { merge: true });
-                }
-
-                console.log('✅ [FCM Registration] Staff device token synced to Firestore collection [staff_tokens]:', cleanToken.substring(0, 15) + '...', 'Phone:', userPhone);
-                return;
-            }
-        } catch (err) {
-            console.warn('Notice saving staff FCM token (attempt ' + (retries + 1) + '):', err.message);
-        }
-
-        retries++;
-        await new Promise(r => setTimeout(r, 1000));
-    }
-}
-
 // Global window helpers and auto-init
-window.initStaffPushNotifications = initStaffPushNotifications;
 window.startOrderAlertAudio = startOrderAlertAudio;
 window.stopOrderAlertAudio = stopOrderAlertAudio;
 window.triggerStaffOrderAlertSound = startOrderAlertAudio;
 window.stopStaffOrderAlertSound = stopOrderAlertAudio;
 
-// Automatically initialize Push Notifications on startup
+// Prime Audio on page load
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            initStaffPushNotifications();
             getOrderAlertAudio();
         });
     } else {
-        initStaffPushNotifications();
         getOrderAlertAudio();
     }
 }
+
