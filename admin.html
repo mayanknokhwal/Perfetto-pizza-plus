@@ -1665,15 +1665,15 @@
         }
 
         /* --------------------------------------------------------------------------
-           14. ADMIN MOBILE PHONE OTP LOGIN OVERLAY & LOCK SCREEN
+           14. ADMIN MOBILE PHONE OTP LOGIN OVERLAY & LOCK SCREEN (GLASSMORPHIC)
            -------------------------------------------------------------------------- */
         .admin-login-overlay {
             position: fixed;
             inset: 0;
             z-index: 999999;
-            background: radial-gradient(circle at top center, rgba(30, 41, 59, 0.98), rgba(10, 15, 29, 0.99));
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            background: radial-gradient(circle at 50% 15%, rgba(20, 30, 50, 0.96) 0%, rgba(6, 11, 22, 0.98) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             display: none;
             opacity: 0;
             visibility: hidden;
@@ -1684,20 +1684,23 @@
         }
 
         .admin-login-card {
-            background: rgba(22, 32, 54, 0.96);
-            border: 1px solid rgba(255, 107, 0, 0.35);
-            border-radius: 26px;
-            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(255, 107, 0, 0.2);
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 28px;
+            box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.85), 0 0 40px rgba(255, 107, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
             width: 100%;
             max-width: 450px;
-            padding: 40px 34px 32px;
+            padding: 40px 32px 30px;
             position: relative;
             overflow: hidden;
             animation: adminLoginPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         @keyframes adminLoginPop {
-            0% { transform: scale(0.92) translateY(20px); opacity: 0; }
+            0% { transform: scale(0.94) translateY(18px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
@@ -1710,36 +1713,43 @@
             height: 4px;
             background: linear-gradient(90deg, #ff6b00, #ff8533, #f59e0b, #ff6b00);
             background-size: 200% 100%;
-            animation: gradientMove 3s linear infinite;
+            animation: adminGradientMove 3.5s linear infinite;
         }
 
-        @keyframes gradientMove {
+        @keyframes adminGradientMove {
             0% { background-position: 0% 0%; }
             100% { background-position: 200% 0%; }
         }
 
         .login-brand-header {
             text-align: center;
-            margin-bottom: 26px;
+            margin-bottom: 24px;
         }
 
         .login-logo-ring {
-            width: 76px;
-            height: 76px;
-            margin: 0 auto 16px;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 14px;
             border-radius: 50%;
-            background: rgba(255, 107, 0, 0.12);
-            border: 2px solid rgba(255, 107, 0, 0.4);
+            background: linear-gradient(145deg, rgba(255, 107, 0, 0.22), rgba(255, 107, 0, 0.06));
+            border: 2px solid rgba(255, 107, 0, 0.45);
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 24px rgba(255, 107, 0, 0.25);
+            box-shadow: 0 0 28px rgba(255, 107, 0, 0.28);
+            animation: adminLogoFloat 4s ease-in-out infinite;
+        }
+
+        @keyframes adminLogoFloat {
+            0%, 100% { transform: translateY(0); box-shadow: 0 0 24px rgba(255, 107, 0, 0.25); }
+            50% { transform: translateY(-4px); box-shadow: 0 0 34px rgba(255, 107, 0, 0.4); }
         }
 
         .login-brand-logo {
-            width: 50px;
-            height: 50px;
+            width: 52px;
+            height: 52px;
             object-fit: contain;
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
         }
 
         .login-security-badge {
@@ -1748,14 +1758,14 @@
             gap: 6px;
             padding: 4px 14px;
             border-radius: 999px;
-            font-size: 0.74rem;
+            font-size: 0.72rem;
             font-weight: 800;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            background: rgba(255, 107, 0, 0.15);
-            color: var(--primary-orange);
-            border: 1px solid rgba(255, 107, 0, 0.35);
-            margin-bottom: 12px;
+            background: rgba(255, 107, 0, 0.12);
+            color: var(--primary-orange-light);
+            border: 1px solid rgba(255, 107, 0, 0.32);
+            margin-bottom: 10px;
         }
 
         .login-card-title {
@@ -1768,8 +1778,8 @@
         }
 
         .login-card-subtitle {
-            font-size: 0.88rem;
-            color: var(--text-muted);
+            font-size: 0.86rem;
+            color: var(--text-secondary);
             margin: 0;
             line-height: 1.45;
         }
@@ -1777,39 +1787,39 @@
         .login-step {
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 16px;
         }
 
         .form-group-login {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 7px;
             text-align: left;
         }
 
         .login-label {
-            font-size: 0.85rem;
+            font-size: 0.84rem;
             font-weight: 700;
             color: #cbd5e1;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 7px;
         }
 
         .phone-input-combo {
             display: flex;
             align-items: center;
-            background: rgba(10, 15, 29, 0.75);
-            border: 1.5px solid rgba(148, 163, 184, 0.25);
-            border-radius: 12px;
+            background: rgba(10, 17, 32, 0.75);
+            border: 1.5px solid rgba(148, 163, 184, 0.22);
+            border-radius: 14px;
             overflow: hidden;
-            transition: var(--transition-smooth);
+            transition: all 0.25s ease;
         }
 
         .phone-input-combo:focus-within {
             border-color: var(--primary-orange);
-            box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.25);
-            background: rgba(10, 15, 29, 0.95);
+            box-shadow: 0 0 0 3.5px rgba(255, 107, 0, 0.22);
+            background: rgba(10, 17, 32, 0.95);
         }
 
         .phone-prefix-badge {
@@ -1817,9 +1827,9 @@
             align-items: center;
             gap: 6px;
             padding: 12px 14px;
-            background: rgba(51, 65, 85, 0.5);
-            border-right: 1px solid rgba(148, 163, 184, 0.2);
-            font-size: 0.95rem;
+            background: rgba(30, 41, 59, 0.6);
+            border-right: 1.5px solid rgba(148, 163, 184, 0.2);
+            font-size: 0.92rem;
             font-weight: 700;
             color: #f1f5f9;
             user-select: none;
@@ -1831,7 +1841,7 @@
             border: none;
             background: transparent;
             color: #ffffff;
-            font-size: 1.05rem;
+            font-size: 1rem;
             font-weight: 600;
             font-family: var(--font-body);
             outline: none;
@@ -1839,13 +1849,20 @@
         }
 
         .login-input::placeholder {
-            color: rgba(148, 163, 184, 0.6);
-            font-size: 0.95rem;
+            color: rgba(148, 163, 184, 0.55);
+            font-size: 0.92rem;
+        }
+
+        .login-input.invalid-field,
+        .phone-input-combo:has(.invalid-field),
+        .name-input-wrapper:has(.invalid-field) {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
         }
 
         .login-input-hint {
             font-size: 0.76rem;
-            color: var(--text-subtle);
+            color: var(--text-muted);
             margin-top: 2px;
         }
 
@@ -1855,21 +1872,26 @@
             justify-content: center;
             gap: 10px;
             width: 100%;
-            padding: 14px 20px;
-            border-radius: 12px;
+            padding: 13px 20px;
+            border-radius: 14px;
             background: linear-gradient(135deg, #ff6b00 0%, #ff8533 100%);
             color: #ffffff;
-            font-size: 1rem;
+            font-size: 0.98rem;
             font-weight: 800;
             border: none;
             cursor: pointer;
-            box-shadow: 0 8px 20px rgba(255, 107, 0, 0.35);
-            transition: var(--transition-smooth);
+            box-shadow: 0 8px 24px rgba(255, 107, 0, 0.35);
+            transition: all 0.25s ease;
+            margin-top: 4px;
         }
 
         .btn-login-action:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 12px 25px rgba(255, 107, 0, 0.45);
+            box-shadow: 0 12px 28px rgba(255, 107, 0, 0.45);
+        }
+
+        .btn-login-action:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .btn-login-action:disabled {
@@ -1880,22 +1902,22 @@
 
         .btn-verify-action {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.35);
         }
 
         .btn-verify-action:hover:not(:disabled) {
-            box-shadow: 0 12px 25px rgba(16, 185, 129, 0.45);
+            box-shadow: 0 12px 28px rgba(16, 185, 129, 0.45);
         }
 
         .otp-target-banner {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(51, 65, 85, 0.4);
+            background: rgba(30, 41, 59, 0.5);
             border: 1px solid rgba(148, 163, 184, 0.2);
-            padding: 10px 16px;
-            border-radius: 10px;
-            font-size: 0.86rem;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 0.84rem;
             color: #cbd5e1;
         }
 
@@ -1917,19 +1939,20 @@
         }
 
         .otp-code-field {
-            background: rgba(10, 15, 29, 0.75);
+            background: rgba(10, 17, 32, 0.8);
             border: 1.5px solid rgba(148, 163, 184, 0.25);
-            border-radius: 12px;
+            border-radius: 14px;
             text-align: center;
-            letter-spacing: 0.4em;
-            font-size: 1.5rem;
+            letter-spacing: 0.45em;
+            font-size: 1.55rem;
             font-weight: 800;
             padding: 12px;
+            font-family: monospace;
         }
 
         .otp-code-field:focus {
             border-color: #10b981;
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+            box-shadow: 0 0 0 3.5px rgba(16, 185, 129, 0.22);
         }
 
         .otp-resend-row {
@@ -1957,16 +1980,16 @@
         }
 
         .btn-resend-link:disabled {
-            color: var(--text-subtle);
+            color: var(--text-muted);
             cursor: not-allowed;
             opacity: 0.5;
         }
 
         .login-footer-notice {
-            margin-top: 26px;
-            padding-top: 18px;
+            margin-top: 22px;
+            padding-top: 16px;
             border-top: 1px solid rgba(148, 163, 184, 0.15);
-            font-size: 0.76rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-align: center;
             display: flex;
@@ -1978,23 +2001,23 @@
         .name-input-wrapper {
             display: flex;
             align-items: center;
-            background: rgba(10, 15, 29, 0.75);
-            border: 1.5px solid rgba(148, 163, 184, 0.25);
-            border-radius: 12px;
+            background: rgba(10, 17, 32, 0.75);
+            border: 1.5px solid rgba(148, 163, 184, 0.22);
+            border-radius: 14px;
             overflow: hidden;
-            transition: var(--transition-smooth);
+            transition: all 0.25s ease;
         }
 
         .name-input-wrapper:focus-within {
             border-color: var(--primary-orange);
-            box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.25);
-            background: rgba(10, 15, 29, 0.95);
+            box-shadow: 0 0 0 3.5px rgba(255, 107, 0, 0.22);
+            background: rgba(10, 17, 32, 0.95);
         }
 
         .name-input-icon {
             padding-left: 14px;
             color: #94a3b8;
-            font-size: 0.95rem;
+            font-size: 0.92rem;
         }
 
         .pending-access-card {
@@ -2020,7 +2043,7 @@
         }
 
         .pending-title {
-            font-size: 1.4rem;
+            font-size: 1.35rem;
             font-weight: 800;
             color: #ffffff;
             margin: 0;
@@ -2028,22 +2051,22 @@
         }
 
         .pending-message {
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             color: #cbd5e1;
             line-height: 1.5;
             margin: 0;
             background: rgba(245, 158, 11, 0.08);
             border: 1px dashed rgba(245, 158, 11, 0.35);
             padding: 12px 16px;
-            border-radius: 12px;
+            border-radius: 14px;
         }
 
         .pending-user-box {
             width: 100%;
-            background: rgba(10, 15, 29, 0.6);
+            background: rgba(10, 17, 32, 0.65);
             border: 1px solid rgba(148, 163, 184, 0.18);
-            border-radius: 12px;
-            padding: 14px 18px;
+            border-radius: 14px;
+            padding: 14px 16px;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -2054,7 +2077,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.88rem;
+            font-size: 0.86rem;
         }
 
         .pending-info-row .info-label {
@@ -2072,7 +2095,7 @@
         .pending-status-tag {
             padding: 4px 12px;
             border-radius: 999px;
-            font-size: 0.78rem;
+            font-size: 0.76rem;
             font-weight: 800;
             letter-spacing: 0.04em;
             text-transform: uppercase;
@@ -6959,7 +6982,6 @@
                             <th>Staff Member</th>
                             <th>Mobile Number</th>
                             <th>Assigned Role</th>
-                            <th>Status</th>
                             <th style="text-align: right;">Actions</th>
                         </tr>
                     </thead>
@@ -7019,11 +7041,6 @@
                         <td>
                             <span class="role-badge" style="background-color: ${roleBgColor}; color: ${roleBadgeColor}; border: 1px solid ${roleBadgeColor}; font-weight: 700; padding: 4px 12px; border-radius: 999px; font-size: 0.82rem;">
                                 ${escapeHtml(roleTitle)}
-                            </span>
-                        </td>
-                        <td>
-                            <span style="color: var(--accent-green); font-size: 0.82rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
-                                <i class="fa-solid fa-circle" style="font-size: 0.5rem;"></i> Active
                             </span>
                         </td>
                         <td style="text-align: right;">

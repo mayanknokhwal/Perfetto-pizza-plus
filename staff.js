@@ -215,6 +215,43 @@ const listenToStaffLiveOrders = listenToFirestoreStaffOrders;
 // AUTHENTICATION & ACCESS REQUEST WORKFLOW (PHONE & FULL NAME)
 // --------------------------------------------------------------------------
 
+/**
+ * Role-Based Visibility & Authorization Guard:
+ * Returns true ONLY when the active session belongs to an Admin (Master Admin Tiers 1/2/3 or Normal Admin).
+ * For regular delivery boys, chefs, and standard staff roles, this returns false.
+ */
+function isStaffAdminUser(user) {
+    if (!user) user = currentStaffUser;
+    if (!user) return false;
+
+    const phone = String(user.phone || '').replace(/[^0-9]/g, '').slice(-10);
+    if (phone === MASTER_ADMIN_PHONE_NUM) return true;
+    if (user.isMasterAdmin === true || user.isAdmin === true) return true;
+
+    const role = String(user.role || '').trim().toLowerCase();
+
+    // Explicitly reject regular delivery boys, chefs, and standard staff roles
+    if (
+        role === 'staff' || 
+        role === 'chef' || 
+        role === 'kitchen staff' || 
+        role === 'delivery' || 
+        role === 'delivery boy' || 
+        role === 'rider' ||
+        role === 'pending'
+    ) {
+        return false;
+    }
+
+    // Matches 'master admin', 'master admin tier 1', 'master admin tier 2', 'master admin tier 3', 'admin', 'normal admin'
+    if (role === 'admin' || role === 'normal admin' || role.includes('admin')) {
+        return true;
+    }
+
+    return false;
+}
+window.isStaffAdminUser = isStaffAdminUser;
+
 async function checkStaffAuthSession() {
     // 1. FAST SYNCHRONOUS PRE-CHECK: Check staff storage first, then admin storage for Master Admins
     let savedSession = sessionStorage.getItem(STAFF_SESSION_STORAGE_KEY) || localStorage.getItem(STAFF_LOCAL_STORAGE_KEY);
@@ -289,7 +326,14 @@ async function checkStaffAuthSession() {
 }
 
 function lockStaffDashboard() {
+    stopOrderAlertAudio();
     currentStaffUser = null;
+    const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
+    if (deleteCompletedBtn) {
+        deleteCompletedBtn.style.display = 'none';
+        deleteCompletedBtn.disabled = true;
+        deleteCompletedBtn.classList.add('is-disabled');
+    }
     const overlay = document.getElementById('staff-login-overlay');
     if (overlay) {
         overlay.style.display = 'flex';
@@ -356,6 +400,7 @@ function unlockStaffDashboard(user) {
 }
 
 let activeStaffSessionListener = null;
+let activeStaffSessionUsersListener = null;
 let activeStaffSessionPoller = null;
 
 function startStaffSessionSecurityListener(userPhone) {
@@ -370,28 +415,45 @@ function startStaffSessionSecurityListener(userPhone) {
         try { activeStaffSessionListener(); } catch(e) {}
         activeStaffSessionListener = null;
     }
+    if (activeStaffSessionUsersListener) {
+        try { activeStaffSessionUsersListener(); } catch(e) {}
+        activeStaffSessionUsersListener = null;
+    }
     if (activeStaffSessionPoller) {
         clearInterval(activeStaffSessionPoller);
         activeStaffSessionPoller = null;
     }
 
-    // 1. Real-time Firestore snapshot listener
+    // 1. Real-time Firestore snapshot listener on 'team' and 'users' collections
     const db = getStaffFirestore();
     if (db) {
         try {
             activeStaffSessionListener = db.collection('team').doc(clean).onSnapshot((doc) => {
                 if (doc.exists) {
                     const data = doc.data() || {};
-                    if (data.status === 'blocked' || data.status === 'rejected') {
-                        handleStaffInstantBlockedLockdown(data.fullName || 'Staff Member', clean);
+                    if (data.status === 'blocked' || data.status === 'rejected' || data.isBlocked === true) {
+                        handleStaffInstantBlockedLockdown(data.fullName || data.name || 'Staff Member', clean);
                     }
                 }
             }, (err) => {
-                console.warn('Staff session security listener notice:', err);
+                console.warn('Staff team session security listener notice:', err);
             });
         } catch(e) {
-            console.warn('Error starting staff session security listener:', e);
+            console.warn('Error starting staff team security listener:', e);
         }
+
+        try {
+            activeStaffSessionUsersListener = db.collection('users').doc(clean).onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data() || {};
+                    if (data.status === 'blocked' || data.status === 'rejected' || data.isBlocked === true) {
+                        handleStaffInstantBlockedLockdown(data.fullName || data.name || 'Staff Member', clean);
+                    }
+                }
+            }, (err) => {
+                console.warn('Staff users session security listener notice:', err);
+            });
+        } catch(e) { }
     }
 
     // 2. High-frequency polling backup (every 3 seconds) for instant cross-tab / offline response
@@ -400,7 +462,7 @@ function startStaffSessionSecurityListener(userPhone) {
             const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
             const data = await res.json();
             if (data && data.success && (data.isBlocked || data.status === 'blocked' || data.status === 'rejected')) {
-                handleStaffInstantBlockedLockdown(data.user?.fullName || 'Staff Member', clean);
+                handleStaffInstantBlockedLockdown(data.user?.fullName || data.user?.name || 'Staff Member', clean);
             }
         } catch (e) { }
     }, 3000);
@@ -409,27 +471,61 @@ function startStaffSessionSecurityListener(userPhone) {
 function handleStaffInstantBlockedLockdown(userName, userPhone) {
     console.warn(`[Security Lockdown] Staff user ${userPhone} is blocked. Terminating active session immediately.`);
 
-    if (activeStaffSessionListener) {
+    // 1. Instantly silence and kill any active audio playback
+    stopOrderAlertAudio();
+    try {
+        if (staffOrderAlertAudio) {
+            staffOrderAlertAudio.pause();
+            staffOrderAlertAudio.currentTime = 0;
+        }
+    } catch (e) { }
+
+    // 2. Detach/unsubscribe all active Firestore order & session snapshot listeners immediately
+    if (typeof staffOrdersUnsubscribe === 'function') {
+        try { staffOrdersUnsubscribe(); } catch(e) {}
+        staffOrdersUnsubscribe = null;
+    }
+    if (typeof staffSettingsUnsubscribe === 'function') {
+        try { staffSettingsUnsubscribe(); } catch(e) {}
+        staffSettingsUnsubscribe = null;
+    }
+    if (typeof ordersUnsubscribe !== 'undefined' && typeof ordersUnsubscribe === 'function') {
+        try { ordersUnsubscribe(); } catch(e) {}
+        ordersUnsubscribe = null;
+    }
+    if (typeof activeStaffSessionListener === 'function') {
         try { activeStaffSessionListener(); } catch(e) {}
         activeStaffSessionListener = null;
+    }
+    if (typeof activeStaffSessionUsersListener === 'function') {
+        try { activeStaffSessionUsersListener(); } catch(e) {}
+        activeStaffSessionUsersListener = null;
+    }
+    if (typeof activeStaffPendingApprovalListener === 'function') {
+        try { activeStaffPendingApprovalListener(); } catch(e) {}
+        activeStaffPendingApprovalListener = null;
     }
     if (activeStaffSessionPoller) {
         clearInterval(activeStaffSessionPoller);
         activeStaffSessionPoller = null;
     }
-    if (typeof ordersUnsubscribe !== 'undefined' && ordersUnsubscribe) {
-        try { ordersUnsubscribe(); } catch(e) {}
-        ordersUnsubscribe = null;
+    if (activeStaffPendingApprovalPoller) {
+        clearInterval(activeStaffPendingApprovalPoller);
+        activeStaffPendingApprovalPoller = null;
     }
 
+    // 3. Clear session credentials, reset local state and orders list
     try {
         sessionStorage.removeItem(STAFF_SESSION_STORAGE_KEY);
         localStorage.removeItem(STAFF_LOCAL_STORAGE_KEY);
         localStorage.removeItem(STAFF_VERIFIED_PHONE_KEY);
+        localStorage.removeItem('perfettoCustomerOrders');
     } catch(e) {}
 
     currentStaffUser = null;
+    staffOrders = [];
 
+    // 4. Render locked / blocked account modal immediately
     lockStaffDashboard();
     showStaffPendingAccessScreen(userName, userPhone, 'blocked');
     showStaffToast('🚫 This number is blocked, please change your number');
@@ -1175,6 +1271,7 @@ function handleStaffConfirmResolve(result) {
 }
 
 async function handleStaffLogout() {
+    stopOrderAlertAudio();
     const confirmed = await showStaffConfirmDialog({
         title: 'Lock Staff Portal',
         message: 'Are you sure you want to lock the Staff Portal and sign out of your session?',
@@ -1186,10 +1283,12 @@ async function handleStaffLogout() {
     });
 
     if (confirmed) {
+        stopOrderAlertAudio();
         try {
             sessionStorage.removeItem(STAFF_SESSION_STORAGE_KEY);
             localStorage.removeItem(STAFF_LOCAL_STORAGE_KEY);
             localStorage.removeItem(STAFF_VERIFIED_PHONE_KEY);
+            localStorage.removeItem('perfettoCustomerOrders');
         } catch (e) { }
         if (staffOrdersUnsubscribe) {
             try { staffOrdersUnsubscribe(); } catch (e) { }
@@ -1763,6 +1862,12 @@ let currentStaffTab = 'pending'; // 'pending' | 'completed'
 
 function switchStaffTab(tab) {
     currentStaffTab = tab;
+
+    // Immediately stop and reset audio when leaving active pending orders tab
+    if (tab !== 'pending') {
+        stopOrderAlertAudio();
+    }
+
     const btnPending = document.getElementById('tab-btn-pending');
     const btnCompleted = document.getElementById('tab-btn-completed');
     const heading = document.getElementById('section-heading');
@@ -1780,8 +1885,9 @@ function switchStaffTab(tab) {
         heading.textContent = tab === 'pending' ? 'Active Kitchen Orders' : 'Completed Orders (Archived)';
     }
 
+    const isAdmin = isStaffAdminUser(currentStaffUser);
     if (deleteCompletedBtn) {
-        deleteCompletedBtn.style.display = tab === 'completed' ? 'inline-flex' : 'none';
+        deleteCompletedBtn.style.display = (tab === 'completed' && isAdmin) ? 'inline-flex' : 'none';
     }
 
     if (liveBadge) {
@@ -1800,9 +1906,6 @@ function renderOrders() {
     const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
     const liveBadge = document.getElementById('live-pulse-badge');
 
-    if (deleteCompletedBtn) {
-        deleteCompletedBtn.style.display = currentStaffTab === 'completed' ? 'inline-flex' : 'none';
-    }
     if (liveBadge) {
         liveBadge.style.display = currentStaffTab === 'pending' ? 'inline-flex' : 'none';
     }
@@ -1814,8 +1917,37 @@ function renderOrders() {
     const pendingOrders = validOrders.filter(o => o.status !== 'completed' && o.status !== 'rejected');
     const completedOrders = validOrders.filter(o => o.status === 'completed' || o.status === 'rejected');
 
+    // If pending orders queue becomes empty, immediately stop and reset looping audio
+    if (pendingOrders.length === 0 && isOrderAlertAudioPlaying) {
+        stopOrderAlertAudio();
+    }
+
     if (pendingCountEl) pendingCountEl.textContent = pendingOrders.length;
     if (completedCountEl) completedCountEl.textContent = completedOrders.length;
+
+    // Role-Based Visibility Guard & Empty State Guard for "Clear All Completed"
+    const isAdmin = isStaffAdminUser(currentStaffUser);
+    if (deleteCompletedBtn) {
+        if (currentStaffTab === 'completed' && isAdmin) {
+            deleteCompletedBtn.style.display = 'inline-flex';
+            if (completedOrders.length === 0) {
+                // Empty state guard: disable button dynamically and update accessible title
+                deleteCompletedBtn.disabled = true;
+                deleteCompletedBtn.classList.add('is-disabled');
+                deleteCompletedBtn.setAttribute('aria-disabled', 'true');
+                deleteCompletedBtn.title = 'No completed orders to clear';
+            } else {
+                deleteCompletedBtn.disabled = false;
+                deleteCompletedBtn.classList.remove('is-disabled');
+                deleteCompletedBtn.removeAttribute('aria-disabled');
+                deleteCompletedBtn.title = 'Clear all completed/archived orders';
+            }
+        } else {
+            deleteCompletedBtn.style.display = 'none';
+            deleteCompletedBtn.disabled = true;
+            deleteCompletedBtn.classList.add('is-disabled');
+        }
+    }
 
     if (!container) return;
 
@@ -1924,11 +2056,7 @@ function escapeHtml(str) {
 // 8A. BUILD MINIMAL COMPLETED ORDER CARD HTML
 // --------------------------------------------------------------------------
 function buildCompletedOrderCardHTML(order) {
-    const isAdminViewer = currentStaffUser && (
-        currentStaffUser.role === 'Admin' ||
-        currentStaffUser.role === 'Master Admin' ||
-        String(currentStaffUser.phone).replace(/[^0-9]/g, '').slice(-10) === '9414503886'
-    );
+    const isAdminViewer = isStaffAdminUser(currentStaffUser);
 
     const isRejected = order.status === 'rejected';
 
@@ -2580,19 +2708,79 @@ window.scheduleClientMidnightCleanup = scheduleClientMidnightCleanup;
 window.executeStaffMidnightCleanup = executeStaffMidnightCleanup;
 
 /**
- * Deletes all completed, declined, and archived orders from Firestore and local cache.
+ * Records an entry into Firestore 'activity_logs' collection and mirrors to local audit log cache.
+ */
+async function recordStaffActivityLog(actionText, details = {}) {
+    let staffName = 'Admin';
+    let staffPhone = '••••••••••';
+    let role = 'Admin';
+
+    if (currentStaffUser) {
+        staffName = currentStaffUser.fullName || currentStaffUser.name || 'Admin';
+        const rawPhone = String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10);
+        const isMaster = (currentStaffUser.role === 'Master Admin' || rawPhone === MASTER_ADMIN_PHONE_NUM || currentStaffUser.isMasterAdmin);
+        role = isMaster ? 'Master Admin' : (currentStaffUser.role || 'Admin');
+        staffPhone = rawPhone ? `+91 ${rawPhone}` : (isMaster ? `+91 ${MASTER_ADMIN_PHONE_NUM}` : '—');
+    }
+
+    const logEntry = {
+        adminName: staffName,
+        adminPhone: staffPhone,
+        role: role,
+        action: actionText,
+        portal: 'staff',
+        createdAt: new Date().toISOString(),
+        ...details
+    };
+
+    const db = getStaffFirestore();
+    if (db) {
+        try {
+            await db.collection('activity_logs').add({
+                ...logEntry,
+                timestamp: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : null
+            });
+        } catch (err) {
+            console.warn('Firestore activity_logs write notice:', err.message);
+        }
+    }
+
+    try {
+        const storedLogs = JSON.parse(localStorage.getItem('perfetto_admin_activity_logs') || '[]');
+        storedLogs.unshift({ id: 'local_' + Date.now(), ...logEntry });
+        if (storedLogs.length > 100) storedLogs.length = 100;
+        localStorage.setItem('perfetto_admin_activity_logs', JSON.stringify(storedLogs));
+    } catch (e) { }
+}
+window.recordStaffActivityLog = recordStaffActivityLog;
+
+/**
+ * Clears all completed, declined, and archived orders from Firestore and local cache.
  * Keeps all pending and active kitchen orders completely safe.
+ * Role-Based Guard: Accessible ONLY to Admins (Master Admin Tiers 1/2/3 or Normal Admin).
  */
 async function handleDeleteAllCompletedOrders() {
+    // 0. Security Guard: Verify active session role
+    if (!isStaffAdminUser(currentStaffUser)) {
+        showStaffToast('⛔ Access Denied: Only Admins can clear completed orders.');
+        return;
+    }
+
     const completedStatuses = ['completed', 'rejected', 'delivered', 'cancelled', 'archived'];
     const localCompleted = staffOrders.filter(o => completedStatuses.includes(String(o.status || '').toLowerCase()));
 
-    // 1. Confirm dialog using styled theme modal
+    if (localCompleted.length === 0) {
+        showStaffToast('ℹ️ No completed orders to clear.');
+        return;
+    }
+
+    // 1. Confirmation Modal Dialog
+    const confirmMessage = 'Are you sure you want to delete all completed orders? This action is irreversible.';
     let confirmed = false;
     if (typeof showStaffConfirmDialog === 'function') {
         confirmed = await showStaffConfirmDialog({
-            title: 'Delete All Completed Orders?',
-            message: 'Are you sure you want to permanently delete all completed and declined orders? Active pending orders will remain safe.',
+            title: 'Clear All Completed Orders?',
+            message: confirmMessage,
             icon: '<i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>',
             iconBg: 'rgba(239, 68, 68, 0.12)',
             iconBorder: 'rgba(239, 68, 68, 0.3)',
@@ -2601,7 +2789,7 @@ async function handleDeleteAllCompletedOrders() {
             confirmType: 'danger'
         });
     } else {
-        confirmed = window.confirm('Are you sure you want to permanently delete all completed and declined orders?');
+        confirmed = window.confirm(confirmMessage);
     }
 
     if (!confirmed) return;
@@ -2609,14 +2797,14 @@ async function handleDeleteAllCompletedOrders() {
     const btn = document.getElementById('btn-delete-all-completed');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span>⏳ Deleting...</span>';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Clearing...</span>';
     }
 
     try {
         const db = getStaffFirestore();
         const ordersToDelete = new Set();
 
-        // 1. Fetch completed docs from Firestore collection 'orders'
+        // 2. Query and Batch Delete from Firestore collection 'orders'
         if (db) {
             try {
                 const snap = await db.collection('orders').get();
@@ -2638,7 +2826,7 @@ async function handleDeleteAllCompletedOrders() {
             if (id) ordersToDelete.add(id);
         });
 
-        // 2. Batch delete from Firestore in chunks of up to 400
+        // Batch delete from Firestore in chunks of up to 400
         if (db && ordersToDelete.size > 0) {
             const idList = Array.from(ordersToDelete);
             for (let i = 0; i < idList.length; i += 400) {
@@ -2649,10 +2837,10 @@ async function handleDeleteAllCompletedOrders() {
                 });
                 await batch.commit();
             }
-            console.log(`🗑️ [Delete All Completed] Batch deleted ${ordersToDelete.size} order(s) from Firestore.`);
+            console.log(`🗑️ [Clear All Completed] Batch deleted ${ordersToDelete.size} order(s) from Firestore.`);
         }
 
-        // 3. Purge locally from memory and localStorage
+        // 3. Clear completed orders array in local state & localStorage
         staffOrders = staffOrders.filter(o => !completedStatuses.includes(String(o.status || '').toLowerCase()));
         try {
             localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
@@ -2660,20 +2848,46 @@ async function handleDeleteAllCompletedOrders() {
 
         // 4. Trigger backend server cleanup for synchronized memory caches
         try {
-            await apiCall('/orders?action=midnight_cleanup', { method: 'DELETE' });
+            const rawPhone = String(currentStaffUser?.phone || '').replace(/[^0-9]/g, '').slice(-10);
+            await apiCall('/orders?action=midnight_cleanup', {
+                method: 'DELETE',
+                headers: {
+                    'x-staff-phone': rawPhone,
+                    'x-staff-role': currentStaffUser?.role || 'Admin'
+                }
+            });
         } catch (apiErr) {
             console.warn('Backend cleanup notice:', apiErr.message);
         }
 
+        // 5. Audit Log: Record entry in 'activity_logs'
+        let adminRole = 'Admin';
+        let adminPhone = '••••••••••';
+        if (currentStaffUser) {
+            const rawPhone = String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10);
+            const isMaster = (currentStaffUser.role === 'Master Admin' || rawPhone === MASTER_ADMIN_PHONE_NUM || currentStaffUser.isMasterAdmin);
+            adminRole = isMaster ? 'Master Admin' : (currentStaffUser.role || 'Admin');
+            adminPhone = rawPhone ? `+91 ${rawPhone}` : (isMaster ? `+91 ${MASTER_ADMIN_PHONE_NUM}` : '—');
+        }
+        const auditLogAction = `Cleared all completed orders via Staff Portal by ${adminRole}/${adminPhone}`;
+        await recordStaffActivityLog(auditLogAction, {
+            deletedCount: ordersToDelete.size || localCompleted.length
+        });
+
+        // 6. Update UI list in real time without page reload
         renderOrders();
-        showStaffToast('🗑️ All completed orders deleted successfully!');
+
+        // 7. Success toast notification
+        showStaffToast('All completed orders cleared successfully.');
     } catch (err) {
-        console.error('Error deleting completed orders:', err);
-        showStaffToast('⚠️ Failed to delete orders: ' + err.message);
+        console.error('Error clearing completed orders:', err);
+        showStaffToast('⚠️ Failed to clear orders: ' + err.message);
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<span>🗑️ Delete All Completed</span>';
+            btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> <span>Clear All Completed</span>';
+            // Re-run renderOrders to ensure empty state guard applies dynamically
+            renderOrders();
         }
     }
 }
@@ -2733,37 +2947,29 @@ function playSynthesizedAlertBeep() {
 }
 
 /**
- * Initializes HTML5 Audio element for single-play ./order-alert.mp3 alert
+ * Initializes HTML5 Audio element configured for continuous looping order alert audio
  */
 function getOrderAlertAudio() {
     if (!staffOrderAlertAudio && typeof Audio !== 'undefined') {
-        try {
-            staffOrderAlertAudio = new Audio('./order-alert.mp3');
-            staffOrderAlertAudio.loop = false;
-            staffOrderAlertAudio.preload = 'auto';
-        } catch (e) {
+        const audioSources = ['./order-alert.mp3', 'order-alert.mp3', './order alert.mp3', 'order alert.mp3'];
+        for (const src of audioSources) {
             try {
-                staffOrderAlertAudio = new Audio('order-alert.mp3');
-                staffOrderAlertAudio.loop = false;
+                staffOrderAlertAudio = new Audio(src);
+                staffOrderAlertAudio.loop = true;
                 staffOrderAlertAudio.preload = 'auto';
-            } catch (err) {
-                console.warn('Audio element initialization notice:', err.message);
-            }
+                break;
+            } catch (e) { }
         }
     }
     if (staffOrderAlertAudio) {
-        staffOrderAlertAudio.loop = false;
-        staffOrderAlertAudio.onended = () => {
-            console.log('🏁 [Staff Audio] Single track playback completed.');
-            isOrderAlertAudioPlaying = false;
-        };
+        staffOrderAlertAudio.loop = true;
     }
     return staffOrderAlertAudio;
 }
 
 /**
- * Starts single full track custom MP3 ringtone ('./order-alert.mp3' with audio.loop = false)
- * Plays the full alert track once for new incoming orders with synthesized fallback.
+ * Starts continuous looping order alert audio ('./order-alert.mp3' with audio.loop = true)
+ * Plays the alert track in a continuous loop for new incoming orders until accepted, rejected, or silenced.
  */
 function startOrderAlertAudio(orderId = '', details = '') {
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
@@ -2772,20 +2978,20 @@ function startOrderAlertAudio(orderId = '', details = '') {
 
     currentAlertingOrderId = String(orderId || 'New');
     isOrderAlertAudioPlaying = true;
-    console.log(`🔊 [Custom MP3 Alert] Playing single full order-alert.mp3 track for Order #${currentAlertingOrderId}...`);
+    console.log(`🔊 [Order Alert Loop] Triggering continuous looping order alert for Order #${currentAlertingOrderId}...`);
 
-    // 1. Play HTML5 Audio with audio.loop = false (single full track)
+    // 1. Play HTML5 Audio with audio.loop = true (continuous loop)
     let playedHtml5 = false;
     try {
         const audio = getOrderAlertAudio();
         if (audio) {
             audio.currentTime = 0;
-            audio.loop = false;
+            audio.loop = true;
             audio.muted = false;
             const playPromise = audio.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    console.log('▶️ [Custom MP3 Alert] HTML5 Audio playing single full track.');
+                    console.log('▶️ [Order Alert Loop] HTML5 Audio playing in continuous loop.');
                     isStaffAudioUnlocked = true;
                     isAudioAutoplayBlocked = false;
                 }).catch((err) => {
@@ -2810,20 +3016,21 @@ function startOrderAlertAudio(orderId = '', details = '') {
 }
 
 /**
- * Stops the ringtone alert immediately
- * Called when staff accepts the order or dismisses the order popup
+ * Stops and resets the order alert audio immediately (audio.pause(), audio.currentTime = 0)
+ * Called when staff accepts or rejects the order, pending queue becomes empty, or user logs out/leaves tab.
  */
 function stopOrderAlertAudio() {
-    console.log('🔇 [Custom MP3 Alert] Stopping order alert audio.');
+    console.log('🔇 [Order Alert Loop] Stopping and resetting order alert audio.');
     isOrderAlertAudioPlaying = false;
     currentAlertingOrderId = null;
     pendingOrderAlertData = null;
 
-    // 1. Stop and reset HTML5 Audio
+    // 1. Stop and reset HTML5 Audio immediately
     try {
         if (staffOrderAlertAudio) {
             staffOrderAlertAudio.pause();
             staffOrderAlertAudio.currentTime = 0;
+            staffOrderAlertAudio.loop = true;
         }
     } catch (e) { }
 
@@ -2932,6 +3139,10 @@ function cleanupAllStaffListeners() {
         if (typeof activeStaffSessionListener === 'function') {
             activeStaffSessionListener();
             activeStaffSessionListener = null;
+        }
+        if (typeof activeStaffSessionUsersListener === 'function') {
+            activeStaffSessionUsersListener();
+            activeStaffSessionUsersListener = null;
         }
         if (typeof activeStaffPendingApprovalListener === 'function') {
             activeStaffPendingApprovalListener();
