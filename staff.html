@@ -167,13 +167,13 @@
 
             <!-- Step 3: Access Request Status Screen (Pending / Review by Master Admin) -->
             <div id="staff-login-step-pending" class="staff-login-step" style="display: none;">
-                <div class="staff-pending-access-card">
+                <div class="staff-pending-access-card" id="staff-pending-card">
                     <div class="staff-pending-icon-ring" id="staff-pending-status-icon">
-                        <i class="fa-solid fa-hourglass-half fa-spin-pulse"></i>
+                        <i class="fa-solid fa-hourglass-half fa-spin-pulse" style="color: #f59e0b;"></i>
                     </div>
-                    <h3 class="staff-pending-title" id="staff-pending-status-title">Access Request Submitted</h3>
+                    <h3 class="staff-pending-title" id="staff-pending-status-title">Access Pending Approval</h3>
                     <p class="staff-pending-message" id="staff-pending-status-desc">
-                        Your access request has been submitted to the Master Admin. Once approved, you will be able to view and manage live orders.
+                        Your request has been submitted to management for role verification.
                     </p>
 
                     <div class="staff-pending-user-box">
@@ -182,12 +182,16 @@
                             <span class="info-val" id="staff-pending-display-name">Applicant Name</span>
                         </div>
                         <div class="staff-pending-info-row">
-                            <span class="info-label"><i class="fa-solid fa-phone"></i> Mobile:</span>
+                            <span class="info-label"><i class="fa-solid fa-mobile-screen"></i> Mobile:</span>
                             <span class="info-val" id="staff-pending-display-phone">+91 ••••• •••••</span>
                         </div>
                         <div class="staff-pending-info-row">
+                            <span class="info-label"><i class="fa-solid fa-clock"></i> Requested:</span>
+                            <span class="info-val" id="staff-pending-display-time">Just now</span>
+                        </div>
+                        <div class="staff-pending-info-row">
                             <span class="info-label"><i class="fa-solid fa-shield-halved"></i> Status:</span>
-                            <span class="staff-pending-status-tag status-amber" id="staff-pending-display-badge">🟡 Pending Review</span>
+                            <span class="staff-pending-status-tag status-amber" id="staff-pending-display-badge">🟡 Awaiting Verification</span>
                         </div>
                     </div>
 
@@ -195,7 +199,7 @@
                         <button type="button" id="btn-check-staff-pending-status" class="btn-staff-login-action" onclick="checkStaffPendingApprovalStatus()">
                             <i class="fa-solid fa-arrows-rotate"></i> Check Approval Status
                         </button>
-                        <button type="button" class="btn-touch btn-secondary" onclick="handleStaffResetToPhone()" style="width: 100%; padding: 11px; border-radius: 12px; font-weight: 600; font-size: 0.88rem; background: rgba(51, 65, 85, 0.4); border: 1px solid rgba(148, 163, 184, 0.2); color: #cbd5e1; cursor: pointer;">
+                        <button type="button" class="btn-auth-secondary" onclick="handleStaffResetToPhone()">
                             <i class="fa-solid fa-arrow-left"></i> Sign In With Another Number
                         </button>
                     </div>

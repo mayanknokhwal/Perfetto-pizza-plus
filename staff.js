@@ -253,23 +253,18 @@ function isStaffAdminUser(user) {
 window.isStaffAdminUser = isStaffAdminUser;
 
 async function checkStaffAuthSession() {
-    // 1. FAST SYNCHRONOUS PRE-CHECK: Check staff storage first, then admin storage for Master Admins
-    let savedSession = sessionStorage.getItem(STAFF_SESSION_STORAGE_KEY) || localStorage.getItem(STAFF_LOCAL_STORAGE_KEY);
-    
-    // Check if coming from Admin dashboard as Master Admin
-    if (!savedSession) {
-        const adminSession = sessionStorage.getItem('perfetto_admin_session_user') || localStorage.getItem('perfetto_admin_user_session') || localStorage.getItem('perfetto_admin_session_user');
-        if (adminSession) {
-            try {
-                const parsedAdmin = JSON.parse(adminSession);
-                if (parsedAdmin && (parsedAdmin.role === 'Master Admin' || String(parsedAdmin.phone || '').replace(/[^0-9]/g, '').slice(-10) === MASTER_ADMIN_PHONE_NUM || parsedAdmin.isMasterAdmin)) {
-                    savedSession = adminSession;
-                    sessionStorage.setItem(STAFF_SESSION_STORAGE_KEY, adminSession);
-                    localStorage.setItem(STAFF_LOCAL_STORAGE_KEY, adminSession);
-                }
-            } catch (e) { }
-        }
+    // 1. Check if user explicitly logged out (prevents ghost session restoration)
+    const wasExplicitlyLoggedOut = sessionStorage.getItem('perfetto_staff_logged_out') === 'true' || localStorage.getItem('perfetto_staff_logged_out') === 'true';
+    if (wasExplicitlyLoggedOut) {
+        currentStaffUser = null;
+        staffOrders = [];
+        await initStaffFirebase();
+        lockStaffDashboard();
+        return false;
     }
+
+    // 2. Check staff-specific storage
+    let savedSession = sessionStorage.getItem(STAFF_SESSION_STORAGE_KEY) || localStorage.getItem(STAFF_LOCAL_STORAGE_KEY);
 
     if (savedSession) {
         try {
@@ -365,6 +360,11 @@ function unlockStaffDashboard(user) {
     if (!user) return;
 
     currentStaffUser = user;
+
+    try {
+        sessionStorage.removeItem('perfetto_staff_logged_out');
+        localStorage.removeItem('perfetto_staff_logged_out');
+    } catch (e) { }
 
     const overlay = document.getElementById('staff-login-overlay');
     if (overlay) {
@@ -792,44 +792,53 @@ function showStaffPendingAccessScreen(name, phone, status = 'pending') {
     const stepPhone = document.getElementById('staff-login-step-phone');
     const stepOtp = document.getElementById('staff-login-step-otp');
     const stepPending = document.getElementById('staff-login-step-pending');
+    const cardEl = document.getElementById('staff-pending-card');
     const nameEl = document.getElementById('staff-pending-display-name');
     const phoneEl = document.getElementById('staff-pending-display-phone');
+    const timeEl = document.getElementById('staff-pending-display-time');
     const badgeEl = document.getElementById('staff-pending-display-badge');
     const titleEl = document.getElementById('staff-pending-status-title');
     const descEl = document.getElementById('staff-pending-status-desc');
     const iconEl = document.getElementById('staff-pending-status-icon');
+    const checkBtn = document.getElementById('btn-check-staff-pending-status');
 
     if (stepPhone) stepPhone.style.display = 'none';
     if (stepOtp) stepOtp.style.display = 'none';
     if (stepPending) stepPending.style.display = 'block';
 
-    if (nameEl) nameEl.textContent = name || staffCurrentName || 'Applicant';
+    if (nameEl) nameEl.textContent = name || staffCurrentName || 'Staff Applicant';
     if (phoneEl) phoneEl.textContent = phone ? `+91 ${phone.slice(0, 5)} ${phone.slice(5)}` : `+91 ${staffCurrentPhone}`;
+    if (timeEl) {
+        const now = new Date();
+        timeEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) + ', ' + now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
 
     if (status === 'blocked' || status === 'rejected') {
-        if (titleEl) titleEl.textContent = 'Account Blocked';
-        if (descEl) descEl.textContent = 'This number is blocked, please change your number.';
+        if (cardEl) cardEl.className = 'staff-pending-access-card is-blocked';
+        if (titleEl) titleEl.textContent = 'Access Suspended';
+        if (descEl) descEl.textContent = 'Access Suspended. This number has been restricted from the platform. Contact support for assistance.';
         if (badgeEl) {
             badgeEl.className = 'staff-pending-status-tag status-red';
-            badgeEl.textContent = '🔴 This number is blocked, please change your number';
+            badgeEl.innerHTML = '<i class="fa-solid fa-ban"></i> Access Restricted';
         }
         if (iconEl) {
-            iconEl.innerHTML = '<i class="fa-solid fa-ban" style="color: #ef4444;"></i>';
-            iconEl.style.background = 'rgba(239, 68, 68, 0.15)';
-            iconEl.style.borderColor = 'rgba(239, 68, 68, 0.45)';
+            iconEl.className = 'staff-pending-icon-ring ring-blocked';
+            iconEl.innerHTML = '<i class="fa-solid fa-shield-halved fa-beat-fade" style="color: #ef4444;"></i>';
         }
+        if (checkBtn) checkBtn.style.display = 'none';
     } else {
-        if (titleEl) titleEl.textContent = 'Access Request Submitted';
-        if (descEl) descEl.textContent = 'Your access request has been submitted to the Master Admin. Once approved, you will be able to view and manage live orders.';
+        if (cardEl) cardEl.className = 'staff-pending-access-card';
+        if (titleEl) titleEl.textContent = 'Access Pending Approval';
+        if (descEl) descEl.textContent = 'Your request has been submitted to management for role verification.';
         if (badgeEl) {
             badgeEl.className = 'staff-pending-status-tag status-amber';
-            badgeEl.textContent = '🟡 Pending Review';
+            badgeEl.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> Awaiting Verification';
         }
         if (iconEl) {
+            iconEl.className = 'staff-pending-icon-ring';
             iconEl.innerHTML = '<i class="fa-solid fa-hourglass-half fa-spin-pulse" style="color: #f59e0b;"></i>';
-            iconEl.style.background = 'rgba(245, 158, 11, 0.15)';
-            iconEl.style.borderColor = 'rgba(245, 158, 11, 0.45)';
         }
+        if (checkBtn) checkBtn.style.display = 'flex';
 
         // Start real-time listener for instant automatic unlock upon approval
         startStaffPendingApprovalListener(phone || staffCurrentPhone);
@@ -1284,16 +1293,45 @@ async function handleStaffLogout() {
 
     if (confirmed) {
         stopOrderAlertAudio();
+        cleanupAllStaffListeners();
+
         try {
             sessionStorage.removeItem(STAFF_SESSION_STORAGE_KEY);
+            sessionStorage.removeItem(STAFF_LOCAL_STORAGE_KEY);
+            sessionStorage.removeItem(STAFF_VERIFIED_PHONE_KEY);
+            sessionStorage.removeItem('perfetto_staff_session_user');
+            sessionStorage.removeItem('perfetto_staff_user_session');
+            sessionStorage.removeItem('perfetto_staff_verified_phone');
+            sessionStorage.removeItem('staff_user');
+            sessionStorage.removeItem('perfetto_staff_session');
+            sessionStorage.removeItem('perfetto_admin_session_user');
+            sessionStorage.removeItem('perfetto_admin_user_session');
+            sessionStorage.clear();
+
+            localStorage.removeItem(STAFF_SESSION_STORAGE_KEY);
             localStorage.removeItem(STAFF_LOCAL_STORAGE_KEY);
             localStorage.removeItem(STAFF_VERIFIED_PHONE_KEY);
+            localStorage.removeItem('perfetto_staff_session_user');
+            localStorage.removeItem('perfetto_staff_user_session');
+            localStorage.removeItem('perfetto_staff_verified_phone');
+            localStorage.removeItem('staff_user');
+            localStorage.removeItem('perfetto_staff_session');
             localStorage.removeItem('perfettoCustomerOrders');
+
+            sessionStorage.setItem('perfetto_staff_logged_out', 'true');
+            localStorage.setItem('perfetto_staff_logged_out', 'true');
         } catch (e) { }
-        if (staffOrdersUnsubscribe) {
-            try { staffOrdersUnsubscribe(); } catch (e) { }
-            staffOrdersUnsubscribe = null;
+
+        if (typeof firebase !== 'undefined' && firebase.auth) {
+            try { firebase.auth().signOut().catch(() => {}); } catch (e) { }
         }
+
+        currentStaffUser = null;
+        staffOrders = [];
+        staffCurrentName = '';
+        staffCurrentPhone = '';
+
+        renderOrders();
         lockStaffDashboard();
         showStaffToast('🔒 Staff Portal locked successfully.');
     }
