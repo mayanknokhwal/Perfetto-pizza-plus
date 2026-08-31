@@ -1269,7 +1269,8 @@ body.shop-closed .checkout-btn {
     opacity: 0;
     visibility: hidden;
     transition: all 0.3s ease;
-    z-index: 2000;
+    z-index: 100005;
+    pointer-events: none;
 }
 
 [data-theme="dark"] .toast-notification {

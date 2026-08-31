@@ -3769,6 +3769,16 @@ function toggleLegalInfoView() {
     }, 60);
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function renderOrderHistoryDetails() {
     const listEl = document.getElementById('order-history-list');
     const clearBtn = document.getElementById('btn-clear-history');
@@ -3784,13 +3794,13 @@ function renderOrderHistoryDetails() {
                     const otpCode = o.deliveryOtp || o.otp || '';
                     const isDelivered = o.status === 'completed';
                     const isCancelled = o.status === 'rejected';
-                    const itemsText = (o.items || []).map(i => i.name).join(', ');
+                    const itemsText = (o.items || []).map(i => escapeHtml(i.name)).join(', ');
 
                     return `
                     <div style="background: var(--bg-surface); padding: 14px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border-color);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <strong style="color: var(--primary-orange); font-size: 0.95rem;">#${o.id || o.orderId}</strong>
-                            <span style="font-size: 0.78rem; color: var(--text-muted);">${o.timeAgo || ''}</span>
+                            <strong style="color: var(--primary-orange); font-size: 0.95rem;">#${escapeHtml(o.id || o.orderId)}</strong>
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">${escapeHtml(o.timeAgo || '')}</span>
                         </div>
                         <div style="font-size: 0.84rem; color: var(--text-light); margin-bottom: 8px;">
                             ${itemsText}
@@ -3803,11 +3813,11 @@ function renderOrderHistoryDetails() {
                                     <i class="fa-solid ${isDelivered ? 'fa-circle-check' : isCancelled ? 'fa-ban' : 'fa-shield-halved'}"></i>
                                     ${isDelivered ? 'Delivered & Verified' : isCancelled ? 'Cancelled Order' : 'Delivery Verification OTP'}
                                 </span>
-                                <span class="order-history-otp-digits">${otpCode}</span>
+                                <span class="order-history-otp-digits">${escapeHtml(otpCode)}</span>
                                 ${!isDelivered && !isCancelled ? `<span class="order-history-otp-note">Share with delivery partner upon arrival</span>` : ''}
                             </div>
                             ${!isDelivered && !isCancelled ? `
-                                <button type="button" class="order-history-copy-btn" onclick="copyOrderHistoryOtp('${otpCode}')" title="Copy Delivery OTP">
+                                <button type="button" class="order-history-copy-btn" onclick="copyOrderHistoryOtp('${escapeHtml(otpCode)}')" title="Copy Delivery OTP">
                                     <i class="fa-solid fa-copy"></i> Copy
                                 </button>
                             ` : ''}
@@ -3815,7 +3825,7 @@ function renderOrderHistoryDetails() {
                         ` : ''}
 
                         <div style="display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 4px;">
-                            <span>Status: <span style="color: ${isDelivered ? '#22c55e' : isCancelled ? '#ef4444' : '#f59e0b'}; text-transform: uppercase;">${o.status}</span></span>
+                            <span>Status: <span style="color: ${isDelivered ? '#22c55e' : isCancelled ? '#ef4444' : '#f59e0b'}; text-transform: uppercase;">${escapeHtml(o.status)}</span></span>
                             <span style="color: var(--primary-orange);">₹${o.total || (o.costs && o.costs.total) || 0}</span>
                         </div>
                     </div>
@@ -4119,7 +4129,7 @@ function initLogoModal() {
 
     // Click outside circular image (on backdrop overlay) closes modal
     logoModal.addEventListener('click', (e) => {
-        if (e.target === logoModal || !logoModalContent.contains(e.target)) {
+        if (e.target === logoModal || (logoModalContent && !logoModalContent.contains(e.target))) {
             closeLogoModal();
         }
     });
@@ -5102,8 +5112,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 2. Real-Time Background Polling (Every 3.5s for instant multi-device synchronization)
-    setInterval(fetchLiveMenuFromBackend, 3500);
-    setInterval(fetchLiveSettingsFromBackend, 5000);
+    const menuIntervalId = setInterval(fetchLiveMenuFromBackend, 3500);
+    const settingsIntervalId = setInterval(fetchLiveSettingsFromBackend, 5000);
 
     // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
     document.addEventListener('visibilitychange', () => {
@@ -5118,6 +5128,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// --------------------------------------------------------------------------
+// 12. CLEANUP & MEMORY LEAK PREVENTION (PAGE UNMOUNT / REFRESH)
+// --------------------------------------------------------------------------
+function cleanupAllCustomerListeners() {
+    try {
+        if (typeof menuRealtimeUnsubscribe === 'function') {
+            menuRealtimeUnsubscribe();
+            menuRealtimeUnsubscribe = null;
+        }
+        if (typeof menuCollectionRealtimeUnsubscribe === 'function') {
+            menuCollectionRealtimeUnsubscribe();
+            menuCollectionRealtimeUnsubscribe = null;
+        }
+        if (typeof settingsRealtimeUnsubscribe === 'function') {
+            settingsRealtimeUnsubscribe();
+            settingsRealtimeUnsubscribe = null;
+        }
+        if (customerOrdersUnsubscribeMap && customerOrdersUnsubscribeMap.size > 0) {
+            customerOrdersUnsubscribeMap.forEach((unsub) => {
+                if (typeof unsub === 'function') {
+                    try { unsub(); } catch (e) { }
+                }
+            });
+            customerOrdersUnsubscribeMap.clear();
+        }
+    } catch (e) {
+        console.warn('Error during customer listener cleanup:', e);
+    }
+}
 
+window.addEventListener('beforeunload', cleanupAllCustomerListeners);
+window.addEventListener('pagehide', cleanupAllCustomerListeners);
 
+// Global Error & Promise Rejection Safety Boundaries
+window.addEventListener('unhandledrejection', (event) => {
+    console.warn('🛡️ [Perfetto App] Unhandled Promise Rejection intercepted:', event.reason);
+    if (event.reason && (event.reason.message?.includes('Failed to fetch') || event.reason.message?.includes('NetworkError') || event.reason.name === 'AbortError')) {
+        event.preventDefault(); // Suppress harmless network connection aborts
+    }
+});
 
+window.addEventListener('error', (event) => {
+    console.warn('🛡️ [Perfetto App] Runtime Error intercepted:', event.message);
+});
+
+// --------------------------------------------------------------------------
+// 13. GLOBAL WINDOW EXPORTS FOR RELIABLE INLINE HTML EVENT HANDLING
+// --------------------------------------------------------------------------
+window.openEditProfileModal = openEditProfileModal;
+window.closeEditProfileModal = closeEditProfileModal;
+window.toggleOrderHistoryView = toggleOrderHistoryView;
+window.clearCustomerOrderHistory = clearCustomerOrderHistory;
+window.closeClearHistoryModal = closeClearHistoryModal;
+window.confirmClearCustomerOrderHistory = confirmClearCustomerOrderHistory;
+window.toggleSavedAddressesView = toggleSavedAddressesView;
+window.editSavedAddress = editSavedAddress;
+window.toggleLegalInfoView = toggleLegalInfoView;
+window.clearCart = clearCart;
+window.processCheckout = processCheckout;
+window.closeCustomerSearch = closeCustomerSearch;
+window.openCustomerSearch = openCustomerSearch;
+window.switchTab = switchTab;
+window.handleChangePhoneNumber = handleChangePhoneNumber;
+window.handleRequestOtp = handleRequestOtp;
+window.handleVerifyOtp = handleVerifyOtp;
+window.openCustomerMapModal = openCustomerMapModal;
+window.closeCustomerMapModal = closeCustomerMapModal;
+window.closeCheckoutModal = closeCheckoutModal;
+window.handleEditAddressFromCheckout = handleEditAddressFromCheckout;
+window.handleConfirmAddressForCheckout = handleConfirmAddressForCheckout;
+window.handleSelectCodPayment = handleSelectCodPayment;
+window.handleSelectOnlinePayment = handleSelectOnlinePayment;
+window.copyDeliveryOtpToClipboard = copyDeliveryOtpToClipboard;
+window.viewOrderHistoryFromOtpModal = viewOrderHistoryFromOtpModal;
+window.closeOrderOtpSuccessModal = closeOrderOtpSuccessModal;
+window.handleDetectLiveGps = handleDetectLiveGps;
+window.handleConfirmMapLocation = handleConfirmMapLocation;
+window.cleanupAllCustomerListeners = cleanupAllCustomerListeners;

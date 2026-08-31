@@ -209,6 +209,7 @@ function listenToFirestoreStaffOrders() {
         fetchOrdersFromBackend();
     }
 }
+const listenToStaffLiveOrders = listenToFirestoreStaffOrders;
 
 // --------------------------------------------------------------------------
 // AUTHENTICATION & ACCESS REQUEST WORKFLOW (PHONE & FULL NAME)
@@ -250,7 +251,7 @@ async function checkStaffAuthSession() {
                     };
                     unlockStaffDashboard(currentStaffUser);
                     initStaffFirebase().then(() => {
-                        listenToStaffLiveOrders();
+                        listenToFirestoreStaffOrders();
                         startStaffSessionSecurityListener(cleanPhoneDigits);
                     });
                     return true;
@@ -261,7 +262,7 @@ async function checkStaffAuthSession() {
                     currentStaffUser = parsed;
                     unlockStaffDashboard(currentStaffUser);
                     initStaffFirebase().then(() => {
-                        listenToStaffLiveOrders();
+                        listenToFirestoreStaffOrders();
                         startStaffSessionSecurityListener(cleanPhoneDigits);
                     });
                     return true;
@@ -1385,11 +1386,17 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
 }
 
 let isStaffAudioUnlocked = false;
+let isAudioAutoplayBlocked = false;
+let pendingOrderAlertData = null;
 
 function unlockStaffAudioAlerts(silent = true) {
-    if (isStaffAudioUnlocked) return;
+    // 1. Resume Web Audio Context if suspended
+    const ctx = getStaffAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+    }
 
-    // Prime HTML5 Audio element to bypass WebView autoplay restrictions
+    // 2. Prime HTML5 Audio element to bypass WebView autoplay restrictions
     try {
         const audio = getOrderAlertAudio();
         if (audio) {
@@ -1403,7 +1410,13 @@ function unlockStaffAudioAlerts(silent = true) {
                     audio.currentTime = 0;
                     audio.muted = prevMuted;
                     isStaffAudioUnlocked = true;
+                    isAudioAutoplayBlocked = false;
                     console.log('🔓 [Staff Audio] Audio element primed for notifications.');
+                    if (pendingOrderAlertData && isOrderAlertAudioPlaying) {
+                        const { orderId, details } = pendingOrderAlertData;
+                        pendingOrderAlertData = null;
+                        startOrderAlertAudio(orderId, details);
+                    }
                 }).catch((err) => {
                     audio.muted = prevMuted;
                     console.warn('Audio prime note:', err.message);
@@ -1897,6 +1910,16 @@ function renderOrders() {
     }
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // --------------------------------------------------------------------------
 // 8A. BUILD MINIMAL COMPLETED ORDER CARD HTML
 // --------------------------------------------------------------------------
@@ -1919,9 +1942,9 @@ function buildCompletedOrderCardHTML(order) {
                 <div class="item-info-col">
                     <div class="item-title-row">
                         <span class="item-qty-badge">${qty}x</span>
-                        <span class="item-name">${cleanName}${sizeStr}</span>
+                        <span class="item-name">${escapeHtml(cleanName)}${escapeHtml(sizeStr)}</span>
                     </div>
-                    ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${item.notes}</div>` : ''}
+                    ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${escapeHtml(item.notes)}</div>` : ''}
                 </div>
             </div>
         `;
@@ -1933,7 +1956,7 @@ function buildCompletedOrderCardHTML(order) {
         <article class="order-card completed-order-card" id="card-${order.id}">
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${order.customerName || 'Customer'}</span></span>
+                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(order.customerName || 'Customer')}</span></span>
                 </div>
                 <div class="completed-card-status-badge ${isRejected ? 'status-declined' : 'status-delivered'}">
                     <i class="fa-solid ${isRejected ? 'fa-ban' : 'fa-check-double'}"></i>
@@ -2084,9 +2107,9 @@ function buildOrderCardHTML(order) {
             <div class="item-info-col">
                 <div class="item-title-row">
                     <span class="item-qty-badge">${qty}x</span>
-                    <span class="item-name">${cleanName}${sizeStr}</span>
+                    <span class="item-name">${escapeHtml(cleanName)}${escapeHtml(sizeStr)}</span>
                 </div>
-                ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${item.notes}</div>` : ''}
+                ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${escapeHtml(item.notes)}</div>` : ''}
             </div>
         </div>
     `}).join('');
@@ -2106,7 +2129,7 @@ function buildOrderCardHTML(order) {
         <article class="order-card" id="card-${order.id}">
             <div class="card-head">
                 <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${order.customerName || 'Customer'}</span></span>
+                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(order.customerName || 'Customer')}</span></span>
                 </div>
                 <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
                     <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
@@ -2120,12 +2143,12 @@ function buildOrderCardHTML(order) {
                         <div class="customer-address-details">
                             <i class="fa-solid fa-location-dot address-pin-icon"></i>
                             <div class="address-text-wrap">
-                                <span class="address-text">${order.address || 'Address not specified'}</span>
+                                <span class="address-text">${escapeHtml(order.address || 'Address not specified')}</span>
                             </div>
                         </div>
                         <div class="address-actions-group">
                             ${rawPhone ? `
-                                <a href="tel:${cleanPhone}" class="btn-customer-call" title="Call ${order.customerName || 'Customer'} (${rawPhone})" aria-label="Call ${order.customerName || 'Customer'} at ${rawPhone}">
+                                <a href="tel:${cleanPhone}" class="btn-customer-call" title="Call ${escapeHtml(order.customerName || 'Customer')} (${escapeHtml(rawPhone)})" aria-label="Call ${escapeHtml(order.customerName || 'Customer')} at ${escapeHtml(rawPhone)}">
                                     <i class="fa-solid fa-phone"></i>
                                     <span class="call-action-pill">Call</span>
                                 </a>
@@ -2663,6 +2686,51 @@ window.handleDeleteAllCompletedOrders = handleDeleteAllCompletedOrders;
 let staffOrderAlertAudio = null;
 let isOrderAlertAudioPlaying = false;
 let currentAlertingOrderId = null;
+let staffAudioContext = null;
+
+/**
+ * Initializes and retrieves the Web Audio Context for synthesized tone fallbacks
+ */
+function getStaffAudioContext() {
+    if (!staffAudioContext && typeof window !== 'undefined') {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            try {
+                staffAudioContext = new AudioCtx();
+            } catch (e) { }
+        }
+    }
+    return staffAudioContext;
+}
+
+/**
+ * Generates a pleasant synthesized restaurant chime fallback using Web Audio API
+ */
+function playSynthesizedAlertBeep() {
+    try {
+        const ctx = getStaffAudioContext();
+        if (!ctx) return;
+        if (ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+        }
+        const now = ctx.currentTime;
+        const notes = [587.33, 739.99, 880.00, 1174.66]; // D5, F#5, A5, D6 cheerful harmonic chime
+        notes.forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + index * 0.12);
+            gain.gain.setValueAtTime(0.3, now + index * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.12 + 0.35);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + index * 0.12);
+            osc.stop(now + index * 0.12 + 0.36);
+        });
+    } catch (e) {
+        console.warn('Synthesized audio chime notice:', e.message);
+    }
+}
 
 /**
  * Initializes HTML5 Audio element for single-play ./order-alert.mp3 alert
@@ -2695,7 +2763,7 @@ function getOrderAlertAudio() {
 
 /**
  * Starts single full track custom MP3 ringtone ('./order-alert.mp3' with audio.loop = false)
- * Plays the full alert track once for new incoming orders.
+ * Plays the full alert track once for new incoming orders with synthesized fallback.
  */
 function startOrderAlertAudio(orderId = '', details = '') {
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
@@ -2707,6 +2775,7 @@ function startOrderAlertAudio(orderId = '', details = '') {
     console.log(`🔊 [Custom MP3 Alert] Playing single full order-alert.mp3 track for Order #${currentAlertingOrderId}...`);
 
     // 1. Play HTML5 Audio with audio.loop = false (single full track)
+    let playedHtml5 = false;
     try {
         const audio = getOrderAlertAudio();
         if (audio) {
@@ -2717,13 +2786,23 @@ function startOrderAlertAudio(orderId = '', details = '') {
             if (playPromise !== undefined) {
                 playPromise.then(() => {
                     console.log('▶️ [Custom MP3 Alert] HTML5 Audio playing single full track.');
+                    isStaffAudioUnlocked = true;
+                    isAudioAutoplayBlocked = false;
                 }).catch((err) => {
                     console.warn('HTML5 Audio autoplay restricted note:', err.message);
+                    isAudioAutoplayBlocked = true;
+                    pendingOrderAlertData = { orderId, details };
+                    playSynthesizedAlertBeep();
                 });
+                playedHtml5 = true;
             }
         }
     } catch (e) {
         console.warn('HTML5 audio play exception:', e.message);
+    }
+
+    if (!playedHtml5) {
+        playSynthesizedAlertBeep();
     }
 
     // 2. Show Incoming New Order Popup Modal
@@ -2738,6 +2817,7 @@ function stopOrderAlertAudio() {
     console.log('🔇 [Custom MP3 Alert] Stopping order alert audio.');
     isOrderAlertAudioPlaying = false;
     currentAlertingOrderId = null;
+    pendingOrderAlertData = null;
 
     // 1. Stop and reset HTML5 Audio
     try {
@@ -2836,11 +2916,63 @@ function acceptIncomingOrderFromModal() {
 }
 window.acceptIncomingOrderFromModal = acceptIncomingOrderFromModal;
 
+// --------------------------------------------------------------------------
+// 13. CLEANUP & MEMORY LEAK PREVENTION (PAGE UNMOUNT / REFRESH)
+// --------------------------------------------------------------------------
+function cleanupAllStaffListeners() {
+    try {
+        if (typeof staffSettingsUnsubscribe === 'function') {
+            staffSettingsUnsubscribe();
+            staffSettingsUnsubscribe = null;
+        }
+        if (typeof staffOrdersUnsubscribe === 'function') {
+            staffOrdersUnsubscribe();
+            staffOrdersUnsubscribe = null;
+        }
+        if (typeof activeStaffSessionListener === 'function') {
+            activeStaffSessionListener();
+            activeStaffSessionListener = null;
+        }
+        if (typeof activeStaffPendingApprovalListener === 'function') {
+            activeStaffPendingApprovalListener();
+            activeStaffPendingApprovalListener = null;
+        }
+        if (activeStaffSessionPoller) {
+            clearInterval(activeStaffSessionPoller);
+            activeStaffSessionPoller = null;
+        }
+        if (activeStaffPendingApprovalPoller) {
+            clearInterval(activeStaffPendingApprovalPoller);
+            activeStaffPendingApprovalPoller = null;
+        }
+        stopOrderAlertAudio();
+    } catch (e) {
+        console.warn('Error during staff listener cleanup:', e);
+    }
+}
+
+window.addEventListener('beforeunload', cleanupAllStaffListeners);
+window.addEventListener('pagehide', cleanupAllStaffListeners);
+
+// Global Error & Promise Rejection Safety Boundaries
+window.addEventListener('unhandledrejection', (event) => {
+    console.warn('🛡️ [Staff Portal] Unhandled Promise Rejection intercepted:', event.reason);
+    if (event.reason && (event.reason.message?.includes('Failed to fetch') || event.reason.message?.includes('NetworkError') || event.reason.name === 'AbortError')) {
+        event.preventDefault();
+    }
+});
+
+window.addEventListener('error', (event) => {
+    console.warn('🛡️ [Staff Portal] Runtime Error intercepted:', event.message);
+});
+
 // Global window helpers and auto-init
 window.startOrderAlertAudio = startOrderAlertAudio;
 window.stopOrderAlertAudio = stopOrderAlertAudio;
 window.triggerStaffOrderAlertSound = startOrderAlertAudio;
 window.stopStaffOrderAlertSound = stopOrderAlertAudio;
+window.playSynthesizedAlertBeep = playSynthesizedAlertBeep;
+window.cleanupAllStaffListeners = cleanupAllStaffListeners;
 
 // Prime Audio on page load
 if (typeof document !== 'undefined') {

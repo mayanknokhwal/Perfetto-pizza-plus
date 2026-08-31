@@ -1079,7 +1079,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            z-index: 10000;
+            z-index: 2000005;
             transform: translateY(120px) scale(0.95);
             opacity: 0;
             transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
@@ -6909,11 +6909,11 @@
                         </td>
                         <td style="text-align: right;">
                             <div style="display: inline-flex; gap: 8px; justify-content: flex-end;">
-                                <button type="button" class="btn-primary btn-sm" onclick="approvePendingUser('${escapeHtml(cleanPhoneNum)}', 'role-select-${index}', '${escapeHtml(user.fullName || 'User')}')" style="padding: 6px 14px; border-radius: 8px;">
+                                <button type="button" class="btn-primary btn-sm" onclick="approvePendingUser('${cleanPhoneNum}', 'role-select-${index}')" style="padding: 6px 14px; border-radius: 8px;">
                                     <i class="fa-solid fa-check"></i> Approve
                                 </button>
                                 ${isStaffOrigin || isViewerMaster ? `
-                                    <button type="button" class="btn-danger btn-sm" onclick="blockPendingUser('${escapeHtml(cleanPhoneNum)}', '${escapeHtml(user.fullName || 'User')}')" style="padding: 6px 12px; border-radius: 8px;">
+                                    <button type="button" class="btn-danger btn-sm" onclick="blockPendingUser('${cleanPhoneNum}')" style="padding: 6px 12px; border-radius: 8px;">
                                         <i class="fa-solid fa-ban"></i> Block
                                     </button>
                                 ` : ''}
@@ -7041,22 +7041,22 @@
                                 isViewerPrimaryMaster ? `
                                     <div style="display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end;">
                                         <!-- Primary Master Admin can demote or block Secondary Master Admin -->
-                                        <select class="role-select-dropdown" onchange="updateStaffRole('${escapeHtml(cleanPhoneNum)}', this.value, '${escapeHtml(user.fullName || 'User')}')" style="background: rgba(15, 23, 42, 0.8); color: #ffffff; border: 1px solid rgba(255, 107, 0, 0.3); padding: 4px 8px; font-size: 0.82rem; border-radius: 6px;">
+                                        <select class="role-select-dropdown" onchange="updateStaffRole('${cleanPhoneNum}', this.value)" style="background: rgba(15, 23, 42, 0.8); color: #ffffff; border: 1px solid rgba(255, 107, 0, 0.3); padding: 4px 8px; font-size: 0.82rem; border-radius: 6px;">
                                             <option value="Master Admin" selected>Master Admin</option>
                                             <option value="Admin">Demote to Admin</option>
                                         </select>
-                                        <button type="button" class="btn-outline-danger btn-sm" onclick="blockActiveUser('${escapeHtml(cleanPhoneNum)}', '${escapeHtml(user.fullName || 'User')}')" title="Block User" style="padding: 4px 10px; border-radius: 6px; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                                        <button type="button" class="btn-outline-danger btn-sm" onclick="blockActiveUser('${cleanPhoneNum}')" title="Block User" style="padding: 4px 10px; border-radius: 6px; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);">
                                             <i class="fa-solid fa-ban"></i> Block
                                         </button>
                                     </div>
                                 ` : isOwnRow ? `
                                     <div style="display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end;">
                                         <!-- Secondary Master Admin can voluntarily step down -->
-                                        <select class="role-select-dropdown" onchange="updateStaffRole('${escapeHtml(cleanPhoneNum)}', this.value, '${escapeHtml(user.fullName || 'User')}')" style="background: rgba(15, 23, 42, 0.8); color: #ffffff; border: 1px solid rgba(255, 107, 0, 0.3); padding: 4px 8px; font-size: 0.82rem; border-radius: 6px;">
+                                        <select class="role-select-dropdown" onchange="updateStaffRole('${cleanPhoneNum}', this.value)" style="background: rgba(15, 23, 42, 0.8); color: #ffffff; border: 1px solid rgba(255, 107, 0, 0.3); padding: 4px 8px; font-size: 0.82rem; border-radius: 6px;">
                                             <option value="Master Admin" selected>Master Admin</option>
                                             <option value="Admin">Step Down to Admin</option>
                                         </select>
-                                        <button type="button" class="btn-outline-danger btn-sm" onclick="stepDownSelf('${escapeHtml(cleanPhoneNum)}', '${escapeHtml(user.fullName || 'User')}')" title="Step Down" style="padding: 4px 10px; border-radius: 6px;">
+                                        <button type="button" class="btn-outline-danger btn-sm" onclick="stepDownSelf('${cleanPhoneNum}')" title="Step Down" style="padding: 4px 10px; border-radius: 6px;">
                                             <i class="fa-solid fa-arrow-right-from-bracket"></i> Step Down
                                         </button>
                                     </div>
@@ -7070,7 +7070,7 @@
                                     <span style="font-size: 0.78rem; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px; background: rgba(51, 65, 85, 0.4); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.2);">
                                         <i class="fa-solid fa-lock"></i> Staff Role Locked
                                     </span>
-                                    <button type="button" class="btn-outline-danger btn-sm" onclick="blockActiveUser('${escapeHtml(cleanPhoneNum)}', '${escapeHtml(user.fullName || 'User')}')" title="Block Staff Member" style="padding: 4px 10px; border-radius: 6px; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                                    <button type="button" class="btn-outline-danger btn-sm" onclick="blockActiveUser('${cleanPhoneNum}')" title="Block Staff Member" style="padding: 4px 10px; border-radius: 6px; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);">
                                         <i class="fa-solid fa-ban"></i> Block
                                     </button>
                                 </div>
@@ -7084,14 +7084,14 @@
                             ` : `
                                 <div style="display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end;">
                                     <!-- Master Admin (Primary or Secondary): Full privilege to promote or block regular Admins -->
-                                    <select class="role-select-dropdown" onchange="updateStaffRole('${escapeHtml(cleanPhoneNum)}', this.value, '${escapeHtml(user.fullName || 'User')}')" style="background: rgba(15, 23, 42, 0.8); color: #ffffff; border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; font-size: 0.82rem; border-radius: 6px;">
+                                    <select class="role-select-dropdown" onchange="updateStaffRole('${cleanPhoneNum}', this.value)" style="background: rgba(15, 23, 42, 0.8); color: #ffffff; border: 1px solid rgba(59, 130, 246, 0.3); padding: 4px 8px; font-size: 0.82rem; border-radius: 6px;">
                                         <option value="Admin" selected>Admin</option>
                                         ${isMasterCapReached
                                             ? `<option value="Master Admin" disabled style="color: #94a3b8;">Master Admin (Max 2 Reached)</option>`
                                             : `<option value="Master Admin">Master Admin</option>`
                                         }
                                     </select>
-                                    <button type="button" class="btn-outline-danger btn-sm" onclick="blockActiveUser('${escapeHtml(cleanPhoneNum)}', '${escapeHtml(user.fullName || 'User')}')" title="Block Admin" style="padding: 4px 10px; border-radius: 6px; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                                    <button type="button" class="btn-outline-danger btn-sm" onclick="blockActiveUser('${cleanPhoneNum}')" title="Block Admin" style="padding: 4px 10px; border-radius: 6px; border-color: rgba(239, 68, 68, 0.5); color: #ef4444; background: rgba(239, 68, 68, 0.1);">
                                         <i class="fa-solid fa-ban"></i> Block
                                     </button>
                                 </div>
@@ -7105,11 +7105,15 @@
             container.innerHTML = html;
         }
 
-        async function approvePendingUser(targetPhone, selectElementId, userName = 'Applicant') {
+        async function approvePendingUser(targetPhone, selectElementId, userName = '') {
             const selectEl = document.getElementById(selectElementId);
             const chosenRole = selectEl ? selectEl.value : 'Admin';
             const requesterPhone = (currentAdminUser && currentAdminUser.phone) ? currentAdminUser.phone : MASTER_ADMIN_PHONE_NUM;
             const cleanPhoneDigits = String(targetPhone).replace(/[^0-9]/g, '').slice(-10);
+
+            const targetUser = (teamManagementData.pending || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits) ||
+                               (teamManagementData.members || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
+            const resolvedName = (targetUser && targetUser.fullName) || userName || 'Applicant';
 
             // 1. Instantly sync to Firebase Firestore in real-time
             if (adminFirestore) {
@@ -7141,8 +7145,8 @@
 
                 const data = await response.json();
                 if (data && data.success) {
-                    showToast(`🎉 Approved ${userName} as ${chosenRole}!`);
-                    logAdminActivity(`Approved access request for "${userName}" (+91 ${cleanPhoneDigits}) as ${chosenRole}`);
+                    showToast(`🎉 Approved ${resolvedName} as ${chosenRole}!`);
+                    logAdminActivity(`Approved access request for "${resolvedName}" (+91 ${cleanPhoneDigits}) as ${chosenRole}`);
                     loadTeamManagementData(true);
                 } else {
                     showToast(`Approval failed: ${data.message || 'Error approving request'}`);
@@ -7153,7 +7157,7 @@
             }
         }
 
-        async function blockPendingUser(targetPhone, userName = 'Applicant') {
+        async function blockPendingUser(targetPhone, userName = '') {
             const cleanPhoneDigits = String(targetPhone).replace(/[^0-9]/g, '').slice(-10);
 
             // Calculate viewer permissions
@@ -7163,7 +7167,9 @@
             const isViewerMaster = isViewerPrimaryMaster || isViewerSecondaryMaster;
             const isViewerStandardAdmin = (!isViewerMaster && currentAdminUser && currentAdminUser.role === 'Admin');
 
-            const targetPending = (teamManagementData.pending || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
+            const targetPending = (teamManagementData.pending || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits) ||
+                                  (teamManagementData.members || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
+            const resolvedName = (targetPending && targetPending.fullName) || userName || 'Applicant';
             const isTargetAdminOrigin = targetPending && (targetPending.portalOrigin === 'admin' || targetPending.role === 'Admin' || targetPending.role === 'Master Admin');
 
             if (isViewerStandardAdmin && isTargetAdminOrigin) {
@@ -7173,7 +7179,7 @@
 
             const confirmed = await showAdminConfirmDialog({
                 title: 'Block Access Request',
-                message: `Permanently block ${userName} (+91 ${cleanPhoneDigits})?\n\nThey will be permanently barred from accessing the system.`,
+                message: `Permanently block ${resolvedName} (+91 ${cleanPhoneDigits})?\n\nThey will be permanently barred from accessing the system.`,
                 icon: '<i class="fa-solid fa-ban" style="color: #ef4444;"></i>',
                 iconBg: 'rgba(239, 68, 68, 0.15)',
                 iconBorder: 'rgba(239, 68, 68, 0.4)',
@@ -7211,8 +7217,8 @@
 
                 const data = await response.json();
                 if (data && data.success) {
-                    showToast(`🚫 User ${userName} has been permanently blocked.`);
-                    logAdminActivity(`Blocked pending access request for "${userName}" (+91 ${cleanPhoneDigits})`);
+                    showToast(`🚫 User ${resolvedName} has been permanently blocked.`);
+                    logAdminActivity(`Blocked pending access request for "${resolvedName}" (+91 ${cleanPhoneDigits})`);
                     loadTeamManagementData(true);
                 } else {
                     showToast(`Failed: ${data.message || 'Error blocking user'}`);
@@ -7223,9 +7229,13 @@
             }
         }
 
-        async function updateStaffRole(targetPhone, newRole, userName = 'Staff Member') {
+        async function updateStaffRole(targetPhone, newRole, userName = '') {
             const cleanPhoneDigits = String(targetPhone).replace(/[^0-9]/g, '').slice(-10);
             const requesterPhone = (currentAdminUser && currentAdminUser.phone) ? currentAdminUser.phone : MASTER_ADMIN_PHONE_NUM;
+
+            const targetMember = (teamManagementData.team || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits) ||
+                                 (teamManagementData.members || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
+            const resolvedName = (targetMember && targetMember.fullName) || userName || 'Staff Member';
 
             // Protection check for Primary Master Admin
             if (cleanPhoneDigits === MASTER_ADMIN_PHONE_NUM && requesterPhone !== MASTER_ADMIN_PHONE_NUM) {
@@ -7262,8 +7272,8 @@
 
                 const data = await response.json();
                 if (data && data.success) {
-                    showToast(`Role updated to ${newRole} for ${userName}!`);
-                    logAdminActivity(`Updated role of "${userName}" (+91 ${cleanPhoneDigits}) to ${newRole}`);
+                    showToast(`Role updated to ${newRole} for ${resolvedName}!`);
+                    logAdminActivity(`Updated role of "${resolvedName}" (+91 ${cleanPhoneDigits}) to ${newRole}`);
                     loadTeamManagementData(true);
                 } else {
                     showToast(`Failed: ${data.message || 'Error updating role'}`);
@@ -7274,7 +7284,7 @@
             }
         }
 
-        async function blockActiveUser(targetPhone, userName = 'Staff Member') {
+        async function blockActiveUser(targetPhone, userName = '') {
             const cleanPhoneDigits = String(targetPhone).replace(/[^0-9]/g, '').slice(-10);
             const requesterPhone = (currentAdminUser && currentAdminUser.phone) ? currentAdminUser.phone : MASTER_ADMIN_PHONE_NUM;
 
@@ -7293,7 +7303,7 @@
 
             const targetMember = (teamManagementData.team || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits) ||
                                  (teamManagementData.members || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
-
+            const resolvedName = (targetMember && targetMember.fullName) || userName || 'Staff Member';
             const isTargetAdminOrMaster = targetMember && (targetMember.role === 'Admin' || targetMember.role === 'Master Admin' || targetMember.portalOrigin === 'admin');
 
             if (isViewerStandardAdmin && isTargetAdminOrMaster) {
@@ -7303,7 +7313,7 @@
 
             const confirmed = await showAdminConfirmDialog({
                 title: 'Block Active Member',
-                message: `Permanently block active member ${userName} (+91 ${cleanPhoneDigits})?\n\nTheir live session will instantly disconnect across all devices and prevent further access.`,
+                message: `Permanently block active member ${resolvedName} (+91 ${cleanPhoneDigits})?\n\nTheir live session will instantly disconnect across all devices and prevent further access.`,
                 icon: '<i class="fa-solid fa-user-slash" style="color: #ef4444;"></i>',
                 iconBg: 'rgba(239, 68, 68, 0.15)',
                 iconBorder: 'rgba(239, 68, 68, 0.4)',
@@ -7343,8 +7353,8 @@
 
                 const data = await response.json();
                 if (data && data.success) {
-                    showToast(`🚫 Blocked ${userName}. Live session disconnected.`);
-                    logAdminActivity(`Blocked active member "${userName}" (+91 ${cleanPhoneDigits})`);
+                    showToast(`🚫 Blocked ${resolvedName}. Live session disconnected.`);
+                    logAdminActivity(`Blocked active member "${resolvedName}" (+91 ${cleanPhoneDigits})`);
                     loadTeamManagementData(true);
                 } else {
                     showToast(`Failed: ${data.message || 'Error blocking user'}`);
@@ -7355,9 +7365,13 @@
             }
         }
 
-        async function stepDownSelf(targetPhone, userName = 'User') {
+        async function stepDownSelf(targetPhone, userName = '') {
             const cleanPhoneDigits = String(targetPhone).replace(/[^0-9]/g, '').slice(-10);
             const requesterPhone = (currentAdminUser && currentAdminUser.phone) ? currentAdminUser.phone : MASTER_ADMIN_PHONE_NUM;
+
+            const targetMember = (teamManagementData.team || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits) ||
+                                 (teamManagementData.members || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
+            const resolvedName = (targetMember && targetMember.fullName) || userName || 'User';
 
             const confirmed = await showAdminConfirmDialog({
                 title: 'Step Down Role',
@@ -7374,7 +7388,7 @@
             }
 
             // Update role to Admin
-            await updateStaffRole(cleanPhoneDigits, 'Admin', userName);
+            await updateStaffRole(cleanPhoneDigits, 'Admin', resolvedName);
             logAdminActivity(`Stepped down self from Master Admin to standard Admin role`);
         }
 
@@ -7462,7 +7476,7 @@
                         </td>
                         <td style="text-align: right;">
                             ${isStaffOrigin || isViewerMaster ? `
-                                <button type="button" class="btn-outline btn-sm" onclick="unblockUser('${escapeHtml(cleanPhoneNum)}', '${escapeHtml(user.fullName || 'User')}')" style="padding: 6px 14px; border-radius: 8px; border-color: rgba(16, 185, 129, 0.5); color: #10b981; background: rgba(16, 185, 129, 0.1);">
+                                <button type="button" class="btn-outline btn-sm" onclick="unblockUser('${cleanPhoneNum}')" style="padding: 6px 14px; border-radius: 8px; border-color: rgba(16, 185, 129, 0.5); color: #10b981; background: rgba(16, 185, 129, 0.1);">
                                     <i class="fa-solid fa-lock-open"></i> Unblock
                                 </button>
                             ` : `
@@ -7479,7 +7493,7 @@
             container.innerHTML = html;
         }
 
-        async function unblockUser(targetPhone, userName = 'User') {
+        async function unblockUser(targetPhone, userName = '') {
             const cleanPhoneDigits = String(targetPhone).replace(/[^0-9]/g, '').slice(-10);
 
             // Calculate viewer permissions
@@ -7491,7 +7505,7 @@
 
             const targetBlocked = (teamManagementData.blocked || teamManagementData.rejected || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits) ||
                                   (teamManagementData.members || []).find(u => String(u.phone).replace(/[^0-9]/g, '').slice(-10) === cleanPhoneDigits);
-
+            const resolvedName = (targetBlocked && targetBlocked.fullName) || userName || 'User';
             const isTargetAdminTier = targetBlocked && (targetBlocked.role === 'Admin' || targetBlocked.role === 'Master Admin' || targetBlocked.portalOrigin === 'admin');
 
             if (isViewerStandardAdmin && isTargetAdminTier) {
@@ -7501,7 +7515,7 @@
 
             const confirmed = await showAdminConfirmDialog({
                 title: 'Unblock User Record',
-                message: `Unblock and permanently purge record for ${userName} (+91 ${cleanPhoneDigits})?\n\nThey will be cleared from the system and can submit a fresh access request.`,
+                message: `Unblock and permanently purge record for ${resolvedName} (+91 ${cleanPhoneDigits})?\n\nThey will be cleared from the system and can submit a fresh access request.`,
                 icon: '<i class="fa-solid fa-user-check" style="color: #10b981;"></i>',
                 iconBg: 'rgba(16, 185, 129, 0.15)',
                 iconBorder: 'rgba(16, 185, 129, 0.4)',
@@ -7530,8 +7544,8 @@
 
                 const data = await response.json();
                 if (data && data.success) {
-                    showToast(`🔓 User ${userName} (+91 ${cleanPhoneDigits}) has been unblocked and cleared from the system.`);
-                    logAdminActivity(`Unblocked user account for "${userName}" (+91 ${cleanPhoneDigits})`);
+                    showToast(`🔓 User ${resolvedName} (+91 ${cleanPhoneDigits}) has been unblocked and cleared from the system.`);
+                    logAdminActivity(`Unblocked user account for "${resolvedName}" (+91 ${cleanPhoneDigits})`);
                     loadTeamManagementData(true);
                 } else {
                     showToast(`Failed: ${data.message || 'Error unblocking user'}`);
@@ -7995,6 +8009,92 @@
                 checkAdminAuthSession();
             }
         });
+
+        // --------------------------------------------------------------------------
+        // CLEANUP & MEMORY LEAK PREVENTION (PAGE UNMOUNT / REFRESH)
+        // --------------------------------------------------------------------------
+        function cleanupAllAdminListeners() {
+            try {
+                if (typeof activeAdminPendingApprovalListener === 'function') {
+                    activeAdminPendingApprovalListener();
+                    activeAdminPendingApprovalListener = null;
+                }
+                if (activeAdminPendingApprovalPoller) {
+                    clearInterval(activeAdminPendingApprovalPoller);
+                    activeAdminPendingApprovalPoller = null;
+                }
+                if (typeof activeAdminSessionListener === 'function') {
+                    activeAdminSessionListener();
+                    activeAdminSessionListener = null;
+                }
+                if (activeAdminSessionPoller) {
+                    clearInterval(activeAdminSessionPoller);
+                    activeAdminSessionPoller = null;
+                }
+                if (typeof adminOrdersUnsubscribe === 'function') {
+                    adminOrdersUnsubscribe();
+                    adminOrdersUnsubscribe = null;
+                }
+                if (typeof adminMenuUnsubscribe === 'function') {
+                    adminMenuUnsubscribe();
+                    adminMenuUnsubscribe = null;
+                }
+                if (typeof adminSettingsUnsubscribe === 'function') {
+                    adminSettingsUnsubscribe();
+                    adminSettingsUnsubscribe = null;
+                }
+                if (typeof adminTeamUnsubscribe === 'function') {
+                    adminTeamUnsubscribe();
+                    adminTeamUnsubscribe = null;
+                }
+                if (typeof activityLogsRealtimeUnsubscribe === 'function') {
+                    activityLogsRealtimeUnsubscribe();
+                    activityLogsRealtimeUnsubscribe = null;
+                }
+            } catch (e) {
+                console.warn('Error during admin listener cleanup:', e);
+            }
+        }
+
+        window.addEventListener('beforeunload', cleanupAllAdminListeners);
+        window.addEventListener('pagehide', cleanupAllAdminListeners);
+
+        // Global Error & Promise Rejection Safety Boundaries
+        window.addEventListener('unhandledrejection', (event) => {
+            console.warn('🛡️ [Admin Dashboard] Unhandled Promise Rejection intercepted:', event.reason);
+            if (event.reason && (event.reason.message?.includes('Failed to fetch') || event.reason.message?.includes('NetworkError') || event.reason.name === 'AbortError')) {
+                event.preventDefault();
+            }
+        });
+
+        window.addEventListener('error', (event) => {
+            console.warn('🛡️ [Admin Dashboard] Runtime Error intercepted:', event.message);
+        });
+
+        // Explicit Global Window Attachments
+        window.approvePendingUser = approvePendingUser;
+        window.blockPendingUser = blockPendingUser;
+        window.updateStaffRole = updateStaffRole;
+        window.blockActiveUser = blockActiveUser;
+        window.stepDownSelf = stepDownSelf;
+        window.unblockUser = unblockUser;
+        window.handleAdminSendOtp = handleAdminSendOtp;
+        window.handleAdminVerifyOtp = handleAdminVerifyOtp;
+        window.handleAdminChangePhone = handleAdminChangePhone;
+        window.handleAdminResetToPhone = handleAdminResetToPhone;
+        window.handleAdminConfirmResolve = handleAdminConfirmResolve;
+        window.handleAdminLogout = handleAdminLogout;
+        window.switchTab = switchTab;
+        window.toggleShopStatus = toggleShopStatus;
+        window.saveAllChanges = saveAllChanges;
+        window.toggleMasterDeliveryOtpVisibility = toggleMasterDeliveryOtpVisibility;
+        window.toggleAdminLocationMap = toggleAdminLocationMap;
+        window.stepDeliveryRadius = stepDeliveryRadius;
+        window.clearGlobalSearch = clearGlobalSearch;
+        window.showCategoryStep1 = showCategoryStep1;
+        window.openCategoryItemsStep2 = openCategoryItemsStep2;
+        window.clearAllActivityLogs = clearAllActivityLogs;
+        window.cleanupAllAdminListeners = cleanupAllAdminListeners;
     </script>
 </body>
 

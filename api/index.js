@@ -131,8 +131,8 @@ app.use((req, res, next) => {
 // 1. Menu API: /api/menu, /menu
 app.all(['/api/menu', '/menu'], (req, res) => handleMenuRequest(req, res));
 
-// 2. Orders API: /api/orders, /orders, /api/orders/*, /orders/*
-app.all(['/api/orders', '/orders', '/api/orders/*', '/orders/*'], (req, res) => handleOrdersRequest(req, res));
+// 2. Orders API: /api/orders, /orders, /api/orders/:id, /orders/:id
+app.all(['/api/orders', '/orders', '/api/orders/:id', '/orders/:id'], (req, res) => handleOrdersRequest(req, res));
 
 // 3. Customer Users API: /api/users, /users
 app.all(['/api/users', '/users'], (req, res) => handleUsersRequest(req, res));
