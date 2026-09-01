@@ -425,12 +425,15 @@ function switchTab(tabName, forceRootHome = false, isPopState = false) {
 // --------------------------------------------------------------------------
 const categorySubItems = {
     "Burger": [
-        { name: "Classic Crispy Burger", desc: "Crispy patty with fresh lettuce, tomato & mayo", price: 149.00, tag: "Bestseller" },
-        { name: "Double Cheese Delite", desc: "Melted cheddar cheese with double patty", price: 189.00, tag: "Popular" },
-        { name: "Spicy Jalapeño Burger", desc: "Fiery jalapeño sauce & crispy onion rings", price: 169.00, tag: "Spicy 🌶️" },
-        { name: "Smokey BBQ Bacon Burger", desc: "Smokey BBQ sauce with premium bacon strips", price: 219.00, tag: "Chef Special" },
-        { name: "Veggie Supreme Burger", desc: "Plant-based patty with fresh garden veggies", price: 139.00, tag: "Veg 🥗" },
-        { name: "Monster Double Stack", desc: "Loaded double patty with signature house dressing", price: 249.00, tag: "Large" }
+        { id: "bgr-acharri", name: "Acharri Burger", price: 99.00, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-aloo-patty", name: "Aloo Patty Burger", price: 99.00, img: "https://i.ibb.co/Df2JH9fb/Aloo-Patty-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-cheese-spicy", name: "Cheese Spicy", price: 99.00, img: "https://i.ibb.co/WvX6jhYM/Cheese-Spicy.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-cheesy", name: "Cheesy Burger", price: 99.00, img: "https://i.ibb.co/v6vK86T1/Cheesy-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-crispy-paneer", name: "Crispy Paneer", price: 99.00, img: "https://i.ibb.co/DD26cbg3/Crispy-Paneer.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-peri-peri", name: "Peri Peri Burger", price: 99.00, img: "https://i.ibb.co/xqST9xJT/Peri-Peri-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-special", name: "Special Burger", price: 99.00, img: "https://i.ibb.co/CKF4Vqw0/Special-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-tandoori", name: "Tandoori Burger", price: 99.00, img: "https://i.ibb.co/kVsYKYhJ/Tandoori-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-veggie", name: "Veggie Burger", price: 99.00, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", category: "Burger", available: true, isMultiSize: false }
     ],
     "Pizza": [
         {
@@ -584,13 +587,39 @@ const categorySubItems = {
 
 const MENU_STORAGE_KEY = 'menuData';
 
+const NEW_BURGER_MENU_ITEMS = [
+    { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", desc: "" },
+    { id: "bgr-aloo-patty", name: "Aloo Patty Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Df2JH9fb/Aloo-Patty-Burger.jpg", desc: "" },
+    { id: "bgr-cheese-spicy", name: "Cheese Spicy", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WvX6jhYM/Cheese-Spicy.jpg", desc: "" },
+    { id: "bgr-cheesy", name: "Cheesy Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/v6vK86T1/Cheesy-Burger.jpg", desc: "" },
+    { id: "bgr-crispy-paneer", name: "Crispy Paneer", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/DD26cbg3/Crispy-Paneer.jpg", desc: "" },
+    { id: "bgr-peri-peri", name: "Peri Peri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/xqST9xJT/Peri-Peri-Burger.jpg", desc: "" },
+    { id: "bgr-special", name: "Special Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/CKF4Vqw0/Special-Burger.jpg", desc: "" },
+    { id: "bgr-tandoori", name: "Tandoori Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/kVsYKYhJ/Tandoori-Burger.jpg", desc: "" },
+    { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" }
+];
+
+function sanitizeStoredMenuItems(items) {
+    if (!Array.isArray(items)) return null;
+    const hasOldBurgers = items.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || i.id === 'bgr-2' || i.id === 'bgr-3' || i.id === 'bgr-4' || i.id === 'bgr-5' || i.id === 'bgr-6' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
+    if (hasOldBurgers) {
+        const nonBurgers = items.filter(i => i.category !== 'Burger');
+        const updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
+        try {
+            localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+    }
+    return items;
+}
+
 function getStoredMenuItems() {
     try {
         const stored = localStorage.getItem(MENU_STORAGE_KEY);
         if (stored) {
             const parsed = JSON.parse(stored);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
+                return sanitizeStoredMenuItems(parsed);
             }
         }
     } catch (e) {
@@ -732,8 +761,35 @@ function refreshActiveCustomerView(freshItems) {
                     </div>
                     `;
                 }).join('');
+            } else if (categoryName === "Burger") {
+                subItemsGrid.className = 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="burger-card ${outOfStockClass}" data-burger-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
+                        ${outOfStockBadge}
+                        <div class="burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="burger-card-img" loading="lazy">
+                        </div>
+                        <div class="burger-card-body">
+                            <h4 class="burger-card-title">${item.name}</h4>
+                            <div class="burger-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="burger-card-price">${formatPrice(item.price || 99)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
             } else {
-                subItemsGrid.classList.remove('pizza-grid-container');
+                subItemsGrid.className = 'sub-items-grid';
                 subItemsGrid.innerHTML = items.map(item => {
                     const isAvailable = item.available !== false;
                     const outOfStockClass = isAvailable ? '' : 'out-of-stock';
@@ -781,7 +837,7 @@ async function fetchLiveMenuFromBackend() {
         const res = await fetch(resolveApiUrl('/api/menu'));
         const data = await res.json();
         if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
-            const freshItems = data.items;
+            const freshItems = sanitizeStoredMenuItems(data.items) || data.items;
             const newHash = computeMenuHash(freshItems);
             const stored = getStoredMenuItems();
             const oldHash = computeMenuHash(stored || []);
@@ -1085,6 +1141,33 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <div class="pizza-price-row">
                             <span class="price-prefix">Price:</span>
                             <span class="pizza-card-price" id="price-${item.id}">${formatPrice(prices.M)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Burger") {
+            subItemsGrid.className = 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const addBtnMarkup = isAvailable
+                    ? `<button class="burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="burger-card ${outOfStockClass}" data-burger-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
+                    ${outOfStockBadge}
+                    <div class="burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="burger-card-img" loading="lazy">
+                    </div>
+                    <div class="burger-card-body">
+                        <h4 class="burger-card-title">${item.name}</h4>
+                        <div class="burger-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="burger-card-price">${formatPrice(item.price || 99)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -4902,7 +4985,7 @@ function listenToRealtimeMenuAndRates() {
         try {
             menuRealtimeUnsubscribe = customerFirestore.collection('settings').doc('menu').onSnapshot((doc) => {
                 if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
-                    const freshItems = doc.data().items;
+                    const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
                     try {
                         localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
                     } catch (e) { }

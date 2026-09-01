@@ -55,9 +55,14 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 4. STORE SETTINGS & CONFIGURATION
-    // - Includes: 'storeSettings' (open/closed status, operating hours, delivery radius,
-    //   free delivery limits, master delivery OTP), and 'menu' cached schema.
+    // 4. STORE SETTINGS & CONFIGURATION (DAILY BANNERS, STORE SETTINGS, MENU)
+    // - Includes:
+    //   * 'settings/daily_banners' (Dynamic homepage carousel banners, min 2, max 7)
+    //   * 'settings/storeSettings' (Open/closed status, operating hours, delivery radius,
+    //     free delivery limits, master delivery OTP, zone charges, customer care)
+    //   * 'settings/menu' (Combined cached menu document for single-listener efficiency)
+    // - Public / Customer: Full read access for dynamic hero banners and real-time store state.
+    // - Admin: Write / update access for dashboard management.
     // =========================================================================
     match /settings/{settingDoc} {
       allow read: if true;
@@ -70,9 +75,18 @@ service cloud.firestore {
 
     // =========================================================================
     // 5. TEAM & STAFF ACCESS MANAGEMENT
-    // - Handles staff phone registration, access requests, approvals, and role updates.
+    // - Handles admin/staff phone registration, access requests, approvals, and role updates.
     // =========================================================================
     match /team/{phone} {
+      allow read: if true;
+      allow write: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    match /staff_users/{phone} {
       allow read: if true;
       allow write: if true;
 
@@ -96,7 +110,7 @@ service cloud.firestore {
 
     // =========================================================================
     // 7. ACTIVITY & AUDIT LOGS
-    // - Real-time audit trail of administrative actions, role changes, and OTP usages.
+    // - Real-time audit trail of administrative actions, role changes, banner updates, and OTP usages.
     // =========================================================================
     match /activity_logs/{logId} {
       allow read: if true;

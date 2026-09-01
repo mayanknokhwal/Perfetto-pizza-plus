@@ -1827,6 +1827,150 @@ body.shop-closed .checkout-btn {
 }
 
 /* --------------------------------------------------------------------------
+   13B. DYNAMIC BURGER CARD 2-COLUMN GRID STYLES
+   -------------------------------------------------------------------------- */
+.sub-items-grid.burger-grid-container,
+.burger-grid-container {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+    align-items: stretch;
+}
+
+@media (max-width: 360px) {
+    .sub-items-grid.burger-grid-container,
+    .burger-grid-container {
+        gap: 8px !important;
+    }
+}
+
+.burger-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    height: 100%;
+}
+
+.burger-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+    border-color: var(--border-hover);
+}
+
+/* 1. Burger Top Banner Image */
+.burger-card-image-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    min-height: 120px;
+    max-height: 160px;
+    background: radial-gradient(circle at center, var(--primary-light) 0%, transparent 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 17px 17px 0 0;
+}
+
+.burger-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.burger-card:hover .burger-card-img {
+    transform: scale(1.08);
+}
+
+/* 2. Burger Card Body */
+.burger-card-body {
+    padding: 10px 10px 8px 10px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.burger-card-title {
+    font-size: 0.90rem;
+    font-weight: var(--fw-black);
+    color: var(--text-main);
+    line-height: 1.25;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-heading);
+}
+
+/* 3. Burger Price Row */
+.burger-price-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+.burger-card-price {
+    font-size: 1.05rem;
+    font-weight: var(--fw-black);
+    color: var(--primary-orange);
+    font-family: var(--font-heading);
+    display: inline-block;
+}
+
+/* 4. Fixed ADD TO CART Button */
+.burger-add-cart-btn {
+    width: 100%;
+    min-height: 38px;
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+    color: #ffffff;
+    padding: 8px;
+    border: none;
+    border-radius: 0 0 17px 17px;
+    font-size: 0.78rem;
+    font-weight: var(--fw-black);
+    font-family: var(--font-heading);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    margin-top: auto;
+    touch-action: manipulation;
+}
+
+.burger-add-cart-btn:hover {
+    background: linear-gradient(135deg, #e55e00 0%, #e02446 100%);
+}
+
+.burger-add-cart-btn:active {
+    transform: scale(0.98);
+}
+
+.burger-add-cart-btn.disabled,
+.burger-add-cart-btn:disabled {
+    background: var(--bg-input) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
    14. SMART DAILY OFFER SLIDER
    -------------------------------------------------------------------------- */
 .daily-offer-section {

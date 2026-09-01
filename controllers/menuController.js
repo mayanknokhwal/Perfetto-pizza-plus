@@ -27,13 +27,16 @@ const DEFAULT_MENU_ITEMS = [
     { id: "green-veggie", name: "Green Veggie", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/XxKxtwM1/Green-Veggie.png", desc: "Onion, Capsicum, Tomato" },
     { id: "harissa-pizza", name: "Harissa Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/rRsTTg0y/Harissa-Pizza.png", desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce" },
 
-    // 2. BURGERS
-    { id: "bgr-1", name: "Classic Crispy Burger", category: "Burger", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Crispy patty with fresh lettuce, tomato & mayo" },
-    { id: "bgr-2", name: "Double Cheese Delite", category: "Burger", isMultiSize: false, price: 189, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Melted cheddar cheese with double patty" },
-    { id: "bgr-3", name: "Spicy Jalapeño Burger", category: "Burger", isMultiSize: false, price: 169, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Fiery jalapeño sauce & crispy onion rings" },
-    { id: "bgr-4", name: "Smokey BBQ Bacon Burger", category: "Burger", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Smokey BBQ sauce with premium bacon strips" },
-    { id: "bgr-5", name: "Veggie Supreme Burger", category: "Burger", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Plant-based patty with fresh garden veggies" },
-    { id: "bgr-6", name: "Monster Double Stack", category: "Burger", isMultiSize: false, price: 249, available: true, img: "https://i.ibb.co/jZDq51b6/burger.png", desc: "Loaded double patty with signature house dressing" },
+    // 2. BURGERS (9 Single-Variant Direct Burgers)
+    { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", desc: "" },
+    { id: "bgr-aloo-patty", name: "Aloo Patty Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Df2JH9fb/Aloo-Patty-Burger.jpg", desc: "" },
+    { id: "bgr-cheese-spicy", name: "Cheese Spicy", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WvX6jhYM/Cheese-Spicy.jpg", desc: "" },
+    { id: "bgr-cheesy", name: "Cheesy Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/v6vK86T1/Cheesy-Burger.jpg", desc: "" },
+    { id: "bgr-crispy-paneer", name: "Crispy Paneer", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/DD26cbg3/Crispy-Paneer.jpg", desc: "" },
+    { id: "bgr-peri-peri", name: "Peri Peri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/xqST9xJT/Peri-Peri-Burger.jpg", desc: "" },
+    { id: "bgr-special", name: "Special Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/CKF4Vqw0/Special-Burger.jpg", desc: "" },
+    { id: "bgr-tandoori", name: "Tandoori Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/kVsYKYhJ/Tandoori-Burger.jpg", desc: "" },
+    { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" },
 
     // 3. BREAD & SIDES
     { id: "brd-1", name: "Garlic Butter Breadsticks", category: "Bread", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Warm oven-baked breadsticks with garlic butter" },
