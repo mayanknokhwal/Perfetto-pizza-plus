@@ -808,7 +808,7 @@ async function fetchLiveSettingsFromBackend() {
             if (s.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(s.minOrderValue));
             if (s.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(s.freeDeliveryLimit));
             if (s.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(s.customerCarePhone));
-            if (s.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(s.customerCareEnabled));
+            if (s.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
             if (s.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(s.restaurantLat));
             if (s.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(s.restaurantLng));
             if (s.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(s.deliveryRadius));
@@ -829,6 +829,56 @@ async function fetchLiveSettingsFromBackend() {
     } catch (err) {
         // Graceful offline fallback
     }
+
+    // Also fetch dynamic daily banners
+    fetchLiveBannersFromBackend();
+}
+
+async function fetchLiveBannersFromBackend() {
+    if (typeof customerFirestore !== 'undefined' && customerFirestore) {
+        try {
+            const doc = await customerFirestore.collection('settings').doc('daily_banners').get();
+            if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
+                const normalized = doc.data().banners.map((b, i) => ({
+                    id: b.id || `b${i + 1}`,
+                    url: resolveBannerUrl(b.url)
+                })).slice(0, 7);
+                localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
+                renderDynamicOfferSlider(normalized);
+                return;
+            }
+        } catch (e) {
+            console.warn('Direct Firestore daily banners fetch notice:', e.message);
+        }
+    }
+
+    try {
+        const res = await fetch(resolveApiUrl('/api/banners'));
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && Array.isArray(data.banners) && data.banners.length >= 2) {
+                const normalized = data.banners.map((b, i) => ({
+                    id: b.id || `b${i + 1}`,
+                    url: resolveBannerUrl(b.url)
+                })).slice(0, 7);
+                localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
+                renderDynamicOfferSlider(normalized);
+                return;
+            }
+        }
+    } catch (e) { }
+
+    const local = localStorage.getItem('perfetto_daily_banners');
+    if (local) {
+        try {
+            const parsed = JSON.parse(local);
+            if (Array.isArray(parsed) && parsed.length >= 2) {
+                renderDynamicOfferSlider(parsed);
+                return;
+            }
+        } catch (e) { }
+    }
+    renderDynamicOfferSlider(DEFAULT_DAILY_BANNERS);
 }
 
 // Check if any items currently in customer's cart are marked unavailable in the latest menu
@@ -3892,23 +3942,106 @@ function showToast(msg) {
 }
 
 // --------------------------------------------------------------------------
-// 8. SMART DAILY OFFER SLIDER (SEAMLESS INFINITE AUTO-SCROLL LOOP & SWIPE)
 // --------------------------------------------------------------------------
+// 8. DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (SEAMLESS AUTO-CAROUSEL)
+// --------------------------------------------------------------------------
+const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+const DEFAULT_DAILY_BANNERS = [
+    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png' },
+    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png' },
+    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png' }
+];
+
+window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
+window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
+
+function resolveBannerUrl(url) {
+    if (!url || typeof url !== 'string') return DEFAULT_FALLBACK_BANNER_LOGO;
+    const trimmed = url.trim();
+    if (!trimmed || trimmed.length < 4) return DEFAULT_FALLBACK_BANNER_LOGO;
+    return trimmed;
+}
+window.resolveBannerUrl = resolveBannerUrl;
+
+function handleBannerImgError(imgEl) {
+    if (!imgEl) return;
+    if (imgEl.src !== DEFAULT_FALLBACK_BANNER_LOGO) {
+        imgEl.src = DEFAULT_FALLBACK_BANNER_LOGO;
+    }
+}
+window.handleBannerImgError = handleBannerImgError;
+
+let offerSliderAutoScrollInterval = null;
+let offerSliderPauseTimeout = null;
+
+function renderDynamicOfferSlider(customBanners = null) {
+    let banners = customBanners;
+    if (!Array.isArray(banners) || banners.length < 2) {
+        try {
+            const saved = localStorage.getItem('perfetto_daily_banners');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length >= 2) {
+                    banners = parsed;
+                }
+            }
+        } catch (e) { }
+    }
+    if (!Array.isArray(banners) || banners.length < 2) {
+        banners = DEFAULT_DAILY_BANNERS;
+    }
+    if (banners.length > 7) banners = banners.slice(0, 7);
+
+    const track = document.getElementById('offer-slider-track');
+    const dotsContainer = document.getElementById('offer-dots');
+    if (!track || !dotsContainer) return;
+
+    // Render track slides
+    let slidesHtml = '';
+    banners.forEach((banner, idx) => {
+        const safeUrl = resolveBannerUrl(banner.url);
+        slidesHtml += `
+            <div class="offer-slide" data-banner-id="${banner.id || ('b' + (idx + 1))}">
+                <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
+            </div>
+        `;
+    });
+    track.innerHTML = slidesHtml;
+
+    // Render dots
+    let dotsHtml = '';
+    banners.forEach((_, idx) => {
+        dotsHtml += `<span class="dot ${idx === 0 ? 'active' : ''}" data-index="${idx}"></span>`;
+    });
+    dotsContainer.innerHTML = dotsHtml;
+
+    initOfferSlider();
+}
+window.renderDynamicOfferSlider = renderDynamicOfferSlider;
+
 function initOfferSlider() {
     const wrapper = document.getElementById('offer-slider-wrapper');
     const track = document.getElementById('offer-slider-track');
     const dotsContainer = document.getElementById('offer-dots');
     if (!wrapper || !track || !dotsContainer) return;
 
+    if (offerSliderAutoScrollInterval) {
+        clearInterval(offerSliderAutoScrollInterval);
+        offerSliderAutoScrollInterval = null;
+    }
+    if (offerSliderPauseTimeout) {
+        clearTimeout(offerSliderPauseTimeout);
+        offerSliderPauseTimeout = null;
+    }
+
     // Get original slides
-    const origSlides = Array.from(track.querySelectorAll('.offer-slide'));
+    const origSlides = Array.from(track.querySelectorAll('.offer-slide:not(.clone-slide)'));
     const totalRealSlides = origSlides.length;
     if (totalRealSlides <= 1) return;
 
     const dots = dotsContainer.querySelectorAll('.dot');
 
     // Clone first and last slides for seamless infinite loop transition
-    // Remove any previously appended clones if reinitialized
     track.querySelectorAll('.clone-slide').forEach(c => c.remove());
 
     const firstClone = origSlides[0].cloneNode(true);
@@ -3930,8 +4063,6 @@ function initOfferSlider() {
 
     let currentPos = 1; // Start at first original slide
     let isTransitioning = false;
-    let autoScrollInterval = null;
-    let pauseTimeout = null;
 
     function setPosition(pos, animated = true) {
         if (animated) {
@@ -3980,50 +4111,48 @@ function initOfferSlider() {
     }
 
     // Seamless loop reset on transitionend
-    track.addEventListener('transitionend', () => {
+    track.ontransitionend = () => {
         isTransitioning = false;
         if (currentPos >= totalWithClones - 1) {
-            // Reached clone of first slide -> Jump instantly to real first slide
             currentPos = 1;
             setPosition(currentPos, false);
             updateDots(0);
         } else if (currentPos <= 0) {
-            // Reached clone of last slide -> Jump instantly to real last slide
             currentPos = totalRealSlides;
             setPosition(currentPos, false);
             updateDots(totalRealSlides - 1);
         }
-    });
+    };
 
     function startAutoScroll() {
         stopAutoScroll();
-        autoScrollInterval = setInterval(nextSlide, 3200);
+        offerSliderAutoScrollInterval = setInterval(nextSlide, 3200);
     }
 
     function stopAutoScroll() {
-        if (autoScrollInterval) {
-            clearInterval(autoScrollInterval);
-            autoScrollInterval = null;
+        if (offerSliderAutoScrollInterval) {
+            clearInterval(offerSliderAutoScrollInterval);
+            offerSliderAutoScrollInterval = null;
         }
     }
 
     function handleUserInteraction() {
         stopAutoScroll();
-        if (pauseTimeout) clearTimeout(pauseTimeout);
-        pauseTimeout = setTimeout(() => {
+        if (offerSliderPauseTimeout) clearTimeout(offerSliderPauseTimeout);
+        offerSliderPauseTimeout = setTimeout(() => {
             startAutoScroll();
         }, 5000);
     }
 
     // Dot click navigation
     dots.forEach((dot, idx) => {
-        dot.addEventListener('click', () => {
+        dot.onclick = () => {
             if (isTransitioning) return;
             currentPos = idx + 1;
             setPosition(currentPos, true);
             updateDots(idx);
             handleUserInteraction();
-        });
+        };
     });
 
     // Touch gestures
@@ -4869,6 +4998,27 @@ function listenToRealtimeMenuAndRates() {
             console.warn('Error setting up settings real-time listener:', e);
         }
     }
+
+    // B.2 Real-Time Daily Banners Sync ('settings/daily_banners')
+    if (!bannersRealtimeUnsubscribe && customerFirestore) {
+        try {
+            bannersRealtimeUnsubscribe = customerFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
+                let banners = DEFAULT_DAILY_BANNERS;
+                if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
+                    banners = doc.data().banners.map((b, i) => ({
+                        id: b.id || `b${i + 1}`,
+                        url: resolveBannerUrl(b.url)
+                    })).slice(0, 7);
+                }
+                localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));
+                renderDynamicOfferSlider(banners);
+            }, (err) => {
+                console.warn('Firestore daily banners real-time notice:', err.message);
+            });
+        } catch (e) {
+            console.warn('Error setting up daily banners real-time listener:', e);
+        }
+    }
 }
 
 // C. Real-Time Listener for Customer Active Placed Orders
@@ -5077,7 +5227,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     setupFastFoodCards();
     updateCartUI();
-    initOfferSlider();
+    renderDynamicOfferSlider();
     initLogoModal();
     initEditProfileModal();
     initClearHistoryModal();

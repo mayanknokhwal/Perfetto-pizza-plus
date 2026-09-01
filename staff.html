@@ -55,6 +55,16 @@
 <body>
 
     <!-- ==========================================================================
+         INITIAL AUTH SPLASH / NEUTRAL LOADER (PREVENTS FLASHING ON RELOAD)
+         ========================================================================== -->
+    <div id="staff-auth-splash" class="staff-auth-splash" aria-label="Loading Staff Portal">
+        <div class="staff-splash-spinner-box">
+            <div class="staff-splash-spinner"></div>
+            <div class="staff-splash-text">Verifying Staff Access...</div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
          STAFF MOBILE PHONE OTP LOGIN MODAL & ACCESS APPROVAL OVERLAY
          ========================================================================== -->
     <div id="staff-login-overlay" class="staff-login-overlay" style="display: none; opacity: 0; visibility: hidden;">
@@ -235,18 +245,20 @@
     </div>
 
     <!-- APP CONTAINER (Mobile Frame Max Width centered on desktop) -->
-    <div class="staff-app">
+    <div class="staff-app" id="staff-app-root" style="display: none !important;">
 
         <!-- ========================================================== -->
         <!-- STAFF DASHBOARD -->
         <!-- ========================================================== -->
-        <div id="staff-dashboard-view" class="staff-dashboard-view">
+        <div id="staff-dashboard-view" class="staff-dashboard-view" style="display: none !important;">
 
             <!-- HEADER BAR -->
             <header class="staff-header">
                 <div class="header-top">
                     <div class="brand-info">
-                        <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-logo">
+                        <div class="staff-logo-wrapper">
+                            <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-logo">
+                        </div>
                         <div>
                             <h2 class="brand-title">Perfetto Pizza</h2>
                             <div class="brand-tag">Staff Portal</div>

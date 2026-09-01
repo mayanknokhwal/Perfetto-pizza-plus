@@ -4,8 +4,13 @@
  * Handles GET, PUT, PATCH for shop status, delivery radius, min order, free delivery, zone charges, customer care
  */
 
-const { DEFAULT_SETTINGS } = require('../lib/globalStores');
+const { DEFAULT_SETTINGS, DEFAULT_DAILY_BANNERS, DEFAULT_FALLBACK_BANNER_LOGO } = require('../lib/globalStores');
 const { FIREBASE_CONFIG, getFirestoreDoc, setFirestoreDoc } = require('../lib/firestore');
+const {
+    fetchDailyBannersFromFirestore,
+    saveDailyBannersToFirestore,
+    validateAndNormalizeBanners
+} = require('../lib/bannerService');
 
 async function fetchLiveSettingsFromFirestore() {
     try {
@@ -79,7 +84,54 @@ async function handleSettingsRequest(req, res) {
     }
 }
 
+/**
+ * Handles /api/banners requests (GET, PUT, POST)
+ * Document: settings/daily_banners
+ */
+async function handleBannersRequest(req, res) {
+    try {
+        if (req.method === 'GET') {
+            const banners = await fetchDailyBannersFromFirestore();
+            return res.status(200).json({
+                success: true,
+                banners: banners,
+                count: banners.length,
+                fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
+            });
+        }
+
+        if (req.method === 'PUT' || req.method === 'POST' || req.method === 'PATCH') {
+            let body = req.body;
+            if (typeof body === 'string') {
+                try { body = JSON.parse(body); } catch (e) { body = {}; }
+            }
+
+            const rawBanners = Array.isArray(body) ? body : (body.banners || []);
+            const result = await saveDailyBannersToFirestore(rawBanners);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                banners: result.banners,
+                count: result.banners.length
+            });
+        }
+
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    } catch (error) {
+        console.error('Error in handleBannersRequest:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal Server Error',
+        });
+    }
+}
+
 module.exports = {
     handleSettingsRequest,
+    handleBannersRequest,
     DEFAULT_SETTINGS,
+    DEFAULT_DAILY_BANNERS,
+    DEFAULT_FALLBACK_BANNER_LOGO,
 };
+

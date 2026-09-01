@@ -173,18 +173,35 @@
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 100%);
         }
 
-        .brand-logo-img {
-            width: 42px;
-            height: 42px;
+        .brand-logo-wrapper {
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            min-height: 44px;
             border-radius: 50%;
-            object-fit: cover;
+            overflow: hidden;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             border: 2px solid var(--primary-orange);
             box-shadow: 0 0 16px var(--primary-glow);
+            background: #0f172a;
+            box-sizing: border-box;
+        }
+
+        .brand-logo-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            display: block;
             transition: transform 0.3s ease;
         }
 
+        .brand-logo-wrapper:hover .brand-logo-img,
         .brand-logo-img:hover {
-            transform: rotate(15deg) scale(1.05);
+            transform: rotate(15deg) scale(1.08);
         }
 
         .brand-title {
@@ -268,6 +285,63 @@
 
         .sidebar-menu a.nav-link.active i {
             color: #ffffff;
+        }
+
+        .admin-wrapper {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .admin-auth-splash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--bg-body, #0a0f1d);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            transition: opacity 0.25s ease, visibility 0.25s ease;
+        }
+
+        .admin-auth-splash.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .admin-splash-spinner-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .admin-splash-spinner {
+            width: 44px;
+            height: 44px;
+            border: 3px solid rgba(255, 107, 0, 0.2);
+            border-top-color: var(--primary-orange, #ff6b00);
+            border-radius: 50%;
+            animation: adminSplashSpinner 0.8s linear infinite;
+            box-shadow: 0 0 18px rgba(255, 107, 0, 0.3);
+        }
+
+        .admin-splash-text {
+            font-family: var(--font-heading, 'Outfit', sans-serif);
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #94a3b8;
+            letter-spacing: 0.03em;
+        }
+
+        @keyframes adminSplashSpinner {
+            to { transform: rotate(360deg); }
         }
 
         /* --------------------------------------------------------------------------
@@ -1401,10 +1475,215 @@
             box-shadow: 0 6px 18px var(--primary-glow);
         }
 
-        .btn-toggle-location-map.active {
-            background: var(--primary-orange);
-            color: #ffffff;
-            box-shadow: 0 4px 14px var(--primary-glow);
+        /* --------------------------------------------------------------------------
+           9.1 DAILY BANNERS MANAGEMENT SYSTEM (MIN 2, MAX 7)
+           -------------------------------------------------------------------------- */
+        .daily-banners-management-card {
+            margin-top: 28px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            padding: 28px 32px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .banner-count-badge {
+            background: rgba(255, 107, 0, 0.15);
+            color: var(--primary-orange);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            margin-left: 8px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .daily-banners-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 18px;
+        }
+
+        .banner-row-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-lg);
+            padding: 12px 18px;
+            transition: all 0.22s ease;
+        }
+
+        .banner-row-item:hover {
+            background: rgba(255, 255, 255, 0.045);
+            border-color: rgba(255, 107, 0, 0.35);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .banner-num-pill {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: var(--primary-orange);
+            background: rgba(255, 107, 0, 0.1);
+            border: 1px solid rgba(255, 107, 0, 0.2);
+            padding: 4px 10px;
+            border-radius: 6px;
+            min-width: 38px;
+            text-align: center;
+            display: inline-block;
+        }
+
+        .banner-thumbnail-box {
+            width: 100px;
+            height: 56px;
+            min-width: 100px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .banner-thumbnail-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.25s ease;
+        }
+
+        .banner-thumbnail-box:hover .banner-thumbnail-img {
+            transform: scale(1.05);
+        }
+
+        .banner-input-wrapper {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .banner-input-wrapper .search-box {
+            position: relative;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .banner-input-wrapper .search-box i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--primary-orange);
+            font-size: 0.95rem;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .banner-input-wrapper .banner-url-input {
+            width: 100%;
+            padding: 10px 14px 10px 42px;
+            background-color: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-family: var(--font-body);
+            outline: none;
+            transition: var(--transition-smooth);
+            box-sizing: border-box;
+        }
+
+        .banner-input-wrapper .banner-url-input:focus {
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 3px var(--primary-glow-subtle);
+            background-color: rgba(15, 23, 42, 0.95);
+        }
+
+        .btn-delete-banner {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #ef4444;
+            border-radius: var(--radius-md);
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.95rem;
+        }
+
+        .btn-delete-banner:not([disabled]):hover {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+            transform: translateY(-1px);
+        }
+
+        .btn-delete-banner[disabled] {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .btn-add-banner {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            color: var(--text-main);
+            transition: all 0.2s ease;
+        }
+
+        .btn-add-banner:not([disabled]):hover {
+            background: rgba(255, 107, 0, 0.1);
+            border-color: var(--primary-orange);
+            color: var(--primary-orange);
+            transform: translateY(-1px);
+        }
+
+        .btn-add-banner[disabled] {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+            border-style: solid;
+        }
+
+        .btn-save-daily-banners {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            padding: 10px 22px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, #ff6b00 0%, #ea580c 100%);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.35);
+            transition: all 0.2s ease;
+        }
+
+        .btn-save-daily-banners:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(255, 107, 0, 0.45);
         }
 
         /* --------------------------------------------------------------------------
@@ -1729,16 +2008,18 @@
         }
 
         .login-logo-ring {
-            width: 88px;
-            height: 88px;
+            width: 80px;
+            height: 80px;
             margin: 0 auto 16px;
             border-radius: 50%;
+            overflow: hidden;
+            aspect-ratio: 1 / 1;
             background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 107, 0, 0.18) 55%, rgba(13, 20, 36, 0.95) 100%);
             border: 2px solid rgba(255, 107, 0, 0.5);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 8px;
+            padding: 0;
             box-shadow: 0 0 32px rgba(255, 107, 0, 0.32), inset 0 0 16px rgba(255, 107, 0, 0.18);
             animation: adminLogoFloat 4s ease-in-out infinite;
             position: relative;
@@ -1753,9 +2034,8 @@
         .login-brand-logo {
             width: 100%;
             height: 100%;
-            max-width: 62px;
-            max-height: 62px;
-            object-fit: contain;
+            object-fit: cover;
+            border-radius: 50%;
             filter: drop-shadow(0 0 10px rgba(255, 107, 0, 0.4)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.7));
             display: block;
             user-select: none;
@@ -2361,6 +2641,16 @@
 <body>
 
     <!-- ==========================================================================
+         INITIAL AUTH SPLASH / NEUTRAL LOADER (PREVENTS FLASHING ON RELOAD)
+         ========================================================================== -->
+    <div id="admin-auth-splash" class="admin-auth-splash" aria-label="Loading Admin Dashboard">
+        <div class="admin-splash-spinner-box">
+            <div class="admin-splash-spinner"></div>
+            <div class="admin-splash-text">Verifying Admin Authorization...</div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
          ADMIN MOBILE PHONE OTP LOGIN MODAL & LOCK SCREEN OVERLAY
          ========================================================================== -->
     <div id="admin-login-overlay" class="admin-login-overlay" style="display: none; opacity: 0; visibility: hidden;">
@@ -2545,14 +2835,19 @@
         </div>
     </div>
 
-    <aside class="admin-sidebar">
-        <div class="sidebar-brand">
-            <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="brand-logo-img">
-            <div>
-                <span class="brand-title">Perfetto</span>
-                <span class="brand-subtitle">Admin Panel</span>
+    <!-- 1. ADMIN MAIN DASHBOARD ROOT (HIDDEN BY DEFAULT TO PREVENT FLASHING) -->
+    <div id="admin-main-dashboard" class="admin-wrapper" style="display: none !important;">
+
+        <aside class="admin-sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-logo-wrapper">
+                    <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="brand-logo-img">
+                </div>
+                <div>
+                    <span class="brand-title">Perfetto</span>
+                    <span class="brand-subtitle">Admin Panel</span>
+                </div>
             </div>
-        </div>
 
         <ul class="sidebar-menu">
             <div class="menu-section-label">Main Navigation</div>
@@ -3019,6 +3314,40 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- DAILY BANNERS MANAGEMENT CARD (MIN 2, MAX 7) -->
+                <div class="store-settings-card daily-banners-management-card" id="admin-daily-banners-card">
+                    <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+                        <div>
+                            <h3>
+                                <i class="fa-solid fa-images" style="color: var(--primary-orange);"></i> Manage Daily Banners
+                                <span class="banner-count-badge" id="admin-banner-count-badge">3 / 7 Banners</span>
+                            </h3>
+                            <p>Paste image URLs (ImgBB, Cloudinary, direct links) for the customer home page carousel. Minimum 2 banners, maximum 7.</p>
+                        </div>
+                        <div class="banner-header-actions">
+                            <button type="button" class="btn-save-daily-banners" id="btn-save-daily-banners" onclick="handleSaveDailyBannersClick()">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> Save Daily Banners
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- BANNERS LIST CONTAINER -->
+                    <div class="daily-banners-list" id="admin-banners-list">
+                        <!-- Dynamically populated via renderAdminBannersUI() -->
+                    </div>
+
+                    <!-- FOOTER CONTROLS -->
+                    <div class="daily-banners-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px;">
+                        <button type="button" class="btn-add-banner" id="btn-add-banner-row" onclick="handleAddBannerRowClick()">
+                            <i class="fa-solid fa-plus"></i> Add New Banner
+                        </button>
+                        <div class="banner-footer-hint" style="font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-circle-info" style="color: var(--primary-orange);"></i>
+                            <span>Minimum 2 banners required. Invalid or empty URLs automatically resolve to the Perfetto Pizza default logo.</span>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- TAB 2: MENU MANAGEMENT -->
@@ -3288,6 +3617,8 @@
 
         </main>
     </div>
+    </div>
+    <!-- END ADMIN MAIN DASHBOARD ROOT -->
 
     <!-- TOAST NOTIFICATION -->
     <div class="toast-notification" id="toast-notification">
@@ -4328,6 +4659,7 @@
 
             // 1. Bulk sync to Firebase Firestore in real-time
             syncBulkMenuToFirestore();
+            saveAdminDailyBanners(adminDailyBannersList).catch(() => { });
 
             // 2. Bulk sync all menu changes to Firebase Firestore backend
             try {
@@ -5637,6 +5969,283 @@
         const FIREBASE_CONFIG = firebaseConfig;
         window.FIREBASE_CONFIG = firebaseConfig;
 
+        function hideAdminAuthSplash() {
+            const splash = document.getElementById('admin-auth-splash');
+            if (splash) {
+                splash.classList.add('hidden');
+                setTimeout(() => {
+                    splash.style.display = 'none';
+                }, 280);
+            }
+        }
+        window.hideAdminAuthSplash = hideAdminAuthSplash;
+
+        // --------------------------------------------------------------------------
+        // DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (MIN 2, MAX 7)
+        // --------------------------------------------------------------------------
+        const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+        const DEFAULT_DAILY_BANNERS = [
+            { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png' },
+            { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png' },
+            { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png' }
+        ];
+
+        window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
+        window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
+
+        function resolveBannerUrl(url) {
+            if (!url || typeof url !== 'string') return DEFAULT_FALLBACK_BANNER_LOGO;
+            const trimmed = url.trim();
+            if (!trimmed || trimmed.length < 4) return DEFAULT_FALLBACK_BANNER_LOGO;
+            return trimmed;
+        }
+        window.resolveBannerUrl = resolveBannerUrl;
+
+        function handleBannerImgError(imgEl) {
+            if (!imgEl) return;
+            if (imgEl.src !== DEFAULT_FALLBACK_BANNER_LOGO) {
+                imgEl.src = DEFAULT_FALLBACK_BANNER_LOGO;
+            }
+        }
+        window.handleBannerImgError = handleBannerImgError;
+
+        async function fetchAdminDailyBanners() {
+            if (adminFirestore) {
+                try {
+                    const doc = await adminFirestore.collection('settings').doc('daily_banners').get();
+                    if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
+                        return doc.data().banners.map((b, i) => ({
+                            id: b.id || `b${i + 1}`,
+                            url: resolveBannerUrl(b.url)
+                        })).slice(0, 7);
+                    }
+                } catch (e) {
+                    console.warn('Firestore admin daily banners fetch note:', e.message);
+                }
+            }
+            try {
+                const res = await fetch('/api/banners');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && Array.isArray(data.banners) && data.banners.length >= 2) {
+                        return data.banners;
+                    }
+                }
+            } catch (e) { }
+
+            return JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+        }
+        window.fetchAdminDailyBanners = fetchAdminDailyBanners;
+
+        async function saveAdminDailyBanners(bannersList) {
+            let sanitized = (Array.isArray(bannersList) ? bannersList : [])
+                .map((b, i) => ({
+                    id: (b.id && String(b.id).trim()) || `b${i + 1}`,
+                    url: resolveBannerUrl(b.url)
+                }));
+
+            if (sanitized.length < 2) {
+                DEFAULT_DAILY_BANNERS.forEach(defB => {
+                    if (sanitized.length < 2) sanitized.push({ ...defB });
+                });
+            }
+            if (sanitized.length > 7) sanitized = sanitized.slice(0, 7);
+
+            const docPayload = {
+                banners: sanitized,
+                count: sanitized.length,
+                updatedAt: new Date().toISOString(),
+                key: 'daily_banners'
+            };
+
+            if (adminFirestore) {
+                try {
+                    await adminFirestore.collection('settings').doc('daily_banners').set(docPayload);
+                } catch (e) {
+                    console.warn('Firestore admin banner save note:', e.message);
+                }
+            }
+
+            try {
+                await fetch('/api/banners', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(docPayload)
+                });
+            } catch (e) { }
+
+            return { success: true, banners: sanitized };
+        }
+        window.saveAdminDailyBanners = saveAdminDailyBanners;
+
+        let adminDailyBannersList = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+
+        function renderAdminBannersUI() {
+            const listContainer = document.getElementById('admin-banners-list');
+            const badge = document.getElementById('admin-banner-count-badge');
+            const addBtn = document.getElementById('btn-add-banner-row');
+            if (!listContainer) return;
+
+            const count = adminDailyBannersList.length;
+            if (badge) {
+                badge.textContent = `${count} / 7 Banners`;
+                badge.style.color = count >= 7 ? '#ef4444' : 'var(--primary-orange)';
+            }
+
+            if (addBtn) {
+                if (count >= 7) {
+                    addBtn.disabled = true;
+                    addBtn.title = 'Maximum 7 banners reached';
+                } else {
+                    addBtn.disabled = false;
+                    addBtn.title = 'Add another banner (up to 7)';
+                }
+            }
+
+            let html = '';
+            adminDailyBannersList.forEach((banner, idx) => {
+                const safeUrl = resolveBannerUrl(banner.url);
+                const rawUrl = (banner.url || '').trim();
+                const isDeleteDisabled = count <= 2;
+
+                html += `
+                    <div class="banner-row-item" data-index="${idx}" id="banner-row-${idx}">
+                        <div class="banner-drag-handle">
+                            <span class="banner-num-pill">#${idx + 1}</span>
+                        </div>
+                        <div class="banner-thumbnail-box" title="Visual Thumbnail Preview">
+                            <img src="${safeUrl}" 
+                                 alt="Banner #${idx + 1} Preview" 
+                                 class="banner-thumbnail-img" 
+                                 id="banner-thumb-${idx}" 
+                                 onerror="handleBannerImgError(this)">
+                        </div>
+                        <div class="banner-input-wrapper">
+                            <div class="search-box banner-url-box">
+                                <i class="fa-solid fa-link" style="color: var(--primary-orange);"></i>
+                                <input type="url" 
+                                       class="search-input banner-url-input" 
+                                       id="banner-input-${idx}" 
+                                       placeholder="Paste ImgBB or direct image URL (e.g. https://i.ibb.co/...)" 
+                                       value="${rawUrl.replace(/"/g, '&quot;')}"
+                                       oninput="onBannerUrlInput(${idx}, this.value)"
+                                       autocomplete="off"
+                                       spellcheck="false">
+                            </div>
+                        </div>
+                        <div class="banner-actions">
+                            <button type="button" 
+                                    class="btn-delete-banner" 
+                                    id="btn-del-banner-${idx}" 
+                                    onclick="handleDeleteBannerRow(${idx})" 
+                                    ${isDeleteDisabled ? 'disabled title="Minimum 2 banners required"' : 'title="Delete Banner #' + (idx + 1) + '"'} 
+                                    aria-label="Delete Banner #${idx + 1}">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listContainer.innerHTML = html;
+        }
+        window.renderAdminBannersUI = renderAdminBannersUI;
+
+        function onBannerUrlInput(index, value) {
+            if (index < 0 || index >= adminDailyBannersList.length) return;
+            adminDailyBannersList[index].url = value;
+            const thumbImg = document.getElementById(`banner-thumb-${index}`);
+            if (thumbImg) {
+                thumbImg.src = resolveBannerUrl(value);
+            }
+        }
+        window.onBannerUrlInput = onBannerUrlInput;
+
+        function handleAddBannerRowClick() {
+            if (adminDailyBannersList.length >= 7) {
+                showToast('Maximum 7 daily banners allowed!');
+                return;
+            }
+            adminDailyBannersList.push({
+                id: 'b' + Date.now(),
+                url: ''
+            });
+            renderAdminBannersUI();
+
+            setTimeout(() => {
+                const newInput = document.getElementById(`banner-input-${adminDailyBannersList.length - 1}`);
+                if (newInput) {
+                    newInput.focus();
+                    newInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }, 50);
+        }
+        window.handleAddBannerRowClick = handleAddBannerRowClick;
+
+        function handleDeleteBannerRow(index) {
+            if (adminDailyBannersList.length <= 2) {
+                showToast('Minimum 2 banners are required for the carousel!');
+                return;
+            }
+            if (index >= 0 && index < adminDailyBannersList.length) {
+                adminDailyBannersList.splice(index, 1);
+                renderAdminBannersUI();
+                showToast('Banner removed. Click "Save Daily Banners" to apply.');
+            }
+        }
+        window.handleDeleteBannerRow = handleDeleteBannerRow;
+
+        async function handleSaveDailyBannersClick() {
+            const saveBtn = document.getElementById('btn-save-daily-banners');
+            const origHtml = saveBtn ? saveBtn.innerHTML : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
+
+            try {
+                // Ensure DOM values are synced into adminDailyBannersList
+                adminDailyBannersList.forEach((b, idx) => {
+                    const inputEl = document.getElementById(`banner-input-${idx}`);
+                    if (inputEl) {
+                        b.url = inputEl.value;
+                    }
+                });
+
+                const res = await saveAdminDailyBanners(adminDailyBannersList);
+                if (res && res.banners) {
+                    adminDailyBannersList = res.banners;
+                }
+                renderAdminBannersUI();
+                showToast('Daily Banners saved successfully to Firebase Firestore!');
+                if (typeof logAdminActivity === 'function') {
+                    logAdminActivity(`Updated daily banners (${adminDailyBannersList.length} active banners)`);
+                }
+            } catch (err) {
+                console.error('Error saving daily banners:', err);
+                showToast('Error saving daily banners: ' + err.message);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = origHtml || '<i class="fa-solid fa-cloud-arrow-up"></i> Save Daily Banners';
+                }
+            }
+        }
+        window.handleSaveDailyBannersClick = handleSaveDailyBannersClick;
+
+        async function loadAdminDailyBanners() {
+            try {
+                const banners = await fetchAdminDailyBanners();
+                if (Array.isArray(banners) && banners.length >= 2) {
+                    adminDailyBannersList = banners;
+                }
+            } catch (e) {
+                console.warn('Error loading admin daily banners:', e);
+            }
+            renderAdminBannersUI();
+        }
+        window.loadAdminDailyBanners = loadAdminDailyBanners;
+
         async function checkAdminAuthSession() {
             // 1. Initialize Firestore real-time client
             try {
@@ -5710,6 +6319,12 @@
 
         function lockAdminDashboard() {
             currentAdminUser = null;
+            const adminDashboard = document.getElementById('admin-main-dashboard') || document.querySelector('.admin-wrapper');
+            if (adminDashboard) {
+                adminDashboard.style.setProperty('display', 'none', 'important');
+            }
+            hideAdminAuthSplash();
+
             const overlay = document.getElementById('admin-login-overlay');
             if (overlay) {
                 overlay.style.display = 'flex';
@@ -5746,6 +6361,13 @@
                 overlay.style.display = 'none';
             }
 
+            const adminDashboard = document.getElementById('admin-main-dashboard') || document.querySelector('.admin-wrapper');
+            if (adminDashboard) {
+                adminDashboard.style.removeProperty('display');
+                adminDashboard.style.display = 'flex';
+            }
+            hideAdminAuthSplash();
+
             // Update Header UI with clean Master Admin badge
             const avatarEl = document.getElementById('header-admin-avatar');
             const nameEl = document.getElementById('header-admin-name');
@@ -5774,6 +6396,7 @@
             // Bind latest persistent store settings & menu counts from Firestore
             initMenuData();
             initOrderSettingsUI();
+            loadAdminDailyBanners();
 
             // Start real-time session security listener for instant block lockdown
             if (user && user.phone) {
@@ -6041,6 +6664,12 @@
         }
 
         function showPendingAccessScreen(name, phone, status = 'pending') {
+            const adminDashboard = document.getElementById('admin-main-dashboard') || document.querySelector('.admin-wrapper');
+            if (adminDashboard) {
+                adminDashboard.style.setProperty('display', 'none', 'important');
+            }
+            hideAdminAuthSplash();
+
             const overlay = document.getElementById('admin-login-overlay');
             if (overlay) {
                 overlay.style.display = 'flex';
@@ -6779,18 +7408,39 @@
             }
         }
 
+        let adminBannersUnsubscribe = null;
         function listenToAdminSettingsRealtime() {
-            if (!adminFirestore || adminSettingsUnsubscribe) return;
-            try {
-                adminSettingsUnsubscribe = adminFirestore.collection('settings').doc('storeSettings').onSnapshot((doc) => {
-                    if (doc.exists && doc.data()) {
-                        applyAdminStoreSettings(doc.data());
-                    }
-                }, (err) => {
-                    console.warn('Firestore admin settings real-time notice:', err.message);
-                });
-            } catch (e) {
-                console.warn('Error attaching Admin Firestore settings listener:', e);
+            if (!adminFirestore) return;
+            if (!adminSettingsUnsubscribe) {
+                try {
+                    adminSettingsUnsubscribe = adminFirestore.collection('settings').doc('storeSettings').onSnapshot((doc) => {
+                        if (doc.exists && doc.data()) {
+                            applyAdminStoreSettings(doc.data());
+                        }
+                    }, (err) => {
+                        console.warn('Firestore admin settings real-time notice:', err.message);
+                    });
+                } catch (e) {
+                    console.warn('Error attaching Admin Firestore settings listener:', e);
+                }
+            }
+
+            if (!adminBannersUnsubscribe) {
+                try {
+                    adminBannersUnsubscribe = adminFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
+                        if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
+                            adminDailyBannersList = doc.data().banners.map((b, i) => ({
+                                id: b.id || `b${i + 1}`,
+                                url: resolveBannerUrl(b.url)
+                            })).slice(0, 7);
+                            renderAdminBannersUI();
+                        }
+                    }, (err) => {
+                        console.warn('Firestore admin daily banners real-time notice:', err.message);
+                    });
+                } catch (e) {
+                    console.warn('Error attaching Admin Firestore daily banners listener:', e);
+                }
             }
         }
 

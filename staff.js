@@ -252,6 +252,17 @@ function isStaffAdminUser(user) {
 }
 window.isStaffAdminUser = isStaffAdminUser;
 
+function hideStaffAuthSplash() {
+    const splash = document.getElementById('staff-auth-splash');
+    if (splash) {
+        splash.classList.add('hidden');
+        setTimeout(() => {
+            splash.style.display = 'none';
+        }, 280);
+    }
+}
+window.hideStaffAuthSplash = hideStaffAuthSplash;
+
 async function checkStaffAuthSession() {
     // 1. Check if user explicitly logged out (prevents ghost session restoration)
     const wasExplicitlyLoggedOut = sessionStorage.getItem('perfetto_staff_logged_out') === 'true' || localStorage.getItem('perfetto_staff_logged_out') === 'true';
@@ -260,6 +271,7 @@ async function checkStaffAuthSession() {
         staffOrders = [];
         await initStaffFirebase();
         lockStaffDashboard();
+        hideStaffAuthSplash();
         return false;
     }
 
@@ -317,12 +329,23 @@ async function checkStaffAuthSession() {
     // No session: initialize Firebase and smoothly reveal phone login overlay
     await initStaffFirebase();
     lockStaffDashboard();
+    hideStaffAuthSplash();
     return false;
 }
 
 function lockStaffDashboard() {
     stopOrderAlertAudio();
     currentStaffUser = null;
+    const appRoot = document.getElementById('staff-app-root') || document.querySelector('.staff-app');
+    if (appRoot) {
+        appRoot.style.setProperty('display', 'none', 'important');
+    }
+    const dashboardView = document.getElementById('staff-dashboard-view');
+    if (dashboardView) {
+        dashboardView.style.setProperty('display', 'none', 'important');
+    }
+    hideStaffAuthSplash();
+
     const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
     if (deleteCompletedBtn) {
         deleteCompletedBtn.style.display = 'none';
@@ -372,6 +395,18 @@ function unlockStaffDashboard(user) {
         overlay.style.visibility = 'hidden';
         overlay.style.display = 'none';
     }
+
+    const appRoot = document.getElementById('staff-app-root') || document.querySelector('.staff-app');
+    if (appRoot) {
+        appRoot.style.removeProperty('display');
+        appRoot.style.display = 'flex';
+    }
+    const dashboardView = document.getElementById('staff-dashboard-view');
+    if (dashboardView) {
+        dashboardView.style.removeProperty('display');
+        dashboardView.style.display = 'block';
+    }
+    hideStaffAuthSplash();
 
     // Update Header UI
     const roleLabel = document.getElementById('current-role-label');
@@ -783,6 +818,16 @@ function handleStaffResetToPhone() {
 }
 
 function showStaffPendingAccessScreen(name, phone, status = 'pending') {
+    const appRoot = document.getElementById('staff-app-root') || document.querySelector('.staff-app');
+    if (appRoot) {
+        appRoot.style.setProperty('display', 'none', 'important');
+    }
+    const dashboardView = document.getElementById('staff-dashboard-view');
+    if (dashboardView) {
+        dashboardView.style.setProperty('display', 'none', 'important');
+    }
+    hideStaffAuthSplash();
+
     const overlay = document.getElementById('staff-login-overlay');
     if (overlay) {
         overlay.style.display = 'flex';
