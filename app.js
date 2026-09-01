@@ -590,6 +590,12 @@ const categorySubItems = {
         { id: "wrp-cheesy", name: "Cheesy Wrap", price: 99.00, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
         { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", price: 99.00, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
         { id: "wrp-spicy", name: "Spicy Wrap", price: 99.00, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", category: "Wrap", available: true, isMultiSize: false }
+    ],
+    "Bread": [
+        { id: "brd-cheese-corn", name: "Cheese Corn Bread", price: 99.00, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
+        { id: "brd-garlic", name: "Garlic Bread", price: 99.00, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
+        { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", price: 99.00, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
+        { id: "brd-stuffed", name: "Stuffed Bread", price: 99.00, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", category: "Bread", available: true, isMultiSize: false }
     ]
 };
 
@@ -616,6 +622,13 @@ const NEW_WRAP_MENU_ITEMS = [
     { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
 ];
 
+const NEW_BREAD_MENU_ITEMS = [
+    { id: "brd-cheese-corn", name: "Cheese Corn Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", desc: "" },
+    { id: "brd-garlic", name: "Garlic Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", desc: "" },
+    { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", desc: "" },
+    { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", desc: "" }
+];
+
 function sanitizeStoredMenuItems(items) {
     if (!Array.isArray(items)) return null;
     let updated = [...items];
@@ -634,6 +647,14 @@ function sanitizeStoredMenuItems(items) {
     if (hasOldWraps) {
         const nonWraps = updated.filter(i => i.category !== 'Wrap');
         updated = [...nonWraps, ...NEW_WRAP_MENU_ITEMS];
+        modified = true;
+    }
+
+    // 3. Sanitize Bread items
+    const hasOldBreads = updated.some(i => i.category === 'Bread' && (i.id === 'brd-1' || i.id === 'brd-2' || i.id === 'brd-3' || i.name === 'Garlic Butter Breadsticks' || i.name === 'Cheesy Garlic Bread' || i.name === 'Stuffed Cheese Pocket' || !NEW_BREAD_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
+    if (hasOldBreads) {
+        const nonBreads = updated.filter(i => i.category !== 'Bread');
+        updated = [...nonBreads, ...NEW_BREAD_MENU_ITEMS];
         modified = true;
     }
 
@@ -794,17 +815,19 @@ function refreshActiveCustomerView(freshItems) {
                     </div>
                     `;
                 }).join('');
-            } else if (categoryName === "Burger" || categoryName === "Wrap") {
+            } else if (categoryName === "Burger" || categoryName === "Wrap" || categoryName === "Bread") {
                 const isWrap = categoryName === "Wrap";
-                const gridClass = isWrap ? 'sub-items-grid wrap-grid-container grid grid-cols-2 gap-3' : 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
-                const cardClass = isWrap ? 'wrap-card' : 'burger-card';
-                const imgWrapClass = isWrap ? 'wrap-card-image-wrapper' : 'burger-card-image-wrapper';
-                const imgClass = isWrap ? 'wrap-card-img' : 'burger-card-img';
-                const bodyClass = isWrap ? 'wrap-card-body' : 'burger-card-body';
-                const titleClass = isWrap ? 'wrap-card-title' : 'burger-card-title';
-                const priceRowClass = isWrap ? 'wrap-price-row' : 'burger-price-row';
-                const priceClass = isWrap ? 'wrap-card-price' : 'burger-card-price';
-                const btnClass = isWrap ? 'wrap-add-cart-btn' : 'burger-add-cart-btn';
+                const isBread = categoryName === "Bread";
+                const prefix = isBread ? 'bread' : (isWrap ? 'wrap' : 'burger');
+                const gridClass = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
+                const cardClass = `${prefix}-card`;
+                const imgWrapClass = `${prefix}-card-image-wrapper`;
+                const imgClass = `${prefix}-card-img`;
+                const bodyClass = `${prefix}-card-body`;
+                const titleClass = `${prefix}-card-title`;
+                const priceRowClass = `${prefix}-price-row`;
+                const priceClass = `${prefix}-card-price`;
+                const btnClass = `${prefix}-add-cart-btn`;
 
                 subItemsGrid.className = gridClass;
                 subItemsGrid.innerHTML = items.map(item => {
@@ -1191,17 +1214,19 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 </div>
                 `;
             }).join('');
-        } else if (categoryName === "Burger" || categoryName === "Wrap") {
+        } else if (categoryName === "Burger" || categoryName === "Wrap" || categoryName === "Bread") {
             const isWrap = categoryName === "Wrap";
-            const gridClass = isWrap ? 'sub-items-grid wrap-grid-container grid grid-cols-2 gap-3' : 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
-            const cardClass = isWrap ? 'wrap-card' : 'burger-card';
-            const imgWrapClass = isWrap ? 'wrap-card-image-wrapper' : 'burger-card-image-wrapper';
-            const imgClass = isWrap ? 'wrap-card-img' : 'burger-card-img';
-            const bodyClass = isWrap ? 'wrap-card-body' : 'burger-card-body';
-            const titleClass = isWrap ? 'wrap-card-title' : 'burger-card-title';
-            const priceRowClass = isWrap ? 'wrap-price-row' : 'burger-price-row';
-            const priceClass = isWrap ? 'wrap-card-price' : 'burger-card-price';
-            const btnClass = isWrap ? 'wrap-add-cart-btn' : 'burger-add-cart-btn';
+            const isBread = categoryName === "Bread";
+            const prefix = isBread ? 'bread' : (isWrap ? 'wrap' : 'burger');
+            const gridClass = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
+            const cardClass = `${prefix}-card`;
+            const imgWrapClass = `${prefix}-card-image-wrapper`;
+            const imgClass = `${prefix}-card-img`;
+            const bodyClass = `${prefix}-card-body`;
+            const titleClass = `${prefix}-card-title`;
+            const priceRowClass = `${prefix}-price-row`;
+            const priceClass = `${prefix}-card-price`;
+            const btnClass = `${prefix}-add-cart-btn`;
 
             subItemsGrid.className = gridClass;
             subItemsGrid.innerHTML = items.map(item => {

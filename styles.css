@@ -1827,12 +1827,14 @@ body.shop-closed .checkout-btn {
 }
 
 /* --------------------------------------------------------------------------
-   13B. DYNAMIC BURGER & WRAP CARD 2-COLUMN GRID STYLES
+   13B. DYNAMIC BURGER, WRAP & BREAD CARD 2-COLUMN GRID STYLES
    -------------------------------------------------------------------------- */
 .sub-items-grid.burger-grid-container,
 .sub-items-grid.wrap-grid-container,
+.sub-items-grid.bread-grid-container,
 .burger-grid-container,
-.wrap-grid-container {
+.wrap-grid-container,
+.bread-grid-container {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 12px !important;
@@ -1842,14 +1844,17 @@ body.shop-closed .checkout-btn {
 @media (max-width: 360px) {
     .sub-items-grid.burger-grid-container,
     .sub-items-grid.wrap-grid-container,
+    .sub-items-grid.bread-grid-container,
     .burger-grid-container,
-    .wrap-grid-container {
+    .wrap-grid-container,
+    .bread-grid-container {
         gap: 8px !important;
     }
 }
 
 .burger-card,
-.wrap-card {
+.wrap-card,
+.bread-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: 18px;
@@ -1864,15 +1869,17 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-card:hover,
-.wrap-card:hover {
+.wrap-card:hover,
+.bread-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
     border-color: var(--border-hover);
 }
 
-/* 1. Burger & Wrap Top Banner Image */
+/* 1. Burger, Wrap & Bread Top Banner Image */
 .burger-card-image-wrapper,
-.wrap-card-image-wrapper {
+.wrap-card-image-wrapper,
+.bread-card-image-wrapper {
     position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
@@ -1887,7 +1894,8 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-card-img,
-.wrap-card-img {
+.wrap-card-img,
+.bread-card-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -1896,13 +1904,15 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-card:hover .burger-card-img,
-.wrap-card:hover .wrap-card-img {
+.wrap-card:hover .wrap-card-img,
+.bread-card:hover .bread-card-img {
     transform: scale(1.08);
 }
 
-/* 2. Burger & Wrap Card Body */
+/* 2. Burger, Wrap & Bread Card Body */
 .burger-card-body,
-.wrap-card-body {
+.wrap-card-body,
+.bread-card-body {
     padding: 10px 10px 8px 10px;
     display: flex;
     flex-direction: column;
@@ -1912,7 +1922,8 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-card-title,
-.wrap-card-title {
+.wrap-card-title,
+.bread-card-title {
     font-size: 0.90rem;
     font-weight: var(--fw-black);
     color: var(--text-main);
@@ -1924,9 +1935,10 @@ body.shop-closed .checkout-btn {
     font-family: var(--font-heading);
 }
 
-/* 3. Burger & Wrap Price Row */
+/* 3. Burger, Wrap & Bread Price Row */
 .burger-price-row,
-.wrap-price-row {
+.wrap-price-row,
+.bread-price-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1935,7 +1947,8 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-card-price,
-.wrap-card-price {
+.wrap-card-price,
+.bread-card-price {
     font-size: 1.05rem;
     font-weight: var(--fw-black);
     color: var(--primary-orange);
@@ -1945,7 +1958,8 @@ body.shop-closed .checkout-btn {
 
 /* 4. Fixed ADD TO CART Button */
 .burger-add-cart-btn,
-.wrap-add-cart-btn {
+.wrap-add-cart-btn,
+.bread-add-cart-btn {
     width: 100%;
     min-height: 38px;
     background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
@@ -1969,19 +1983,23 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-add-cart-btn:hover,
-.wrap-add-cart-btn:hover {
+.wrap-add-cart-btn:hover,
+.bread-add-cart-btn:hover {
     background: linear-gradient(135deg, #e55e00 0%, #e02446 100%);
 }
 
 .burger-add-cart-btn:active,
-.wrap-add-cart-btn:active {
+.wrap-add-cart-btn:active,
+.bread-add-cart-btn:active {
     transform: scale(0.98);
 }
 
 .burger-add-cart-btn.disabled,
 .burger-add-cart-btn:disabled,
 .wrap-add-cart-btn.disabled,
-.wrap-add-cart-btn:disabled {
+.wrap-add-cart-btn:disabled,
+.bread-add-cart-btn.disabled,
+.bread-add-cart-btn:disabled {
     background: var(--bg-input) !important;
     color: var(--text-muted) !important;
     cursor: not-allowed;

@@ -3767,10 +3767,11 @@
             { id: "bgr-tandoori", name: "Tandoori Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/kVsYKYhJ/Tandoori-Burger.jpg", desc: "" },
             { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" },
 
-            // 3. BREAD & SIDES (3 Exact Breads from app.js)
-            { id: "brd-1", name: "Garlic Butter Breadsticks", category: "Bread", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Warm oven-baked breadsticks with garlic butter" },
-            { id: "brd-2", name: "Cheesy Garlic Bread", category: "Bread", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Melted mozzarella over seasoned garlic toast" },
-            { id: "brd-3", name: "Stuffed Cheese Pocket", category: "Bread", isMultiSize: false, price: 159, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Crispy crust filled with herbs & cheese" },
+            // 3. BREAD & SIDES
+            { id: "brd-cheese-corn", name: "Cheese Corn Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", desc: "" },
+            { id: "brd-garlic", name: "Garlic Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", desc: "" },
+            { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", desc: "" },
+            { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", desc: "" },
 
             // 4. CHINESE FOOD (3 Exact Chinese Food items from app.js)
             { id: "chn-1", name: "Kung Pao Chicken", category: "Chinese Food", isMultiSize: false, price: 249, available: true, img: "https://i.ibb.co/YFYwbHmV/chinese-food.png", desc: "Tender chicken with peanuts & chili peppers" },
@@ -3962,6 +3963,13 @@
             { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
         ];
 
+        const NEW_BREAD_MENU_ITEMS = [
+            { id: "brd-cheese-corn", name: "Cheese Corn Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", desc: "" },
+            { id: "brd-garlic", name: "Garlic Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", desc: "" },
+            { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", desc: "" },
+            { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", desc: "" }
+        ];
+
         function sanitizeAdminMenuItems(items) {
             if (!Array.isArray(items)) return items;
             let updated = [...items];
@@ -3980,6 +3988,14 @@
             if (hasOldWraps) {
                 const nonWraps = updated.filter(i => i.category !== 'Wrap');
                 updated = [...nonWraps, ...NEW_WRAP_MENU_ITEMS];
+                modified = true;
+            }
+
+            // 3. Sanitize Bread items
+            const hasOldBreads = updated.some(i => i.category === 'Bread' && (i.id === 'brd-1' || i.id === 'brd-2' || i.id === 'brd-3' || i.name === 'Garlic Butter Breadsticks' || i.name === 'Cheesy Garlic Bread' || i.name === 'Stuffed Cheese Pocket' || !NEW_BREAD_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
+            if (hasOldBreads) {
+                const nonBreads = updated.filter(i => i.category !== 'Bread');
+                updated = [...nonBreads, ...NEW_BREAD_MENU_ITEMS];
                 modified = true;
             }
 

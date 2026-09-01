@@ -39,9 +39,10 @@ const DEFAULT_MENU_ITEMS = [
     { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" },
 
     // 3. BREAD & SIDES
-    { id: "brd-1", name: "Garlic Butter Breadsticks", category: "Bread", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Warm oven-baked breadsticks with garlic butter" },
-    { id: "brd-2", name: "Cheesy Garlic Bread", category: "Bread", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Melted mozzarella over seasoned garlic toast" },
-    { id: "brd-3", name: "Stuffed Cheese Pocket", category: "Bread", isMultiSize: false, price: 159, available: true, img: "https://i.ibb.co/fzBqSJJx/bread.png", desc: "Crispy crust filled with herbs & cheese" },
+    { id: "brd-cheese-corn", name: "Cheese Corn Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", desc: "" },
+    { id: "brd-garlic", name: "Garlic Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", desc: "" },
+    { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", desc: "" },
+    { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", desc: "" },
 
     // 4. CHINESE FOOD
     { id: "chn-1", name: "Kung Pao Chicken", category: "Chinese Food", isMultiSize: false, price: 249, available: true, img: "https://i.ibb.co/YFYwbHmV/chinese-food.png", desc: "Tender chicken with peanuts & chili peppers" },
