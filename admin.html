@@ -411,6 +411,62 @@
             background: linear-gradient(135deg, var(--primary-orange-hover), #c2410c);
         }
 
+        /* DRAFT MODE & PENDING CHANGES HIGHLIGHT STYLES */
+        .btn-primary.btn-has-pending-changes {
+            background: linear-gradient(135deg, #ff6b00 0%, #ef4444 100%) !important;
+            box-shadow: 0 0 18px rgba(255, 107, 0, 0.6), 0 0 32px rgba(239, 68, 68, 0.45) !important;
+            animation: pulseSaveButton 1.8s infinite ease-in-out !important;
+            position: relative;
+        }
+
+        @keyframes pulseSaveButton {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 14px rgba(255, 107, 0, 0.5), 0 0 25px rgba(239, 68, 68, 0.3);
+            }
+            50% {
+                transform: scale(1.04);
+                box-shadow: 0 0 22px rgba(255, 107, 0, 0.85), 0 0 38px rgba(239, 68, 68, 0.6);
+            }
+        }
+
+        .save-all-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #ffffff;
+            color: #ff6b00;
+            font-size: 0.72rem;
+            font-weight: 900;
+            padding: 2px 7px;
+            border-radius: 12px;
+            margin-left: 6px;
+            line-height: 1;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        }
+
+        .data-table tbody tr.row-has-unsaved-changes {
+            background: rgba(255, 107, 0, 0.09) !important;
+            border-left: 4px solid #ff6b00 !important;
+        }
+
+        .draft-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(255, 107, 0, 0.16);
+            color: #ff6b00;
+            border: 1px solid rgba(255, 107, 0, 0.4);
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
         .btn-outline {
             background-color: rgba(30, 41, 59, 0.6);
             color: var(--text-main);
@@ -2912,13 +2968,14 @@
                     <span id="shop-status-text">Shop Status: OPEN</span>
                 </button>
 
-                <button class="btn-outline" onclick="window.location.reload()">
+                <button class="btn-outline" id="btn-admin-reload" onclick="handleAdminReloadPage()" title="Reload page and discard unsaved drafts">
                     <i class="fa-solid fa-arrows-rotate"></i> Reload Page
                 </button>
 
                 <!-- PROMINENT GLOBAL SAVE BUTTON -->
-                <button class="btn-primary" onclick="saveAllChanges()">
-                    <i class="fa-solid fa-floppy-disk"></i> Save All Changes
+                <button class="btn-primary" id="btn-admin-save-all" onclick="saveAllChanges()" title="Save all pending changes to Firestore">
+                    <i class="fa-solid fa-floppy-disk"></i> <span id="save-all-btn-text">Save All Changes</span>
+                    <span id="save-all-badge" class="save-all-badge" style="display: none;">0</span>
                 </button>
 
                 <!-- LOCK PORTAL HEADER BUTTON -->
@@ -3796,16 +3853,71 @@
             { id: "spr-3", name: "Spring Rolls Option 3", category: "Spring Rolls", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Deluxe portion variation for Spring Rolls" },
             { id: "spr-4", name: "Spring Rolls Option 4", category: "Spring Rolls", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Combo style variation for Spring Rolls" },
 
-            // 18. WRAP (4 options matching app.js getSubItems)
-            { id: "wrp-1", name: "Wrap Option 1", category: "Wrap", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Freshly prepared item variation for Wrap" },
-            { id: "wrp-2", name: "Wrap Option 2", category: "Wrap", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Special chef recipe variation for Wrap" },
-            { id: "wrp-3", name: "Wrap Option 3", category: "Wrap", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Deluxe portion variation for Wrap" },
-            { id: "wrp-4", name: "Wrap Option 4", category: "Wrap", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Combo style variation for Wrap" }
+            // 18. WRAP
+            { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
+            { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", desc: "" },
+            { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", desc: "" },
+            { id: "wrp-cheesy", name: "Cheesy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", desc: "" },
+            { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", desc: "" },
+            { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
         ];
 
         const STORAGE_KEY = 'menuData';
         let menuItems = [];
+        let committedMenuItems = []; // Cloud-synced pristine snapshot
+        let pendingMenuUpdates = {}; // Map of itemId -> { id, price, prices, available }
         let activeCategory = null; // null = Step 1 Grid, string = Step 2 Category Sub-view
+
+        // HELPER TO REFRESH UNSAVED CHANGES BADGES & PULSING SAVE BUTTON
+        function updateUnsavedChangesUI() {
+            const pendingIds = Object.keys(pendingMenuUpdates);
+            const pendingCount = pendingIds.length;
+
+            const saveBtn = document.getElementById('btn-admin-save-all');
+            const saveBadge = document.getElementById('save-all-badge');
+            const saveText = document.getElementById('save-all-btn-text');
+
+            if (saveBtn && saveBadge && saveText) {
+                if (pendingCount > 0) {
+                    saveBtn.classList.add('btn-has-pending-changes');
+                    saveBadge.style.display = 'inline-flex';
+                    saveBadge.textContent = pendingCount;
+                    saveText.textContent = `Save All Changes (${pendingCount})`;
+                    saveBtn.title = `${pendingCount} unsaved menu change(s) in draft. Click to commit and publish to Firestore.`;
+                } else {
+                    saveBtn.classList.remove('btn-has-pending-changes');
+                    saveBadge.style.display = 'none';
+                    saveBadge.textContent = '0';
+                    saveText.textContent = 'Save All Changes';
+                    saveBtn.title = 'No pending changes to save';
+                }
+            }
+
+            // Update visible table rows in DOM
+            menuItems.forEach(item => {
+                const mainRow = document.getElementById(`row-${item.id}`);
+                const searchRow = document.getElementById(`search-row-${item.id}`);
+                const mainBadge = document.getElementById(`draft-badge-${item.id}`);
+                const searchBadge = document.getElementById(`search-draft-badge-${item.id}`);
+                const isModified = Boolean(pendingMenuUpdates[item.id]);
+
+                [mainRow, searchRow].forEach(row => {
+                    if (row) {
+                        if (isModified) {
+                            row.classList.add('row-has-unsaved-changes');
+                        } else {
+                            row.classList.remove('row-has-unsaved-changes');
+                        }
+                    }
+                });
+
+                [mainBadge, searchBadge].forEach(badge => {
+                    if (badge) {
+                        badge.style.display = isModified ? 'inline-flex' : 'none';
+                    }
+                });
+            });
+        }
 
         // CATEGORY METADATA MAP FOR ALL 18 FAST FOOD CATEGORIES
         const CATEGORY_META = {
@@ -3841,21 +3953,43 @@
             { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" }
         ];
 
+        const NEW_WRAP_MENU_ITEMS = [
+            { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
+            { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", desc: "" },
+            { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", desc: "" },
+            { id: "wrp-cheesy", name: "Cheesy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", desc: "" },
+            { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", desc: "" },
+            { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
+        ];
+
         function sanitizeAdminMenuItems(items) {
             if (!Array.isArray(items)) return items;
-            const hasOldBurgers = items.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
+            let updated = [...items];
+            let modified = false;
+
+            // 1. Sanitize Burger items
+            const hasOldBurgers = updated.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
             if (hasOldBurgers) {
-                const nonBurgers = items.filter(i => i.category !== 'Burger');
-                const updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
-                if (adminFirestore) {
-                    adminFirestore.collection('settings').doc('menu').set({
-                        items: updated,
-                        lastUpdated: Date.now()
-                    }, { merge: true }).catch(() => {});
-                }
-                return updated;
+                const nonBurgers = updated.filter(i => i.category !== 'Burger');
+                updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
+                modified = true;
             }
-            return items;
+
+            // 2. Sanitize Wrap items
+            const hasOldWraps = updated.some(i => i.category === 'Wrap' && (i.id === 'wrp-1' || i.id === 'wrp-2' || i.id === 'wrp-3' || i.id === 'wrp-4' || (i.name && i.name.startsWith('Wrap Option')) || !NEW_WRAP_MENU_ITEMS.some(nw => nw.id === i.id || nw.name === i.name)));
+            if (hasOldWraps) {
+                const nonWraps = updated.filter(i => i.category !== 'Wrap');
+                updated = [...nonWraps, ...NEW_WRAP_MENU_ITEMS];
+                modified = true;
+            }
+
+            if (modified && adminFirestore) {
+                adminFirestore.collection('settings').doc('menu').set({
+                    items: updated,
+                    lastUpdated: Date.now()
+                }, { merge: true }).catch(() => {});
+            }
+            return updated;
         }
 
         // 1. INITIALIZE DATABASE FROM FIREBASE FIRESTORE & LOCALSTORAGE
@@ -3880,10 +4014,13 @@
                     if (docSnap.exists && docSnap.data() && Array.isArray(docSnap.data().items) && docSnap.data().items.length > 0) {
                         const freshItems = sanitizeAdminMenuItems(docSnap.data().items.filter(item => item.category && item.name));
                         menuItems = freshItems;
+                        committedMenuItems = JSON.parse(JSON.stringify(freshItems));
+                        pendingMenuUpdates = {};
                         saveToLocalStorage();
                         isMenuInitialLoading = false;
                         renderCategoryGrid();
                         updateStats();
+                        updateUnsavedChangesUI();
                         listenToAdminMenuRealtime();
                         return;
                     }
@@ -3903,9 +4040,12 @@
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
                     menuItems = sanitizeAdminMenuItems(data.items.filter(item => item.category && item.name));
+                    committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+                    pendingMenuUpdates = {};
                     saveToLocalStorage();
                     isMenuInitialLoading = false;
                     updateStats();
+                    updateUnsavedChangesUI();
 
                     // Re-render whichever view is active if admin is not actively typing in an input
                     const activeEl = document.activeElement;
@@ -3922,19 +4062,25 @@
                     }
                 } else if (!menuItems || menuItems.length === 0) {
                     menuItems = [...DEFAULT_MENU_ITEMS];
+                    committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+                    pendingMenuUpdates = {};
                     saveToLocalStorage();
                     isMenuInitialLoading = false;
                     renderCategoryGrid();
                     updateStats();
+                    updateUnsavedChangesUI();
                 }
             } catch (err) {
                 console.warn('Backend menu sync notice (local resilience active):', err.message);
                 if (!menuItems || menuItems.length === 0) {
                     menuItems = [...DEFAULT_MENU_ITEMS];
+                    committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+                    pendingMenuUpdates = {};
                     saveToLocalStorage();
                     isMenuInitialLoading = false;
                     renderCategoryGrid();
                     updateStats();
+                    updateUnsavedChangesUI();
                 }
             }
         }
@@ -4304,6 +4450,9 @@
 
             matchingProducts.forEach(({ item }) => {
                 const tr = document.createElement('tr');
+                const isModified = Boolean(pendingMenuUpdates[item.id]);
+                tr.id = `search-row-${item.id}`;
+                if (isModified) tr.className = 'row-has-unsaved-changes';
 
                 let priceHtml = '';
                 if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
@@ -4344,6 +4493,7 @@
                             <div class="item-title-row">
                                 <span class="item-title">${item.name}</span>
                                 <span class="search-cat-badge">${catNameDisplay}</span>
+                                <span class="draft-badge" id="search-draft-badge-${item.id}" style="${isModified ? 'display:inline-flex;' : 'display:none;'}"><i class="fa-solid fa-pen"></i> Unsaved Draft</span>
                             </div>
                             <div class="item-desc">${item.desc}</div>
                         </div>
@@ -4415,6 +4565,9 @@
 
             categoryItems.forEach(item => {
                 const tr = document.createElement('tr');
+                const isModified = Boolean(pendingMenuUpdates[item.id]);
+                tr.id = `row-${item.id}`;
+                if (isModified) tr.className = 'row-has-unsaved-changes';
 
                 let priceHtml = '';
                 if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
@@ -4450,7 +4603,10 @@
                     </td>
                     <td>
                         <div class="item-name-box">
-                            <div class="item-title">${item.name}</div>
+                            <div class="item-title-row">
+                                <span class="item-title">${item.name}</span>
+                                <span class="draft-badge" id="draft-badge-${item.id}" style="${isModified ? 'display:inline-flex;' : 'display:none;'}"><i class="fa-solid fa-pen"></i> Unsaved Draft</span>
+                            </div>
                             <div class="item-desc">${item.desc}</div>
                         </div>
                     </td>
@@ -4479,7 +4635,7 @@
             });
         }
 
-        // TOGGLE STATUS BADGE IN TABLE (INSTANT DATABASE & FIRESTORE REAL-TIME SYNC)
+        // 4. TOGGLE STATUS BADGE IN TABLE (LOCAL DRAFT MODE - NO INSTANT FIRESTORE WRITES)
         function toggleStatusBadge(id, fromSearch = false) {
             const mainToggle = document.getElementById(`toggle-${id}`);
             const searchToggle = document.getElementById(`search-toggle-${id}`);
@@ -4512,76 +4668,55 @@
                 item.available = isAvail;
             }
 
-            saveToLocalStorage();
+            // Track modification in pendingMenuUpdates buffer (Draft Mode)
+            const orig = committedMenuItems.find(i => i.id === id);
+            if (orig) {
+                const availDiff = item.available !== orig.available;
+                const priceDiff = (item.isMultiSize || item.prices)
+                    ? JSON.stringify(item.prices) !== JSON.stringify(orig.prices)
+                    : item.price !== orig.price;
+
+                if (availDiff || priceDiff) {
+                    if (!pendingMenuUpdates[id]) pendingMenuUpdates[id] = { id };
+                    pendingMenuUpdates[id].available = isAvail;
+                    if (item.isMultiSize || item.prices) pendingMenuUpdates[id].prices = { ...item.prices };
+                    else pendingMenuUpdates[id].price = item.price;
+                } else {
+                    delete pendingMenuUpdates[id];
+                }
+            } else {
+                if (!pendingMenuUpdates[id]) pendingMenuUpdates[id] = { id };
+                pendingMenuUpdates[id].available = isAvail;
+            }
+
             updateStats();
-
-            // 1. Instantly sync availability toggle to Firebase Firestore in real-time
-            syncSingleItemToFirestore(id, { available: isAvail });
-
-            // 2. Sync availability toggle to Firebase Firestore backend
-            syncSingleItemToBackend({ id, available: isAvail });
-
-            const itemName = item ? item.name : id;
-            showToast(`${itemName}: marked ${isAvail ? 'Available' : 'Out of Stock'}`);
-            logAdminActivity(`Updated "${itemName}" stock status to ${isAvail ? 'Available' : 'Out of Stock'}`);
+            updateUnsavedChangesUI();
         }
 
-        function syncSingleItemToFirestore(id, updateFields) {
-            if (!adminFirestore) return;
+        // STORE SETTINGS BACKEND SYNC HELPER
+        async function syncStoreSettingsToBackend(payload) {
             try {
-                // Update the single item document
-                adminFirestore.collection('menu').doc(String(id)).set({
-                    id: String(id),
-                    ...updateFields,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true }).catch(() => { });
-
-                // Update the combined menu doc for single-listener efficiency
-                adminFirestore.collection('settings').doc('menu').set({
-                    items: menuItems,
-                    lastUpdated: Date.now()
-                }, { merge: true }).catch(() => { });
-            } catch (e) {
-                console.warn('Firestore single item sync notice:', e);
-            }
-        }
-
-        function syncBulkMenuToFirestore() {
-            if (!adminFirestore) return;
-            try {
-                // Update combined menu doc for instant push across all active customer panels
-                adminFirestore.collection('settings').doc('menu').set({
-                    items: menuItems,
-                    lastUpdated: Date.now()
-                }).catch((e) => console.warn('Firestore bulk menu save notice:', e));
-            } catch (e) {
-                console.warn('Firestore bulk sync notice:', e);
-            }
-        }
-
-        async function syncSingleItemToBackend(payload) {
-            try {
-                const res = await fetch(resolveApiUrl('/api/menu'), {
-                    method: 'PATCH',
+                const res = await fetch(resolveApiUrl('/api/settings'), {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (data && data.success) {
-                    console.log('Firebase Firestore synced item:', payload.id, payload);
+                    console.log('Firebase Firestore synced store settings:', payload);
                 }
             } catch (err) {
-                console.warn('Backend item sync notice (local resilience active):', err.message);
+                console.warn('Backend store settings sync notice (local resilience active):', err.message);
             }
         }
 
-        // INSTANT SINGLE ITEM PRICE CHANGE HANDLER (FIRESTORE & BACKEND SYNC)
+        // 5. LOCAL PRICE CHANGE HANDLER (LOCAL DRAFT MODE - NO INSTANT FIRESTORE WRITES)
         let priceDebounceTimers = {};
         function debouncedHandlePriceChange(id, fromSearch = false) {
             if (priceDebounceTimers[id]) clearTimeout(priceDebounceTimers[id]);
             priceDebounceTimers[id] = setTimeout(() => {
                 handleSingleItemPriceChange(id, fromSearch);
-            }, 200);
+            }, 100);
         }
 
         function handleSingleItemPriceChange(id, fromSearch = false) {
@@ -4609,11 +4744,6 @@
                 if (otherPriceS) otherPriceS.value = item.prices.S;
                 if (otherPriceM) otherPriceM.value = item.prices.M;
                 if (otherPriceL) otherPriceL.value = item.prices.L;
-
-                saveToLocalStorage();
-                syncSingleItemToFirestore(id, { prices: item.prices });
-                syncSingleItemToBackend({ id, prices: item.prices });
-                logAdminActivity(`Updated prices for "${item.name}" (S: ₹${item.prices.S}, M: ₹${item.prices.M}, L: ₹${item.prices.L})`);
             } else {
                 const singlePrice = document.getElementById(`${prefix}price-single-${id}`) || document.getElementById(`price-single-${id}`);
                 if (singlePrice) {
@@ -4621,36 +4751,36 @@
                     const otherSingle = document.getElementById(`${otherPrefix}price-single-${id}`);
                     if (otherSingle) otherSingle.value = item.price;
                 }
-
-                saveToLocalStorage();
-                syncSingleItemToFirestore(id, { price: item.price });
-                syncSingleItemToBackend({ id, price: item.price });
-                logAdminActivity(`Updated price for "${item.name}" (₹${item.price})`);
             }
 
-            showToast(`Price updated in Real-Time for ${item.name}!`);
-        }
+            // Track modification in pendingMenuUpdates buffer (Draft Mode)
+            const orig = committedMenuItems.find(i => i.id === id);
+            if (orig) {
+                const availDiff = item.available !== orig.available;
+                const priceDiff = (item.isMultiSize || item.prices)
+                    ? JSON.stringify(item.prices) !== JSON.stringify(orig.prices)
+                    : item.price !== orig.price;
 
-        // STORE SETTINGS BACKEND SYNC HELPER
-        async function syncStoreSettingsToBackend(payload) {
-            try {
-                const res = await fetch(resolveApiUrl('/api/settings'), {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                if (data && data.success) {
-                    console.log('Firebase Firestore synced store settings:', payload);
+                if (availDiff || priceDiff) {
+                    if (!pendingMenuUpdates[id]) pendingMenuUpdates[id] = { id };
+                    pendingMenuUpdates[id].available = item.available;
+                    if (item.isMultiSize || item.prices) pendingMenuUpdates[id].prices = { ...item.prices };
+                    else pendingMenuUpdates[id].price = item.price;
+                } else {
+                    delete pendingMenuUpdates[id];
                 }
-            } catch (err) {
-                console.warn('Backend store settings sync notice (local resilience active):', err.message);
+            } else {
+                if (!pendingMenuUpdates[id]) pendingMenuUpdates[id] = { id };
+                if (item.isMultiSize || item.prices) pendingMenuUpdates[id].prices = { ...item.prices };
+                else pendingMenuUpdates[id].price = item.price;
             }
+
+            updateUnsavedChangesUI();
         }
 
-        // 6. GLOBAL SAVE BUTTON (COLLECT ALL FIELD EDITS & BULK SYNC TO FIRESTORE)
+        // 6. GLOBAL SAVE BUTTON (EXPLICIT BATCH COMMIT ON "SAVE ALL CHANGES")
         async function saveAllChanges() {
-            // Read active DOM inputs and update menuItems memory
+            // Flush all active DOM inputs into menuItems and pendingMenuUpdates
             menuItems.forEach(item => {
                 const toggleInput = document.getElementById(`toggle-${item.id}`) || document.getElementById(`search-toggle-${item.id}`);
                 if (toggleInput) {
@@ -4672,11 +4802,96 @@
                         item.price = parseFloat(singlePrice.value) || 0;
                     }
                 }
+
+                const orig = committedMenuItems.find(i => i.id === item.id);
+                if (orig) {
+                    const availDiff = item.available !== orig.available;
+                    const priceDiff = (item.isMultiSize || item.prices)
+                        ? JSON.stringify(item.prices) !== JSON.stringify(orig.prices)
+                        : item.price !== orig.price;
+
+                    if (availDiff || priceDiff) {
+                        if (!pendingMenuUpdates[item.id]) pendingMenuUpdates[item.id] = { id: item.id };
+                        pendingMenuUpdates[item.id].available = item.available;
+                        if (item.isMultiSize || item.prices) pendingMenuUpdates[item.id].prices = { ...item.prices };
+                        else pendingMenuUpdates[item.id].price = item.price;
+                    }
+                }
             });
 
+            const modifiedIds = Object.keys(pendingMenuUpdates);
+            if (modifiedIds.length === 0) {
+                showToast('ℹ️ No pending menu changes to save.');
+                saveOrderSettings(false);
+                return;
+            }
+
+            showToast('Saving and publishing batch menu changes to Firestore...');
+
+            // 1. Explicit Firestore batch write to commit all modified items simultaneously
+            if (adminFirestore) {
+                try {
+                    const batch = adminFirestore.batch();
+
+                    // Update individual modified item docs in 'menu' collection
+                    modifiedIds.forEach(itemId => {
+                        const item = menuItems.find(i => i.id === itemId);
+                        if (item) {
+                            const docRef = adminFirestore.collection('menu').doc(String(itemId));
+                            const updatePayload = {
+                                id: String(item.id),
+                                name: item.name,
+                                category: item.category,
+                                available: item.available !== false,
+                                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            };
+                            if (item.isMultiSize || item.prices) {
+                                updatePayload.prices = item.prices;
+                                updatePayload.isMultiSize = true;
+                            } else {
+                                updatePayload.price = item.price;
+                                updatePayload.isMultiSize = false;
+                            }
+                            batch.set(docRef, updatePayload, { merge: true });
+                        }
+                    });
+
+                    // Update unified settings/menu doc for single-listener live push to Customer App
+                    const settingsMenuRef = adminFirestore.collection('settings').doc('menu');
+                    batch.set(settingsMenuRef, {
+                        items: menuItems,
+                        lastUpdated: Date.now()
+                    }, { merge: true });
+
+                    await batch.commit();
+                } catch (firestoreErr) {
+                    console.error('Firestore batch commit error:', firestoreErr);
+                }
+            }
+
+            // 2. Bulk sync all menu changes to Firebase Firestore backend API
+            try {
+                const res = await apiCall('/menu', {
+                    method: 'PUT',
+                    body: JSON.stringify({ items: menuItems })
+                });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    console.warn('Menu bulk save notice:', errData.message || `HTTP ${res.status}`);
+                }
+            } catch (err) {
+                console.warn('Backend API bulk save notice:', err.message);
+            }
+
+            saveAdminDailyBanners(adminDailyBannersList).catch(() => { });
+
+            // 3. Clear pending updates buffer and commit local snapshot
+            committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+            pendingMenuUpdates = {};
             saveToLocalStorage();
             saveOrderSettings(false);
             updateStats();
+            updateUnsavedChangesUI();
 
             if (currentSearchQuery.trim() !== '') {
                 renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
@@ -4686,33 +4901,34 @@
                 renderCategoryGrid();
             }
 
-            showToast('Saving changes to Firestore & Database...');
-            logAdminActivity('Saved bulk menu and store configuration modifications');
+            showToast('Menu changes saved and published successfully.');
+            logAdminActivity(`Saved and published ${modifiedIds.length} menu change(s) in batch to cloud`);
+        }
 
-            // 1. Bulk sync to Firebase Firestore in real-time
-            syncBulkMenuToFirestore();
-            saveAdminDailyBanners(adminDailyBannersList).catch(() => { });
-
-            // 2. Bulk sync all menu changes to Firebase Firestore backend
-            try {
-                const res = await apiCall('/menu', {
-                    method: 'PUT',
-                    body: JSON.stringify({ items: menuItems })
+        // 7. DISCARD / RESET ON RELOAD
+        async function handleAdminReloadPage() {
+            if (Object.keys(pendingMenuUpdates).length > 0) {
+                const confirmed = await showAdminConfirmDialog({
+                    title: 'Discard Unsaved Changes?',
+                    message: 'You have unsaved draft modifications in Menu Management. Reloading will discard all unsaved changes and restore the latest published menu from the cloud.',
+                    icon: '<i class="fa-solid fa-triangle-exclamation" style="color: #ef4444;"></i>',
+                    iconBg: 'rgba(239, 68, 68, 0.15)',
+                    iconBorder: 'rgba(239, 68, 68, 0.4)',
+                    confirmText: 'Discard & Reload',
+                    confirmType: 'danger'
                 });
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.message || `HTTP ${res.status}`);
-                }
-                const data = await res.json();
-                if (data && data.success) {
-                    showToast('All menu changes, prices & settings saved in Real-Time!');
-                } else {
-                    showToast('Saved to local & real-time database.');
-                }
-            } catch (err) {
-                console.error('Menu bulk save error:', err);
-                showToast(`⚠️ Saved locally. Cloud sync: ${err.message}`);
+                if (!confirmed) return;
             }
+
+            pendingMenuUpdates = {};
+            if (committedMenuItems && committedMenuItems.length > 0) {
+                menuItems = JSON.parse(JSON.stringify(committedMenuItems));
+                saveToLocalStorage();
+            }
+            updateUnsavedChangesUI();
+            showToast('Reloading fresh menu from cloud...');
+            await initMenuData();
+            showToast('Menu reloaded. Unsaved changes discarded.');
         }
 
         // 7. RESET TO DEFAULTS
@@ -7416,10 +7632,18 @@
                         const activeEl = document.activeElement;
                         const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
 
-                        if (JSON.stringify(freshItems) !== JSON.stringify(menuItems)) {
+                        // Protect active admin draft from being overwritten by background snapshots
+                        if (Object.keys(pendingMenuUpdates).length > 0) {
+                            console.log('Incoming cloud menu update held to preserve unsaved Admin draft.');
+                            return;
+                        }
+
+                        if (JSON.stringify(freshItems) !== JSON.stringify(committedMenuItems)) {
+                            committedMenuItems = JSON.parse(JSON.stringify(freshItems));
                             menuItems = freshItems;
                             saveToLocalStorage();
                             updateStats();
+                            updateUnsavedChangesUI();
 
                             if (!isTyping) {
                                 if (currentSearchQuery && currentSearchQuery.trim() !== '') {
@@ -8910,6 +9134,8 @@
         window.switchTab = switchTab;
         window.toggleShopStatus = toggleShopStatus;
         window.saveAllChanges = saveAllChanges;
+        window.handleAdminReloadPage = handleAdminReloadPage;
+        window.updateUnsavedChangesUI = updateUnsavedChangesUI;
         window.toggleMasterDeliveryOtpVisibility = toggleMasterDeliveryOtpVisibility;
         window.toggleAdminLocationMap = toggleAdminLocationMap;
         window.stepDeliveryRadius = stepDeliveryRadius;

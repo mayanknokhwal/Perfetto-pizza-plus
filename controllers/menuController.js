@@ -125,10 +125,12 @@ const DEFAULT_MENU_ITEMS = [
     { id: "spr-4", name: "Spring Rolls Option 4", category: "Spring Rolls", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Combo style variation for Spring Rolls" },
 
     // 18. WRAP
-    { id: "wrp-1", name: "Wrap Option 1", category: "Wrap", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Freshly prepared item variation for Wrap" },
-    { id: "wrp-2", name: "Wrap Option 2", category: "Wrap", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Special chef recipe variation for Wrap" },
-    { id: "wrp-3", name: "Wrap Option 3", category: "Wrap", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Deluxe portion variation for Wrap" },
-    { id: "wrp-4", name: "Wrap Option 4", category: "Wrap", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/V0c7gf6d/wrap.png", desc: "Combo style variation for Wrap" }
+    { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
+    { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", desc: "" },
+    { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", desc: "" },
+    { id: "wrp-cheesy", name: "Cheesy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", desc: "" },
+    { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", desc: "" },
+    { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
 ];
 
 // Initialize in-memory runtime store

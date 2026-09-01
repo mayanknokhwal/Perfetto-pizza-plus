@@ -582,6 +582,14 @@ const categorySubItems = {
         { name: "Creamy Alfredo Pasta", desc: "Rich parmesan cream sauce with fettuccine", price: 249.00, tag: "Popular" },
         { name: "Penna Arrabbiata", desc: "Spicy tomato garlic sauce with fresh basil", price: 229.00, tag: "Spicy 🌶️" },
         { name: "Pesto Supreme Pasta", desc: "Fresh basil pesto with pine nuts & olive oil", price: 269.00, tag: "Chef Special" }
+    ],
+    "Wrap": [
+        { id: "wrp-tandoori", name: "Tandoori Wrap", price: 99.00, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", price: 99.00, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", price: 99.00, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-cheesy", name: "Cheesy Wrap", price: 99.00, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", price: 99.00, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-spicy", name: "Spicy Wrap", price: 99.00, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", category: "Wrap", available: true, isMultiSize: false }
     ]
 };
 
@@ -599,12 +607,37 @@ const NEW_BURGER_MENU_ITEMS = [
     { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" }
 ];
 
+const NEW_WRAP_MENU_ITEMS = [
+    { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
+    { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", desc: "" },
+    { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", desc: "" },
+    { id: "wrp-cheesy", name: "Cheesy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", desc: "" },
+    { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", desc: "" },
+    { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
+];
+
 function sanitizeStoredMenuItems(items) {
     if (!Array.isArray(items)) return null;
-    const hasOldBurgers = items.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || i.id === 'bgr-2' || i.id === 'bgr-3' || i.id === 'bgr-4' || i.id === 'bgr-5' || i.id === 'bgr-6' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
+    let updated = [...items];
+    let modified = false;
+
+    // 1. Sanitize Burger items
+    const hasOldBurgers = updated.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || i.id === 'bgr-2' || i.id === 'bgr-3' || i.id === 'bgr-4' || i.id === 'bgr-5' || i.id === 'bgr-6' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
     if (hasOldBurgers) {
-        const nonBurgers = items.filter(i => i.category !== 'Burger');
-        const updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
+        const nonBurgers = updated.filter(i => i.category !== 'Burger');
+        updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
+        modified = true;
+    }
+
+    // 2. Sanitize Wrap items
+    const hasOldWraps = updated.some(i => i.category === 'Wrap' && (i.id === 'wrp-1' || i.id === 'wrp-2' || i.id === 'wrp-3' || i.id === 'wrp-4' || (i.name && i.name.startsWith('Wrap Option')) || !NEW_WRAP_MENU_ITEMS.some(nw => nw.id === i.id || nw.name === i.name)));
+    if (hasOldWraps) {
+        const nonWraps = updated.filter(i => i.category !== 'Wrap');
+        updated = [...nonWraps, ...NEW_WRAP_MENU_ITEMS];
+        modified = true;
+    }
+
+    if (modified) {
         try {
             localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(updated));
         } catch (e) {}
@@ -761,27 +794,38 @@ function refreshActiveCustomerView(freshItems) {
                     </div>
                     `;
                 }).join('');
-            } else if (categoryName === "Burger") {
-                subItemsGrid.className = 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
+            } else if (categoryName === "Burger" || categoryName === "Wrap") {
+                const isWrap = categoryName === "Wrap";
+                const gridClass = isWrap ? 'sub-items-grid wrap-grid-container grid grid-cols-2 gap-3' : 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
+                const cardClass = isWrap ? 'wrap-card' : 'burger-card';
+                const imgWrapClass = isWrap ? 'wrap-card-image-wrapper' : 'burger-card-image-wrapper';
+                const imgClass = isWrap ? 'wrap-card-img' : 'burger-card-img';
+                const bodyClass = isWrap ? 'wrap-card-body' : 'burger-card-body';
+                const titleClass = isWrap ? 'wrap-card-title' : 'burger-card-title';
+                const priceRowClass = isWrap ? 'wrap-price-row' : 'burger-price-row';
+                const priceClass = isWrap ? 'wrap-card-price' : 'burger-card-price';
+                const btnClass = isWrap ? 'wrap-add-cart-btn' : 'burger-add-cart-btn';
+
+                subItemsGrid.className = gridClass;
                 subItemsGrid.innerHTML = items.map(item => {
                     const isAvailable = item.available !== false;
                     const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                     const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
                     const addBtnMarkup = isAvailable
-                        ? `<button class="burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                        ? `<button class="${btnClass}" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="${btnClass} disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                     return `
-                    <div class="burger-card ${outOfStockClass}" data-burger-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
+                    <div class="${cardClass} ${outOfStockClass}" data-item-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
                         ${outOfStockBadge}
-                        <div class="burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="burger-card-img" loading="lazy">
+                        <div class="${imgWrapClass}">
+                            <img src="${item.img}" alt="${item.name}" class="${imgClass}" loading="lazy">
                         </div>
-                        <div class="burger-card-body">
-                            <h4 class="burger-card-title">${item.name}</h4>
-                            <div class="burger-price-row">
+                        <div class="${bodyClass}">
+                            <h4 class="${titleClass}">${item.name}</h4>
+                            <div class="${priceRowClass}">
                                 <span class="price-prefix">Price:</span>
-                                <span class="burger-card-price">${formatPrice(item.price || 99)}</span>
+                                <span class="${priceClass}">${formatPrice(item.price || 99)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -1147,27 +1191,38 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 </div>
                 `;
             }).join('');
-        } else if (categoryName === "Burger") {
-            subItemsGrid.className = 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
+        } else if (categoryName === "Burger" || categoryName === "Wrap") {
+            const isWrap = categoryName === "Wrap";
+            const gridClass = isWrap ? 'sub-items-grid wrap-grid-container grid grid-cols-2 gap-3' : 'sub-items-grid burger-grid-container grid grid-cols-2 gap-3';
+            const cardClass = isWrap ? 'wrap-card' : 'burger-card';
+            const imgWrapClass = isWrap ? 'wrap-card-image-wrapper' : 'burger-card-image-wrapper';
+            const imgClass = isWrap ? 'wrap-card-img' : 'burger-card-img';
+            const bodyClass = isWrap ? 'wrap-card-body' : 'burger-card-body';
+            const titleClass = isWrap ? 'wrap-card-title' : 'burger-card-title';
+            const priceRowClass = isWrap ? 'wrap-price-row' : 'burger-price-row';
+            const priceClass = isWrap ? 'wrap-card-price' : 'burger-card-price';
+            const btnClass = isWrap ? 'wrap-add-cart-btn' : 'burger-add-cart-btn';
+
+            subItemsGrid.className = gridClass;
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
                 const addBtnMarkup = isAvailable
-                    ? `<button class="burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="${btnClass}" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="${btnClass} disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                 return `
-                <div class="burger-card ${outOfStockClass}" data-burger-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
+                <div class="${cardClass} ${outOfStockClass}" data-item-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
                     ${outOfStockBadge}
-                    <div class="burger-card-image-wrapper">
-                        <img src="${item.img}" alt="${item.name}" class="burger-card-img" loading="lazy">
+                    <div class="${imgWrapClass}">
+                        <img src="${item.img}" alt="${item.name}" class="${imgClass}" loading="lazy">
                     </div>
-                    <div class="burger-card-body">
-                        <h4 class="burger-card-title">${item.name}</h4>
-                        <div class="burger-price-row">
+                    <div class="${bodyClass}">
+                        <h4 class="${titleClass}">${item.name}</h4>
+                        <div class="${priceRowClass}">
                             <span class="price-prefix">Price:</span>
-                            <span class="burger-card-price">${formatPrice(item.price || 99)}</span>
+                            <span class="${priceClass}">${formatPrice(item.price || 99)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
