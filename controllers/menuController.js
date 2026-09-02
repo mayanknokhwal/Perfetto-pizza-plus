@@ -134,9 +134,23 @@ const DEFAULT_MENU_ITEMS = [
     { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
 ];
 
+const DEFAULT_CATEGORY_ADDONS = {
+    "Burger": {
+        extraCheese: 25,
+        extraSpicy: 0
+    },
+    "Wrap": {
+        extraCheese: 30,
+        extraSpicy: 0
+    }
+};
+
 // Initialize in-memory runtime store
 if (!global.__perfettoMenuState) {
     global.__perfettoMenuState = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
+}
+if (!global.__perfettoCategoryAddons) {
+    global.__perfettoCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
 }
 
 async function getLiveMenuFromFirestore() {
@@ -144,21 +158,25 @@ async function getLiveMenuFromFirestore() {
         const doc = await getFirestoreDoc('settings', 'menu');
         if (doc && Array.isArray(doc.items) && doc.items.length > 0) {
             global.__perfettoMenuState = doc.items;
-            return doc.items;
+            if (doc.categoryAddons) {
+                global.__perfettoCategoryAddons = doc.categoryAddons;
+            }
+            return { items: doc.items, categoryAddons: doc.categoryAddons || global.__perfettoCategoryAddons };
         }
     } catch (e) {
         console.warn('Firestore menu read note:', e.message);
     }
-    return global.__perfettoMenuState;
+    return { items: global.__perfettoMenuState, categoryAddons: global.__perfettoCategoryAddons };
 }
 
 async function handleMenuRequest(req, res) {
     try {
-        // 1. GET: Fetch Live Menu Items
+        // 1. GET: Fetch Live Menu Items & Category Addons
         if (req.method === 'GET') {
             const { category } = req.query || {};
 
-            let items = await getLiveMenuFromFirestore();
+            const { items: allItems, categoryAddons } = await getLiveMenuFromFirestore();
+            let items = allItems;
             if (category) {
                 items = items.filter(i => i.category === category);
             }
@@ -167,6 +185,7 @@ async function handleMenuRequest(req, res) {
                 success: true,
                 count: items.length,
                 items: items,
+                categoryAddons: categoryAddons || DEFAULT_CATEGORY_ADDONS
             });
         }
 
@@ -183,7 +202,8 @@ async function handleMenuRequest(req, res) {
             }
 
             const targetId = String(id);
-            let items = await getLiveMenuFromFirestore();
+            const { items: allItems, categoryAddons } = await getLiveMenuFromFirestore();
+            let items = [...allItems];
             let itemIndex = items.findIndex(i => i.id === targetId);
 
             if (itemIndex >= 0) {
@@ -217,6 +237,7 @@ async function handleMenuRequest(req, res) {
             try {
                 await setFirestoreDoc('settings', 'menu', {
                     items: items,
+                    categoryAddons: categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS,
                     updatedAt: new Date().toISOString()
                 });
                 await setFirestoreDoc('menu', targetId, updatedItem);
@@ -239,6 +260,7 @@ async function handleMenuRequest(req, res) {
             }
             const isReset = body?.reset === true || req.query?.reset === 'true';
             const rawItems = isReset ? DEFAULT_MENU_ITEMS : (Array.isArray(body) ? body : (body?.items || []));
+            const newAddons = body?.categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS;
 
             if (!Array.isArray(rawItems) || rawItems.length === 0) {
                 return res.status(400).json({ success: false, message: 'Missing or invalid items array' });
@@ -246,13 +268,16 @@ async function handleMenuRequest(req, res) {
 
             try {
                 global.__perfettoMenuState = JSON.parse(JSON.stringify(rawItems));
+                global.__perfettoCategoryAddons = JSON.parse(JSON.stringify(newAddons));
             } catch (cloneErr) {
                 global.__perfettoMenuState = Array.isArray(rawItems) ? [...rawItems] : [];
+                global.__perfettoCategoryAddons = newAddons;
             }
 
             // Sync to Firestore
             await setFirestoreDoc('settings', 'menu', {
                 items: global.__perfettoMenuState,
+                categoryAddons: global.__perfettoCategoryAddons,
                 updatedAt: new Date().toISOString()
             });
 
@@ -261,6 +286,7 @@ async function handleMenuRequest(req, res) {
                 message: isReset ? 'Menu reset to defaults in Firestore' : 'Bulk menu updated successfully in Firestore',
                 count: global.__perfettoMenuState.length,
                 items: global.__perfettoMenuState,
+                categoryAddons: global.__perfettoCategoryAddons,
             });
         }
 

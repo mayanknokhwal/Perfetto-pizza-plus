@@ -931,6 +931,90 @@
             color: var(--text-muted);
         }
 
+        /* Category Add-ons Configuration Card in Admin Subview */
+        .category-addons-bar {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .category-addons-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .category-addons-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-addons-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .category-addons-inputs-grid {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .addon-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .addon-input-group label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .addon-input-wrapper {
+            display: flex;
+            align-items: center;
+            background: #0b0f19;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 4px 10px;
+            gap: 6px;
+            width: 120px;
+        }
+
+        .addon-currency {
+            color: #ff6b00;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .addon-price-field {
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 0.95rem;
+            font-weight: 700;
+            width: 100%;
+            outline: none;
+        }
+
         .table-container {
             background: var(--bg-card);
             backdrop-filter: blur(16px);
@@ -3455,6 +3539,37 @@
                         </div>
                     </div>
 
+                    <!-- CATEGORY LEVEL ADD-ONS PRICING BAR (Burger & Wrap) -->
+                    <div id="category-addons-bar" class="category-addons-bar" style="display: none;">
+                        <div class="category-addons-info">
+                            <div class="category-addons-title">
+                                <i class="fa-solid fa-layer-group" style="color: #ff6b00;"></i> Category Add-ons Pricing (<span id="addons-cat-name">Category</span>)
+                                <span class="draft-badge" id="addons-draft-badge" style="display: none;"><i class="fa-solid fa-pen"></i> Unsaved Draft</span>
+                            </div>
+                            <div class="category-addons-desc">Set custom add-on rates (Extra Cheese & Extra Spicy) applied across all items in this category.</div>
+                        </div>
+                        <div class="category-addons-inputs-grid">
+                            <div class="addon-input-group">
+                                <label for="addon-extra-cheese-input">
+                                    <i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese Price
+                                </label>
+                                <div class="addon-input-wrapper">
+                                    <span class="addon-currency">₹</span>
+                                    <input type="number" id="addon-extra-cheese-input" min="0" step="1" class="addon-price-field" placeholder="25" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                </div>
+                            </div>
+                            <div class="addon-input-group">
+                                <label for="addon-extra-spicy-input">
+                                    <i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy Price
+                                </label>
+                                <div class="addon-input-wrapper">
+                                    <span class="addon-currency">₹</span>
+                                    <input type="number" id="addon-extra-spicy-input" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- DATA TABLE WITHOUT INDIVIDUAL SAVE BUTTONS -->
                     <div class="table-container">
                         <table class="data-table">
@@ -3864,9 +3979,24 @@
         ];
 
         const STORAGE_KEY = 'menuData';
+        const CATEGORY_ADDONS_STORAGE_KEY = 'perfetto_category_addons';
+
+        const DEFAULT_CATEGORY_ADDONS = {
+            "Burger": {
+                extraCheese: 25,
+                extraSpicy: 0
+            },
+            "Wrap": {
+                extraCheese: 30,
+                extraSpicy: 0
+            }
+        };
+
         let menuItems = [];
         let committedMenuItems = []; // Cloud-synced pristine snapshot
-        let pendingMenuUpdates = {}; // Map of itemId -> { id, price, prices, available }
+        let categoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+        let committedCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+        let pendingMenuUpdates = {}; // Map of itemId / category_addon_* -> update payload
         let activeCategory = null; // null = Step 1 Grid, string = Step 2 Category Sub-view
 
         // HELPER TO REFRESH UNSAVED CHANGES BADGES & PULSING SAVE BUTTON
@@ -3891,6 +4021,15 @@
                     saveBadge.textContent = '0';
                     saveText.textContent = 'Save All Changes';
                     saveBtn.title = 'No pending changes to save';
+                }
+            }
+
+            // Update addons bar draft badge
+            if (activeCategory && (activeCategory === 'Burger' || activeCategory === 'Wrap')) {
+                const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${activeCategory}`]);
+                const draftBadge = document.getElementById('addons-draft-badge');
+                if (draftBadge) {
+                    draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
                 }
             }
 
@@ -4031,6 +4170,10 @@
                         const freshItems = sanitizeAdminMenuItems(docSnap.data().items.filter(item => item.category && item.name));
                         menuItems = freshItems;
                         committedMenuItems = JSON.parse(JSON.stringify(freshItems));
+                        if (docSnap.data().categoryAddons) {
+                            categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...docSnap.data().categoryAddons };
+                            committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                        }
                         pendingMenuUpdates = {};
                         saveToLocalStorage();
                         isMenuInitialLoading = false;
@@ -4057,6 +4200,10 @@
                 if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
                     menuItems = sanitizeAdminMenuItems(data.items.filter(item => item.category && item.name));
                     committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+                    if (data.categoryAddons) {
+                        categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons };
+                        committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                    }
                     pendingMenuUpdates = {};
                     saveToLocalStorage();
                     isMenuInitialLoading = false;
@@ -4105,6 +4252,7 @@
         function saveToLocalStorage() {
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(menuItems));
+                localStorage.setItem(CATEGORY_ADDONS_STORAGE_KEY, JSON.stringify(categoryAddons));
             } catch (e) {
                 console.error('Failed to save to localStorage:', e);
             }
@@ -4192,6 +4340,29 @@
             document.getElementById('subview-cat-title').textContent = `${catMeta.name} Menu`;
             document.getElementById('subview-cat-img').src = catMeta.img;
 
+            // Handle Category Add-ons Pricing Bar (Burger & Wrap)
+            const addonsBar = document.getElementById('category-addons-bar');
+            if (addonsBar) {
+                if (categoryName === 'Burger' || categoryName === 'Wrap') {
+                    addonsBar.style.display = 'flex';
+                    const catNameEl = document.getElementById('addons-cat-name');
+                    if (catNameEl) catNameEl.textContent = categoryName;
+
+                    const cheeseInput = document.getElementById('addon-extra-cheese-input');
+                    const spicyInput = document.getElementById('addon-extra-spicy-input');
+
+                    const currentAddons = categoryAddons[categoryName] || (categoryName === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
+                    if (cheeseInput) cheeseInput.value = currentAddons.extraCheese;
+                    if (spicyInput) spicyInput.value = currentAddons.extraSpicy;
+
+                    const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
+                    const draftBadge = document.getElementById('addons-draft-badge');
+                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                } else {
+                    addonsBar.style.display = 'none';
+                }
+            }
+
             if (!isPopState) {
                 history.pushState(
                     { page: 'category-detail', categoryName },
@@ -4202,6 +4373,39 @@
 
             renderCategoryItemsTable();
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE)
+        function handleCategoryAddonChange() {
+            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap')) return;
+
+            const cheeseInput = document.getElementById('addon-extra-cheese-input');
+            const spicyInput = document.getElementById('addon-extra-spicy-input');
+            if (!cheeseInput || !spicyInput) return;
+
+            if (!categoryAddons[activeCategory]) {
+                categoryAddons[activeCategory] = (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
+            }
+
+            categoryAddons[activeCategory].extraCheese = parseFloat(cheeseInput.value) || 0;
+            categoryAddons[activeCategory].extraSpicy = parseFloat(spicyInput.value) || 0;
+
+            const orig = committedCategoryAddons[activeCategory] || (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
+            const isModified = (categoryAddons[activeCategory].extraCheese !== orig.extraCheese) || (categoryAddons[activeCategory].extraSpicy !== orig.extraSpicy);
+
+            const updateKey = `category_addon_${activeCategory}`;
+            if (isModified) {
+                pendingMenuUpdates[updateKey] = { category: activeCategory, ...categoryAddons[activeCategory] };
+            } else {
+                delete pendingMenuUpdates[updateKey];
+            }
+
+            const draftBadge = document.getElementById('addons-draft-badge');
+            if (draftBadge) {
+                draftBadge.style.display = isModified ? 'inline-flex' : 'none';
+            }
+
+            updateUnsavedChangesUI();
         }
 
         // RETURN TO STEP 1 CATEGORIES
@@ -4876,8 +5080,12 @@
                     const settingsMenuRef = adminFirestore.collection('settings').doc('menu');
                     batch.set(settingsMenuRef, {
                         items: menuItems,
+                        categoryAddons: categoryAddons,
                         lastUpdated: Date.now()
                     }, { merge: true });
+
+                    const settingsAddonsRef = adminFirestore.collection('settings').doc('category_addons');
+                    batch.set(settingsAddonsRef, categoryAddons, { merge: true });
 
                     await batch.commit();
                 } catch (firestoreErr) {
@@ -4889,7 +5097,7 @@
             try {
                 const res = await apiCall('/menu', {
                     method: 'PUT',
-                    body: JSON.stringify({ items: menuItems })
+                    body: JSON.stringify({ items: menuItems, categoryAddons: categoryAddons })
                 });
                 if (!res.ok) {
                     const errData = await res.json().catch(() => ({}));
@@ -4903,6 +5111,7 @@
 
             // 3. Clear pending updates buffer and commit local snapshot
             committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+            committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
             pendingMenuUpdates = {};
             saveToLocalStorage();
             saveOrderSettings(false);
@@ -4939,8 +5148,11 @@
             pendingMenuUpdates = {};
             if (committedMenuItems && committedMenuItems.length > 0) {
                 menuItems = JSON.parse(JSON.stringify(committedMenuItems));
-                saveToLocalStorage();
             }
+            if (committedCategoryAddons) {
+                categoryAddons = JSON.parse(JSON.stringify(committedCategoryAddons));
+            }
+            saveToLocalStorage();
             updateUnsavedChangesUI();
             showToast('Reloading fresh menu from cloud...');
             await initMenuData();
@@ -7652,6 +7864,11 @@
                         if (Object.keys(pendingMenuUpdates).length > 0) {
                             console.log('Incoming cloud menu update held to preserve unsaved Admin draft.');
                             return;
+                        }
+
+                        if (doc.data().categoryAddons) {
+                            categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
+                            committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
                         }
 
                         if (JSON.stringify(freshItems) !== JSON.stringify(committedMenuItems)) {

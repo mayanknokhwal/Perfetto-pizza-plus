@@ -34,6 +34,116 @@ const CUSTOMER_CARE_PHONE_KEY = 'customerCarePhone';
 const CUSTOMER_CARE_ENABLED_KEY = 'customerCareEnabled';
 const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
 
+// CATEGORY ADD-ONS CONFIGURATION & REAL-TIME STATE
+const DEFAULT_CATEGORY_ADDONS = {
+    "Burger": {
+        extraCheese: 25,
+        extraSpicy: 0
+    },
+    "Wrap": {
+        extraCheese: 30,
+        extraSpicy: 0
+    }
+};
+
+let customerCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+
+function getCustomerCategoryAddons(categoryName) {
+    try {
+        const saved = localStorage.getItem('perfetto_category_addons');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object') {
+                customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...parsed };
+            }
+        }
+    } catch (e) { }
+
+    return customerCategoryAddons[categoryName] || DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0 };
+}
+
+// --------------------------------------------------------------------------
+// INLINE CARD ADD-ON EMOJI SELECTORS (S/M/L BADGE STYLE) & DYNAMIC PRICING
+// --------------------------------------------------------------------------
+const cardSelectedAddons = {}; // itemId -> { cheese: boolean, spicy: boolean }
+
+function toggleCardAddon(categoryName, itemId, addonType, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    if (!cardSelectedAddons[itemId]) {
+        cardSelectedAddons[itemId] = { cheese: false, spicy: false };
+    }
+
+    cardSelectedAddons[itemId][addonType] = !cardSelectedAddons[itemId][addonType];
+    const isSelected = cardSelectedAddons[itemId][addonType];
+
+    // Update box / chip element active state
+    const boxEl = document.getElementById(`box-${addonType}-${itemId}`) || document.getElementById(`chip-${addonType}-${itemId}`);
+    if (boxEl) {
+        if (isSelected) {
+            boxEl.classList.add('active', 'selected', `active-${addonType}`);
+        } else {
+            boxEl.classList.remove('active', 'selected', `active-${addonType}`);
+        }
+    }
+
+    // Recalculate card total price
+    const catAddons = getCustomerCategoryAddons(categoryName);
+    const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
+    const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+
+    const allItems = getAllCustomerMenuItems();
+    const itemObj = allItems.find(i => i.id === itemId);
+    const basePrice = (itemObj && itemObj.price) ? itemObj.price : 99;
+
+    let total = basePrice;
+    if (cardSelectedAddons[itemId].cheese) total += cheeseRate;
+    if (cardSelectedAddons[itemId].spicy) total += spicyRate;
+
+    const priceEl = document.getElementById(`card-price-${itemId}`) || document.getElementById(`price-${itemId}`);
+    if (priceEl) {
+        priceEl.textContent = formatPrice(total);
+    }
+
+    // Top Drop-Down Toast Notification with smooth 1.8s auto-dismiss
+    if (addonType === 'cheese') {
+        showToast(isSelected ? 'Added extra cheese' : 'Removed extra cheese', 1800);
+    } else if (addonType === 'spicy') {
+        showToast(isSelected ? 'Added extra spicy' : 'Removed extra spicy', 1800);
+    }
+}
+window.toggleCardAddon = toggleCardAddon;
+window.toggleBurgerCardAddon = function(itemId, addonType, addonPrice, event) {
+    toggleCardAddon('Burger', itemId, addonType, event);
+};
+
+function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
+    const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
+    const catAddons = getCustomerCategoryAddons(categoryName);
+    const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
+    const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+
+    const addons = [];
+    let calculatedPrice = basePrice;
+
+    if (sel.cheese) {
+        addons.push({ name: 'Extra Cheese', price: cheeseRate });
+        calculatedPrice += cheeseRate;
+    }
+    if (sel.spicy) {
+        addons.push({ name: 'Extra Spicy', price: spicyRate });
+        calculatedPrice += spicyRate;
+    }
+
+    addToCart(itemName, calculatedPrice, itemImg, addons);
+}
+window.addCardWithAddonsToCart = addCardWithAddonsToCart;
+window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
+    addCardWithAddonsToCart('Burger', itemId, itemName, basePrice, itemImg);
+};
+
 function getStoredVerifiedPhone() {
     try {
         // 1. Check direct verified phone key
@@ -815,40 +925,81 @@ function refreshActiveCustomerView(freshItems) {
                     </div>
                     `;
                 }).join('');
-            } else if (categoryName === "Burger" || categoryName === "Wrap" || categoryName === "Bread") {
+            } else if (categoryName === "Burger" || categoryName === "Wrap") {
                 const isWrap = categoryName === "Wrap";
-                const isBread = categoryName === "Bread";
-                const prefix = isBread ? 'bread' : (isWrap ? 'wrap' : 'burger');
-                const gridClass = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
-                const cardClass = `${prefix}-card`;
-                const imgWrapClass = `${prefix}-card-image-wrapper`;
-                const imgClass = `${prefix}-card-img`;
-                const bodyClass = `${prefix}-card-body`;
-                const titleClass = `${prefix}-card-title`;
-                const priceRowClass = `${prefix}-price-row`;
-                const priceClass = `${prefix}-card-price`;
-                const btnClass = `${prefix}-add-cart-btn`;
+                const prefix = isWrap ? 'wrap' : 'burger';
+                const catAddons = getCustomerCategoryAddons(categoryName);
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (isWrap ? 30 : 25);
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
 
-                subItemsGrid.className = gridClass;
+                subItemsGrid.className = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
                 subItemsGrid.innerHTML = items.map(item => {
                     const isAvailable = item.available !== false;
                     const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                     const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
+
+                    const currentTotal = (item.price || 99) + (selected.cheese ? cheesePrice : 0) + (selected.spicy ? spicyPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="burger-addon-selector">
+                            <span class="burger-addon-label">Add-ons:</span>
+                            <div class="burger-addon-options">
+                                <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
                     const addBtnMarkup = isAvailable
-                        ? `<button class="${btnClass}" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="${btnClass} disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                        ? `<button class="${prefix}-add-cart-btn" onclick="addCardWithAddonsToCart('${categoryName}', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="${prefix}-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                     return `
-                    <div class="${cardClass} ${outOfStockClass}" data-item-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
+                    <div class="${prefix}-card ${outOfStockClass}" data-item-id="${itemId}">
                         ${outOfStockBadge}
-                        <div class="${imgWrapClass}">
-                            <img src="${item.img}" alt="${item.name}" class="${imgClass}" loading="lazy">
+                        <div class="${prefix}-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
                         </div>
-                        <div class="${bodyClass}">
-                            <h4 class="${titleClass}">${item.name}</h4>
-                            <div class="${priceRowClass}">
+                        <div class="${prefix}-card-body">
+                            <h4 class="${prefix}-card-title">${item.name}</h4>
+                            ${boxesMarkup}
+                            <div class="${prefix}-price-row">
                                 <span class="price-prefix">Price:</span>
-                                <span class="${priceClass}">${formatPrice(item.price || 99)}</span>
+                                <span class="${prefix}-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Bread") {
+                subItemsGrid.className = 'sub-items-grid bread-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="bread-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="bread-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="bread-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
+                        </div>
+                        <div class="bread-card-body">
+                            <h4 class="bread-card-title">${item.name}</h4>
+                            <div class="bread-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="bread-card-price">${formatPrice(item.price || 99)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -904,6 +1055,12 @@ async function fetchLiveMenuFromBackend() {
         const res = await fetch(resolveApiUrl('/api/menu'));
         const data = await res.json();
         if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+            if (data.categoryAddons) {
+                try {
+                    customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons };
+                    localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                } catch (e) { }
+            }
             const freshItems = sanitizeStoredMenuItems(data.items) || data.items;
             const newHash = computeMenuHash(freshItems);
             const stored = getStoredMenuItems();
@@ -1214,40 +1371,81 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 </div>
                 `;
             }).join('');
-        } else if (categoryName === "Burger" || categoryName === "Wrap" || categoryName === "Bread") {
+        } else if (categoryName === "Burger" || categoryName === "Wrap") {
             const isWrap = categoryName === "Wrap";
-            const isBread = categoryName === "Bread";
-            const prefix = isBread ? 'bread' : (isWrap ? 'wrap' : 'burger');
-            const gridClass = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
-            const cardClass = `${prefix}-card`;
-            const imgWrapClass = `${prefix}-card-image-wrapper`;
-            const imgClass = `${prefix}-card-img`;
-            const bodyClass = `${prefix}-card-body`;
-            const titleClass = `${prefix}-card-title`;
-            const priceRowClass = `${prefix}-price-row`;
-            const priceClass = `${prefix}-card-price`;
-            const btnClass = `${prefix}-add-cart-btn`;
+            const prefix = isWrap ? 'wrap' : 'burger';
+            const catAddons = getCustomerCategoryAddons(categoryName);
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (isWrap ? 30 : 25);
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
 
-            subItemsGrid.className = gridClass;
+            subItemsGrid.className = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
+
+                const currentTotal = (item.price || 99) + (selected.cheese ? cheesePrice : 0) + (selected.spicy ? spicyPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="burger-addon-selector">
+                        <span class="burger-addon-label">Add-ons:</span>
+                        <div class="burger-addon-options">
+                            <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
                 const addBtnMarkup = isAvailable
-                    ? `<button class="${btnClass}" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="${btnClass} disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="${prefix}-add-cart-btn" onclick="addCardWithAddonsToCart('${categoryName}', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="${prefix}-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                 return `
-                <div class="${cardClass} ${outOfStockClass}" data-item-id="${item.id || item.name.toLowerCase().replace(/\s+/g, '-')}">
+                <div class="${prefix}-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
-                    <div class="${imgWrapClass}">
-                        <img src="${item.img}" alt="${item.name}" class="${imgClass}" loading="lazy">
+                    <div class="${prefix}-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
                     </div>
-                    <div class="${bodyClass}">
-                        <h4 class="${titleClass}">${item.name}</h4>
-                        <div class="${priceRowClass}">
+                    <div class="${prefix}-card-body">
+                        <h4 class="${prefix}-card-title">${item.name}</h4>
+                        ${boxesMarkup}
+                        <div class="${prefix}-price-row">
                             <span class="price-prefix">Price:</span>
-                            <span class="${priceClass}">${formatPrice(item.price || 99)}</span>
+                            <span class="${prefix}-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Bread") {
+            subItemsGrid.className = 'sub-items-grid bread-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const addBtnMarkup = isAvailable
+                    ? `<button class="bread-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="bread-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="bread-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
+                    </div>
+                    <div class="bread-card-body">
+                        <h4 class="bread-card-title">${item.name}</h4>
+                        <div class="bread-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="bread-card-price">${formatPrice(item.price || 99)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -1745,7 +1943,7 @@ function setupFastFoodCards() {
 // --------------------------------------------------------------------------
 // 6. CART MANAGEMENT & CALCULATIONS
 // --------------------------------------------------------------------------
-function addToCart(name, price, img) {
+function addToCart(name, price, img, addons = []) {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
@@ -1753,23 +1951,38 @@ function addToCart(name, price, img) {
 
     // Check if item is marked out-of-stock in latest menu data
     const allItems = getAllCustomerMenuItems();
-    const cleanName = (name || '').replace(/\s*\([SML]\)$/i, '').trim();
+    const cleanName = (name || '').replace(/\s*\([SML]\)$/i, '').replace(/\s*\(\+.*?\)$/i, '').trim();
     const menuItem = allItems.find(i => (i.name && i.name.toLowerCase() === cleanName.toLowerCase()));
     if (menuItem && menuItem.available === false) {
         showToast(`⚠️ "${cleanName}" is currently out of stock.`);
         return;
     }
 
-    const existingIndex = cart.findIndex(item => item.name === name);
+    // Build item name and identifier taking add-ons into account
+    const addonNames = Array.isArray(addons)
+        ? addons.map(a => typeof a === 'string' ? a : a.name).filter(Boolean)
+        : [];
+    const fullItemName = addonNames.length > 0
+        ? `${name} (+${addonNames.join(', ')})`
+        : name;
+
+    const existingIndex = cart.findIndex(item => item.name === fullItemName);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
     } else {
-        cart.push({ name, price, qty: 1, img });
+        cart.push({
+            name: fullItemName,
+            baseName: name,
+            price: Number(price),
+            qty: 1,
+            img: img || '',
+            addons: addons
+        });
     }
     saveCartToStorage();
     updateCartUI();
 
-    showToast(`Added ${name} to your cart!`);
+    showToast(`Added ${fullItemName} to your cart!`);
 }
 
 function updateQuantity(index, change) {
@@ -1815,11 +2028,22 @@ function updateCartUI() {
             </div>
         `;
     } else {
-        cartContainer.innerHTML = cart.map((item, index) => `
+        cartContainer.innerHTML = cart.map((item, index) => {
+            const hasAddons = Array.isArray(item.addons) && item.addons.length > 0;
+            const addonTagsMarkup = hasAddons
+                ? `<div class="cart-addons-tags">${item.addons.map(a => {
+                    const aName = (typeof a === 'string' ? a : (a.name || '')).replace(/^\+\s*/, '').trim();
+                    const icon = aName.toLowerCase().includes('cheese') ? '🧀 ' : (aName.toLowerCase().includes('spicy') ? '🌶️ ' : '');
+                    return `<span class="cart-addon-pill">${icon}${aName}</span>`;
+                }).join('')}</div>`
+                : '';
+
+            return `
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
-                    <h5 class="cart-item-name">${item.name}</h5>
+                    <h5 class="cart-item-name">${item.baseName || item.name}</h5>
+                    ${addonTagsMarkup}
                     <span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>
                 </div>
                 <div class="qty-control">
@@ -1828,7 +2052,8 @@ function updateCartUI() {
                     <button class="qty-btn" onclick="updateQuantity(${index}, 1)">+</button>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     // 3. Recalculate Subtotal, Thresholds & Dynamic Delivery Fee
@@ -4087,21 +4312,38 @@ function confirmClearCustomerOrderHistory() {
 // 7. TOAST NOTIFICATION SYSTEM
 // --------------------------------------------------------------------------
 let toastTimeout;
-function showToast(msg) {
+function showToast(msg, duration = 2800) {
     clearTimeout(toastTimeout);
     let text = msg;
     if (typeof text === 'object' && text !== null) {
         text = text.message || text.error || text.details || JSON.stringify(text);
     }
-    if (toastMessage) {
-        toastMessage.textContent = String(text || '');
+    const toastEl = document.getElementById('toast') || toast;
+    const toastMsgEl = (toastEl ? toastEl.querySelector('#toast-message') : null) || toastMessage;
+    const toastIconEl = (toastEl ? toastEl.querySelector('#toast-icon') : null) || document.getElementById('toast-icon');
+
+    if (toastMsgEl) {
+        toastMsgEl.textContent = String(text || '');
     }
-    if (toast) {
-        toast.classList.add('show');
+    if (toastIconEl) {
+        const lower = String(text).toLowerCase();
+        if (lower.includes('cheese')) {
+            toastIconEl.className = 'toast-icon';
+            toastIconEl.textContent = '🧀';
+        } else if (lower.includes('spicy')) {
+            toastIconEl.className = 'toast-icon';
+            toastIconEl.textContent = '🌶️';
+        } else {
+            toastIconEl.textContent = '';
+            toastIconEl.className = 'fa-solid fa-circle-check toast-icon';
+        }
+    }
+    if (toastEl) {
+        toastEl.classList.add('show');
     }
     toastTimeout = setTimeout(() => {
-        if (toast) toast.classList.remove('show');
-    }, 2800);
+        if (toastEl) toastEl.classList.remove('show');
+    }, duration);
 }
 
 // --------------------------------------------------------------------------
@@ -5041,6 +5283,12 @@ function listenToRealtimeMenuAndRates() {
         try {
             menuRealtimeUnsubscribe = customerFirestore.collection('settings').doc('menu').onSnapshot((doc) => {
                 if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+                    if (doc.data().categoryAddons) {
+                        try {
+                            customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
+                            localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                        } catch (e) { }
+                    }
                     const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
                     try {
                         localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
