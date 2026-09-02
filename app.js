@@ -961,7 +961,7 @@ async function fetchLiveBannersFromBackend() {
     if (typeof customerFirestore !== 'undefined' && customerFirestore) {
         try {
             const doc = await customerFirestore.collection('settings').doc('daily_banners').get();
-            if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
+            if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
                 const normalized = doc.data().banners.map((b, i) => ({
                     id: b.id || `b${i + 1}`,
                     url: resolveBannerUrl(b.url)
@@ -979,7 +979,7 @@ async function fetchLiveBannersFromBackend() {
         const res = await fetch(resolveApiUrl('/api/banners'));
         if (res.ok) {
             const data = await res.json();
-            if (data && data.success && Array.isArray(data.banners) && data.banners.length >= 2) {
+            if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
                 const normalized = data.banners.map((b, i) => ({
                     id: b.id || `b${i + 1}`,
                     url: resolveBannerUrl(b.url)
@@ -995,7 +995,7 @@ async function fetchLiveBannersFromBackend() {
     if (local) {
         try {
             const parsed = JSON.parse(local);
-            if (Array.isArray(parsed) && parsed.length >= 2) {
+            if (Array.isArray(parsed) && parsed.length > 0) {
                 renderDynamicOfferSlider(parsed);
                 return;
             }
@@ -4136,21 +4136,22 @@ window.handleBannerImgError = handleBannerImgError;
 
 let offerSliderAutoScrollInterval = null;
 let offerSliderPauseTimeout = null;
+let currentOfferSlideIndex = 0;
 
 function renderDynamicOfferSlider(customBanners = null) {
     let banners = customBanners;
-    if (!Array.isArray(banners) || banners.length < 2) {
+    if (!Array.isArray(banners) || banners.length === 0) {
         try {
             const saved = localStorage.getItem('perfetto_daily_banners');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length >= 2) {
+                if (Array.isArray(parsed) && parsed.length > 0) {
                     banners = parsed;
                 }
             }
         } catch (e) { }
     }
-    if (!Array.isArray(banners) || banners.length < 2) {
+    if (!Array.isArray(banners) || banners.length === 0) {
         banners = DEFAULT_DAILY_BANNERS;
     }
     if (banners.length > 7) banners = banners.slice(0, 7);
@@ -4159,24 +4160,24 @@ function renderDynamicOfferSlider(customBanners = null) {
     const dotsContainer = document.getElementById('offer-dots');
     if (!track || !dotsContainer) return;
 
-    // Render track slides
-    let slidesHtml = '';
-    banners.forEach((banner, idx) => {
+    if (currentOfferSlideIndex >= banners.length) {
+        currentOfferSlideIndex = 0;
+    }
+
+    // Render track slides dynamically for all banners
+    track.innerHTML = banners.map((banner, idx) => {
         const safeUrl = resolveBannerUrl(banner.url);
-        slidesHtml += `
-            <div class="offer-slide" data-banner-id="${banner.id || ('b' + (idx + 1))}">
+        return `
+            <div class="offer-slide" data-banner-id="${banner.id || ('b' + (idx + 1))}" data-slide-index="${idx}">
                 <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
             </div>
         `;
-    });
-    track.innerHTML = slidesHtml;
+    }).join('');
 
-    // Render dots
-    let dotsHtml = '';
-    banners.forEach((_, idx) => {
-        dotsHtml += `<span class="dot ${idx === 0 ? 'active' : ''}" data-index="${idx}"></span>`;
-    });
-    dotsContainer.innerHTML = dotsHtml;
+    // Render pagination dots for all banners
+    dotsContainer.innerHTML = banners.map((_, idx) => 
+        `<span class="dot ${idx === currentOfferSlideIndex ? 'active' : ''}" data-index="${idx}"></span>`
+    ).join('');
 
     initOfferSlider();
 }
@@ -4197,49 +4198,37 @@ function initOfferSlider() {
         offerSliderPauseTimeout = null;
     }
 
-    // Get original slides
-    const origSlides = Array.from(track.querySelectorAll('.offer-slide:not(.clone-slide)'));
-    const totalRealSlides = origSlides.length;
-    if (totalRealSlides <= 1) return;
+    const slides = Array.from(track.querySelectorAll('.offer-slide'));
+    const totalSlides = slides.length;
+    if (totalSlides <= 1) {
+        track.style.transform = 'translateX(0%)';
+        track.style.transition = 'none';
+        return;
+    }
 
-    const dots = dotsContainer.querySelectorAll('.dot');
+    const dots = Array.from(dotsContainer.querySelectorAll('.dot'));
 
-    // Clone first and last slides for seamless infinite loop transition
-    track.querySelectorAll('.clone-slide').forEach(c => c.remove());
+    track.style.display = 'flex';
+    track.style.width = `${totalSlides * 100}%`;
 
-    const firstClone = origSlides[0].cloneNode(true);
-    firstClone.classList.add('clone-slide');
-    const lastClone = origSlides[totalRealSlides - 1].cloneNode(true);
-    lastClone.classList.add('clone-slide');
-
-    track.appendChild(firstClone);
-    track.insertBefore(lastClone, origSlides[0]);
-
-    const allSlides = track.querySelectorAll('.offer-slide');
-    const totalWithClones = allSlides.length;
-
-    // Adjust width percentage dynamically
-    track.style.width = `${totalWithClones * 100}%`;
-    allSlides.forEach(slide => {
-        slide.style.width = `${100 / totalWithClones}%`;
+    slides.forEach(slide => {
+        slide.style.flex = `0 0 ${100 / totalSlides}%`;
+        slide.style.width = `${100 / totalSlides}%`;
+        slide.style.minWidth = `${100 / totalSlides}%`;
     });
 
-    let currentPos = 1; // Start at first original slide
-    let isTransitioning = false;
-
-    function setPosition(pos, animated = true) {
+    function goToSlide(index, animated = true) {
+        currentOfferSlideIndex = (index % totalSlides + totalSlides) % totalSlides;
         if (animated) {
-            track.style.transition = 'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+            track.style.transition = 'transform 0.5s ease-in-out';
         } else {
             track.style.transition = 'none';
         }
-        const pct = -(pos * (100 / totalWithClones));
+        const pct = -(currentOfferSlideIndex * (100 / totalSlides));
         track.style.transform = `translateX(${pct}%)`;
-    }
 
-    function updateDots(activeIdx) {
         dots.forEach((dot, idx) => {
-            if (idx === activeIdx) {
+            if (idx === currentOfferSlideIndex) {
                 dot.classList.add('active');
             } else {
                 dot.classList.remove('active');
@@ -4247,49 +4236,22 @@ function initOfferSlider() {
         });
     }
 
-    // Initial positioning on first real slide without animation
-    setPosition(currentPos, false);
-    updateDots(0);
+    // Set initial slide position
+    goToSlide(currentOfferSlideIndex, false);
 
     function nextSlide() {
-        if (isTransitioning) return;
-        isTransitioning = true;
-        currentPos++;
-        setPosition(currentPos, true);
-
-        let activeDot = (currentPos - 1) % totalRealSlides;
-        if (activeDot < 0) activeDot = totalRealSlides - 1;
-        updateDots(activeDot);
+        goToSlide(currentOfferSlideIndex + 1, true);
     }
 
     function prevSlide() {
-        if (isTransitioning) return;
-        isTransitioning = true;
-        currentPos--;
-        setPosition(currentPos, true);
-
-        let activeDot = (currentPos - 1) % totalRealSlides;
-        if (activeDot < 0) activeDot = totalRealSlides - 1;
-        updateDots(activeDot);
+        goToSlide(currentOfferSlideIndex - 1, true);
     }
-
-    // Seamless loop reset on transitionend
-    track.ontransitionend = () => {
-        isTransitioning = false;
-        if (currentPos >= totalWithClones - 1) {
-            currentPos = 1;
-            setPosition(currentPos, false);
-            updateDots(0);
-        } else if (currentPos <= 0) {
-            currentPos = totalRealSlides;
-            setPosition(currentPos, false);
-            updateDots(totalRealSlides - 1);
-        }
-    };
 
     function startAutoScroll() {
         stopAutoScroll();
-        offerSliderAutoScrollInterval = setInterval(nextSlide, 3200);
+        offerSliderAutoScrollInterval = setInterval(() => {
+            nextSlide();
+        }, 3000); // 3 seconds autoplay
     }
 
     function stopAutoScroll() {
@@ -4299,89 +4261,101 @@ function initOfferSlider() {
         }
     }
 
-    function handleUserInteraction() {
+    function handleUserInteractionEnd() {
         stopAutoScroll();
         if (offerSliderPauseTimeout) clearTimeout(offerSliderPauseTimeout);
+        // Wait 6 seconds idle cooldown before resuming 3-second autoplay
         offerSliderPauseTimeout = setTimeout(() => {
             startAutoScroll();
-        }, 5000);
+        }, 6000);
     }
 
     // Dot click navigation
     dots.forEach((dot, idx) => {
-        dot.onclick = () => {
-            if (isTransitioning) return;
-            currentPos = idx + 1;
-            setPosition(currentPos, true);
-            updateDots(idx);
-            handleUserInteraction();
+        dot.onclick = (e) => {
+            e.stopPropagation();
+            stopAutoScroll();
+            goToSlide(idx, true);
+            handleUserInteractionEnd();
         };
     });
 
-    // Touch gestures
+    // Touch & Mouse Drag Listeners
     let startX = 0;
     let currentX = 0;
     let isDragging = false;
 
-    wrapper.addEventListener('touchstart', (e) => {
-        if (e.touches.length > 0) {
-            startX = e.touches[0].clientX;
-            currentX = startX;
-            isDragging = true;
-        }
-    }, { passive: true });
-
-    wrapper.addEventListener('touchmove', (e) => {
-        if (!isDragging || e.touches.length === 0) return;
-        currentX = e.touches[0].clientX;
-    }, { passive: true });
-
-    wrapper.addEventListener('touchend', () => {
-        if (!isDragging) return;
-        isDragging = false;
-        const diffX = currentX - startX;
-
-        if (Math.abs(diffX) > 40) {
-            if (diffX < 0) {
-                nextSlide();
-            } else {
-                prevSlide();
-            }
-            handleUserInteraction();
-        }
-    });
-
-    // Mouse drag support
-    wrapper.addEventListener('mousedown', (e) => {
-        startX = e.clientX;
+    function onStart(clientX) {
+        stopAutoScroll();
+        if (offerSliderPauseTimeout) clearTimeout(offerSliderPauseTimeout);
+        startX = clientX;
         currentX = startX;
         isDragging = true;
-    });
+    }
 
-    wrapper.addEventListener('mousemove', (e) => {
+    function onMove(clientX) {
         if (!isDragging) return;
-        currentX = e.clientX;
-    });
+        currentX = clientX;
+    }
 
-    wrapper.addEventListener('mouseup', () => {
+    function onEnd() {
         if (!isDragging) return;
         isDragging = false;
         const diffX = currentX - startX;
-        if (Math.abs(diffX) > 40) {
+
+        if (Math.abs(diffX) > 35) {
             if (diffX < 0) {
                 nextSlide();
             } else {
                 prevSlide();
             }
-            handleUserInteraction();
         }
-    });
+        handleUserInteractionEnd();
+    }
 
-    wrapper.addEventListener('mouseleave', () => {
-        isDragging = false;
-    });
+    wrapper.ontouchstart = (e) => {
+        if (e.touches.length > 0) {
+            onStart(e.touches[0].clientX);
+        }
+    };
 
-    // Start auto loop
+    wrapper.ontouchmove = (e) => {
+        if (e.touches.length > 0) {
+            onMove(e.touches[0].clientX);
+        }
+    };
+
+    wrapper.ontouchend = () => {
+        onEnd();
+    };
+
+    wrapper.ontouchcancel = () => {
+        if (isDragging) {
+            isDragging = false;
+            handleUserInteractionEnd();
+        }
+    };
+
+    wrapper.onmousedown = (e) => {
+        onStart(e.clientX);
+    };
+
+    wrapper.onmousemove = (e) => {
+        onMove(e.clientX);
+    };
+
+    wrapper.onmouseup = () => {
+        onEnd();
+    };
+
+    wrapper.onmouseleave = () => {
+        if (isDragging) {
+            isDragging = false;
+            handleUserInteractionEnd();
+        }
+    };
+
+    // Start initial 3-second autoplay
     startAutoScroll();
 }
 
@@ -4390,6 +4364,7 @@ function initOfferSlider() {
 // --------------------------------------------------------------------------
 function initLogoModal() {
     const brandLogo = document.getElementById('app-logo');
+    const brandLogoContainer = document.getElementById('brand-logo-container');
     const logoModal = document.getElementById('logo-modal');
     const logoModalContent = document.getElementById('logo-modal-content');
     const modalLogoImg = document.getElementById('modal-logo-img');
@@ -4414,7 +4389,8 @@ function initLogoModal() {
         }
     }
 
-    brandLogo.addEventListener('click', (e) => {
+    const triggerEl = brandLogoContainer || brandLogo;
+    triggerEl.addEventListener('click', (e) => {
         e.stopPropagation();
         openLogoModal();
     });
@@ -5167,7 +5143,7 @@ function listenToRealtimeMenuAndRates() {
         try {
             bannersRealtimeUnsubscribe = customerFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
                 let banners = DEFAULT_DAILY_BANNERS;
-                if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
+                if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
                     banners = doc.data().banners.map((b, i) => ({
                         id: b.id || `b${i + 1}`,
                         url: resolveBannerUrl(b.url)
