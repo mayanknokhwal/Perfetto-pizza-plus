@@ -43,6 +43,13 @@ const DEFAULT_CATEGORY_ADDONS = {
     "Wrap": {
         extraCheese: 30,
         extraSpicy: 0
+    },
+    "Pizza": {
+        sizes: {
+            S: { extraCheese: 30, extraSpicy: 0 },
+            M: { extraCheese: 50, extraSpicy: 0 },
+            L: { extraCheese: 70, extraSpicy: 0 }
+        }
     }
 };
 
@@ -60,6 +67,18 @@ function getCustomerCategoryAddons(categoryName) {
     } catch (e) { }
 
     return customerCategoryAddons[categoryName] || DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0 };
+}
+
+function getPizzaSizeAddonRates(size = 'M') {
+    const pAddons = getCustomerCategoryAddons('Pizza');
+    if (pAddons && pAddons.sizes && pAddons.sizes[size]) {
+        return {
+            extraCheese: pAddons.sizes[size].extraCheese !== undefined ? pAddons.sizes[size].extraCheese : (size === 'S' ? 30 : (size === 'M' ? 50 : 70)),
+            extraSpicy: pAddons.sizes[size].extraSpicy !== undefined ? pAddons.sizes[size].extraSpicy : 0
+        };
+    }
+    const defaults = { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+    return defaults[size] || { extraCheese: 50, extraSpicy: 0 };
 }
 
 // --------------------------------------------------------------------------
@@ -118,6 +137,66 @@ window.toggleCardAddon = toggleCardAddon;
 window.toggleBurgerCardAddon = function(itemId, addonType, addonPrice, event) {
     toggleCardAddon('Burger', itemId, addonType, event);
 };
+
+function togglePizzaAddon(pizzaId, addonType, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    if (!cardSelectedAddons[pizzaId]) {
+        cardSelectedAddons[pizzaId] = { cheese: false, spicy: false };
+    }
+
+    cardSelectedAddons[pizzaId][addonType] = !cardSelectedAddons[pizzaId][addonType];
+    const isSelected = cardSelectedAddons[pizzaId][addonType];
+
+    const boxEl = document.getElementById(`box-${addonType}-${pizzaId}`);
+    if (boxEl) {
+        if (isSelected) {
+            boxEl.classList.add('active', 'selected', `active-${addonType}`);
+        } else {
+            boxEl.classList.remove('active', 'selected', `active-${addonType}`);
+        }
+    }
+
+    recalculatePizzaCardPrice(pizzaId);
+
+    // Top Drop-Down Toast Notification with smooth 1.8s auto-dismiss
+    if (addonType === 'cheese') {
+        showToast(isSelected ? 'Added extra cheese' : 'Removed extra cheese', 1800);
+    } else if (addonType === 'spicy') {
+        showToast(isSelected ? 'Added extra spicy' : 'Removed extra spicy', 1800);
+    }
+}
+window.togglePizzaAddon = togglePizzaAddon;
+
+function recalculatePizzaCardPrice(pizzaId) {
+    const card = document.querySelector(`.pizza-card[data-pizza-id="${pizzaId}"]`);
+    if (!card) return;
+
+    const selectedSize = card.getAttribute('data-selected-size') || 'M';
+    const pizzaList = getSubItems("Pizza");
+    const item = pizzaList.find(p => p.id === pizzaId);
+    const basePrice = (item && item.prices && item.prices[selectedSize]) || 299;
+
+    const rates = getPizzaSizeAddonRates(selectedSize);
+    const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false };
+
+    let total = basePrice;
+    if (sel.cheese) total += rates.extraCheese;
+    if (sel.spicy) total += rates.extraSpicy;
+
+    card.setAttribute('data-current-price', total);
+
+    const priceEl = card.querySelector('.pizza-card-price') || document.getElementById(`price-${pizzaId}`);
+    if (priceEl) {
+        priceEl.classList.remove('price-pop-orange', 'animating');
+        void priceEl.offsetWidth;
+        priceEl.textContent = formatPrice(total);
+        priceEl.classList.add('price-pop-orange');
+    }
+}
+window.recalculatePizzaCardPrice = recalculatePizzaCardPrice;
 
 function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
     const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
@@ -895,10 +974,28 @@ function refreshActiveCustomerView(freshItems) {
                     // Check if card currently has a selected size (e.g. S or L) to preserve user selection
                     const existingCard = document.querySelector(`.pizza-card[data-pizza-id="${item.id}"]`);
                     const selectedSize = (existingCard && existingCard.getAttribute('data-selected-size')) || 'M';
-                    const currentPrice = (prices && prices[selectedSize]) || (prices && prices.M) || 299;
+                    const basePrice = (prices && prices[selectedSize]) || (prices && prices.M) || 299;
+
+                    const rates = getPizzaSizeAddonRates(selectedSize);
+                    const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false };
+                    const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0);
+
+                    const addonsMarkup = isAvailable ? `
+                        <div class="burger-addon-selector pizza-addon-selector">
+                            <span class="burger-addon-label">Add-ons:</span>
+                            <div class="burger-addon-options">
+                                <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
 
                     return `
-                    <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="${selectedSize}" data-current-price="${currentPrice}">
+                    <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="${selectedSize}" data-current-price="${currentTotal}">
                         ${outOfStockBadge}
                         <div class="pizza-card-image-wrapper">
                             <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
@@ -915,10 +1012,12 @@ function refreshActiveCustomerView(freshItems) {
                                     <button class="size-btn ${selectedSize === 'L' ? 'selected' : ''}" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
                                 </div>
                             </div>
+
+                            ${addonsMarkup}
                             
                             <div class="pizza-price-row">
                                 <span class="price-prefix">Price:</span>
-                                <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentPrice)}</span>
+                                <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -1209,14 +1308,13 @@ function getSubItems(categoryName, categoryImg) {
     ];
 }
 
-function changePizzaSize(pizzaId, size, price, event) {
+function changePizzaSize(pizzaId, size, basePrice, event) {
     if (event) event.stopPropagation();
 
     const card = document.querySelector(`.pizza-card[data-pizza-id="${pizzaId}"]`);
     if (!card) return;
 
     card.setAttribute('data-selected-size', size);
-    card.setAttribute('data-current-price', price);
 
     const sizeBtns = card.querySelectorAll('.size-btn');
     sizeBtns.forEach(btn => {
@@ -1228,13 +1326,14 @@ function changePizzaSize(pizzaId, size, price, event) {
         btn.classList.remove('active');
     });
 
-    const priceEl = card.querySelector('.pizza-card-price');
-    if (priceEl) {
-        priceEl.classList.remove('price-pop-orange', 'animating');
-        void priceEl.offsetWidth; // Force reflow
-        priceEl.textContent = formatPrice(price);
-        priceEl.classList.add('price-pop-orange');
-    }
+    // Update tooltips on add-on buttons for current size rates
+    const rates = getPizzaSizeAddonRates(size);
+    const cheeseBox = document.getElementById(`box-cheese-${pizzaId}`);
+    const spicyBox = document.getElementById(`box-spicy-${pizzaId}`);
+    if (cheeseBox) cheeseBox.setAttribute('title', `Extra Cheese (+₹${rates.extraCheese})`);
+    if (spicyBox) spicyBox.setAttribute('title', `Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})`);
+
+    recalculatePizzaCardPrice(pizzaId);
 }
 
 function toggleIngredients(pizzaId, event) {
@@ -1279,10 +1378,24 @@ function addPizzaToCart(pizzaId, event) {
     }
 
     const selectedSize = (card && card.getAttribute('data-selected-size')) || 'M';
-    const price = parseFloat(card && card.getAttribute('data-current-price')) || (item.prices ? item.prices[selectedSize] : 299);
+    const basePrice = (item.prices && item.prices[selectedSize]) || 299;
+    const rates = getPizzaSizeAddonRates(selectedSize);
+    const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false };
+
+    const addons = [];
+    let calculatedPrice = basePrice;
+
+    if (sel.cheese) {
+        addons.push({ name: 'Extra Cheese', price: rates.extraCheese });
+        calculatedPrice += rates.extraCheese;
+    }
+    if (sel.spicy) {
+        addons.push({ name: 'Extra Spicy', price: rates.extraSpicy });
+        calculatedPrice += rates.extraSpicy;
+    }
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
-    addToCart(cartItemTitle, price, item.img);
+    addToCart(cartItemTitle, calculatedPrice, item.img, addons);
 }
 
 function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
@@ -1342,9 +1455,28 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                 const prices = item.prices || { S: 199, M: 299, L: 399 };
+                const selectedSize = 'M';
+                const basePrice = (prices && prices.M) || 299;
+                const rates = getPizzaSizeAddonRates(selectedSize);
+                const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false };
+                const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0);
+
+                const addonsMarkup = isAvailable ? `
+                    <div class="burger-addon-selector pizza-addon-selector">
+                        <span class="burger-addon-label">Add-ons:</span>
+                        <div class="burger-addon-options">
+                            <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
+                                🌶️
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
 
                 return `
-                <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${prices.M}">
+                <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}">
                     ${outOfStockBadge}
                     <div class="pizza-card-image-wrapper">
                         <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
@@ -1361,10 +1493,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                                 <button class="size-btn" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
                             </div>
                         </div>
+
+                        ${addonsMarkup}
                         
                         <div class="pizza-price-row">
                             <span class="price-prefix">Price:</span>
-                            <span class="pizza-card-price" id="price-${item.id}">${formatPrice(prices.M)}</span>
+                            <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -5065,9 +5199,28 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                 : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
             const prices = item.prices || { S: 199, M: 299, L: 399 };
+            const selectedSize = 'M';
+            const basePrice = (prices && prices.M) || 299;
+            const rates = getPizzaSizeAddonRates(selectedSize);
+            const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false };
+            const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0);
+
+            const addonsMarkup = isAvailable ? `
+                <div class="burger-addon-selector pizza-addon-selector">
+                    <span class="burger-addon-label">Add-ons:</span>
+                    <div class="burger-addon-options">
+                        <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
+                            🧀
+                        </button>
+                        <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
+                            🌶️
+                        </button>
+                    </div>
+                </div>
+            ` : '';
 
             return `
-            <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${prices.M}">
+            <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}">
                 ${outOfStockBadge}
                 <div class="pizza-card-image-wrapper">
                     <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
@@ -5084,10 +5237,12 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                             <button class="size-btn" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
                         </div>
                     </div>
+
+                    ${addonsMarkup}
                     
                     <div class="pizza-price-row">
                         <span class="price-prefix">Price:</span>
-                        <span class="pizza-card-price" id="price-${item.id}">${formatPrice(prices.M)}</span>
+                        <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
                     </div>
                 </div>
                 ${addBtnMarkup}

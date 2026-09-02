@@ -601,8 +601,8 @@ body.shop-closed .checkout-btn {
     flex: 1;
     width: 100%;
     padding: 16px 16px;
-    padding-bottom: max(96px, calc(80px + env(safe-area-inset-bottom, 16px)));
-    /* Safe clearance for fixed bottom nav bar */
+    padding-bottom: max(160px, calc(140px + env(safe-area-inset-bottom, 24px)));
+    /* Safe clearance so bottom row product buttons are never clipped by fixed bottom nav or floating cart strip */
     overflow: visible;
     box-sizing: border-box;
 }
@@ -1348,6 +1348,7 @@ body.shop-closed .checkout-btn {
 
 #view-category-detail {
     padding-top: 70px;
+    padding-bottom: 160px;
 }
 
 [data-theme="dark"] .category-hero-bar {
@@ -2031,24 +2032,24 @@ body.shop-closed .checkout-btn {
 }
 
 /* --------------------------------------------------------------------------
-   13C. STYLE A: BURGER CARD ADD-ON EMOJI SELECTOR BOXES (S/M/L BADGE STYLE)
+   13C. BURGER & WRAP CARD ADD-ON EMOJI SELECTOR BOXES (S/M/L BADGE STYLE)
    -------------------------------------------------------------------------- */
 .burger-addon-selector {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 5px;
-    margin-bottom: 4px;
+    margin-top: 6px;
+    margin-bottom: 6px;
     background-color: var(--bg-input);
-    padding: 3px 8px;
-    border-radius: 12px;
+    padding: 4px 8px;
+    border-radius: 14px;
     border: 1px solid var(--border-color);
     box-sizing: border-box;
     width: 100%;
 }
 
 .burger-addon-label {
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: var(--fw-black);
     color: var(--text-muted);
     text-transform: uppercase;
@@ -2062,14 +2063,16 @@ body.shop-closed .checkout-btn {
 }
 
 .burger-addon-box {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
-    font-size: 0.92rem;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 10px;
+    font-size: 1.18rem;
     background: transparent !important;
     border: 1.5px solid transparent !important;
     box-shadow: none !important;
-    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2089,18 +2092,18 @@ body.shop-closed .checkout-btn {
 .burger-addon-box.active {
     background: var(--bg-surface) !important;
     border-color: var(--primary-orange, #ff6b00) !important;
-    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.28) !important;
+    box-shadow: 0 3px 10px rgba(255, 107, 0, 0.32) !important;
     transform: scale(1.12);
 }
 
 .burger-addon-box.selected.active-cheese {
     border-color: #f59e0b !important;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35) !important;
+    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.38) !important;
 }
 
 .burger-addon-box.selected.active-spicy {
     border-color: #ef4444 !important;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35) !important;
+    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.38) !important;
 }
 
 /* --------------------------------------------------------------------------

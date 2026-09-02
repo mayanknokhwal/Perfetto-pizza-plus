@@ -1015,6 +1015,38 @@
             outline: none;
         }
 
+        .pizza-addons-size-grid {
+            display: flex;
+            align-items: stretch;
+            gap: 14px;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        .pizza-size-addon-column {
+            flex: 1;
+            min-width: 170px;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .pizza-size-addon-badge {
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: #ff6b00;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         .table-container {
             background: var(--bg-card);
             backdrop-filter: blur(16px);
@@ -3539,7 +3571,7 @@
                         </div>
                     </div>
 
-                    <!-- CATEGORY LEVEL ADD-ONS PRICING BAR (Burger & Wrap) -->
+                    <!-- CATEGORY LEVEL ADD-ONS PRICING BAR (Burger, Wrap & Pizza) -->
                     <div id="category-addons-bar" class="category-addons-bar" style="display: none;">
                         <div class="category-addons-info">
                             <div class="category-addons-title">
@@ -3548,7 +3580,9 @@
                             </div>
                             <div class="category-addons-desc">Set custom add-on rates (Extra Cheese & Extra Spicy) applied across all items in this category.</div>
                         </div>
-                        <div class="category-addons-inputs-grid">
+
+                        <!-- Standard Category Addons Inputs (Burger & Wrap) -->
+                        <div id="standard-category-addons-inputs" class="category-addons-inputs-grid">
                             <div class="addon-input-group">
                                 <label for="addon-extra-cheese-input">
                                     <i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese Price
@@ -3565,6 +3599,63 @@
                                 <div class="addon-input-wrapper">
                                     <span class="addon-currency">₹</span>
                                     <input type="number" id="addon-extra-spicy-input" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Size-Specific Category Addons Inputs (Pizza S/M/L) -->
+                        <div id="pizza-category-addons-inputs" class="pizza-addons-size-grid" style="display: none;">
+                            <div class="pizza-size-addon-column">
+                                <div class="pizza-size-addon-badge"><i class="fa-solid fa-pizza-slice"></i> Small (S)</div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-cheese-s"><i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-cheese-s" min="0" step="1" class="addon-price-field" placeholder="30" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-spicy-s"><i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-spicy-s" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pizza-size-addon-column">
+                                <div class="pizza-size-addon-badge"><i class="fa-solid fa-pizza-slice"></i> Medium (M)</div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-cheese-m"><i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-cheese-m" min="0" step="1" class="addon-price-field" placeholder="50" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-spicy-m"><i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-spicy-m" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="pizza-size-addon-column">
+                                <div class="pizza-size-addon-badge"><i class="fa-solid fa-pizza-slice"></i> Large (L)</div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-cheese-l"><i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-cheese-l" min="0" step="1" class="addon-price-field" placeholder="70" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-spicy-l"><i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-spicy-l" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3989,6 +4080,13 @@
             "Wrap": {
                 extraCheese: 30,
                 extraSpicy: 0
+            },
+            "Pizza": {
+                sizes: {
+                    S: { extraCheese: 30, extraSpicy: 0 },
+                    M: { extraCheese: 50, extraSpicy: 0 },
+                    L: { extraCheese: 70, extraSpicy: 0 }
+                }
             }
         };
 
@@ -4340,24 +4438,56 @@
             document.getElementById('subview-cat-title').textContent = `${catMeta.name} Menu`;
             document.getElementById('subview-cat-img').src = catMeta.img;
 
-            // Handle Category Add-ons Pricing Bar (Burger & Wrap)
+            // Handle Category Add-ons Pricing Bar (Burger, Wrap & Pizza)
             const addonsBar = document.getElementById('category-addons-bar');
             if (addonsBar) {
-                if (categoryName === 'Burger' || categoryName === 'Wrap') {
+                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza') {
                     addonsBar.style.display = 'flex';
                     const catNameEl = document.getElementById('addons-cat-name');
                     if (catNameEl) catNameEl.textContent = categoryName;
 
-                    const cheeseInput = document.getElementById('addon-extra-cheese-input');
-                    const spicyInput = document.getElementById('addon-extra-spicy-input');
+                    const stdInputs = document.getElementById('standard-category-addons-inputs');
+                    const pizzaInputs = document.getElementById('pizza-category-addons-inputs');
 
-                    const currentAddons = categoryAddons[categoryName] || (categoryName === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
-                    if (cheeseInput) cheeseInput.value = currentAddons.extraCheese;
-                    if (spicyInput) spicyInput.value = currentAddons.extraSpicy;
+                    if (categoryName === 'Pizza') {
+                        if (stdInputs) stdInputs.style.display = 'none';
+                        if (pizzaInputs) pizzaInputs.style.display = 'flex';
 
-                    const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
-                    const draftBadge = document.getElementById('addons-draft-badge');
-                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                        const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } } };
+                        const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+
+                        const sCheese = document.getElementById('addon-pizza-cheese-s');
+                        const sSpicy = document.getElementById('addon-pizza-spicy-s');
+                        const mCheese = document.getElementById('addon-pizza-cheese-m');
+                        const mSpicy = document.getElementById('addon-pizza-spicy-m');
+                        const lCheese = document.getElementById('addon-pizza-cheese-l');
+                        const lSpicy = document.getElementById('addon-pizza-spicy-l');
+
+                        if (sCheese) sCheese.value = sizes.S?.extraCheese ?? 30;
+                        if (sSpicy) sSpicy.value = sizes.S?.extraSpicy ?? 0;
+                        if (mCheese) mCheese.value = sizes.M?.extraCheese ?? 50;
+                        if (mSpicy) mSpicy.value = sizes.M?.extraSpicy ?? 0;
+                        if (lCheese) lCheese.value = sizes.L?.extraCheese ?? 70;
+                        if (lSpicy) lSpicy.value = sizes.L?.extraSpicy ?? 0;
+
+                        const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Pizza']);
+                        const draftBadge = document.getElementById('addons-draft-badge');
+                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                    } else {
+                        if (stdInputs) stdInputs.style.display = 'flex';
+                        if (pizzaInputs) pizzaInputs.style.display = 'none';
+
+                        const cheeseInput = document.getElementById('addon-extra-cheese-input');
+                        const spicyInput = document.getElementById('addon-extra-spicy-input');
+
+                        const currentAddons = categoryAddons[categoryName] || (categoryName === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
+                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese;
+                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy;
+
+                        const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
+                        const draftBadge = document.getElementById('addons-draft-badge');
+                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                    }
                 } else {
                     addonsBar.style.display = 'none';
                 }
@@ -4375,7 +4505,7 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE)
+        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger & Wrap)
         function handleCategoryAddonChange() {
             if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap')) return;
 
@@ -4396,6 +4526,50 @@
             const updateKey = `category_addon_${activeCategory}`;
             if (isModified) {
                 pendingMenuUpdates[updateKey] = { category: activeCategory, ...categoryAddons[activeCategory] };
+            } else {
+                delete pendingMenuUpdates[updateKey];
+            }
+
+            const draftBadge = document.getElementById('addons-draft-badge');
+            if (draftBadge) {
+                draftBadge.style.display = isModified ? 'inline-flex' : 'none';
+            }
+
+            updateUnsavedChangesUI();
+        }
+
+        // HANDLE PIZZA SIZE-SPECIFIC ADD-ON PRICING CHANGE (DRAFT MODE)
+        function handlePizzaAddonChange() {
+            if (activeCategory !== 'Pizza') return;
+
+            const sCheese = parseFloat(document.getElementById('addon-pizza-cheese-s')?.value) || 0;
+            const sSpicy = parseFloat(document.getElementById('addon-pizza-spicy-s')?.value) || 0;
+            const mCheese = parseFloat(document.getElementById('addon-pizza-cheese-m')?.value) || 0;
+            const mSpicy = parseFloat(document.getElementById('addon-pizza-spicy-m')?.value) || 0;
+            const lCheese = parseFloat(document.getElementById('addon-pizza-cheese-l')?.value) || 0;
+            const lSpicy = parseFloat(document.getElementById('addon-pizza-spicy-l')?.value) || 0;
+
+            if (!categoryAddons['Pizza']) {
+                categoryAddons['Pizza'] = { sizes: { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } } };
+            }
+            if (!categoryAddons['Pizza'].sizes) {
+                categoryAddons['Pizza'].sizes = { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+            }
+
+            categoryAddons['Pizza'].sizes.S = { extraCheese: sCheese, extraSpicy: sSpicy };
+            categoryAddons['Pizza'].sizes.M = { extraCheese: mCheese, extraSpicy: mSpicy };
+            categoryAddons['Pizza'].sizes.L = { extraCheese: lCheese, extraSpicy: lSpicy };
+
+            const orig = committedCategoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } } };
+            const origSizes = orig.sizes || { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+
+            const isModified = (sCheese !== (origSizes.S?.extraCheese ?? 30)) || (sSpicy !== (origSizes.S?.extraSpicy ?? 0)) ||
+                               (mCheese !== (origSizes.M?.extraCheese ?? 50)) || (mSpicy !== (origSizes.M?.extraSpicy ?? 0)) ||
+                               (lCheese !== (origSizes.L?.extraCheese ?? 70)) || (lSpicy !== (origSizes.L?.extraSpicy ?? 0));
+
+            const updateKey = 'category_addon_Pizza';
+            if (isModified) {
+                pendingMenuUpdates[updateKey] = { category: 'Pizza', ...categoryAddons['Pizza'] };
             } else {
                 delete pendingMenuUpdates[updateKey];
             }

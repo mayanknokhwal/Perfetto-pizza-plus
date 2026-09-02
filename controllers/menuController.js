@@ -142,6 +142,13 @@ const DEFAULT_CATEGORY_ADDONS = {
     "Wrap": {
         extraCheese: 30,
         extraSpicy: 0
+    },
+    "Pizza": {
+        sizes: {
+            S: { extraCheese: 30, extraSpicy: 0 },
+            M: { extraCheese: 50, extraSpicy: 0 },
+            L: { extraCheese: 70, extraSpicy: 0 }
+        }
     }
 };
 
