@@ -143,6 +143,11 @@ function toggleCardAddon(categoryName, itemId, addonType, event) {
     const priceEl = document.getElementById(`card-price-${itemId}`) || document.getElementById(`price-${itemId}`);
     if (priceEl) {
         priceEl.textContent = formatPrice(total);
+        priceEl.classList.add('price-pop-active');
+        clearTimeout(priceEl._popTimer);
+        priceEl._popTimer = setTimeout(() => {
+            priceEl.classList.remove('price-pop-active');
+        }, 150);
     }
 
     // Top Drop-Down Toast Notification with smooth 1.8s auto-dismiss
@@ -214,10 +219,12 @@ function recalculatePizzaCardPrice(pizzaId) {
 
     const priceEl = card.querySelector('.pizza-card-price') || document.getElementById(`price-${pizzaId}`);
     if (priceEl) {
-        priceEl.classList.remove('price-pop-orange', 'animating');
-        void priceEl.offsetWidth;
         priceEl.textContent = formatPrice(total);
-        priceEl.classList.add('price-pop-orange');
+        priceEl.classList.add('price-pop-active');
+        clearTimeout(priceEl._popTimer);
+        priceEl._popTimer = setTimeout(() => {
+            priceEl.classList.remove('price-pop-active');
+        }, 150);
     }
 }
 window.recalculatePizzaCardPrice = recalculatePizzaCardPrice;
@@ -1104,7 +1111,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const addonsMarkup = isAvailable ? `
                         <div class="burger-addon-selector pizza-addon-selector">
-                            <span class="burger-addon-label">Add-ons:</span>
+                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
                             <div class="burger-addon-options">
                                 <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                                     🧀
@@ -1172,7 +1179,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="burger-addon-selector">
-                            <span class="burger-addon-label">ADD-ONS:</span>
+                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
                             <div class="burger-addon-options">
                                 <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                     🧀
@@ -1230,7 +1237,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="bread-addon-selector burger-addon-selector">
-                            <span class="bread-addon-label burger-addon-label">ADD-ONS:</span>
+                            <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>ONS:</div>
                             <div class="bread-addon-options burger-addon-options">
                                 <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
                                     🧀
@@ -1287,9 +1294,9 @@ function refreshActiveCustomerView(freshItems) {
                         (selected.mayo ? mayoPrice : 0);
 
                     const boxesMarkup = isAvailable ? `
-                        <div class="sandwich-addon-selector">
-                            <span class="sandwich-addon-label">ADD-ONS:</span>
-                            <div class="sandwich-addon-options">
+                        <div class="sandwich-addon-selector burger-addon-selector">
+                            <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="sandwich-addon-options burger-addon-options">
                                 <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
                                     🧀
                                 </button>
@@ -1689,7 +1696,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const addonsMarkup = isAvailable ? `
                     <div class="burger-addon-selector pizza-addon-selector">
-                        <span class="burger-addon-label">Add-ons:</span>
+                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
                         <div class="burger-addon-options">
                             <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                                 🧀
@@ -1757,7 +1764,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="burger-addon-selector">
-                        <span class="burger-addon-label">ADD-ONS:</span>
+                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
                         <div class="burger-addon-options">
                             <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                 🧀
@@ -1815,7 +1822,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="bread-addon-selector burger-addon-selector">
-                        <span class="bread-addon-label burger-addon-label">ADD-ONS:</span>
+                        <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>ONS:</div>
                         <div class="bread-addon-options burger-addon-options">
                             <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
                                 🧀
@@ -1872,9 +1879,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     (selected.mayo ? mayoPrice : 0);
 
                 const boxesMarkup = isAvailable ? `
-                    <div class="sandwich-addon-selector">
-                        <span class="sandwich-addon-label">ADD-ONS:</span>
-                        <div class="sandwich-addon-options">
+                    <div class="sandwich-addon-selector burger-addon-selector">
+                        <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="sandwich-addon-options burger-addon-options">
                             <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
@@ -5535,7 +5542,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
 
             const addonsMarkup = isAvailable ? `
                 <div class="burger-addon-selector pizza-addon-selector">
-                    <span class="burger-addon-label">Add-ons:</span>
+                    <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
                     <div class="burger-addon-options">
                         <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                             🧀

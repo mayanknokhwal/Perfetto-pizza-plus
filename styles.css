@@ -1795,41 +1795,34 @@ body.shop-closed .checkout-btn {
     text-transform: uppercase;
 }
 
-.pizza-card-price {
+.pizza-card-price,
+.burger-card-price,
+.wrap-card-price,
+.bread-card-price,
+.sandwich-card-price {
     font-size: 1.1rem;
     font-weight: var(--fw-black);
     color: var(--primary-orange);
     font-family: var(--font-heading);
     display: inline-block;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.4s ease;
+    will-change: transform, opacity;
+    transform: scale(1);
+    opacity: 1;
+    transition: transform 0.15s ease-out, opacity 0.15s ease-out;
 }
 
-.pizza-card-price.price-pop-orange {
-    animation: pricePopOrange 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
-}
-
-@keyframes pricePopOrange {
-    0% {
-        transform: scale(1);
-        color: var(--primary-orange);
-    }
-
-    30% {
-        transform: scale(1.35) translateY(-4px);
-        color: #ff6b00;
-        text-shadow: 0 4px 14px rgba(255, 107, 0, 0.45);
-    }
-
-    65% {
-        transform: scale(1.15) translateY(-2px);
-        color: #ff6b00;
-    }
-
-    100% {
-        transform: scale(1) translateY(0);
-        color: var(--primary-orange);
-        text-shadow: none;
-    }
+.pizza-card-price.price-pop-orange,
+.pizza-card-price.price-pop-active,
+.burger-card-price.price-pop-orange,
+.burger-card-price.price-pop-active,
+.wrap-card-price.price-pop-orange,
+.wrap-card-price.price-pop-active,
+.bread-card-price.price-pop-orange,
+.bread-card-price.price-pop-active,
+.sandwich-card-price.price-pop-orange,
+.sandwich-card-price.price-pop-active {
+    transform: scale(1.12);
+    opacity: 0.92;
 }
 
 /* 5. Fixed "ADD TO CART" Button at Absolute Bottom */
@@ -2177,153 +2170,98 @@ body.shop-closed .checkout-btn {
     box-shadow: none;
 }
 
-.sandwich-addon-selector {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 6px;
-    margin-bottom: 6px;
-    background-color: var(--bg-input);
-    padding: 4px 8px;
-    border-radius: 14px;
-    border: 1px solid var(--border-color);
-    box-sizing: border-box;
-    width: 100%;
-}
-
-.sandwich-addon-label {
-    font-size: 0.72rem;
-    font-weight: var(--fw-black);
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-}
-
-.sandwich-addon-options {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-}
-
-.sandwich-addon-box {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    border-radius: 10px;
-    font-size: 1.18rem;
-    background: transparent !important;
-    border: 1.5px solid transparent !important;
-    box-shadow: none !important;
-    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    touch-action: manipulation;
-    padding: 0;
-    line-height: 1;
-    user-select: none;
-}
-
-.sandwich-addon-box:hover {
-    background: rgba(255, 107, 0, 0.08) !important;
-    transform: scale(1.08);
-}
-
-.sandwich-addon-box.selected,
-.sandwich-addon-box.active {
-    background: var(--bg-surface) !important;
-    border-color: var(--primary-orange, #ff6b00) !important;
-    box-shadow: 0 3px 10px rgba(255, 107, 0, 0.32) !important;
-    transform: scale(1.12);
-}
-
-.sandwich-addon-box.selected.active-cheese {
-    border-color: #f59e0b !important;
-    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.38) !important;
-}
-
-.sandwich-addon-box.selected.active-spicy {
-    border-color: #ef4444 !important;
-    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.38) !important;
-}
-
-.sandwich-addon-box.selected.active-mayo {
-    border-color: #fb7185 !important;
-    box-shadow: 0 3px 10px rgba(251, 113, 133, 0.38) !important;
-}
-
 /* --------------------------------------------------------------------------
-   13C. BURGER & WRAP CARD ADD-ON EMOJI SELECTOR BOXES (S/M/L BADGE STYLE)
+   13C. CARD ADD-ON EMOJI SELECTOR CONTAINER & BOXES (STANDARDIZED & OVERFLOW-SAFE)
    -------------------------------------------------------------------------- */
 .burger-addon-selector,
 .wrap-addon-selector,
 .sandwich-addon-selector,
-.bread-addon-selector {
+.bread-addon-selector,
+.pizza-addon-selector {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 6px;
-    margin-bottom: 6px;
+    margin-top: 5px;
+    margin-bottom: 5px;
     background-color: var(--bg-input);
-    padding: 4px 8px;
-    border-radius: 14px;
+    padding: 3px 6px;
+    border-radius: 12px;
     border: 1px solid var(--border-color);
     box-sizing: border-box;
     width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    gap: 4px;
 }
 
+.addon-label,
 .burger-addon-label,
 .wrap-addon-label,
 .sandwich-addon-label,
-.bread-addon-label {
-    font-size: 0.72rem;
+.bread-addon-label,
+.pizza-addon-selector .burger-addon-label {
+    font-size: 0.62rem;
     font-weight: var(--fw-black);
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.2px;
+    line-height: 1.05;
+    white-space: normal;
+    text-align: left;
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
+    width: auto;
+    max-width: 34px;
 }
 
 .burger-addon-options,
 .wrap-addon-options,
 .sandwich-addon-options,
-.bread-addon-options {
+.bread-addon-options,
+.pizza-addon-selector .burger-addon-options {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .burger-addon-box,
 .wrap-addon-box,
 .sandwich-addon-box,
-.bread-addon-box {
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    border-radius: 10px;
-    font-size: 1.18rem;
+.bread-addon-box,
+.pizza-addon-selector .burger-addon-box {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 28px;
+    max-height: 28px;
+    border-radius: 8px;
+    font-size: 0.95rem;
     background: transparent !important;
     border: 1.5px solid transparent !important;
     box-shadow: none !important;
-    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: transform 0.15s ease-out, background 0.15s ease-out, border-color 0.15s ease-out, box-shadow 0.15s ease-out;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     touch-action: manipulation;
     padding: 0;
+    margin: 0;
     line-height: 1;
     user-select: none;
+    flex-shrink: 0;
 }
 
 .burger-addon-box:hover,
 .wrap-addon-box:hover,
 .sandwich-addon-box:hover,
-.bread-addon-box:hover {
+.bread-addon-box:hover,
+.pizza-addon-selector .burger-addon-box:hover {
     background: rgba(255, 107, 0, 0.08) !important;
-    transform: scale(1.08);
+    transform: scale(1.05);
 }
 
 .burger-addon-box.selected,
@@ -2333,125 +2271,40 @@ body.shop-closed .checkout-btn {
 .sandwich-addon-box.selected,
 .sandwich-addon-box.active,
 .bread-addon-box.selected,
-.bread-addon-box.active {
+.bread-addon-box.active,
+.pizza-addon-selector .burger-addon-box.selected,
+.pizza-addon-selector .burger-addon-box.active {
     background: var(--bg-surface) !important;
     border-color: var(--primary-orange, #ff6b00) !important;
-    box-shadow: 0 3px 10px rgba(255, 107, 0, 0.32) !important;
-    transform: scale(1.12);
+    box-shadow: 0 2px 6px rgba(255, 107, 0, 0.25) !important;
+    transform: scale(1.05);
 }
 
 .burger-addon-box.selected.active-cheese,
 .wrap-addon-box.selected.active-cheese,
 .sandwich-addon-box.selected.active-cheese,
-.bread-addon-box.selected.active-cheese {
+.bread-addon-box.selected.active-cheese,
+.pizza-addon-selector .burger-addon-box.selected.active-cheese {
     border-color: #f59e0b !important;
-    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.38) !important;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35) !important;
 }
 
 .burger-addon-box.selected.active-spicy,
 .wrap-addon-box.selected.active-spicy,
 .sandwich-addon-box.selected.active-spicy,
-.bread-addon-box.selected.active-spicy {
+.bread-addon-box.selected.active-spicy,
+.pizza-addon-selector .burger-addon-box.selected.active-spicy {
     border-color: #ef4444 !important;
-    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.38) !important;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35) !important;
 }
 
 .burger-addon-box.selected.active-mayo,
 .wrap-addon-box.selected.active-mayo,
 .sandwich-addon-box.selected.active-mayo,
-.bread-addon-box.selected.active-mayo {
-    border-color: #fb7185 !important;
-    box-shadow: 0 3px 10px rgba(251, 113, 133, 0.38) !important;
-}
-
-/* 13D. PIZZA CARD ADD-ONS ROW & S/M/L BADGE IDENTICAL SIZING */
-.pizza-addon-selector {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: 4px;
-    margin-bottom: 0;
-    background-color: var(--bg-input);
-    padding: 5px 8px;
-    border-radius: 14px;
-    border: 1px solid var(--border-color);
-    box-sizing: border-box;
-    width: 100%;
-    flex-wrap: nowrap;
-}
-
-.pizza-addon-selector .burger-addon-label {
-    font-size: 0.72rem;
-    font-weight: var(--fw-black);
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0;
-    margin: 0;
-    padding: 0;
-    line-height: 1;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.pizza-addon-selector .burger-addon-options {
-    display: flex;
-    gap: 5px;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-/* 100% IDENTICAL TO S/M/L SIZE BADGES: 28x28px, 8px radius, 0.76rem font, 0 padding */
-.pizza-addon-selector .burger-addon-box {
-    width: 28px;
-    height: 28px;
-    min-width: 28px;
-    min-height: 28px;
-    max-width: 28px;
-    max-height: 28px;
-    border-radius: 8px;
-    font-size: 0.76rem;
-    padding: 0;
-    margin: 0;
-    background: transparent !important;
-    border: 1.5px solid transparent !important;
-    box-shadow: none !important;
-    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    touch-action: manipulation;
-    line-height: 1;
-    user-select: none;
-}
-
-.pizza-addon-selector .burger-addon-box:hover {
-    color: var(--primary-orange) !important;
-    background: rgba(255, 107, 0, 0.08) !important;
-    transform: scale(1.05);
-}
-
-.pizza-addon-selector .burger-addon-box.selected,
-.pizza-addon-selector .burger-addon-box.active {
-    background: var(--bg-surface) !important;
-    border-color: var(--primary-orange, #ff6b00) !important;
-    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.2) !important;
-    transform: scale(1.05);
-}
-
-.pizza-addon-selector .burger-addon-box.selected.active-cheese {
-    border-color: #f59e0b !important;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.38) !important;
-}
-
-.pizza-addon-selector .burger-addon-box.selected.active-spicy {
-    border-color: #ef4444 !important;
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.38) !important;
-}
-
+.bread-addon-box.selected.active-mayo,
 .pizza-addon-selector .burger-addon-box.selected.active-mayo {
     border-color: #fb7185 !important;
-    box-shadow: 0 2px 8px rgba(251, 113, 133, 0.38) !important;
+    box-shadow: 0 2px 6px rgba(251, 113, 133, 0.35) !important;
 }
 
 /* --------------------------------------------------------------------------
