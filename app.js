@@ -46,10 +46,15 @@ const DEFAULT_CATEGORY_ADDONS = {
     },
     "Pizza": {
         sizes: {
-            S: { extraCheese: 30, extraSpicy: 0 },
-            M: { extraCheese: 50, extraSpicy: 0 },
-            L: { extraCheese: 70, extraSpicy: 0 }
+            S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 },
+            M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 },
+            L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 }
         }
+    },
+    "Sandwich": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
 
@@ -74,17 +79,22 @@ function getPizzaSizeAddonRates(size = 'M') {
     if (pAddons && pAddons.sizes && pAddons.sizes[size]) {
         return {
             extraCheese: pAddons.sizes[size].extraCheese !== undefined ? pAddons.sizes[size].extraCheese : (size === 'S' ? 30 : (size === 'M' ? 50 : 70)),
-            extraSpicy: pAddons.sizes[size].extraSpicy !== undefined ? pAddons.sizes[size].extraSpicy : 0
+            extraSpicy: pAddons.sizes[size].extraSpicy !== undefined ? pAddons.sizes[size].extraSpicy : 0,
+            extraMayo: pAddons.sizes[size].extraMayo !== undefined ? pAddons.sizes[size].extraMayo : (size === 'S' ? 20 : (size === 'M' ? 30 : 40))
         };
     }
-    const defaults = { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
-    return defaults[size] || { extraCheese: 50, extraSpicy: 0 };
+    const defaults = {
+        S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 },
+        M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 },
+        L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 }
+    };
+    return defaults[size] || { extraCheese: 50, extraSpicy: 0, extraMayo: 30 };
 }
 
 // --------------------------------------------------------------------------
 // INLINE CARD ADD-ON EMOJI SELECTORS (S/M/L BADGE STYLE) & DYNAMIC PRICING
 // --------------------------------------------------------------------------
-const cardSelectedAddons = {}; // itemId -> { cheese: boolean, spicy: boolean }
+const cardSelectedAddons = {}; // itemId -> { cheese: boolean, spicy: boolean, mayo: boolean }
 
 function toggleCardAddon(categoryName, itemId, addonType, event) {
     if (event) {
@@ -92,7 +102,7 @@ function toggleCardAddon(categoryName, itemId, addonType, event) {
         event.preventDefault();
     }
     if (!cardSelectedAddons[itemId]) {
-        cardSelectedAddons[itemId] = { cheese: false, spicy: false };
+        cardSelectedAddons[itemId] = { cheese: false, spicy: false, mayo: false };
     }
 
     cardSelectedAddons[itemId][addonType] = !cardSelectedAddons[itemId][addonType];
@@ -112,6 +122,7 @@ function toggleCardAddon(categoryName, itemId, addonType, event) {
     const catAddons = getCustomerCategoryAddons(categoryName);
     const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
     const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+    const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
 
     const allItems = getAllCustomerMenuItems();
     const itemObj = allItems.find(i => i.id === itemId);
@@ -120,6 +131,7 @@ function toggleCardAddon(categoryName, itemId, addonType, event) {
     let total = basePrice;
     if (cardSelectedAddons[itemId].cheese) total += cheeseRate;
     if (cardSelectedAddons[itemId].spicy) total += spicyRate;
+    if (cardSelectedAddons[itemId].mayo) total += mayoRate;
 
     const priceEl = document.getElementById(`card-price-${itemId}`) || document.getElementById(`price-${itemId}`);
     if (priceEl) {
@@ -131,6 +143,8 @@ function toggleCardAddon(categoryName, itemId, addonType, event) {
         showToast(isSelected ? 'Added extra cheese' : 'Removed extra cheese', 1800);
     } else if (addonType === 'spicy') {
         showToast(isSelected ? 'Added extra spicy' : 'Removed extra spicy', 1800);
+    } else if (addonType === 'mayo') {
+        showToast(isSelected ? 'Added extra mayo' : 'Removed extra mayo', 1800);
     }
 }
 window.toggleCardAddon = toggleCardAddon;
@@ -144,7 +158,7 @@ function togglePizzaAddon(pizzaId, addonType, event) {
         event.preventDefault();
     }
     if (!cardSelectedAddons[pizzaId]) {
-        cardSelectedAddons[pizzaId] = { cheese: false, spicy: false };
+        cardSelectedAddons[pizzaId] = { cheese: false, spicy: false, mayo: false };
     }
 
     cardSelectedAddons[pizzaId][addonType] = !cardSelectedAddons[pizzaId][addonType];
@@ -166,6 +180,8 @@ function togglePizzaAddon(pizzaId, addonType, event) {
         showToast(isSelected ? 'Added extra cheese' : 'Removed extra cheese', 1800);
     } else if (addonType === 'spicy') {
         showToast(isSelected ? 'Added extra spicy' : 'Removed extra spicy', 1800);
+    } else if (addonType === 'mayo') {
+        showToast(isSelected ? 'Added extra mayo' : 'Removed extra mayo', 1800);
     }
 }
 window.togglePizzaAddon = togglePizzaAddon;
@@ -180,11 +196,12 @@ function recalculatePizzaCardPrice(pizzaId) {
     const basePrice = (item && item.prices && item.prices[selectedSize]) || 299;
 
     const rates = getPizzaSizeAddonRates(selectedSize);
-    const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false };
+    const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false, mayo: false };
 
     let total = basePrice;
     if (sel.cheese) total += rates.extraCheese;
     if (sel.spicy) total += rates.extraSpicy;
+    if (sel.mayo) total += rates.extraMayo;
 
     card.setAttribute('data-current-price', total);
 
@@ -199,10 +216,11 @@ function recalculatePizzaCardPrice(pizzaId) {
 window.recalculatePizzaCardPrice = recalculatePizzaCardPrice;
 
 function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
-    const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
+    const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
     const catAddons = getCustomerCategoryAddons(categoryName);
     const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
     const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+    const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
 
     const addons = [];
     let calculatedPrice = basePrice;
@@ -214,6 +232,10 @@ function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, item
     if (sel.spicy) {
         addons.push({ name: 'Extra Spicy', price: spicyRate });
         calculatedPrice += spicyRate;
+    }
+    if (sel.mayo) {
+        addons.push({ name: '🍥 Extra Mayo', price: mayoRate });
+        calculatedPrice += mayoRate;
     }
 
     addToCart(itemName, calculatedPrice, itemImg, addons);
@@ -630,126 +652,133 @@ const categorySubItems = {
             name: "Hot Country",
             desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/pBjGthQG/Hot-Country.png"
+            img: "https://i.ibb.co/C59X7CVY/Hot-Country.jpg"
         },
         {
             id: "indian-veggie",
             name: "Indian Veggie",
             desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/nNDqnySY/Indian-Veggie-Pizza.png"
+            img: "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg"
         },
         {
             id: "lovers-pizza",
-            name: "Lover's",
+            name: "Lover's Pizza",
             desc: "Red Paprika, Onion, Capsicum, Corn",
             prices: { S: 249.00, M: 349.00, L: 449.00 },
-            img: "https://i.ibb.co/DPGHvPnT/Lover-s-Pizza.png"
+            img: "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg"
         },
         {
             id: "makhani-pizza",
             name: "Makhani Pizza",
             desc: "Capsicum, Paneer, Makhani Sauce",
             prices: { S: 239.00, M: 339.00, L: 439.00 },
-            img: "https://i.ibb.co/DgM6pRrT/Makhani-Pizza.png"
+            img: "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg"
         },
         {
             id: "paradise-pizza",
-            name: "Parndize Pizza",
+            name: "Paradize Pizza",
             desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno",
             prices: { S: 229.00, M: 329.00, L: 429.00 },
-            img: "https://i.ibb.co/nsxZPfr3/Parndize-Pizza.png"
+            img: "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg"
         },
         {
             id: "perfetto-special",
             name: "Perfetto Special Pizza",
             desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese",
             prices: { S: 299.00, M: 399.00, L: 499.00 },
-            img: "https://i.ibb.co/Zz4YBzKK/Perfetto-Special-Pizza.png"
+            img: "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg"
         },
         {
             id: "spicy-pizza",
             name: "Spicy Pizza",
             desc: "Paneer Chilly, Capsicum, Red Paprika",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/0pwknN8R/Spicy-Pizza.png"
+            img: "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg"
         },
         {
             id: "supreme-pizza",
             name: "Supreme Pizza",
             desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives",
             prices: { S: 249.00, M: 349.00, L: 449.00 },
-            img: "https://i.ibb.co/FkTxZmNF/Supreme-Pizza.png"
+            img: "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg"
         },
         {
             id: "tandoori-pizza",
             name: "Tandoori Pizza",
             desc: "Onion, Paneer, Bellpeper, Tandoori Sauce",
             prices: { S: 239.00, M: 339.00, L: 439.00 },
-            img: "https://i.ibb.co/b5d6Xgmx/Tandoori-Pizza.png"
+            img: "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg"
         },
         {
             id: "achari-pizza",
             name: "Acharri Pizza",
             desc: "Capsicum, Corn, Paneer, Achari Sauce",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/C3Z9fkJS/Achari-Pizza.png"
+            img: "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg"
         },
         {
             id: "cheese-n-corn",
-            name: "Cheese-n-Corn",
+            name: "Cheese 'n Corn",
             desc: "Cheese, Corn",
             prices: { S: 179.00, M: 279.00, L: 379.00 },
-            img: "https://i.ibb.co/0phPSW3G/Cheese-n-Corn.png"
+            img: "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg"
         },
         {
             id: "cheese-n-mushroom",
-            name: "Cheese-n-Mushroom",
+            name: "Cheese 'n Mushroom",
             desc: "Cheese, Mushroom",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/PvnXskbY/Cheese-n-Mushroom.png"
+            img: "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg"
         },
         {
             id: "chipotle-pizza",
             name: "Chipotle Pizza",
             desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce",
             prices: { S: 229.00, M: 329.00, L: 429.00 },
-            img: "https://i.ibb.co/9mGwnLw9/Chipotle-Pizza.png"
+            img: "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg"
+        },
+        {
+            id: "double-cheese-margherita",
+            name: "Double Cheese Margherita",
+            desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce",
+            prices: { S: 199.00, M: 299.00, L: 399.00 },
+            img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg"
         },
         {
             id: "deluxe-pizza",
             name: "Deluxe Pizza",
             desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/Gvsrbccg/Dbl-Cheese-Margherita.png"
+            img: "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg"
         },
         {
             id: "delight-pizza",
             name: "Delight Pizza",
             desc: "Capsicum, Jalapeno, Mushroom",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/cht2BnYN/Delight-Pizza.png"
+            img: "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg"
         },
         {
             id: "farm-house",
             name: "Farm House",
             desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese",
             prices: { S: 239.00, M: 339.00, L: 439.00 },
-            img: "https://i.ibb.co/ZzK35nQ3/Farm-House.png"
+            img: "https://i.ibb.co/nNsWCp9t/Farm-House.jpg"
         },
         {
             id: "green-veggie",
             name: "Green Veggie",
             desc: "Onion, Capsicum, Tomato",
             prices: { S: 229.00, M: 329.00, L: 429.00 },
-            img: "https://i.ibb.co/XxKxtwM1/Green-Veggie.png"
+            img: "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg"
         },
         {
             id: "harissa-pizza",
             name: "Harissa Pizza",
             desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce",
             prices: { S: 249.00, M: 349.00, L: 449.00 },
-            img: "https://i.ibb.co/rRsTTg0y/Harissa-Pizza.png"
+            img: "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg"
         }
     ],
     "Bread": [
@@ -785,10 +814,25 @@ const categorySubItems = {
         { id: "brd-garlic", name: "Garlic Bread", price: 99.00, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
         { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", price: 99.00, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
         { id: "brd-stuffed", name: "Stuffed Bread", price: 99.00, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", category: "Bread", available: true, isMultiSize: false }
+    ],
+    "Sandwich": [
+        { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "" },
+        { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg", desc: "" },
+        { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "" },
+        { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "" },
+        { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "" }
     ]
 };
 
 const MENU_STORAGE_KEY = 'menuData';
+
+const NEW_SANDWICH_MENU_ITEMS = [
+    { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "" },
+    { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg", desc: "" },
+    { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "" },
+    { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "" },
+    { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "" }
+];
 
 const NEW_BURGER_MENU_ITEMS = [
     { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", desc: "" },
@@ -818,6 +862,28 @@ const NEW_BREAD_MENU_ITEMS = [
     { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", desc: "" }
 ];
 
+const NEW_PIZZA_MENU_IMAGES = {
+    "green-veggie": "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg",
+    "harissa-pizza": "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg",
+    "hot-country": "https://i.ibb.co/C59X7CVY/Hot-Country.jpg",
+    "indian-veggie": "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg",
+    "lovers-pizza": "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg",
+    "makhani-pizza": "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg",
+    "paradise-pizza": "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg",
+    "perfetto-special": "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg",
+    "spicy-pizza": "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg",
+    "supreme-pizza": "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg",
+    "tandoori-pizza": "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg",
+    "achari-pizza": "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg",
+    "cheese-n-corn": "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg",
+    "cheese-n-mushroom": "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg",
+    "chipotle-pizza": "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg",
+    "double-cheese-margherita": "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg",
+    "delight-pizza": "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg",
+    "deluxe-pizza": "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg",
+    "farm-house": "https://i.ibb.co/nNsWCp9t/Farm-House.jpg"
+};
+
 function sanitizeStoredMenuItems(items) {
     if (!Array.isArray(items)) return null;
     let updated = [...items];
@@ -846,6 +912,55 @@ function sanitizeStoredMenuItems(items) {
         updated = [...nonBreads, ...NEW_BREAD_MENU_ITEMS];
         modified = true;
     }
+
+    // 4. Sanitize and Upgrade Pizza images to latest high-res URLs
+    updated.forEach(item => {
+        if (item.category === 'Pizza' && item.id && NEW_PIZZA_MENU_IMAGES[item.id]) {
+            if (item.img !== NEW_PIZZA_MENU_IMAGES[item.id]) {
+                item.img = NEW_PIZZA_MENU_IMAGES[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // Ensure Double Cheese Margherita is present
+    if (!updated.some(i => i.id === 'double-cheese-margherita' || (i.name && i.name.toLowerCase().includes('margherita')))) {
+        updated.push({
+            id: "double-cheese-margherita",
+            name: "Double Cheese Margherita",
+            category: "Pizza",
+            isMultiSize: true,
+            prices: { S: 199, M: 299, L: 399 },
+            available: true,
+            img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg",
+            desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce"
+        });
+        modified = true;
+    }
+
+    // 5. Sanitize Sandwich items
+    const hasOldSandwiches = updated.some(i => i.category === 'Sandwich' && (i.id === 'sdw-1' || i.id === 'sdw-2' || i.id === 'sdw-3' || i.id === 'sdw-4' || (i.name && i.name.startsWith('Sandwich Option')) || !NEW_SANDWICH_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
+    if (hasOldSandwiches) {
+        const nonSandwiches = updated.filter(i => i.category !== 'Sandwich');
+        updated = [...nonSandwiches, ...NEW_SANDWICH_MENU_ITEMS];
+        modified = true;
+    }
+
+    const SANDWICH_IMAGE_MAP = {
+        "sdw-double-decker": "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg",
+        "sdw-grilled": "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg",
+        "sdw-paneer": "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg",
+        "sdw-spicy": "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg",
+        "sdw-cheesy": "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Sandwich' && item.id && SANDWICH_IMAGE_MAP[item.id]) {
+            if (item.img !== SANDWICH_IMAGE_MAP[item.id]) {
+                item.img = SANDWICH_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
 
     if (modified) {
         try {
@@ -977,8 +1092,8 @@ function refreshActiveCustomerView(freshItems) {
                     const basePrice = (prices && prices[selectedSize]) || (prices && prices.M) || 299;
 
                     const rates = getPizzaSizeAddonRates(selectedSize);
-                    const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false };
-                    const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0);
+                    const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false, mayo: false };
+                    const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
 
                     const addonsMarkup = isAvailable ? `
                         <div class="burger-addon-selector pizza-addon-selector">
@@ -989,6 +1104,9 @@ function refreshActiveCustomerView(freshItems) {
                                 </button>
                                 <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
                                     🌶️
+                                </button>
+                                <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="Extra Mayo (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
+                                    🍥
                                 </button>
                             </div>
                         </div>
@@ -1099,6 +1217,64 @@ function refreshActiveCustomerView(freshItems) {
                             <div class="bread-price-row">
                                 <span class="price-prefix">Price:</span>
                                 <span class="bread-card-price">${formatPrice(item.price || 99)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Sandwich") {
+                const catAddons = getCustomerCategoryAddons('Sandwich');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+                subItemsGrid.className = 'sub-items-grid sandwich-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 99) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="sandwich-addon-selector">
+                            <span class="sandwich-addon-label">ADD-ONS:</span>
+                            <div class="sandwich-addon-options">
+                                <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="sandwich-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="sandwich-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="sandwich-add-cart-btn" onclick="addCardWithAddonsToCart('Sandwich', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="sandwich-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="sandwich-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="sandwich-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
+                        </div>
+                        <div class="sandwich-card-body">
+                            <h4 class="sandwich-card-title">${item.name}</h4>
+                            ${boxesMarkup}
+                            <div class="sandwich-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -1330,8 +1506,10 @@ function changePizzaSize(pizzaId, size, basePrice, event) {
     const rates = getPizzaSizeAddonRates(size);
     const cheeseBox = document.getElementById(`box-cheese-${pizzaId}`);
     const spicyBox = document.getElementById(`box-spicy-${pizzaId}`);
+    const mayoBox = document.getElementById(`box-mayo-${pizzaId}`);
     if (cheeseBox) cheeseBox.setAttribute('title', `Extra Cheese (+₹${rates.extraCheese})`);
     if (spicyBox) spicyBox.setAttribute('title', `Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})`);
+    if (mayoBox) mayoBox.setAttribute('title', `Extra Mayo (+₹${rates.extraMayo})`);
 
     recalculatePizzaCardPrice(pizzaId);
 }
@@ -1380,7 +1558,7 @@ function addPizzaToCart(pizzaId, event) {
     const selectedSize = (card && card.getAttribute('data-selected-size')) || 'M';
     const basePrice = (item.prices && item.prices[selectedSize]) || 299;
     const rates = getPizzaSizeAddonRates(selectedSize);
-    const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false };
+    const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false, mayo: false };
 
     const addons = [];
     let calculatedPrice = basePrice;
@@ -1392,6 +1570,10 @@ function addPizzaToCart(pizzaId, event) {
     if (sel.spicy) {
         addons.push({ name: 'Extra Spicy', price: rates.extraSpicy });
         calculatedPrice += rates.extraSpicy;
+    }
+    if (sel.mayo) {
+        addons.push({ name: '🍥 Extra Mayo', price: rates.extraMayo });
+        calculatedPrice += rates.extraMayo;
     }
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
@@ -1458,8 +1640,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const selectedSize = 'M';
                 const basePrice = (prices && prices.M) || 299;
                 const rates = getPizzaSizeAddonRates(selectedSize);
-                const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false };
-                const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0);
+                const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false, mayo: false };
+                const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
 
                 const addonsMarkup = isAvailable ? `
                     <div class="burger-addon-selector pizza-addon-selector">
@@ -1470,6 +1652,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                             </button>
                             <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
                                 🌶️
+                            </button>
+                            <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="Extra Mayo (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
+                                🍥
                             </button>
                         </div>
                     </div>
@@ -1580,6 +1765,64 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <div class="bread-price-row">
                             <span class="price-prefix">Price:</span>
                             <span class="bread-card-price">${formatPrice(item.price || 99)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Sandwich") {
+            const catAddons = getCustomerCategoryAddons('Sandwich');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+            subItemsGrid.className = 'sub-items-grid sandwich-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 99) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="sandwich-addon-selector">
+                        <span class="sandwich-addon-label">ADD-ONS:</span>
+                        <div class="sandwich-addon-options">
+                            <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="sandwich-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="sandwich-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="sandwich-add-cart-btn" onclick="addCardWithAddonsToCart('Sandwich', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="sandwich-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="sandwich-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="sandwich-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
+                    </div>
+                    <div class="sandwich-card-body">
+                        <h4 class="sandwich-card-title">${item.name}</h4>
+                        ${boxesMarkup}
+                        <div class="sandwich-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -2166,9 +2409,12 @@ function updateCartUI() {
             const hasAddons = Array.isArray(item.addons) && item.addons.length > 0;
             const addonTagsMarkup = hasAddons
                 ? `<div class="cart-addons-tags">${item.addons.map(a => {
-                    const aName = (typeof a === 'string' ? a : (a.name || '')).replace(/^\+\s*/, '').trim();
-                    const icon = aName.toLowerCase().includes('cheese') ? '🧀 ' : (aName.toLowerCase().includes('spicy') ? '🌶️ ' : '');
-                    return `<span class="cart-addon-pill">${icon}${aName}</span>`;
+                    const rawName = typeof a === 'string' ? a : (a.name || '');
+                    const aName = rawName.replace(/^\+\s*/, '').trim();
+                    const isMayo = aName.toLowerCase().includes('mayo');
+                    const hasIcon = aName.startsWith('🧀') || aName.startsWith('🌶️') || aName.startsWith('🍥');
+                    const icon = hasIcon ? '' : (aName.toLowerCase().includes('cheese') ? '🧀 ' : (aName.toLowerCase().includes('spicy') ? '🌶️ ' : (isMayo ? '🍥 ' : '')));
+                    return `<span class="cart-addon-pill ${isMayo ? 'cart-addon-mayo' : ''}">${icon}${aName}</span>`;
                 }).join('')}</div>`
                 : '';
 
@@ -2556,7 +2802,8 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         size: item.size || 'Standard',
         price: item.price,
         qty: item.qty,
-        notes: ''
+        notes: '',
+        addons: item.addons || []
     }));
 
     const now = new Date();
@@ -5202,8 +5449,8 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
             const selectedSize = 'M';
             const basePrice = (prices && prices.M) || 299;
             const rates = getPizzaSizeAddonRates(selectedSize);
-            const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false };
-            const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0);
+            const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false, mayo: false };
+            const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
 
             const addonsMarkup = isAvailable ? `
                 <div class="burger-addon-selector pizza-addon-selector">
@@ -5214,6 +5461,9 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                         </button>
                         <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
                             🌶️
+                        </button>
+                        <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="Extra Mayo (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
+                            🍥
                         </button>
                     </div>
                 </div>

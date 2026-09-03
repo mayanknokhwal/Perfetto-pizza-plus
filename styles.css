@@ -1625,26 +1625,31 @@ body.shop-closed .checkout-btn {
 .pizza-card-image-wrapper {
     position: relative;
     width: 100%;
-    height: 170px;
-    background: radial-gradient(circle at center, var(--primary-light) 0%, transparent 75%);
+    aspect-ratio: 4 / 3;
+    min-height: 130px;
+    max-height: 180px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
+    padding: 0;
     overflow: hidden;
+    border-radius: 20px 20px 0 0;
+    background: var(--bg-input);
 }
 
 .pizza-card-img {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    transform: scale(1.12);
-    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.2));
-    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    object-fit: cover;
+    object-position: center;
+    border-radius: 20px 20px 0 0;
+    display: block;
+    transform: none;
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .pizza-card:hover .pizza-card-img {
-    transform: scale(1.2) rotate(4deg);
+    transform: scale(1.04);
 }
 
 .pizza-card-tag {
@@ -1726,11 +1731,19 @@ body.shop-closed .checkout-btn {
     font-weight: var(--fw-black);
     color: var(--text-muted);
     text-transform: uppercase;
+    letter-spacing: 0;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .size-options {
     display: flex;
     gap: 5px;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .size-btn {
@@ -2032,6 +2045,216 @@ body.shop-closed .checkout-btn {
 }
 
 /* --------------------------------------------------------------------------
+   13B-2. SANDWICH CARD & EDGE-TO-EDGE IMAGE STYLING
+   -------------------------------------------------------------------------- */
+.sandwich-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    height: 100%;
+}
+
+.sandwich-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+    border-color: var(--border-hover);
+}
+
+.sandwich-card-image-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    min-height: 120px;
+    max-height: 160px;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    overflow: hidden;
+    background: radial-gradient(circle at center, var(--primary-light) 0%, transparent 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sandwich-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    overflow: hidden;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sandwich-card:hover .sandwich-card-img {
+    transform: scale(1.08);
+}
+
+.sandwich-card-body {
+    padding: 10px 10px 8px 10px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.sandwich-card-title {
+    font-size: 0.90rem;
+    font-weight: var(--fw-black);
+    color: var(--text-main);
+    line-height: 1.25;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-heading);
+}
+
+.sandwich-price-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+.sandwich-card-price {
+    font-size: 1.05rem;
+    font-weight: var(--fw-black);
+    color: var(--primary-orange);
+    font-family: var(--font-heading);
+    display: inline-block;
+}
+
+.sandwich-add-cart-btn {
+    width: 100%;
+    min-height: 38px;
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+    color: #ffffff;
+    padding: 8px;
+    border: none;
+    border-radius: 0 0 13px 13px;
+    font-size: 0.78rem;
+    font-weight: var(--fw-black);
+    font-family: var(--font-heading);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    margin-top: auto;
+    touch-action: manipulation;
+}
+
+.sandwich-add-cart-btn:hover {
+    background: linear-gradient(135deg, #e55e00 0%, #e02446 100%);
+}
+
+.sandwich-add-cart-btn:active {
+    transform: scale(0.98);
+}
+
+.sandwich-add-cart-btn.disabled,
+.sandwich-add-cart-btn:disabled {
+    background: var(--bg-input) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.sandwich-addon-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+    margin-bottom: 6px;
+    background-color: var(--bg-input);
+    padding: 4px 8px;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.sandwich-addon-label {
+    font-size: 0.72rem;
+    font-weight: var(--fw-black);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.sandwich-addon-options {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.sandwich-addon-box {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 10px;
+    font-size: 1.18rem;
+    background: transparent !important;
+    border: 1.5px solid transparent !important;
+    box-shadow: none !important;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    padding: 0;
+    line-height: 1;
+    user-select: none;
+}
+
+.sandwich-addon-box:hover {
+    background: rgba(255, 107, 0, 0.08) !important;
+    transform: scale(1.08);
+}
+
+.sandwich-addon-box.selected,
+.sandwich-addon-box.active {
+    background: var(--bg-surface) !important;
+    border-color: var(--primary-orange, #ff6b00) !important;
+    box-shadow: 0 3px 10px rgba(255, 107, 0, 0.32) !important;
+    transform: scale(1.12);
+}
+
+.sandwich-addon-box.selected.active-cheese {
+    border-color: #f59e0b !important;
+    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.38) !important;
+}
+
+.sandwich-addon-box.selected.active-spicy {
+    border-color: #ef4444 !important;
+    box-shadow: 0 3px 10px rgba(239, 68, 68, 0.38) !important;
+}
+
+.sandwich-addon-box.selected.active-mayo {
+    border-color: #fb7185 !important;
+    box-shadow: 0 3px 10px rgba(251, 113, 133, 0.38) !important;
+}
+
+/* --------------------------------------------------------------------------
    13C. BURGER & WRAP CARD ADD-ON EMOJI SELECTOR BOXES (S/M/L BADGE STYLE)
    -------------------------------------------------------------------------- */
 .burger-addon-selector {
@@ -2106,6 +2329,101 @@ body.shop-closed .checkout-btn {
     box-shadow: 0 3px 10px rgba(239, 68, 68, 0.38) !important;
 }
 
+.burger-addon-box.selected.active-mayo {
+    border-color: #fb7185 !important;
+    box-shadow: 0 3px 10px rgba(251, 113, 133, 0.38) !important;
+}
+
+/* 13D. PIZZA CARD ADD-ONS ROW & S/M/L BADGE IDENTICAL SIZING */
+.pizza-addon-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    margin-bottom: 0;
+    background-color: var(--bg-input);
+    padding: 5px 8px;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+.pizza-addon-selector .burger-addon-label {
+    font-size: 0.72rem;
+    font-weight: var(--fw-black);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0;
+    margin: 0;
+    padding: 0;
+    line-height: 1;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.pizza-addon-selector .burger-addon-options {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* 100% IDENTICAL TO S/M/L SIZE BADGES: 28x28px, 8px radius, 0.76rem font, 0 padding */
+.pizza-addon-selector .burger-addon-box {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 28px;
+    max-height: 28px;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    padding: 0;
+    margin: 0;
+    background: transparent !important;
+    border: 1.5px solid transparent !important;
+    box-shadow: none !important;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    line-height: 1;
+    user-select: none;
+}
+
+.pizza-addon-selector .burger-addon-box:hover {
+    color: var(--primary-orange) !important;
+    background: rgba(255, 107, 0, 0.08) !important;
+    transform: scale(1.05);
+}
+
+.pizza-addon-selector .burger-addon-box.selected,
+.pizza-addon-selector .burger-addon-box.active {
+    background: var(--bg-surface) !important;
+    border-color: var(--primary-orange, #ff6b00) !important;
+    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.2) !important;
+    transform: scale(1.05);
+}
+
+.pizza-addon-selector .burger-addon-box.selected.active-cheese {
+    border-color: #f59e0b !important;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.38) !important;
+}
+
+.pizza-addon-selector .burger-addon-box.selected.active-spicy {
+    border-color: #ef4444 !important;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.38) !important;
+}
+
+.pizza-addon-selector .burger-addon-box.selected.active-mayo {
+    border-color: #fb7185 !important;
+    box-shadow: 0 2px 8px rgba(251, 113, 133, 0.38) !important;
+}
+
 /* --------------------------------------------------------------------------
    13E. CART ITEM CUSTOMIZATION ADD-ON TAGS
    -------------------------------------------------------------------------- */
@@ -2135,6 +2453,18 @@ body.shop-closed .checkout-btn {
     background: rgba(245, 158, 11, 0.15);
     color: #b45309;
     border-color: rgba(245, 158, 11, 0.35);
+}
+
+.cart-addon-pill.cart-addon-mayo {
+    background: rgba(251, 113, 133, 0.18);
+    color: #fb7185;
+    border-color: rgba(251, 113, 133, 0.35);
+}
+
+[data-theme="light"] .cart-addon-pill.cart-addon-mayo {
+    background: rgba(251, 113, 133, 0.15);
+    color: #e11d48;
+    border-color: rgba(251, 113, 133, 0.35);
 }
 
 /* --------------------------------------------------------------------------

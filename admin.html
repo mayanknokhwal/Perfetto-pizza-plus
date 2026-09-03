@@ -3578,7 +3578,7 @@
                                 <i class="fa-solid fa-layer-group" style="color: #ff6b00;"></i> Category Add-ons Pricing (<span id="addons-cat-name">Category</span>)
                                 <span class="draft-badge" id="addons-draft-badge" style="display: none;"><i class="fa-solid fa-pen"></i> Unsaved Draft</span>
                             </div>
-                            <div class="category-addons-desc">Set custom add-on rates (Extra Cheese & Extra Spicy) applied across all items in this category.</div>
+                            <div class="category-addons-desc">Set custom add-on rates (Extra Cheese, Extra Spicy & Extra Mayo) applied across all items in this category.</div>
                         </div>
 
                         <!-- Standard Category Addons Inputs (Burger & Wrap) -->
@@ -3601,6 +3601,15 @@
                                     <input type="number" id="addon-extra-spicy-input" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
                                 </div>
                             </div>
+                            <div class="addon-input-group" id="addon-group-extra-mayo" style="display: none;">
+                                <label for="addon-extra-mayo-input">
+                                    <span style="font-size: 1rem;">🍥</span> Extra Mayo Price
+                                </label>
+                                <div class="addon-input-wrapper">
+                                    <span class="addon-currency">₹</span>
+                                    <input type="number" id="addon-extra-mayo-input" min="0" step="1" class="addon-price-field" placeholder="20" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Size-Specific Category Addons Inputs (Pizza S/M/L) -->
@@ -3621,6 +3630,13 @@
                                         <input type="number" id="addon-pizza-spicy-s" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-mayo-s"><span style="font-size: 0.95rem; line-height: 1;">🍥</span> Extra Mayo Price</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-mayo-s" min="0" step="1" class="addon-price-field" placeholder="20" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="pizza-size-addon-column">
@@ -3639,6 +3655,13 @@
                                         <input type="number" id="addon-pizza-spicy-m" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-mayo-m"><span style="font-size: 0.95rem; line-height: 1;">🍥</span> Extra Mayo Price</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-mayo-m" min="0" step="1" class="addon-price-field" placeholder="30" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="pizza-size-addon-column">
@@ -3655,6 +3678,13 @@
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
                                         <input type="number" id="addon-pizza-spicy-l" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                    </div>
+                                </div>
+                                <div class="addon-input-group">
+                                    <label for="addon-pizza-mayo-l"><span style="font-size: 0.95rem; line-height: 1;">🍥</span> Extra Mayo Price</label>
+                                    <div class="addon-input-wrapper">
+                                        <span class="addon-currency">₹</span>
+                                        <input type="number" id="addon-pizza-mayo-l" min="0" step="1" class="addon-price-field" placeholder="40" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                             </div>
@@ -3942,25 +3972,26 @@
 
         // CLEAN FOOD & BEVERAGE MENU DATASET (NO PROMOTIONAL BANNERS)
         const DEFAULT_MENU_ITEMS = [
-            // 1. PIZZAS (18 Exact Pizzas from app.js)
-            { id: "hot-country", name: "Hot Country", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/pBjGthQG/Hot-Country.png", desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese" },
-            { id: "indian-veggie", name: "Indian Veggie", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/nNDqnySY/Indian-Veggie-Pizza.png", desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese" },
-            { id: "lovers-pizza", name: "Lover's", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/DPGHvPnT/Lover-s-Pizza.png", desc: "Red Paprika, Onion, Capsicum, Corn" },
-            { id: "makhani-pizza", name: "Makhani Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/DgM6pRrT/Makhani-Pizza.png", desc: "Capsicum, Paneer, Makhani Sauce" },
-            { id: "paradise-pizza", name: "Parndize Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/nsxZPfr3/Parndize-Pizza.png", desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno" },
-            { id: "perfetto-special", name: "Perfetto Special Pizza", category: "Pizza", isMultiSize: true, prices: { S: 299, M: 399, L: 499 }, available: true, img: "https://i.ibb.co/Zz4YBzKK/Perfetto-Special-Pizza.png", desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese" },
-            { id: "spicy-pizza", name: "Spicy Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/0pwknN8R/Spicy-Pizza.png", desc: "Paneer Chilly, Capsicum, Red Paprika" },
-            { id: "supreme-pizza", name: "Supreme Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/FkTxZmNF/Supreme-Pizza.png", desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives" },
-            { id: "tandoori-pizza", name: "Tandoori Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/b5d6Xgmx/Tandoori-Pizza.png", desc: "Onion, Paneer, Bellpeper, Tandoori Sauce" },
-            { id: "achari-pizza", name: "Acharri Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/C3Z9fkJS/Achari-Pizza.png", desc: "Capsicum, Corn, Paneer, Achari Sauce" },
-            { id: "cheese-n-corn", name: "Cheese-n-Corn", category: "Pizza", isMultiSize: true, prices: { S: 179, M: 279, L: 379 }, available: true, img: "https://i.ibb.co/0phPSW3G/Cheese-n-Corn.png", desc: "Cheese, Corn" },
-            { id: "cheese-n-mushroom", name: "Cheese-n-Mushroom", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/PvnXskbY/Cheese-n-Mushroom.png", desc: "Cheese, Mushroom" },
-            { id: "chipotle-pizza", name: "Chipotle Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/9mGwnLw9/Chipotle-Pizza.png", desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce" },
-            { id: "deluxe-pizza", name: "Deluxe Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/Gvsrbccg/Dbl-Cheese-Margherita.png", desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn" },
-            { id: "delight-pizza", name: "Delight Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/cht2BnYN/Delight-Pizza.png", desc: "Capsicum, Jalapeno, Mushroom" },
-            { id: "farm-house", name: "Farm House", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/ZzK35nQ3/Farm-House.png", desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese" },
-            { id: "green-veggie", name: "Green Veggie", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/XxKxtwM1/Green-Veggie.png", desc: "Onion, Capsicum, Tomato" },
-            { id: "harissa-pizza", name: "Harissa Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/rRsTTg0y/Harissa-Pizza.png", desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce" },
+            // 1. PIZZAS (19 Multi-Size Pizzas)
+            { id: "hot-country", name: "Hot Country", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/C59X7CVY/Hot-Country.jpg", desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese" },
+            { id: "indian-veggie", name: "Indian Veggie", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg", desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese" },
+            { id: "lovers-pizza", name: "Lover's Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg", desc: "Red Paprika, Onion, Capsicum, Corn" },
+            { id: "makhani-pizza", name: "Makhani Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg", desc: "Capsicum, Paneer, Makhani Sauce" },
+            { id: "paradise-pizza", name: "Paradize Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg", desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno" },
+            { id: "perfetto-special", name: "Perfetto Special Pizza", category: "Pizza", isMultiSize: true, prices: { S: 299, M: 399, L: 499 }, available: true, img: "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg", desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese" },
+            { id: "spicy-pizza", name: "Spicy Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg", desc: "Paneer Chilly, Capsicum, Red Paprika" },
+            { id: "supreme-pizza", name: "Supreme Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg", desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives" },
+            { id: "tandoori-pizza", name: "Tandoori Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg", desc: "Onion, Paneer, Bellpeper, Tandoori Sauce" },
+            { id: "achari-pizza", name: "Acharri Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg", desc: "Capsicum, Corn, Paneer, Achari Sauce" },
+            { id: "cheese-n-corn", name: "Cheese 'n Corn", category: "Pizza", isMultiSize: true, prices: { S: 179, M: 279, L: 379 }, available: true, img: "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg", desc: "Cheese, Corn" },
+            { id: "cheese-n-mushroom", name: "Cheese 'n Mushroom", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg", desc: "Cheese, Mushroom" },
+            { id: "chipotle-pizza", name: "Chipotle Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg", desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce" },
+            { id: "double-cheese-margherita", name: "Double Cheese Margherita", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg", desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce" },
+            { id: "deluxe-pizza", name: "Deluxe Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg", desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn" },
+            { id: "delight-pizza", name: "Delight Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg", desc: "Capsicum, Jalapeno, Mushroom" },
+            { id: "farm-house", name: "Farm House", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/nNsWCp9t/Farm-House.jpg", desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese" },
+            { id: "green-veggie", name: "Green Veggie", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg", desc: "Onion, Capsicum, Tomato" },
+            { id: "harissa-pizza", name: "Harissa Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg", desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce" },
 
             // 2. BURGERS (9 Exact Burgers from app.js)
             { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", desc: "" },
@@ -4036,11 +4067,12 @@
             { id: "sld-3", name: "Salad Option 3", category: "Salad", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Deluxe portion variation for Salad" },
             { id: "sld-4", name: "Salad Option 4", category: "Salad", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Combo style variation for Salad" },
 
-            // 14. SANDWICH (4 options matching app.js getSubItems)
-            { id: "sdw-1", name: "Sandwich Option 1", category: "Sandwich", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Freshly prepared item variation for Sandwich" },
-            { id: "sdw-2", name: "Sandwich Option 2", category: "Sandwich", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Special chef recipe variation for Sandwich" },
-            { id: "sdw-3", name: "Sandwich Option 3", category: "Sandwich", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Deluxe portion variation for Sandwich" },
-            { id: "sdw-4", name: "Sandwich Option 4", category: "Sandwich", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Combo style variation for Sandwich" },
+            // 14. SANDWICH
+            { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "Layered grilled sandwich packed with fresh veggies, sauces & spices" },
+            { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg", desc: "Crispy golden grilled sandwich with house seasoning & herb filling" },
+            { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "Rich paneer chunks tossed with aromatic spices & fresh veggies" },
+            { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "Zesty spicy spread with crunchy vegetable filling & hot seasonings" },
+            { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "Melted gooey cheese blend seasoned with Italian herbs" },
 
             // 15. SHAKE (4 options matching app.js getSubItems)
             { id: "shk-1", name: "Shake Option 1", category: "Shake", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/XZpkRRpJ/shake.png", desc: "Freshly prepared item variation for Shake" },
@@ -4083,10 +4115,15 @@
             },
             "Pizza": {
                 sizes: {
-                    S: { extraCheese: 30, extraSpicy: 0 },
-                    M: { extraCheese: 50, extraSpicy: 0 },
-                    L: { extraCheese: 70, extraSpicy: 0 }
+                    S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 },
+                    M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 },
+                    L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 }
                 }
+            },
+            "Sandwich": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
             }
         };
 
@@ -4441,7 +4478,7 @@
             // Handle Category Add-ons Pricing Bar (Burger, Wrap & Pizza)
             const addonsBar = document.getElementById('category-addons-bar');
             if (addonsBar) {
-                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza') {
+                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza' || categoryName === 'Sandwich') {
                     addonsBar.style.display = 'flex';
                     const catNameEl = document.getElementById('addons-cat-name');
                     if (catNameEl) catNameEl.textContent = categoryName;
@@ -4453,22 +4490,28 @@
                         if (stdInputs) stdInputs.style.display = 'none';
                         if (pizzaInputs) pizzaInputs.style.display = 'flex';
 
-                        const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } } };
-                        const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+                        const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
+                        const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
 
                         const sCheese = document.getElementById('addon-pizza-cheese-s');
                         const sSpicy = document.getElementById('addon-pizza-spicy-s');
+                        const sMayo = document.getElementById('addon-pizza-mayo-s');
                         const mCheese = document.getElementById('addon-pizza-cheese-m');
                         const mSpicy = document.getElementById('addon-pizza-spicy-m');
+                        const mMayo = document.getElementById('addon-pizza-mayo-m');
                         const lCheese = document.getElementById('addon-pizza-cheese-l');
                         const lSpicy = document.getElementById('addon-pizza-spicy-l');
+                        const lMayo = document.getElementById('addon-pizza-mayo-l');
 
                         if (sCheese) sCheese.value = sizes.S?.extraCheese ?? 30;
                         if (sSpicy) sSpicy.value = sizes.S?.extraSpicy ?? 0;
+                        if (sMayo) sMayo.value = sizes.S?.extraMayo ?? 20;
                         if (mCheese) mCheese.value = sizes.M?.extraCheese ?? 50;
                         if (mSpicy) mSpicy.value = sizes.M?.extraSpicy ?? 0;
+                        if (mMayo) mMayo.value = sizes.M?.extraMayo ?? 30;
                         if (lCheese) lCheese.value = sizes.L?.extraCheese ?? 70;
                         if (lSpicy) lSpicy.value = sizes.L?.extraSpicy ?? 0;
+                        if (lMayo) lMayo.value = sizes.L?.extraMayo ?? 40;
 
                         const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Pizza']);
                         const draftBadge = document.getElementById('addons-draft-badge');
@@ -4479,10 +4522,14 @@
 
                         const cheeseInput = document.getElementById('addon-extra-cheese-input');
                         const spicyInput = document.getElementById('addon-extra-spicy-input');
+                        const mayoInput = document.getElementById('addon-extra-mayo-input');
+                        const mayoGroup = document.getElementById('addon-group-extra-mayo');
 
-                        const currentAddons = categoryAddons[categoryName] || (categoryName === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
-                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese;
-                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy;
+                        const currentAddons = categoryAddons[categoryName] || (categoryName === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : (categoryName === 'Sandwich' ? { extraCheese: 25, extraSpicy: 0, extraMayo: 20 } : { extraCheese: 30, extraSpicy: 0 }));
+                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : 25;
+                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : 0;
+                        if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : (categoryName === 'Sandwich' ? 20 : 0);
+                        if (mayoGroup) mayoGroup.style.display = (categoryName === 'Sandwich') ? 'flex' : 'none';
 
                         const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
                         const draftBadge = document.getElementById('addons-draft-badge');
@@ -4505,23 +4552,29 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger & Wrap)
+        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger, Wrap & Sandwich)
         function handleCategoryAddonChange() {
-            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap')) return;
+            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap' && activeCategory !== 'Sandwich')) return;
 
             const cheeseInput = document.getElementById('addon-extra-cheese-input');
             const spicyInput = document.getElementById('addon-extra-spicy-input');
+            const mayoInput = document.getElementById('addon-extra-mayo-input');
             if (!cheeseInput || !spicyInput) return;
 
             if (!categoryAddons[activeCategory]) {
-                categoryAddons[activeCategory] = (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
+                categoryAddons[activeCategory] = (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : (activeCategory === 'Sandwich' ? { extraCheese: 25, extraSpicy: 0, extraMayo: 20 } : { extraCheese: 30, extraSpicy: 0 }));
             }
 
             categoryAddons[activeCategory].extraCheese = parseFloat(cheeseInput.value) || 0;
             categoryAddons[activeCategory].extraSpicy = parseFloat(spicyInput.value) || 0;
+            if (activeCategory === 'Sandwich' && mayoInput) {
+                categoryAddons[activeCategory].extraMayo = parseFloat(mayoInput.value) || 0;
+            }
 
-            const orig = committedCategoryAddons[activeCategory] || (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : { extraCheese: 30, extraSpicy: 0 });
-            const isModified = (categoryAddons[activeCategory].extraCheese !== orig.extraCheese) || (categoryAddons[activeCategory].extraSpicy !== orig.extraSpicy);
+            const orig = committedCategoryAddons[activeCategory] || (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : (activeCategory === 'Sandwich' ? { extraCheese: 25, extraSpicy: 0, extraMayo: 20 } : { extraCheese: 30, extraSpicy: 0 }));
+            const isModified = (categoryAddons[activeCategory].extraCheese !== orig.extraCheese) ||
+                (categoryAddons[activeCategory].extraSpicy !== orig.extraSpicy) ||
+                (activeCategory === 'Sandwich' && categoryAddons[activeCategory].extraMayo !== orig.extraMayo);
 
             const updateKey = `category_addon_${activeCategory}`;
             if (isModified) {
@@ -4544,28 +4597,31 @@
 
             const sCheese = parseFloat(document.getElementById('addon-pizza-cheese-s')?.value) || 0;
             const sSpicy = parseFloat(document.getElementById('addon-pizza-spicy-s')?.value) || 0;
+            const sMayo = parseFloat(document.getElementById('addon-pizza-mayo-s')?.value) || 0;
             const mCheese = parseFloat(document.getElementById('addon-pizza-cheese-m')?.value) || 0;
             const mSpicy = parseFloat(document.getElementById('addon-pizza-spicy-m')?.value) || 0;
+            const mMayo = parseFloat(document.getElementById('addon-pizza-mayo-m')?.value) || 0;
             const lCheese = parseFloat(document.getElementById('addon-pizza-cheese-l')?.value) || 0;
             const lSpicy = parseFloat(document.getElementById('addon-pizza-spicy-l')?.value) || 0;
+            const lMayo = parseFloat(document.getElementById('addon-pizza-mayo-l')?.value) || 0;
 
             if (!categoryAddons['Pizza']) {
-                categoryAddons['Pizza'] = { sizes: { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } } };
+                categoryAddons['Pizza'] = { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
             }
             if (!categoryAddons['Pizza'].sizes) {
-                categoryAddons['Pizza'].sizes = { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+                categoryAddons['Pizza'].sizes = { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
             }
 
-            categoryAddons['Pizza'].sizes.S = { extraCheese: sCheese, extraSpicy: sSpicy };
-            categoryAddons['Pizza'].sizes.M = { extraCheese: mCheese, extraSpicy: mSpicy };
-            categoryAddons['Pizza'].sizes.L = { extraCheese: lCheese, extraSpicy: lSpicy };
+            categoryAddons['Pizza'].sizes.S = { extraCheese: sCheese, extraSpicy: sSpicy, extraMayo: sMayo };
+            categoryAddons['Pizza'].sizes.M = { extraCheese: mCheese, extraSpicy: mSpicy, extraMayo: mMayo };
+            categoryAddons['Pizza'].sizes.L = { extraCheese: lCheese, extraSpicy: lSpicy, extraMayo: lMayo };
 
-            const orig = committedCategoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } } };
-            const origSizes = orig.sizes || { S: { extraCheese: 30, extraSpicy: 0 }, M: { extraCheese: 50, extraSpicy: 0 }, L: { extraCheese: 70, extraSpicy: 0 } };
+            const orig = committedCategoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
+            const origSizes = orig.sizes || { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
 
-            const isModified = (sCheese !== (origSizes.S?.extraCheese ?? 30)) || (sSpicy !== (origSizes.S?.extraSpicy ?? 0)) ||
-                               (mCheese !== (origSizes.M?.extraCheese ?? 50)) || (mSpicy !== (origSizes.M?.extraSpicy ?? 0)) ||
-                               (lCheese !== (origSizes.L?.extraCheese ?? 70)) || (lSpicy !== (origSizes.L?.extraSpicy ?? 0));
+            const isModified = (sCheese !== (origSizes.S?.extraCheese ?? 30)) || (sSpicy !== (origSizes.S?.extraSpicy ?? 0)) || (sMayo !== (origSizes.S?.extraMayo ?? 20)) ||
+                               (mCheese !== (origSizes.M?.extraCheese ?? 50)) || (mSpicy !== (origSizes.M?.extraSpicy ?? 0)) || (mMayo !== (origSizes.M?.extraMayo ?? 30)) ||
+                               (lCheese !== (origSizes.L?.extraCheese ?? 70)) || (lSpicy !== (origSizes.L?.extraSpicy ?? 0)) || (lMayo !== (origSizes.L?.extraMayo ?? 40));
 
             const updateKey = 'category_addon_Pizza';
             if (isModified) {

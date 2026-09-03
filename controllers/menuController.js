@@ -7,25 +7,26 @@
 const { getFirestoreDoc, setFirestoreDoc } = require('../lib/firestore');
 
 const DEFAULT_MENU_ITEMS = [
-    // 1. PIZZAS (18 Multi-Size Pizzas)
-    { id: "hot-country", name: "Hot Country", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/pBjGthQG/Hot-Country.png", desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese" },
-    { id: "indian-veggie", name: "Indian Veggie", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/nNDqnySY/Indian-Veggie-Pizza.png", desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese" },
-    { id: "lovers-pizza", name: "Lover's", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/DPGHvPnT/Lover-s-Pizza.png", desc: "Red Paprika, Onion, Capsicum, Corn" },
-    { id: "makhani-pizza", name: "Makhani Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/DgM6pRrT/Makhani-Pizza.png", desc: "Capsicum, Paneer, Makhani Sauce" },
-    { id: "paradise-pizza", name: "Parndize Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/nsxZPfr3/Parndize-Pizza.png", desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno" },
-    { id: "perfetto-special", name: "Perfetto Special Pizza", category: "Pizza", isMultiSize: true, prices: { S: 299, M: 399, L: 499 }, available: true, img: "https://i.ibb.co/Zz4YBzKK/Perfetto-Special-Pizza.png", desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese" },
-    { id: "spicy-pizza", name: "Spicy Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/0pwknN8R/Spicy-Pizza.png", desc: "Paneer Chilly, Capsicum, Red Paprika" },
-    { id: "supreme-pizza", name: "Supreme Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/FkTxZmNF/Supreme-Pizza.png", desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives" },
-    { id: "tandoori-pizza", name: "Tandoori Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/b5d6Xgmx/Tandoori-Pizza.png", desc: "Onion, Paneer, Bellpeper, Tandoori Sauce" },
-    { id: "achari-pizza", name: "Acharri Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/C3Z9fkJS/Achari-Pizza.png", desc: "Capsicum, Corn, Paneer, Achari Sauce" },
-    { id: "cheese-n-corn", name: "Cheese-n-Corn", category: "Pizza", isMultiSize: true, prices: { S: 179, M: 279, L: 379 }, available: true, img: "https://i.ibb.co/0phPSW3G/Cheese-n-Corn.png", desc: "Cheese, Corn" },
-    { id: "cheese-n-mushroom", name: "Cheese-n-Mushroom", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/PvnXskbY/Cheese-n-Mushroom.png", desc: "Cheese, Mushroom" },
-    { id: "chipotle-pizza", name: "Chipotle Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/9mGwnLw9/Chipotle-Pizza.png", desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce" },
-    { id: "deluxe-pizza", name: "Deluxe Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/Gvsrbccg/Dbl-Cheese-Margherita.png", desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn" },
-    { id: "delight-pizza", name: "Delight Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/cht2BnYN/Delight-Pizza.png", desc: "Capsicum, Jalapeno, Mushroom" },
-    { id: "farm-house", name: "Farm House", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/ZzK35nQ3/Farm-House.png", desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese" },
-    { id: "green-veggie", name: "Green Veggie", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/XxKxtwM1/Green-Veggie.png", desc: "Onion, Capsicum, Tomato" },
-    { id: "harissa-pizza", name: "Harissa Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/rRsTTg0y/Harissa-Pizza.png", desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce" },
+    // 1. PIZZAS (19 Multi-Size Pizzas)
+    { id: "hot-country", name: "Hot Country", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/C59X7CVY/Hot-Country.jpg", desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese" },
+    { id: "indian-veggie", name: "Indian Veggie", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg", desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese" },
+    { id: "lovers-pizza", name: "Lover's Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg", desc: "Red Paprika, Onion, Capsicum, Corn" },
+    { id: "makhani-pizza", name: "Makhani Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg", desc: "Capsicum, Paneer, Makhani Sauce" },
+    { id: "paradise-pizza", name: "Paradize Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg", desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno" },
+    { id: "perfetto-special", name: "Perfetto Special Pizza", category: "Pizza", isMultiSize: true, prices: { S: 299, M: 399, L: 499 }, available: true, img: "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg", desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese" },
+    { id: "spicy-pizza", name: "Spicy Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg", desc: "Paneer Chilly, Capsicum, Red Paprika" },
+    { id: "supreme-pizza", name: "Supreme Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg", desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives" },
+    { id: "tandoori-pizza", name: "Tandoori Pizza", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg", desc: "Onion, Paneer, Bellpeper, Tandoori Sauce" },
+    { id: "achari-pizza", name: "Acharri Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg", desc: "Capsicum, Corn, Paneer, Achari Sauce" },
+    { id: "cheese-n-corn", name: "Cheese 'n Corn", category: "Pizza", isMultiSize: true, prices: { S: 179, M: 279, L: 379 }, available: true, img: "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg", desc: "Cheese, Corn" },
+    { id: "cheese-n-mushroom", name: "Cheese 'n Mushroom", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg", desc: "Cheese, Mushroom" },
+    { id: "chipotle-pizza", name: "Chipotle Pizza", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg", desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce" },
+    { id: "double-cheese-margherita", name: "Double Cheese Margherita", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg", desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce" },
+    { id: "deluxe-pizza", name: "Deluxe Pizza", category: "Pizza", isMultiSize: true, prices: { S: 199, M: 299, L: 399 }, available: true, img: "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg", desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn" },
+    { id: "delight-pizza", name: "Delight Pizza", category: "Pizza", isMultiSize: true, prices: { S: 219, M: 319, L: 419 }, available: true, img: "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg", desc: "Capsicum, Jalapeno, Mushroom" },
+    { id: "farm-house", name: "Farm House", category: "Pizza", isMultiSize: true, prices: { S: 239, M: 339, L: 439 }, available: true, img: "https://i.ibb.co/nNsWCp9t/Farm-House.jpg", desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese" },
+    { id: "green-veggie", name: "Green Veggie", category: "Pizza", isMultiSize: true, prices: { S: 229, M: 329, L: 429 }, available: true, img: "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg", desc: "Onion, Capsicum, Tomato" },
+    { id: "harissa-pizza", name: "Harissa Pizza", category: "Pizza", isMultiSize: true, prices: { S: 249, M: 349, L: 449 }, available: true, img: "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg", desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce" },
 
     // 2. BURGERS (9 Single-Variant Direct Burgers)
     { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", desc: "" },
@@ -102,10 +103,11 @@ const DEFAULT_MENU_ITEMS = [
     { id: "sld-4", name: "Salad Option 4", category: "Salad", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Combo style variation for Salad" },
 
     // 14. SANDWICH
-    { id: "sdw-1", name: "Sandwich Option 1", category: "Sandwich", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Freshly prepared item variation for Sandwich" },
-    { id: "sdw-2", name: "Sandwich Option 2", category: "Sandwich", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Special chef recipe variation for Sandwich" },
-    { id: "sdw-3", name: "Sandwich Option 3", category: "Sandwich", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Deluxe portion variation for Sandwich" },
-    { id: "sdw-4", name: "Sandwich Option 4", category: "Sandwich", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/DPyPQfsT/sandwich.png", desc: "Combo style variation for Sandwich" },
+    { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "Layered grilled sandwich packed with fresh veggies, sauces & spices" },
+    { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg", desc: "Crispy golden grilled sandwich with house seasoning & herb filling" },
+    { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "Rich paneer chunks tossed with aromatic spices & fresh veggies" },
+    { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "Zesty spicy spread with crunchy vegetable filling & hot seasonings" },
+    { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "Melted gooey cheese blend seasoned with Italian herbs" },
 
     // 15. SHAKE
     { id: "shk-1", name: "Shake Option 1", category: "Shake", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/XZpkRRpJ/shake.png", desc: "Freshly prepared item variation for Shake" },
@@ -145,10 +147,15 @@ const DEFAULT_CATEGORY_ADDONS = {
     },
     "Pizza": {
         sizes: {
-            S: { extraCheese: 30, extraSpicy: 0 },
-            M: { extraCheese: 50, extraSpicy: 0 },
-            L: { extraCheese: 70, extraSpicy: 0 }
+            S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 },
+            M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 },
+            L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 }
         }
+    },
+    "Sandwich": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
 
