@@ -2148,6 +2148,10 @@ function buildCompletedOrderCardHTML(order) {
         let cleanName = (item.name || '').replace(/\s*\(\s*Standard\s*\)/gi, '').trim();
         const qty = item.qty || item.quantity || 1;
         const sizeStr = item.size && item.size !== 'Standard' ? ` (${item.size})` : '';
+        const addonsList = Array.isArray(item.addons) && item.addons.length > 0 ? item.addons : [];
+        const addonsHTML = addonsList.length > 0
+            ? `<div class="item-addons-row">${addonsList.map(a => `<span class="item-addon-tag">${escapeHtml(typeof a === 'string' ? a : (a.name || ''))}</span>`).join('')}</div>`
+            : '';
         return `
             <div class="item-row">
                 <div class="item-info-col">
@@ -2155,6 +2159,7 @@ function buildCompletedOrderCardHTML(order) {
                         <span class="item-qty-badge">${qty}x</span>
                         <span class="item-name">${escapeHtml(cleanName)}${escapeHtml(sizeStr)}</span>
                     </div>
+                    ${addonsHTML}
                     ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${escapeHtml(item.notes)}</div>` : ''}
                 </div>
             </div>
@@ -2313,6 +2318,10 @@ function buildOrderCardHTML(order) {
         let cleanName = (item.name || '').replace(/\s*\(\s*Standard\s*\)/gi, '').trim();
         const qty = item.qty || item.quantity || 1;
         const sizeStr = item.size && item.size !== 'Standard' ? ` (${item.size})` : '';
+        const addonsList = Array.isArray(item.addons) && item.addons.length > 0 ? item.addons : [];
+        const addonsHTML = addonsList.length > 0
+            ? `<div class="item-addons-row">${addonsList.map(a => `<span class="item-addon-tag">${escapeHtml(typeof a === 'string' ? a : (a.name || ''))}</span>`).join('')}</div>`
+            : '';
         return `
         <div class="item-row">
             <div class="item-info-col">
@@ -2320,6 +2329,7 @@ function buildOrderCardHTML(order) {
                     <span class="item-qty-badge">${qty}x</span>
                     <span class="item-name">${escapeHtml(cleanName)}${escapeHtml(sizeStr)}</span>
                 </div>
+                ${addonsHTML}
                 ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${escapeHtml(item.notes)}</div>` : ''}
             </div>
         </div>

@@ -849,6 +849,25 @@ body {
     font-size: 0.72rem;
 }
 
+.item-addons-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 3px;
+}
+
+.item-addon-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    background: rgba(255, 107, 0, 0.12);
+    border: 1px solid rgba(255, 107, 0, 0.32);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #ff6b00;
+}
+
 /* PAYMENT & TOTAL SUMMARY */
 .card-summary-line {
     display: flex;

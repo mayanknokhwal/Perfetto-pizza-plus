@@ -38,11 +38,18 @@ const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
 const DEFAULT_CATEGORY_ADDONS = {
     "Burger": {
         extraCheese: 25,
-        extraSpicy: 0
+        extraSpicy: 0,
+        extraMayo: 20
     },
     "Wrap": {
         extraCheese: 30,
-        extraSpicy: 0
+        extraSpicy: 0,
+        extraMayo: 20
+    },
+    "Bread": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     },
     "Pizza": {
         sizes: {
@@ -71,7 +78,7 @@ function getCustomerCategoryAddons(categoryName) {
         }
     } catch (e) { }
 
-    return customerCategoryAddons[categoryName] || DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0 };
+    return customerCategoryAddons[categoryName] || DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
 }
 
 function getPizzaSizeAddonRates(size = 'M') {
@@ -1148,6 +1155,7 @@ function refreshActiveCustomerView(freshItems) {
                 const catAddons = getCustomerCategoryAddons(categoryName);
                 const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (isWrap ? 30 : 25);
                 const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
 
                 subItemsGrid.className = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
                 subItemsGrid.innerHTML = items.map(item => {
@@ -1155,19 +1163,25 @@ function refreshActiveCustomerView(freshItems) {
                     const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                     const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
                     const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                    const currentTotal = (item.price || 99) + (selected.cheese ? cheesePrice : 0) + (selected.spicy ? spicyPrice : 0);
+                    const currentTotal = (item.price || 99) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
 
                     const boxesMarkup = isAvailable ? `
                         <div class="burger-addon-selector">
-                            <span class="burger-addon-label">Add-ons:</span>
+                            <span class="burger-addon-label">ADD-ONS:</span>
                             <div class="burger-addon-options">
                                 <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                     🧀
                                 </button>
                                 <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
                                     🌶️
+                                </button>
+                                <button type="button" class="burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'mayo', event)">
+                                    🍥
                                 </button>
                             </div>
                         </div>
@@ -1196,14 +1210,43 @@ function refreshActiveCustomerView(freshItems) {
                     `;
                 }).join('');
             } else if (categoryName === "Bread") {
+                const catAddons = getCustomerCategoryAddons('Bread');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
                 subItemsGrid.className = 'sub-items-grid bread-grid-container grid grid-cols-2 gap-3';
                 subItemsGrid.innerHTML = items.map(item => {
                     const isAvailable = item.available !== false;
                     const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                     const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
                     const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 99) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="bread-addon-selector burger-addon-selector">
+                            <span class="bread-addon-label burger-addon-label">ADD-ONS:</span>
+                            <div class="bread-addon-options burger-addon-options">
+                                <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="bread-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Bread', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="bread-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
                     const addBtnMarkup = isAvailable
-                        ? `<button class="bread-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        ? `<button class="bread-add-cart-btn" onclick="addCardWithAddonsToCart('Bread', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
                         : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                     return `
@@ -1214,9 +1257,10 @@ function refreshActiveCustomerView(freshItems) {
                         </div>
                         <div class="bread-card-body">
                             <h4 class="bread-card-title">${item.name}</h4>
+                            ${boxesMarkup}
                             <div class="bread-price-row">
                                 <span class="price-prefix">Price:</span>
-                                <span class="bread-card-price">${formatPrice(item.price || 99)}</span>
+                                <span class="bread-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -1696,6 +1740,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             const catAddons = getCustomerCategoryAddons(categoryName);
             const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (isWrap ? 30 : 25);
             const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
 
             subItemsGrid.className = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
             subItemsGrid.innerHTML = items.map(item => {
@@ -1703,19 +1748,25 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false };
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 99) + (selected.cheese ? cheesePrice : 0) + (selected.spicy ? spicyPrice : 0);
+                const currentTotal = (item.price || 99) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
 
                 const boxesMarkup = isAvailable ? `
                     <div class="burger-addon-selector">
-                        <span class="burger-addon-label">Add-ons:</span>
+                        <span class="burger-addon-label">ADD-ONS:</span>
                         <div class="burger-addon-options">
                             <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
                             <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
                                 🌶️
+                            </button>
+                            <button type="button" class="burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'mayo', event)">
+                                🍥
                             </button>
                         </div>
                     </div>
@@ -1744,14 +1795,43 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 `;
             }).join('');
         } else if (categoryName === "Bread") {
+            const catAddons = getCustomerCategoryAddons('Bread');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
             subItemsGrid.className = 'sub-items-grid bread-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 99) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="bread-addon-selector burger-addon-selector">
+                        <span class="bread-addon-label burger-addon-label">ADD-ONS:</span>
+                        <div class="bread-addon-options burger-addon-options">
+                            <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="bread-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Bread', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="bread-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
                 const addBtnMarkup = isAvailable
-                    ? `<button class="bread-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    ? `<button class="bread-add-cart-btn" onclick="addCardWithAddonsToCart('Bread', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
                     : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                 return `
@@ -1762,9 +1842,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     </div>
                     <div class="bread-card-body">
                         <h4 class="bread-card-title">${item.name}</h4>
+                        ${boxesMarkup}
                         <div class="bread-price-row">
                             <span class="price-prefix">Price:</span>
-                            <span class="bread-card-price">${formatPrice(item.price || 99)}</span>
+                            <span class="bread-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -2802,7 +2883,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         size: item.size || 'Standard',
         price: item.price,
         qty: item.qty,
-        notes: '',
+        notes: (item.addons && item.addons.length > 0) ? item.addons.map(a => a.name).join(', ') : '',
         addons: item.addons || []
     }));
 

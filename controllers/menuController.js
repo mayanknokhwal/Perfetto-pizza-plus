@@ -139,11 +139,18 @@ const DEFAULT_MENU_ITEMS = [
 const DEFAULT_CATEGORY_ADDONS = {
     "Burger": {
         extraCheese: 25,
-        extraSpicy: 0
+        extraSpicy: 0,
+        extraMayo: 20
     },
     "Wrap": {
         extraCheese: 30,
-        extraSpicy: 0
+        extraSpicy: 0,
+        extraMayo: 20
+    },
+    "Bread": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     },
     "Pizza": {
         sizes: {

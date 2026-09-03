@@ -3601,7 +3601,7 @@
                                     <input type="number" id="addon-extra-spicy-input" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
                                 </div>
                             </div>
-                            <div class="addon-input-group" id="addon-group-extra-mayo" style="display: none;">
+                            <div class="addon-input-group" id="addon-group-extra-mayo">
                                 <label for="addon-extra-mayo-input">
                                     <span style="font-size: 1rem;">🍥</span> Extra Mayo Price
                                 </label>
@@ -4107,11 +4107,18 @@
         const DEFAULT_CATEGORY_ADDONS = {
             "Burger": {
                 extraCheese: 25,
-                extraSpicy: 0
+                extraSpicy: 0,
+                extraMayo: 20
             },
             "Wrap": {
                 extraCheese: 30,
-                extraSpicy: 0
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Bread": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
             },
             "Pizza": {
                 sizes: {
@@ -4478,7 +4485,7 @@
             // Handle Category Add-ons Pricing Bar (Burger, Wrap & Pizza)
             const addonsBar = document.getElementById('category-addons-bar');
             if (addonsBar) {
-                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza' || categoryName === 'Sandwich') {
+                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza' || categoryName === 'Sandwich' || categoryName === 'Bread') {
                     addonsBar.style.display = 'flex';
                     const catNameEl = document.getElementById('addons-cat-name');
                     if (catNameEl) catNameEl.textContent = categoryName;
@@ -4525,11 +4532,12 @@
                         const mayoInput = document.getElementById('addon-extra-mayo-input');
                         const mayoGroup = document.getElementById('addon-group-extra-mayo');
 
-                        const currentAddons = categoryAddons[categoryName] || (categoryName === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : (categoryName === 'Sandwich' ? { extraCheese: 25, extraSpicy: 0, extraMayo: 20 } : { extraCheese: 30, extraSpicy: 0 }));
-                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : 25;
-                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : 0;
-                        if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : (categoryName === 'Sandwich' ? 20 : 0);
-                        if (mayoGroup) mayoGroup.style.display = (categoryName === 'Sandwich') ? 'flex' : 'none';
+                        const defaultAddon = DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
+                        const currentAddons = categoryAddons[categoryName] || defaultAddon;
+                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : defaultAddon.extraCheese;
+                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : defaultAddon.extraSpicy;
+                        if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : defaultAddon.extraMayo;
+                        if (mayoGroup) mayoGroup.style.display = 'flex';
 
                         const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
                         const draftBadge = document.getElementById('addons-draft-badge');
@@ -4552,29 +4560,30 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger, Wrap & Sandwich)
+        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger, Wrap, Bread & Sandwich)
         function handleCategoryAddonChange() {
-            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap' && activeCategory !== 'Sandwich')) return;
+            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap' && activeCategory !== 'Sandwich' && activeCategory !== 'Bread')) return;
 
             const cheeseInput = document.getElementById('addon-extra-cheese-input');
             const spicyInput = document.getElementById('addon-extra-spicy-input');
             const mayoInput = document.getElementById('addon-extra-mayo-input');
             if (!cheeseInput || !spicyInput) return;
 
+            const defaultAddon = DEFAULT_CATEGORY_ADDONS[activeCategory] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
             if (!categoryAddons[activeCategory]) {
-                categoryAddons[activeCategory] = (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : (activeCategory === 'Sandwich' ? { extraCheese: 25, extraSpicy: 0, extraMayo: 20 } : { extraCheese: 30, extraSpicy: 0 }));
+                categoryAddons[activeCategory] = { ...defaultAddon };
             }
 
             categoryAddons[activeCategory].extraCheese = parseFloat(cheeseInput.value) || 0;
             categoryAddons[activeCategory].extraSpicy = parseFloat(spicyInput.value) || 0;
-            if (activeCategory === 'Sandwich' && mayoInput) {
+            if (mayoInput) {
                 categoryAddons[activeCategory].extraMayo = parseFloat(mayoInput.value) || 0;
             }
 
-            const orig = committedCategoryAddons[activeCategory] || (activeCategory === 'Burger' ? { extraCheese: 25, extraSpicy: 0 } : (activeCategory === 'Sandwich' ? { extraCheese: 25, extraSpicy: 0, extraMayo: 20 } : { extraCheese: 30, extraSpicy: 0 }));
+            const orig = committedCategoryAddons[activeCategory] || defaultAddon;
             const isModified = (categoryAddons[activeCategory].extraCheese !== orig.extraCheese) ||
                 (categoryAddons[activeCategory].extraSpicy !== orig.extraSpicy) ||
-                (activeCategory === 'Sandwich' && categoryAddons[activeCategory].extraMayo !== orig.extraMayo);
+                (categoryAddons[activeCategory].extraMayo !== orig.extraMayo);
 
             const updateKey = `category_addon_${activeCategory}`;
             if (isModified) {

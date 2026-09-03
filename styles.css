@@ -2257,7 +2257,10 @@ body.shop-closed .checkout-btn {
 /* --------------------------------------------------------------------------
    13C. BURGER & WRAP CARD ADD-ON EMOJI SELECTOR BOXES (S/M/L BADGE STYLE)
    -------------------------------------------------------------------------- */
-.burger-addon-selector {
+.burger-addon-selector,
+.wrap-addon-selector,
+.sandwich-addon-selector,
+.bread-addon-selector {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2271,7 +2274,10 @@ body.shop-closed .checkout-btn {
     width: 100%;
 }
 
-.burger-addon-label {
+.burger-addon-label,
+.wrap-addon-label,
+.sandwich-addon-label,
+.bread-addon-label {
     font-size: 0.72rem;
     font-weight: var(--fw-black);
     color: var(--text-muted);
@@ -2279,13 +2285,19 @@ body.shop-closed .checkout-btn {
     letter-spacing: 0.4px;
 }
 
-.burger-addon-options {
+.burger-addon-options,
+.wrap-addon-options,
+.sandwich-addon-options,
+.bread-addon-options {
     display: flex;
     gap: 6px;
     align-items: center;
 }
 
-.burger-addon-box {
+.burger-addon-box,
+.wrap-addon-box,
+.sandwich-addon-box,
+.bread-addon-box {
     width: 36px;
     height: 36px;
     min-width: 36px;
@@ -2306,30 +2318,48 @@ body.shop-closed .checkout-btn {
     user-select: none;
 }
 
-.burger-addon-box:hover {
+.burger-addon-box:hover,
+.wrap-addon-box:hover,
+.sandwich-addon-box:hover,
+.bread-addon-box:hover {
     background: rgba(255, 107, 0, 0.08) !important;
     transform: scale(1.08);
 }
 
 .burger-addon-box.selected,
-.burger-addon-box.active {
+.burger-addon-box.active,
+.wrap-addon-box.selected,
+.wrap-addon-box.active,
+.sandwich-addon-box.selected,
+.sandwich-addon-box.active,
+.bread-addon-box.selected,
+.bread-addon-box.active {
     background: var(--bg-surface) !important;
     border-color: var(--primary-orange, #ff6b00) !important;
     box-shadow: 0 3px 10px rgba(255, 107, 0, 0.32) !important;
     transform: scale(1.12);
 }
 
-.burger-addon-box.selected.active-cheese {
+.burger-addon-box.selected.active-cheese,
+.wrap-addon-box.selected.active-cheese,
+.sandwich-addon-box.selected.active-cheese,
+.bread-addon-box.selected.active-cheese {
     border-color: #f59e0b !important;
     box-shadow: 0 3px 10px rgba(245, 158, 11, 0.38) !important;
 }
 
-.burger-addon-box.selected.active-spicy {
+.burger-addon-box.selected.active-spicy,
+.wrap-addon-box.selected.active-spicy,
+.sandwich-addon-box.selected.active-spicy,
+.bread-addon-box.selected.active-spicy {
     border-color: #ef4444 !important;
     box-shadow: 0 3px 10px rgba(239, 68, 68, 0.38) !important;
 }
 
-.burger-addon-box.selected.active-mayo {
+.burger-addon-box.selected.active-mayo,
+.wrap-addon-box.selected.active-mayo,
+.sandwich-addon-box.selected.active-mayo,
+.bread-addon-box.selected.active-mayo {
     border-color: #fb7185 !important;
     box-shadow: 0 3px 10px rgba(251, 113, 133, 0.38) !important;
 }
