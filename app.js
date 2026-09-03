@@ -62,6 +62,11 @@ const DEFAULT_CATEGORY_ADDONS = {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20
+    },
+    "Momos": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
 
@@ -835,10 +840,37 @@ const categorySubItems = {
         { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "" },
         { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "" },
         { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "" }
+    ],
+    "Momos": [
+        { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
+        { id: "mom-chilly-veg", name: "Chilly Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg", desc: "Golden fried veg momos coated in tangy chilli sauce" },
+        { id: "mom-crispy-paneer", name: "Crispy Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg", desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling" },
+        { id: "mom-crispy-veg", name: "Crispy Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg", desc: "Super crunchy fried momos stuffed with spiced minced veggies" },
+        { id: "mom-pan-fried-paneer", name: "Pan Fried Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg", desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning" },
+        { id: "mom-pan-fried-veg", name: "Pan Fried Veg Momo", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg", desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices" },
+        { id: "mom-paneer", name: "Paneer Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/B786z53/Paneer-Momos.jpg", desc: "Steamed soft momos stuffed with rich seasoned cottage cheese" },
+        { id: "mom-special-paneer", name: "Special Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg", desc: "Chef special recipe paneer momos with gourmet herb filling" },
+        { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
+        { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
+        { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
     ]
 };
 
 const MENU_STORAGE_KEY = 'menuData';
+
+const NEW_MOMOS_MENU_ITEMS = [
+    { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
+    { id: "mom-chilly-veg", name: "Chilly Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg", desc: "Golden fried veg momos coated in tangy chilli sauce" },
+    { id: "mom-crispy-paneer", name: "Crispy Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg", desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling" },
+    { id: "mom-crispy-veg", name: "Crispy Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg", desc: "Super crunchy fried momos stuffed with spiced minced veggies" },
+    { id: "mom-pan-fried-paneer", name: "Pan Fried Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg", desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning" },
+    { id: "mom-pan-fried-veg", name: "Pan Fried Veg Momo", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg", desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices" },
+    { id: "mom-paneer", name: "Paneer Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/B786z53/Paneer-Momos.jpg", desc: "Steamed soft momos stuffed with rich seasoned cottage cheese" },
+    { id: "mom-special-paneer", name: "Special Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg", desc: "Chef special recipe paneer momos with gourmet herb filling" },
+    { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
+    { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
+    { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
+];
 
 const NEW_SANDWICH_MENU_ITEMS = [
     { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "" },
@@ -971,6 +1003,36 @@ function sanitizeStoredMenuItems(items) {
         if (item.category === 'Sandwich' && item.id && SANDWICH_IMAGE_MAP[item.id]) {
             if (item.img !== SANDWICH_IMAGE_MAP[item.id]) {
                 item.img = SANDWICH_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // 6. Sanitize Momos items
+    const hasOldMomos = updated.some(i => i.category === 'Momos' && (i.id === 'mom-1' || i.id === 'mom-2' || i.id === 'mom-3' || i.id === 'mom-4' || (i.name && i.name.startsWith('Momos Option')) || !NEW_MOMOS_MENU_ITEMS.some(nm => nm.id === i.id || nm.name === i.name)));
+    if (hasOldMomos) {
+        const nonMomos = updated.filter(i => i.category !== 'Momos');
+        updated = [...nonMomos, ...NEW_MOMOS_MENU_ITEMS];
+        modified = true;
+    }
+
+    const MOMOS_IMAGE_MAP = {
+        "mom-chilly-paneer": "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg",
+        "mom-chilly-veg": "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg",
+        "mom-crispy-paneer": "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg",
+        "mom-crispy-veg": "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg",
+        "mom-pan-fried-paneer": "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg",
+        "mom-pan-fried-veg": "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg",
+        "mom-paneer": "https://i.ibb.co/B786z53/Paneer-Momos.jpg",
+        "mom-special-paneer": "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg",
+        "mom-tandoori-paneer": "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg",
+        "mom-tandoori-veg": "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg",
+        "mom-veg": "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Momos' && item.id && MOMOS_IMAGE_MAP[item.id]) {
+            if (item.img !== MOMOS_IMAGE_MAP[item.id]) {
+                item.img = MOMOS_IMAGE_MAP[item.id];
                 modified = true;
             }
         }
@@ -1326,6 +1388,64 @@ function refreshActiveCustomerView(freshItems) {
                             <div class="sandwich-price-row">
                                 <span class="price-prefix">Price:</span>
                                 <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Momos") {
+                const catAddons = getCustomerCategoryAddons('Momos');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+                subItemsGrid.className = 'sub-items-grid momos-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 99) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="momos-addon-selector burger-addon-selector">
+                            <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="momos-addon-options burger-addon-options">
+                                <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="momos-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Momos', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="momos-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="momos-add-cart-btn" onclick="addCardWithAddonsToCart('Momos', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="momos-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="momos-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="momos-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
+                        </div>
+                        <div class="momos-card-body">
+                            <h4 class="momos-card-title">${item.name}</h4>
+                            ${boxesMarkup}
+                            <div class="momos-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -1911,6 +2031,64 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <div class="sandwich-price-row">
                             <span class="price-prefix">Price:</span>
                             <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Momos") {
+            const catAddons = getCustomerCategoryAddons('Momos');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+            subItemsGrid.className = 'sub-items-grid momos-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 99) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="momos-addon-selector burger-addon-selector">
+                        <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="momos-addon-options burger-addon-options">
+                            <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="momos-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Momos', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="momos-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="momos-add-cart-btn" onclick="addCardWithAddonsToCart('Momos', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="momos-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="momos-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="momos-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
+                    </div>
+                    <div class="momos-card-body">
+                        <h4 class="momos-card-title">${item.name}</h4>
+                        ${boxesMarkup}
+                        <div class="momos-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
