@@ -2349,16 +2349,16 @@ function refreshActiveCustomerView(freshItems) {
                         (selected.mayo ? mayoPrice : 0);
 
                     const boxesMarkup = isAvailable ? `
-                        <div class="spring-rolls-addon-selector burger-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="spring-rolls-addon-options burger-addon-options">
-                                <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
+                        <div class="spring-rolls-addon-selector">
+                            <span class="spring-rolls-addon-label">ADD-ONS:</span>
+                            <div class="spring-rolls-addon-options">
+                                <button type="button" class="spring-rolls-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
                                     🧀
                                 </button>
-                                <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
+                                <button type="button" class="spring-rolls-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
                                     🌶️
                                 </button>
-                                <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
+                                <button type="button" class="spring-rolls-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
                                     🍥
                                 </button>
                             </div>
@@ -2370,17 +2370,19 @@ function refreshActiveCustomerView(freshItems) {
                         : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                     return `
-                    <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}">
+                    <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}" data-category="Spring Rolls">
                         ${outOfStockBadge}
                         <div class="spring-rolls-card-image-wrapper">
                             <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
                         </div>
                         <div class="spring-rolls-card-body">
                             <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            ${boxesMarkup}
-                            <div class="spring-rolls-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <div class="spring-rolls-action-row">
+                                ${boxesMarkup}
+                                <div class="spring-rolls-price-row">
+                                    <span class="price-prefix">Price:</span>
+                                    <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                                </div>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -3482,16 +3484,16 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     (selected.mayo ? mayoPrice : 0);
 
                 const boxesMarkup = isAvailable ? `
-                    <div class="spring-rolls-addon-selector burger-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
-                        <div class="spring-rolls-addon-options burger-addon-options">
-                            <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
+                    <div class="spring-rolls-addon-selector">
+                        <span class="spring-rolls-addon-label">ADD-ONS:</span>
+                        <div class="spring-rolls-addon-options">
+                            <button type="button" class="spring-rolls-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
+                            <button type="button" class="spring-rolls-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
+                            <button type="button" class="spring-rolls-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -3503,17 +3505,19 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
 
                 return `
-                <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}">
+                <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}" data-category="Spring Rolls">
                     ${outOfStockBadge}
                     <div class="spring-rolls-card-image-wrapper">
                         <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
                     </div>
                     <div class="spring-rolls-card-body">
                         <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                        ${boxesMarkup}
-                        <div class="spring-rolls-price-row">
-                            <span class="price-prefix">Price:</span>
-                            <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        <div class="spring-rolls-action-row">
+                            ${boxesMarkup}
+                            <div class="spring-rolls-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
                         </div>
                     </div>
                     ${addBtnMarkup}

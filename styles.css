@@ -2400,7 +2400,6 @@ body.shop-closed .checkout-btn {
 .pizza-addon-selector,
 .shake-addon-selector,
 .noodles-addon-selector,
-.spring-rolls-addon-selector,
 .addons-row,
 .addon-options-container {
     display: flex;
@@ -2428,7 +2427,6 @@ body.shop-closed .checkout-btn {
 .pasta-addon-label,
 .chinese-addon-label,
 .noodles-addon-label,
-.spring-rolls-addon-label,
 .pizza-addon-selector .burger-addon-label {
     font-size: 0.62rem;
     font-weight: var(--fw-black);
@@ -2715,12 +2713,12 @@ body.shop-closed .checkout-btn {
 }
 
 .spring-rolls-card-body {
-    padding: 10px 12px 6px 12px;
+    padding: 12px 14px 0 14px;
     display: flex;
     flex-direction: column;
     flex: 1;
-    justify-content: flex-start;
-    gap: 4px;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .spring-rolls-card-title {
@@ -2753,17 +2751,87 @@ body.shop-closed .checkout-btn {
     animation: marquee-scroll var(--marquee-duration, 5s) ease-in-out infinite alternate;
 }
 
-.spring-rolls-price-row {
+/* Combined Add-ons & Price Row (Directly above ADD TO CART button) */
+.spring-rolls-action-row,
+.spring-rolls-card .spring-rolls-action-row,
+[data-category="Spring Rolls"] .spring-rolls-action-row {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    margin-top: 4px;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    margin-bottom: 0;
+    align-items: center;
+    width: 100%;
+    gap: 12px;
+    margin-bottom: 12px;
+    box-sizing: border-box;
 }
 
-.spring-rolls-card-price {
+.spring-rolls-addon-selector,
+.spring-rolls-card .spring-rolls-addon-selector,
+[data-category="Spring Rolls"] .spring-rolls-addon-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: var(--bg-input);
+    padding: 3px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    box-sizing: border-box;
+    width: auto;
+    max-width: fit-content;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.spring-rolls-addon-label,
+.spring-rolls-card .spring-rolls-addon-label,
+[data-category="Spring Rolls"] .spring-rolls-addon-label {
+    font-size: 0.65rem;
+    font-weight: var(--fw-black);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    line-height: 1;
+    white-space: nowrap;
+    text-align: left;
+    margin: 0;
+    padding: 0;
+    max-width: none;
+    flex-shrink: 0;
+}
+
+.spring-rolls-addon-options,
+.spring-rolls-card .spring-rolls-addon-options,
+[data-category="Spring Rolls"] .spring-rolls-addon-options {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.spring-rolls-price-row,
+.spring-rolls-card .spring-rolls-price-row,
+[data-category="Spring Rolls"] .spring-rolls-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    white-space: nowrap;
+    margin: 0 0 0 auto;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.spring-rolls-price-row .price-prefix,
+.spring-rolls-card .spring-rolls-price-row .price-prefix,
+[data-category="Spring Rolls"] .spring-rolls-price-row .price-prefix {
+    font-size: 0.80rem;
+    font-weight: 700;
+    color: var(--text-muted, #9ca3af);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.spring-rolls-card-price,
+.spring-rolls-card .spring-rolls-card-price,
+[data-category="Spring Rolls"] .spring-rolls-card-price {
     font-size: 1.15rem;
     font-weight: var(--fw-black);
     color: var(--primary-orange);
@@ -2790,7 +2858,7 @@ body.shop-closed .checkout-btn {
     cursor: pointer;
     transition: all 0.2s ease;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    margin-top: 4px;
+    margin-top: 0;
     touch-action: manipulation;
 }
 
