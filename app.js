@@ -80,6 +80,11 @@ const DEFAULT_CATEGORY_ADDONS = {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20
+    },
+    "Noodles": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
 
@@ -999,10 +1004,38 @@ const categorySubItems = {
     "Coffee": [
         { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
         { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
+    ],
+    "Noodles": [
+        { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
+        { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
+        { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
+        { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
+        { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
+        { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
+    ],
+    "Desserts": [
+        { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg", desc: "Creamy classic vanilla ice cream scoop" },
+        { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
+        { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg", desc: "Decadent chocolate cake with a warm molten chocolate center" }
     ]
 };
 
 const MENU_STORAGE_KEY = 'menuData';
+
+const NEW_DESSERTS_MENU_ITEMS = [
+    { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg", desc: "Creamy classic vanilla ice cream scoop" },
+    { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
+    { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg", desc: "Decadent chocolate cake with a warm molten chocolate center" }
+];
+
+const NEW_NOODLES_MENU_ITEMS = [
+    { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
+    { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
+    { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
+    { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
+    { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
+    { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
+];
 
 const NEW_COFFEE_MENU_ITEMS = [
     { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
@@ -1205,6 +1238,53 @@ function sanitizeStoredMenuItems(items) {
         if ((item.category === 'Hot Cold Coffee' || item.category === 'Coffee' || item.category === 'Hot & Cold Coffee') && item.id && COFFEE_IMAGE_MAP[item.id]) {
             if (item.img !== COFFEE_IMAGE_MAP[item.id]) {
                 item.img = COFFEE_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // 8. Sanitize Noodles items
+    const hasOldNoodles = updated.some(i => i.category === 'Noodles' && (i.id === 'ndl-1' || i.id === 'ndl-2' || i.id === 'ndl-3' || i.id === 'ndl-4' || (i.name && i.name.startsWith('Noodles Option')) || !NEW_NOODLES_MENU_ITEMS.some(nn => nn.id === i.id || nn.name === i.name)));
+    if (hasOldNoodles) {
+        const nonNoodles = updated.filter(i => i.category !== 'Noodles');
+        updated = [...nonNoodles, ...NEW_NOODLES_MENU_ITEMS];
+        modified = true;
+    }
+
+    const NOODLES_IMAGE_MAP = {
+        "ndl-butter-paneer": "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg",
+        "ndl-chilly-garlic": "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg",
+        "ndl-haka": "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg",
+        "ndl-paneer": "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg",
+        "ndl-singapuri": "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg",
+        "ndl-veg": "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Noodles' && item.id && NOODLES_IMAGE_MAP[item.id]) {
+            if (item.img !== NOODLES_IMAGE_MAP[item.id]) {
+                item.img = NOODLES_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // 9. Sanitize Desserts items
+    const hasOldDesserts = updated.some(i => i.category === 'Desserts' && (i.id === 'des-1' || i.id === 'des-2' || i.id === 'des-3' || i.id === 'des-4' || (i.name && i.name.startsWith('Desserts Option')) || !NEW_DESSERTS_MENU_ITEMS.some(nd => nd.id === i.id || nd.name === i.name)));
+    if (hasOldDesserts) {
+        const nonDesserts = updated.filter(i => i.category !== 'Desserts');
+        updated = [...nonDesserts, ...NEW_DESSERTS_MENU_ITEMS];
+        modified = true;
+    }
+
+    const DESSERTS_IMAGE_MAP = {
+        "des-ice-cream-vanilla": "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg",
+        "des-lava-cake-ice-cream": "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg",
+        "des-lava-cake": "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Desserts' && item.id && DESSERTS_IMAGE_MAP[item.id]) {
+            if (item.img !== DESSERTS_IMAGE_MAP[item.id]) {
+                item.img = DESSERTS_IMAGE_MAP[item.id];
                 modified = true;
             }
         }
@@ -1618,6 +1698,314 @@ function refreshActiveCustomerView(freshItems) {
                             <div class="momos-price-row">
                                 <span class="price-prefix">Price:</span>
                                 <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Pasta") {
+                const catAddons = getCustomerCategoryAddons('Pasta');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+                subItemsGrid.className = 'sub-items-grid pasta-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 129) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="pasta-addon-selector burger-addon-selector">
+                            <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="pasta-addon-options burger-addon-options">
+                                <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="pasta-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Pasta', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="pasta-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="pasta-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Pasta', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="pasta-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="pasta-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="pasta-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="pasta-card-body burger-card-body">
+                            <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            ${boxesMarkup}
+                            <div class="pasta-price-row burger-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="pasta-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Chinese Food" || categoryName === "Chinese") {
+                const catAddons = getCustomerCategoryAddons('Chinese Food');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+                subItemsGrid.className = 'sub-items-grid chinese-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 129) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="chinese-addon-selector burger-addon-selector">
+                            <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="chinese-addon-options burger-addon-options">
+                                <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="chinese-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="chinese-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="chinese-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Chinese Food', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="chinese-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="chinese-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="chinese-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="chinese-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="chinese-card-body burger-card-body">
+                            <h4 class="chinese-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            ${boxesMarkup}
+                            <div class="chinese-price-row burger-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="chinese-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Shake") {
+                const catAddons = getCustomerCategoryAddons('Shake');
+                const iceCreamPrice = catAddons.withIceCream !== undefined ? catAddons.withIceCream : 30;
+
+                subItemsGrid.className = 'sub-items-grid shake-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { iceCream: false };
+
+                    const currentTotal = (item.price || 119) + (selected.iceCream ? iceCreamPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="shake-addon-selector burger-addon-selector">
+                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="shake-addon-options">
+                                <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
+                                    🍨 With Ice Cream
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="shake-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Shake', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="shake-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="shake-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="shake-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="shake-card-body burger-card-body">
+                            <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            ${boxesMarkup}
+                            <div class="shake-price-row burger-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="shake-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Rice") {
+                subItemsGrid.className = 'sub-items-grid rice-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="rice-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="rice-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="rice-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="rice-card-body burger-card-body">
+                            <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
+                                <span class="price-prefix">Price:</span>
+                                <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Hot Cold Coffee" || categoryName === "Hot & Cold Coffee" || categoryName === "Coffee") {
+                subItemsGrid.className = 'sub-items-grid coffee-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="coffee-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="coffee-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="coffee-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="coffee-card-body burger-card-body">
+                            <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
+                                <span class="price-prefix">Price:</span>
+                                <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Noodles") {
+                const catAddons = getCustomerCategoryAddons('Noodles');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+                subItemsGrid.className = 'sub-items-grid noodles-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 119) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="noodles-addon-selector burger-addon-selector">
+                            <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="noodles-addon-options burger-addon-options">
+                                <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="noodles-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Noodles', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="noodles-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="noodles-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Noodles', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="noodles-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="noodles-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="noodles-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="noodles-card-body burger-card-body">
+                            <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            ${boxesMarkup}
+                            <div class="noodles-price-row burger-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="noodles-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Desserts") {
+                subItemsGrid.className = 'sub-items-grid desserts-grid-container grid grid-cols-2 gap-3';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="desserts-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="desserts-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="desserts-card-image-wrapper burger-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="desserts-card-img burger-card-img" loading="lazy">
+                        </div>
+                        <div class="desserts-card-body burger-card-body">
+                            <h4 class="desserts-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <div class="desserts-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
+                                <span class="price-prefix">Price:</span>
+                                <span class="desserts-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -2496,6 +2884,93 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 </div>
                 `;
             }).join('');
+        } else if (categoryName === "Noodles") {
+            const catAddons = getCustomerCategoryAddons('Noodles');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+            subItemsGrid.className = 'sub-items-grid noodles-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 119) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="noodles-addon-selector burger-addon-selector">
+                        <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="noodles-addon-options burger-addon-options">
+                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Noodles', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="noodles-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Noodles', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="noodles-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="noodles-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="noodles-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="noodles-card-body burger-card-body">
+                        <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        ${boxesMarkup}
+                        <div class="noodles-price-row burger-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="noodles-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Desserts") {
+            subItemsGrid.className = 'sub-items-grid desserts-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="desserts-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="desserts-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="desserts-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="desserts-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="desserts-card-body burger-card-body">
+                        <h4 class="desserts-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <div class="desserts-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
+                            <span class="price-prefix">Price:</span>
+                            <span class="desserts-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
         } else {
             subItemsGrid.classList.remove('pizza-grid-container');
             subItemsGrid.innerHTML = items.map(item => {
@@ -2547,7 +3022,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 function applyMarqueeToOverflowTitles() {
     requestAnimationFrame(() => {
         const titleContainers = document.querySelectorAll(
-            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title, .pasta-card-title, .chinese-card-title, .shake-card-title, .rice-card-title, .coffee-card-title'
+            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title, .pasta-card-title, .chinese-card-title, .shake-card-title, .rice-card-title, .coffee-card-title, .noodles-card-title, .desserts-card-title'
         );
         if (!titleContainers.length) return;
 

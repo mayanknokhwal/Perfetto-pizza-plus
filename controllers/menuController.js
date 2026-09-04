@@ -71,10 +71,9 @@ const DEFAULT_MENU_ITEMS = [
     { id: "pst-baked-makhani", name: "Baked Makhani Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/v4KDB6tm/Baked-Makhani-Pasta.jpg", desc: "Rich butter makhani gravy pasta baked with melted mozzarella" },
 
     // 7. DESSERTS
-    { id: "des-1", name: "Desserts Option 1", category: "Desserts", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Freshly prepared item variation for Desserts" },
-    { id: "des-2", name: "Desserts Option 2", category: "Desserts", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Special chef recipe variation for Desserts" },
-    { id: "des-3", name: "Desserts Option 3", category: "Desserts", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Deluxe portion variation for Desserts" },
-    { id: "des-4", name: "Desserts Option 4", category: "Desserts", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Combo style variation for Desserts" },
+    { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg", desc: "Creamy classic vanilla ice cream scoop" },
+    { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
+    { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg", desc: "Decadent chocolate cake with a warm molten chocolate center" },
 
     // 8. HOT COLD COFFEE
     { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
@@ -99,11 +98,13 @@ const DEFAULT_MENU_ITEMS = [
     { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
     { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" },
 
-    // 11. NOODLES
-    { id: "ndl-1", name: "Noodles Option 1", category: "Noodles", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Freshly prepared item variation for Noodles" },
-    { id: "ndl-2", name: "Noodles Option 2", category: "Noodles", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Special chef recipe variation for Noodles" },
-    { id: "ndl-3", name: "Noodles Option 3", category: "Noodles", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Deluxe portion variation for Noodles" },
-    { id: "ndl-4", name: "Noodles Option 4", category: "Noodles", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/v6LTBqFV/noodles.png", desc: "Combo style variation for Noodles" },
+    // 11. NOODLES (6 Exact Noodles items)
+    { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
+    { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
+    { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
+    { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
+    { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
+    { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" },
 
     // 12. RICE
     { id: "ric-veg-fried", name: "Veg Fried Rice", category: "Rice", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/0j2C4vR2/Veg-Fried-Rice.jpg", desc: "Classic stir-fried rice tossed with fresh garden vegetables & aromatic seasonings" },
@@ -193,6 +194,11 @@ const DEFAULT_CATEGORY_ADDONS = {
         withIceCream: 30
     },
     "Chinese Food": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
+    },
+    "Noodles": {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20
