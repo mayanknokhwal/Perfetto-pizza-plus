@@ -65,3 +65,51 @@ export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WA
     }
     return 0;
 }
+
+// --------------------------------------------------------------------------
+// STORE NOTICE CONFIGURATION & HELPERS
+// --------------------------------------------------------------------------
+export const DEFAULT_STORE_NOTICE = {
+    key: 'store_notice',
+    enabled: true,
+    title: 'Store Notice',
+    text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
+    updatedAt: null
+};
+
+/**
+ * Counts words in a string
+ * @param {string} text 
+ * @returns {number}
+ */
+export function countWords(text) {
+    if (!text || typeof text !== 'string') return 0;
+    const trimmed = text.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Validates and normalizes store notice object
+ * @param {Object} raw 
+ * @returns {Object}
+ */
+export function normalizeStoreNotice(raw) {
+    if (!raw || typeof raw !== 'object') {
+        return JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
+    }
+
+    const enabled = raw.enabled !== false;
+    const title = (raw.title && typeof raw.title === 'string' && raw.title.trim())
+        ? raw.title.trim()
+        : DEFAULT_STORE_NOTICE.title;
+    const text = typeof raw.text === 'string' ? raw.text : (DEFAULT_STORE_NOTICE.text || '');
+
+    return {
+        key: 'store_notice',
+        enabled,
+        title,
+        text,
+        updatedAt: raw.updatedAt || null
+    };
+}

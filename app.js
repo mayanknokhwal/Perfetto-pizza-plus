@@ -4537,6 +4537,116 @@ function renderProfileWalletTxList() {
 }
 window.renderProfileWalletTxList = renderProfileWalletTxList;
 
+// --------------------------------------------------------------------------
+// 4C. STORE NOTICE CLIENT CONTROLLER
+// Static Home Chip, Profile Integration & Modal Dialog
+// --------------------------------------------------------------------------
+const DEFAULT_STORE_NOTICE = {
+    key: 'store_notice',
+    enabled: true,
+    title: 'Store Notice',
+    text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
+    updatedAt: null
+};
+
+let customerStoreNotice = (function() {
+    try {
+        const stored = localStorage.getItem('perfetto_store_notice');
+        if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
+})();
+
+let storeNoticeRealtimeUnsubscribe = null;
+
+function updateStoreNoticeUI() {
+    const chipWrapper = document.getElementById('home-store-notice-wrapper');
+    const chipPreview = document.getElementById('home-notice-chip-preview');
+
+    const notice = customerStoreNotice || DEFAULT_STORE_NOTICE;
+    const isEnabled = notice.enabled !== false && notice.text && notice.text.trim().length > 0;
+
+    if (chipWrapper) {
+        chipWrapper.style.display = isEnabled ? 'block' : 'none';
+    }
+
+    if (chipPreview && notice.text) {
+        const cleanText = notice.text.replace(/\s+/g, ' ').trim();
+        chipPreview.textContent = cleanText.length > 75 ? cleanText.substring(0, 75) + '...' : cleanText;
+    }
+}
+window.updateStoreNoticeUI = updateStoreNoticeUI;
+
+function openStoreNoticeModal() {
+    const modal = document.getElementById('store-notice-modal');
+    if (!modal) return;
+
+    const titleEl = document.getElementById('store-notice-modal-title');
+    const contentEl = document.getElementById('store-notice-modal-content');
+    const timeEl = document.getElementById('store-notice-modal-timestamp');
+
+    const notice = customerStoreNotice || DEFAULT_STORE_NOTICE;
+
+    if (titleEl) {
+        titleEl.textContent = notice.title || 'Store Notice';
+    }
+
+    if (contentEl) {
+        const rawText = notice.text || 'No active store announcements at the moment.';
+        const paragraphs = rawText.split(/\n+/).filter(p => p.trim().length > 0);
+        if (paragraphs.length > 0) {
+            contentEl.innerHTML = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
+        } else {
+            contentEl.innerHTML = `<p>${escapeHtml(rawText)}</p>`;
+        }
+    }
+
+    if (timeEl) {
+        if (notice.updatedAt) {
+            const date = notice.updatedAt.toDate ? notice.updatedAt.toDate() : new Date(notice.updatedAt);
+            if (!isNaN(date.getTime())) {
+                timeEl.textContent = `Updated on ${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}`;
+            } else {
+                timeEl.textContent = 'Official Announcement';
+            }
+        } else {
+            timeEl.textContent = 'Official Announcement';
+        }
+    }
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+}
+window.openStoreNoticeModal = openStoreNoticeModal;
+
+function closeStoreNoticeModal() {
+    const modal = document.getElementById('store-notice-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+}
+window.closeStoreNoticeModal = closeStoreNoticeModal;
+
+function initStoreNoticeModal() {
+    const modal = document.getElementById('store-notice-modal');
+    if (!modal) return;
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeStoreNoticeModal();
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closeStoreNoticeModal();
+        }
+    });
+}
+window.initStoreNoticeModal = initStoreNoticeModal;
+
 // REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
 window.addEventListener('storage', (e) => {
     if (!e.key || e.key === SHOP_STATUS_KEY || e.key === OPENING_TIME_KEY || e.key === CLOSING_TIME_KEY || e.key === AUTO_SCHEDULE_KEY || e.key === MANUAL_OVERRIDE_KEY) {
@@ -4552,6 +4662,12 @@ window.addEventListener('storage', (e) => {
         } catch (err) {}
         updateCartUI();
         updateCheckoutWalletUI();
+    }
+    if (!e.key || e.key === 'perfetto_store_notice') {
+        try {
+            customerStoreNotice = JSON.parse(localStorage.getItem('perfetto_store_notice') || '{}');
+        } catch (err) {}
+        updateStoreNoticeUI();
     }
     if (!e.key || e.key === MENU_STORAGE_KEY) {
         if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
@@ -8153,8 +8269,7 @@ function listenToRealtimeMenuAndRates() {
         }
     }
 
-    // B.3 Real-Time Wallet & Cashback Slabs Config Sync ('settings/wallet_config')
-    if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
+            if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
         try {
             walletConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('wallet_config').onSnapshot((doc) => {
                 if (doc.exists && doc.data()) {
@@ -8171,6 +8286,26 @@ function listenToRealtimeMenuAndRates() {
             });
         } catch (e) {
             console.warn('Error setting up wallet_config real-time listener:', e);
+        }
+    }
+
+    // B.4 Real-Time Store Notice Sync ('settings/store_notice')
+    if (!storeNoticeRealtimeUnsubscribe && customerFirestore) {
+        try {
+            storeNoticeRealtimeUnsubscribe = customerFirestore.collection('settings').doc('store_notice').onSnapshot((doc) => {
+                if (doc.exists && doc.data()) {
+                    customerStoreNotice = {
+                        ...DEFAULT_STORE_NOTICE,
+                        ...doc.data()
+                    };
+                    localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
+                    updateStoreNoticeUI();
+                }
+            }, (err) => {
+                console.warn('Firestore store_notice real-time notice:', err.message);
+            });
+        } catch (e) {
+            console.warn('Error setting up store_notice real-time listener:', e);
         }
     }
 }
@@ -8395,6 +8530,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupLocalStorageSync();
     initFirebaseRealtimeSync();
     initPhoneInputRestrictions();
+    updateStoreNoticeUI();
+    initStoreNoticeModal();
     // 1. Initial live menu & settings fetch
     fetchLiveMenuFromBackend();
     fetchLiveSettingsFromBackend();
@@ -8448,6 +8585,10 @@ function cleanupAllCustomerListeners() {
         if (typeof settingsRealtimeUnsubscribe === 'function') {
             settingsRealtimeUnsubscribe();
             settingsRealtimeUnsubscribe = null;
+        }
+        if (typeof storeNoticeRealtimeUnsubscribe === 'function') {
+            storeNoticeRealtimeUnsubscribe();
+            storeNoticeRealtimeUnsubscribe = null;
         }
         if (customerOrdersUnsubscribeMap && customerOrdersUnsubscribeMap.size > 0) {
             customerOrdersUnsubscribeMap.forEach((unsub) => {
@@ -8510,3 +8651,6 @@ window.closeOrderOtpSuccessModal = closeOrderOtpSuccessModal;
 window.handleDetectLiveGps = handleDetectLiveGps;
 window.handleConfirmMapLocation = handleConfirmMapLocation;
 window.cleanupAllCustomerListeners = cleanupAllCustomerListeners;
+window.openStoreNoticeModal = openStoreNoticeModal;
+window.closeStoreNoticeModal = closeStoreNoticeModal;
+window.updateStoreNoticeUI = updateStoreNoticeUI;

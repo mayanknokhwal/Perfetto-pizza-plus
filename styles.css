@@ -6339,3 +6339,262 @@ body.shop-closed .checkout-btn {
     color: var(--text-muted);
     font-weight: 600;
 }
+
+/* --------------------------------------------------------------------------
+   STORE NOTICE SYSTEM (STATIC HOME CHIP, PROFILE ROW & POPUP MODAL)
+   -------------------------------------------------------------------------- */
+.home-store-notice-wrapper {
+    width: 100%;
+    margin: 10px 0 14px 0;
+    display: block;
+    box-sizing: border-box;
+}
+
+.home-notice-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.08) 0%, rgba(245, 158, 11, 0.05) 100%);
+    border: 1px solid rgba(255, 107, 0, 0.28);
+    border-radius: 30px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.home-notice-chip:hover {
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
+    border-color: rgba(255, 107, 0, 0.45);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 107, 0, 0.1);
+}
+
+[data-theme="dark"] .home-notice-chip {
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
+    border-color: rgba(255, 107, 0, 0.35);
+}
+
+[data-theme="dark"] .home-notice-chip:hover {
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.18) 0%, rgba(245, 158, 11, 0.12) 100%);
+    border-color: rgba(255, 107, 0, 0.55);
+}
+
+.notice-chip-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.notice-chip-icon-wrap {
+    color: var(--primary-orange);
+    font-size: 0.95rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.notice-chip-title {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--primary-orange);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+}
+
+.notice-chip-preview {
+    font-size: 0.80rem;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.notice-chip-action-arrow {
+    color: var(--primary-orange);
+    font-size: 0.82rem;
+    margin-left: 8px;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.home-notice-chip:hover .notice-chip-action-arrow {
+    transform: translateX(3px);
+}
+
+/* Profile List Icons */
+.icon-store-notice {
+    background: rgba(255, 107, 0, 0.12) !important;
+    color: var(--primary-orange) !important;
+}
+
+.notice-icon {
+    background: rgba(255, 107, 0, 0.15) !important;
+    color: var(--primary-orange) !important;
+}
+
+/* Store Notice Modal / Bottom Sheet */
+.store-notice-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    animation: fadeIn 0.2s ease;
+}
+
+.store-notice-modal-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 22px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+    animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] .store-notice-modal-card {
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.store-notice-modal-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-surface-elevated);
+}
+
+.notice-header-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notice-icon-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--primary-orange) 0%, #ea580c 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    box-shadow: 0 4px 12px rgba(255, 107, 0, 0.25);
+    flex-shrink: 0;
+}
+
+.store-notice-modal-title {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.notice-timestamp-pill {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+    font-weight: 600;
+}
+
+.notice-modal-close-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+}
+
+.notice-modal-close-btn:hover {
+    background: var(--primary-color);
+    color: #ffffff;
+    border-color: var(--primary-color);
+}
+
+.store-notice-modal-body {
+    padding: 20px 22px;
+    overflow-y: auto;
+    max-height: 52vh;
+    box-sizing: border-box;
+}
+
+.notice-content-box {
+    font-family: var(--font-body);
+    font-size: 0.90rem;
+    line-height: 1.7;
+    color: var(--text-main);
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.notice-content-box p {
+    margin: 0 0 12px 0;
+}
+
+.notice-content-box p:last-child {
+    margin-bottom: 0;
+}
+
+.store-notice-modal-footer {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-surface-elevated);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.btn-notice-dismiss {
+    background: var(--primary-orange);
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(255, 107, 0, 0.25);
+}
+
+.btn-notice-dismiss:hover {
+    background: var(--primary-orange-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(255, 107, 0, 0.35);
+}

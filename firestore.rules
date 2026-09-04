@@ -80,6 +80,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Explicit match for store notice announcements
+    match /settings/store_notice {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // =========================================================================
     // 5. TEAM & STAFF ACCESS MANAGEMENT
     // - Handles admin/staff phone registration, access requests, approvals, and role updates.

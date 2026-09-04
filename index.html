@@ -126,6 +126,20 @@
             <!-- HOME TAB VIEW -->
             <section class="tab-view active-tab" id="view-home">
 
+                <!-- STATIC STORE NOTICE BANNER CHIP (Directly beneath search bar on Home) -->
+                <div class="home-store-notice-wrapper" id="home-store-notice-wrapper">
+                    <div class="home-notice-chip" id="home-notice-chip" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice">
+                        <div class="notice-chip-left">
+                            <span class="notice-chip-icon-wrap"><i class="fa-solid fa-circle-info"></i></span>
+                            <span class="notice-chip-title">Notice:</span>
+                            <span class="notice-chip-preview" id="home-notice-chip-preview">Click to view store announcements &amp; info</span>
+                        </div>
+                        <span class="notice-chip-action-arrow">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </span>
+                    </div>
+                </div>
+
                 <!-- 1. 'DAILY OFFER' SECTION -->
                 <section class="daily-offer-section">
                     <h2 class="section-title-bold">DAILY OFFER</h2>
@@ -424,6 +438,17 @@
                                     <i class="fa-solid fa-arrow-up-right-from-square legal-link-arrow"></i>
                                 </a>
 
+                                <a href="javascript:void(0)" class="legal-accordion-link-item" onclick="openStoreNoticeModal()">
+                                    <div class="legal-link-icon notice-icon">
+                                        <i class="fa-solid fa-bullhorn"></i>
+                                    </div>
+                                    <div class="legal-link-info">
+                                        <span class="legal-link-title">Store Notice</span>
+                                        <span class="legal-link-desc">Announcements, updates &amp; store guidelines</span>
+                                    </div>
+                                    <i class="fa-solid fa-chevron-right legal-link-arrow"></i>
+                                </a>
+
                                 <a href="privacy.html" class="legal-accordion-link-item">
                                     <div class="legal-link-icon privacy-icon">
                                         <i class="fa-solid fa-user-shield"></i>
@@ -451,6 +476,16 @@
                                 <p>© 2026 Perfetto Pizza Plus • Raisinghnagar • Version 2.4.0</p>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- 4TH OPTION: STORE NOTICE -->
+                    <div class="menu-item-row" id="menu-store-notice" onclick="openStoreNoticeModal()">
+                        <div class="menu-item-icon icon-store-notice"><i class="fa-solid fa-bullhorn"></i></div>
+                        <div class="menu-item-text">
+                            <span class="item-title">Store Notice</span>
+                            <span class="item-subtitle">Announcements, holiday alerts &amp; store updates</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-store-notice"></i>
                     </div>
                 </div>
             </section>
@@ -1030,6 +1065,44 @@
 
                 </div>
 
+            </div>
+        </div>
+
+        <!-- STORE NOTICE MODAL / BOTTOM SHEET DIALOG -->
+        <div class="store-notice-modal-overlay" id="store-notice-modal" aria-hidden="true" style="display: none;">
+            <div class="store-notice-modal-card" role="dialog" aria-labelledby="store-notice-modal-title">
+                <!-- MODAL HEADER -->
+                <div class="store-notice-modal-header">
+                    <div class="notice-header-title-group">
+                        <div class="notice-icon-badge">
+                            <i class="fa-solid fa-bullhorn"></i>
+                        </div>
+                        <div>
+                            <h3 class="store-notice-modal-title" id="store-notice-modal-title">Store Notice</h3>
+                            <div class="notice-timestamp-pill" id="store-notice-timestamp-pill">
+                                <i class="fa-solid fa-circle-check" style="color: #10b981;"></i>
+                                <span id="store-notice-modal-timestamp">Official Announcement</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="notice-modal-close-btn" id="btn-close-store-notice" onclick="closeStoreNoticeModal()" aria-label="Close Notice">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- MODAL BODY WITH SMOOTH SCROLL -->
+                <div class="store-notice-modal-body">
+                    <div class="notice-content-box" id="store-notice-modal-content">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- MODAL FOOTER -->
+                <div class="store-notice-modal-footer">
+                    <button type="button" class="btn-notice-dismiss" onclick="closeStoreNoticeModal()">
+                        <i class="fa-solid fa-check"></i> Understood &amp; Close
+                    </button>
+                </div>
             </div>
         </div>
 

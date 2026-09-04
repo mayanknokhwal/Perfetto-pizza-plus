@@ -3890,6 +3890,83 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- STORE NOTICE MANAGEMENT CARD -->
+                <div class="store-settings-card store-notice-settings-card" id="admin-store-notice-card" style="margin-top: 24px;">
+                    <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+                        <div>
+                            <h3>
+                                <i class="fa-solid fa-bullhorn" style="color: var(--primary-orange);"></i> Store Notice Management
+                                <span class="notice-status-badge" id="admin-store-notice-status-badge" style="font-size: 0.72rem; padding: 3px 9px; border-radius: 20px; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">Notice Active</span>
+                            </h3>
+                            <p>Publish store announcements, festive greetings, emergency closures, or special guidelines for customers in the app.</p>
+                        </div>
+                        <div class="wallet-header-actions">
+                            <button type="button" class="btn-save-wallet-settings" id="btn-save-store-notice" onclick="handleSaveStoreNoticeClick()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Notice
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- GENERAL SETTINGS GRID -->
+                    <div class="store-settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-bottom: 20px;">
+                        <!-- Toggle: Enable/Disable Notice -->
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-toggle-on" style="color: var(--primary-orange);"></i> Store Notice Status
+                            </label>
+                            <div class="setting-toggle-box">
+                                <span id="store-notice-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Visible to Customers</span>
+                                <label class="switch" style="margin: 0;">
+                                    <input type="checkbox" id="toggle-store-notice-enabled" checked onchange="updateStoreNoticeToggleLabel(this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <span style="font-size: 0.76rem; color: var(--text-muted);">When turned off, the home notice chip is hidden from customers</span>
+                        </div>
+
+                        <!-- Notice Title -->
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-heading" style="color: var(--primary-orange);"></i> Notice Title / Header
+                            </label>
+                            <div class="search-box">
+                                <i class="fa-solid fa-tag"></i>
+                                <input type="text" id="input-store-notice-title" class="search-input" value="Store Notice" placeholder="e.g. Store Notice / Holiday Announcement" maxlength="60">
+                            </div>
+                            <span style="font-size: 0.76rem; color: var(--text-muted);">Displays as the primary title in the customer modal dialog</span>
+                        </div>
+                    </div>
+
+                    <!-- MULTI-LINE TEXTAREA & COUNTERS -->
+                    <div class="store-notice-textarea-container" style="margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <label class="setting-input-label" style="margin-bottom: 0;">
+                                <i class="fa-solid fa-file-pen" style="color: var(--primary-orange);"></i> Notice Content (Up to 500 words)
+                            </label>
+                            <div class="store-notice-counters" id="store-notice-counters" style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);">
+                                <span id="notice-word-count" style="color: var(--primary-orange); font-weight: 800;">0</span> / 500 words
+                                <span style="margin: 0 4px; opacity: 0.5;">•</span>
+                                <span id="notice-char-count">0</span> chars
+                            </div>
+                        </div>
+                        <textarea id="input-store-notice-text" class="store-notice-textarea" rows="7" placeholder="Enter store notice or announcement for customers (max 500 words)..." oninput="onStoreNoticeTextInput()" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); font-family: var(--font-body, inherit); font-size: 0.88rem; line-height: 1.6; resize: vertical; transition: border-color 0.2s ease;"></textarea>
+                        <div id="notice-word-warning" style="display: none; margin-top: 6px; font-size: 0.76rem; color: var(--accent-red, #ef4444); font-weight: 700;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Notice exceeds the 500 words limit! Please shorten your text before saving.
+                        </div>
+                    </div>
+
+                    <!-- FOOTER ACTIONS -->
+                    <div class="wallet-settings-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 14px;">
+                        <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-cloud-arrow-up" style="color: #10b981;"></i>
+                            <span>Synced instantly to Firestore document <code>settings/store_notice</code> and displayed in app.</span>
+                        </div>
+                        <button type="button" class="btn-save-wallet-settings" id="btn-save-store-notice-bottom" onclick="handleSaveStoreNoticeClick()">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Notice
+                        </button>
+                    </div>
+                </div>
             </section>
 
             <!-- TAB 2: MENU MANAGEMENT -->
@@ -7661,6 +7738,174 @@
         }
         window.handleSaveWalletSettingsClick = handleSaveWalletSettingsClick;
 
+        // --------------------------------------------------------------------------
+        // STORE NOTICE CONFIGURATION CONTROLLER (ADMIN)
+        // --------------------------------------------------------------------------
+        const DEFAULT_STORE_NOTICE = {
+            key: 'store_notice',
+            enabled: true,
+            title: 'Store Notice',
+            text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
+            updatedAt: null
+        };
+
+        let adminStoreNotice = JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
+        let adminStoreNoticeUnsubscribe = null;
+
+        function countWords(str) {
+            if (!str || typeof str !== 'string') return 0;
+            const trimmed = str.trim();
+            if (!trimmed) return 0;
+            return trimmed.split(/\s+/).filter(Boolean).length;
+        }
+        window.countWords = countWords;
+
+        function onStoreNoticeTextInput() {
+            const textarea = document.getElementById('input-store-notice-text');
+            const wordCountEl = document.getElementById('notice-word-count');
+            const charCountEl = document.getElementById('notice-char-count');
+            const warningEl = document.getElementById('notice-word-warning');
+
+            if (!textarea) return;
+
+            const text = textarea.value;
+            const words = countWords(text);
+            const chars = text.length;
+
+            if (wordCountEl) {
+                wordCountEl.textContent = words;
+                wordCountEl.style.color = words > 500 ? 'var(--accent-red, #ef4444)' : 'var(--primary-orange)';
+            }
+            if (charCountEl) {
+                charCountEl.textContent = chars;
+            }
+            if (warningEl) {
+                warningEl.style.display = words > 500 ? 'block' : 'none';
+            }
+        }
+        window.onStoreNoticeTextInput = onStoreNoticeTextInput;
+
+        function updateStoreNoticeToggleLabel(isChecked) {
+            const label = document.getElementById('store-notice-toggle-status');
+            const badge = document.getElementById('admin-store-notice-status-badge');
+            if (label) {
+                label.textContent = isChecked ? 'Visible to Customers' : 'Hidden from Customers';
+                label.style.color = isChecked ? 'var(--accent-green, #10b981)' : 'var(--text-muted)';
+            }
+            if (badge) {
+                badge.textContent = isChecked ? 'Notice Active' : 'Notice Hidden';
+                badge.style.background = isChecked ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)';
+                badge.style.color = isChecked ? '#10b981' : '#94a3b8';
+                badge.style.borderColor = isChecked ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.3)';
+            }
+        }
+        window.updateStoreNoticeToggleLabel = updateStoreNoticeToggleLabel;
+
+        function applyAdminStoreNotice(data) {
+            if (!data) return;
+            adminStoreNotice = { ...DEFAULT_STORE_NOTICE, ...data };
+
+            const toggleEl = document.getElementById('toggle-store-notice-enabled');
+            const titleEl = document.getElementById('input-store-notice-title');
+            const textEl = document.getElementById('input-store-notice-text');
+
+            if (toggleEl) {
+                toggleEl.checked = adminStoreNotice.enabled !== false;
+                updateStoreNoticeToggleLabel(toggleEl.checked);
+            }
+            if (titleEl) {
+                titleEl.value = adminStoreNotice.title || 'Store Notice';
+            }
+            if (textEl) {
+                textEl.value = adminStoreNotice.text || '';
+                onStoreNoticeTextInput();
+            }
+        }
+        window.applyAdminStoreNotice = applyAdminStoreNotice;
+
+        async function fetchAdminStoreNotice() {
+            if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                try {
+                    const snap = await adminFirestore.collection('settings').doc('store_notice').get();
+                    if (snap.exists && snap.data()) {
+                        applyAdminStoreNotice(snap.data());
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('Direct Firestore store notice fetch notice:', e.message);
+                }
+            }
+
+            try {
+                const stored = localStorage.getItem('perfetto_store_notice');
+                if (stored) {
+                    applyAdminStoreNotice(JSON.parse(stored));
+                }
+            } catch (e) {}
+        }
+        window.fetchAdminStoreNotice = fetchAdminStoreNotice;
+
+        async function handleSaveStoreNoticeClick() {
+            const saveBtns = [
+                document.getElementById('btn-save-store-notice'),
+                document.getElementById('btn-save-store-notice-bottom')
+            ].filter(Boolean);
+
+            const origHtmls = saveBtns.map(b => b.innerHTML);
+            saveBtns.forEach(btn => {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            });
+
+            try {
+                const toggleEl = document.getElementById('toggle-store-notice-enabled');
+                const titleEl = document.getElementById('input-store-notice-title');
+                const textEl = document.getElementById('input-store-notice-text');
+
+                const isEnabled = toggleEl ? toggleEl.checked : true;
+                const title = titleEl && titleEl.value.trim() ? titleEl.value.trim() : 'Store Notice';
+                const text = textEl ? textEl.value.trim() : '';
+
+                const words = countWords(text);
+                if (words > 500) {
+                    showToast('⚠️ Notice exceeds 500 words! Please shorten the text.');
+                    return;
+                }
+
+                const payload = {
+                    key: 'store_notice',
+                    enabled: isEnabled,
+                    title: title,
+                    text: text,
+                    wordCount: words,
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                        ? firebase.firestore.FieldValue.serverTimestamp()
+                        : new Date().toISOString()
+                };
+
+                if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                    await adminFirestore.collection('settings').doc('store_notice').set(payload, { merge: true });
+                }
+
+                localStorage.setItem('perfetto_store_notice', JSON.stringify({ ...payload, updatedAt: new Date().toISOString() }));
+                adminStoreNotice = payload;
+                showToast('✅ Store Notice saved successfully and published to app!');
+
+                if (typeof logAdminActivity === 'function') {
+                    logAdminActivity(`Updated Store Notice ("${title}", ${words} words, ${isEnabled ? 'Visible' : 'Hidden'})`);
+                }
+            } catch (err) {
+                console.error('Error saving store notice:', err);
+                showToast('❌ Failed to save store notice: ' + err.message);
+            } finally {
+                saveBtns.forEach((btn, idx) => {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtmls[idx] || '<i class="fa-solid fa-floppy-disk"></i> Save Notice';
+                });
+            }
+        }
+        window.handleSaveStoreNoticeClick = handleSaveStoreNoticeClick;
+
         async function checkAdminAuthSession() {
             // 1. Initialize Firestore real-time client
             try {
@@ -7813,6 +8058,7 @@
             initOrderSettingsUI();
             loadAdminDailyBanners();
             fetchAdminWalletConfig();
+            fetchAdminStoreNotice();
 
             // Start real-time session security listener for instant block lockdown
             if (user && user.phone) {
@@ -8884,6 +9130,20 @@
                     });
                 } catch (e) {
                     console.warn('Error attaching Admin Firestore wallet_config listener:', e);
+                }
+            }
+
+            if (!adminStoreNoticeUnsubscribe) {
+                try {
+                    adminStoreNoticeUnsubscribe = adminFirestore.collection('settings').doc('store_notice').onSnapshot((doc) => {
+                        if (doc.exists && doc.data()) {
+                            applyAdminStoreNotice(doc.data());
+                        }
+                    }, (err) => {
+                        console.warn('Firestore admin store_notice real-time notice:', err.message);
+                    });
+                } catch (e) {
+                    console.warn('Error attaching Admin Firestore store_notice listener:', e);
                 }
             }
         }
