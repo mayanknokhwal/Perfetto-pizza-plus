@@ -2023,7 +2023,7 @@ body.shop-closed .checkout-btn {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center 25%;
+    object-position: center bottom;
     border-radius: 17px 17px 0 0;
     transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2237,6 +2237,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-selector,
 .chinese-addon-selector,
 .pizza-addon-selector,
+.shake-addon-selector,
 .addons-row,
 .addon-options-container {
     display: flex;
@@ -2287,6 +2288,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-options,
 .chinese-addon-options,
 .pizza-addon-selector .burger-addon-options,
+.shake-addon-options,
 .addon-options {
     display: flex;
     gap: 4px;
@@ -2305,65 +2307,6 @@ body.shop-closed .checkout-btn {
     height: 26px;
     min-width: 26px;
     min-height: 26px;
-
-/* --------------------------------------------------------------------------
-   13D. SHAKE CARD "WITH ICE CREAM" CUSTOM ADD-ON SELECTOR
-   -------------------------------------------------------------------------- */
-.shake-addon-selector {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-top: 1px;
-    margin-bottom: 4px;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.shake-icecream-btn {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    padding: 4px 8px;
-    border-radius: 10px;
-    background-color: var(--bg-input);
-    border: 1.5px solid var(--border-color);
-    color: var(--text-muted);
-    font-size: 0.72rem;
-    font-weight: var(--fw-bold, 700);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
-}
-
-.shake-icecream-btn:hover {
-    border-color: var(--primary-orange);
-    color: var(--text-main);
-}
-
-.shake-icecream-btn.active,
-.shake-icecream-btn.selected {
-    background: rgba(255, 107, 0, 0.14) !important;
-    border-color: #ff6b00 !important;
-    color: #ff6b00 !important;
-    box-shadow: 0 0 8px rgba(255, 107, 0, 0.25);
-}
-
-.shake-icecream-icon {
-    font-size: 0.85rem;
-    line-height: 1;
-}
-
-.shake-icecream-label {
-    white-space: nowrap;
-}
-
-.shake-icecream-price {
-    font-size: 0.68rem;
-    font-weight: var(--fw-extrabold);
-    opacity: 0.95;
-}
     max-width: 26px;
     max-height: 26px;
     border-radius: 7px;
@@ -2382,6 +2325,74 @@ body.shop-closed .checkout-btn {
     line-height: 1;
     user-select: none;
     flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   13D. SHAKE CARD "WITH ICE CREAM" CUSTOM ADD-ON SELECTOR & INTERACTIVE CHIP
+   -------------------------------------------------------------------------- */
+.shake-addon-options {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1;
+    min-width: 0;
+}
+
+.shake-icecream-chip,
+.shake-icecream-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: var(--bg-surface, #ffffff);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-main);
+    font-size: 0.68rem;
+    font-weight: var(--fw-bold, 700);
+    font-family: var(--font-heading);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-sizing: border-box;
+    user-select: none;
+    touch-action: manipulation;
+    line-height: 1.2;
+}
+
+.shake-icecream-chip:hover,
+.shake-icecream-btn:hover {
+    border-color: var(--primary-orange, #ff6b00);
+    transform: scale(1.02);
+}
+
+.shake-icecream-chip.selected,
+.shake-icecream-chip.active,
+.shake-icecream-btn.selected,
+.shake-icecream-btn.active {
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%) !important;
+    border-color: transparent !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.38) !important;
+    transform: scale(1.04);
+}
+
+[data-theme="dark"] .shake-icecream-chip,
+[data-theme="dark"] .shake-icecream-btn {
+    background: rgba(255, 255, 255, 0.07);
+    color: #f3f4f6;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .shake-icecream-chip.selected,
+[data-theme="dark"] .shake-icecream-chip.active,
+[data-theme="dark"] .shake-icecream-btn.selected,
+[data-theme="dark"] .shake-icecream-btn.active {
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+    box-shadow: 0 0 10px rgba(255, 107, 0, 0.5) !important;
 }
 
 .burger-addon-box:hover,

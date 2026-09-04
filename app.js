@@ -563,11 +563,54 @@ let cart = loadCartFromStorage();
 
 // Navigation Retention State
 let activeTabName = 'home';
+let lastHomeScrollY = 0;
 let lastCategoryState = {
     categoryName: null,
     categoryImg: null,
     scrollY: 0
 };
+
+// Scroll offset helper functions for seamless Home/Category navigation
+function getHomeScrollPosition() {
+    const mainContainer = document.getElementById('main-container');
+    const homeView = document.getElementById('view-home');
+    return window.scrollY || window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || (mainContainer ? mainContainer.scrollTop : 0) || (homeView ? homeView.scrollTop : 0) || 0;
+}
+
+function restoreHomeScrollPosition() {
+    const targetY = lastHomeScrollY || 0;
+    const applyScroll = () => {
+        window.scrollTo({ top: targetY, behavior: 'instant' });
+        const mainContainer = document.getElementById('main-container');
+        if (mainContainer && mainContainer.scrollTop !== undefined && mainContainer.scrollTop !== targetY) {
+            mainContainer.scrollTop = targetY;
+        }
+        const homeView = document.getElementById('view-home');
+        if (homeView && homeView.scrollTop !== undefined && homeView.scrollTop !== targetY) {
+            homeView.scrollTop = targetY;
+        }
+    };
+
+    // Immediate attempt
+    applyScroll();
+
+    // Ensure scroll is reapplied on subsequent render frames and timeouts
+    requestAnimationFrame(() => {
+        applyScroll();
+        setTimeout(applyScroll, 0);
+        setTimeout(applyScroll, 50);
+    });
+}
+
+function closeCategoryDetail() {
+    // Explicit category back button resets memory to root home dashboard and restores Home scroll position
+    lastCategoryState.categoryName = null;
+    lastCategoryState.categoryImg = null;
+    lastCategoryState.scrollY = 0;
+    switchTab('home', true, false, true);
+    restoreHomeScrollPosition();
+}
+window.closeCategoryDetail = closeCategoryDetail;
 
 // --------------------------------------------------------------------------
 // 2. THEME CONTROLLER & DYNAMIC LOGO SWITCHER
@@ -627,16 +670,12 @@ function setupNavigation() {
     const backBtn = document.getElementById('category-back-btn');
     if (backBtn) {
         backBtn.addEventListener('click', () => {
-            // Explicit category back button resets memory to root home dashboard
-            lastCategoryState.categoryName = null;
-            lastCategoryState.categoryImg = null;
-            lastCategoryState.scrollY = 0;
-            switchTab('home', true);
+            closeCategoryDetail();
         });
     }
 }
 
-function switchTab(tabName, forceRootHome = false, isPopState = false) {
+function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHomeScroll = false) {
     // If accessing Cart, check if profile is complete. If new/incomplete, redirect to Profile completion
     if (tabName === 'cart') {
         const savedProfile = getSavedDeliveryProfile();
@@ -713,8 +752,13 @@ function switchTab(tabName, forceRootHome = false, isPopState = false) {
     // Update Floating Cart Pill Bar visibility on tab switch
     updateFloatingCartBar();
 
-    // Scroll to top of view
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scroll handling: if returning to home with restoreHomeScroll, restore position; otherwise scroll to top
+    if (tabName === 'home' && restoreHomeScroll) {
+        restoreHomeScrollPosition();
+    } else {
+        // Scroll to top of view
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -1849,6 +1893,11 @@ function addPizzaToCart(pizzaId, event) {
 }
 
 function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
+    // Record home scroll position before switching away if user is currently on the home screen
+    if (activeTabName === 'home' && !isRestoringState) {
+        lastHomeScrollY = getHomeScrollPosition();
+    }
+
     const heroTitleEl = document.getElementById('category-hero-title');
     const heroImgEl = document.getElementById('category-hero-img');
     const heroCountEl = document.getElementById('category-hero-count');
@@ -2323,12 +2372,13 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const currentTotal = (item.price || 119) + (selected.iceCream ? iceCreamPrice : 0);
 
                 const boxesMarkup = isAvailable ? `
-                    <div class="shake-addon-selector">
-                        <button type="button" class="shake-icecream-btn ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
-                            <span class="shake-icecream-icon">🍨</span>
-                            <span class="shake-icecream-label">With Ice Cream</span>
-                            <span class="shake-icecream-price">+₹${iceCreamPrice}</span>
-                        </button>
+                    <div class="shake-addon-selector burger-addon-selector">
+                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="shake-addon-options">
+                            <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
+                                🍨 With Ice Cream
+                            </button>
+                        </div>
                     </div>
                 ` : '';
 
@@ -2906,6 +2956,9 @@ function setupFastFoodCards() {
     cards.forEach(card => {
         card.addEventListener('click', (e) => {
             e.preventDefault(); // Prevent full page refresh
+            if (activeTabName === 'home') {
+                lastHomeScrollY = getHomeScrollPosition();
+            }
             const categoryName = card.getAttribute('data-category') || card.getAttribute('aria-label') || 'Category';
             const categoryImg = card.querySelector('img').src;
 
@@ -5770,10 +5823,14 @@ function setupHistoryState() {
         // 3. Navigate SPA view based on history state
         const state = e.state;
         if (!state || state.page === 'home') {
+            const wasCategoryDetail = activeTabName === 'category-detail';
             lastCategoryState.categoryName = null;
             lastCategoryState.categoryImg = null;
             lastCategoryState.scrollY = 0;
-            switchTab('home', true, true);
+            switchTab('home', true, true, wasCategoryDetail);
+            if (wasCategoryDetail) {
+                restoreHomeScrollPosition();
+            }
         } else if (state.page === 'category-detail' && state.categoryName) {
             openCategoryDetail(state.categoryName, state.categoryImg, false, true);
         } else if (state.page === 'cart') {
