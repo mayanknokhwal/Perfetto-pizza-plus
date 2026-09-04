@@ -54,9 +54,10 @@ const DEFAULT_MENU_ITEMS = [
     { id: "chn-chilly-potato", name: "Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/9k7pS8S3/Chilly-Potato.jpg", desc: "Spicy crisp potato fingers tossed in garlic chilli sauce" },
 
     // 5. COLD DRINKS
-    { id: "drk-1", name: "Classic Sparkling Cola", category: "Colo Drinks", isMultiSize: false, price: 60, available: true, img: "https://i.ibb.co/dJxnm38L/colo-drinks.png", desc: "Ice cold refreshing fizzy beverage" },
-    { id: "drk-2", name: "Zero Sugar Cola", category: "Colo Drinks", isMultiSize: false, price: 60, available: true, img: "https://i.ibb.co/dJxnm38L/colo-drinks.png", desc: "Zero calories, same refreshing taste" },
-    { id: "drk-3", name: "Citrus Lime Fizz", category: "Colo Drinks", isMultiSize: false, price: 70, available: true, img: "https://i.ibb.co/dJxnm38L/colo-drinks.png", desc: "Zesty lemon lime sparkling drink" },
+    { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/r2JVJSMg/Coke-300ml.jpg", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
+    { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/jcQ2SVP/Coke-With-Ice-Cream.jpg", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
+    { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/Mk3VkTbK/Milky-Cola.jpg", desc: "Smooth and creamy cola blend with a velvety milky twist" },
+    { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/35LxWDgq/Milky-Mango.jpg", desc: "Rich and refreshing creamy mango flavored chilled beverage" },
 
     // 6. PASTA
     { id: "pst-baked-mix", name: "Baked Mix Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Z1k7wYcZ/Baked-Mix-Pasta.jpg", desc: "Oven baked pasta with rich combination of red and white sauces topped with melted cheese" },
@@ -80,10 +81,12 @@ const DEFAULT_MENU_ITEMS = [
     { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" },
 
     // 9. MOJITO
-    { id: "moj-1", name: "Mojito Option 1", category: "Mojito", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Freshly prepared item variation for Mojito" },
-    { id: "moj-2", name: "Mojito Option 2", category: "Mojito", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Special chef recipe variation for Mojito" },
-    { id: "moj-3", name: "Mojito Option 3", category: "Mojito", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Deluxe portion variation for Mojito" },
-    { id: "moj-4", name: "Mojito Option 4", category: "Mojito", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Combo style variation for Mojito" },
+    { id: "moj-fresh-lime-soda", name: "Fresh Lime Soda", category: "Mojito", isMultiSize: false, price: 59, available: true, img: "https://i.ibb.co/tMGr4c9y/Fresh-Lime-Soda.jpg", desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint" },
+    { id: "moj-green-apple", name: "Green Apple Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/fGy3Rt0C/Green-Apple-Mojito.jpg", desc: "Crisp green apple flavored sparkling mojito with crushed mint and lime" },
+    { id: "moj-mineral-water", name: "Mineral Water Soft Drink", category: "Mojito", isMultiSize: false, price: 20, available: true, img: "https://i.ibb.co/35d2ZxDD/Mineral-Water-Soft-Drink.jpg", desc: "Pure and refreshing chilled packaged drinking water" },
+    { id: "moj-mint", name: "Mint Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/Lzn2WZPk/Mint-Mojito.jpg", desc: "Classic cooling mint infused sparkling beverage with zesty lemon" },
+    { id: "moj-strawberry", name: "Strawberry Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/5XnrXt5d/Strawberry-Mojito.jpg", desc: "Sweet and tangy strawberry blended with fresh mint, lime and sparkling soda" },
+    { id: "moj-virgin", name: "Virgin Mojito", category: "Mojito", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/B24VCS65/Virgin-Mojito.jpg", desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves" },
 
     // 10. MOMOS
     { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
@@ -113,10 +116,9 @@ const DEFAULT_MENU_ITEMS = [
     { id: "ric-haka", name: "Haka Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/4g1rfZ9V/Haka-Rice.jpg", desc: "Authentic Hakka style wok-tossed rice with crisp vegetables" },
 
     // 13. SALAD
-    { id: "sld-1", name: "Salad Option 1", category: "Salad", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Freshly prepared item variation for Salad" },
-    { id: "sld-2", name: "Salad Option 2", category: "Salad", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Special chef recipe variation for Salad" },
-    { id: "sld-3", name: "Salad Option 3", category: "Salad", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Deluxe portion variation for Salad" },
-    { id: "sld-4", name: "Salad Option 4", category: "Salad", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/W4V8XcNG/salad.png", desc: "Combo style variation for Salad" },
+    { id: "sld-green", name: "Green Salad", category: "Salad", isMultiSize: false, price: 69, available: true, img: "https://i.ibb.co/dwWmX7HX/Green-Salad.jpg", desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges" },
+    { id: "sld-perfetto-special", name: "Perfetto Special Salad", category: "Salad", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/2YS2PS1s/Perfetto-Special-Salad.jpg", desc: "Chef special fresh garden salad tossed with paneer cubes, olives and house dressing" },
+    { id: "sld-russian", name: "Russian Salad", category: "Salad", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ds4XYn5d/Russian-Salad.jpg", desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing" },
 
     // 14. SANDWICH
     { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "Layered grilled sandwich packed with fresh veggies, sauces & spices" },
@@ -137,10 +139,13 @@ const DEFAULT_MENU_ITEMS = [
     { id: "shk-vanilla", name: "Vanilla Shake", category: "Shake", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/nqzRxxjB/Vanilla-Shake.jpg", desc: "Smooth classic Madagascar vanilla milkshake" },
 
     // 16. SIDE ORDERS
-    { id: "sde-1", name: "Side Orders Option 1", category: "Side Orders", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Freshly prepared item variation for Side Orders" },
-    { id: "sde-2", name: "Side Orders Option 2", category: "Side Orders", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Special chef recipe variation for Side Orders" },
-    { id: "sde-3", name: "Side Orders Option 3", category: "Side Orders", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Deluxe portion variation for Side Orders" },
-    { id: "sde-4", name: "Side Orders Option 4", category: "Side Orders", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/JwXzvd1f/side-orders.png", desc: "Combo style variation for Side Orders" },
+    { id: "sde-french-fries", name: "French Fries", category: "Side Orders", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/3y4xtxj7/French-Fries.jpg", desc: "Crispy golden fried potato fries lightly salted to perfection" },
+    { id: "sde-masala-fries", name: "Masala Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/KxGpWPHz/Masala-Fries.jpg", desc: "Crispy french fries tossed with tangy chaat masala and spicy seasonings" },
+    { id: "sde-paneer-parcel", name: "Paneer Parcel", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dwSwJ6zK/Paneer-Parcel.jpg", desc: "Flaky baked golden pastry filled with seasoned paneer & herbs" },
+    { id: "sde-peri-peri-fries", name: "Peri Peri Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/PGK7N3mJ/Peri-Peri-Fries.jpg", desc: "Crisp potato fries dusted with hot and zesty peri peri spice mix" },
+    { id: "sde-saucy-fries", name: "Saucy Fries", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/gZ0RCYrS/Saucy-Fries.jpg", desc: "Crispy fries drizzled generously with signature savory and cheesy sauces" },
+    { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ZzKMq3h7/Taco.jpg", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
+    { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" },
 
     // 17. SPRING ROLLS
     { id: "spr-1", name: "Spring Rolls Option 1", category: "Spring Rolls", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Freshly prepared item variation for Spring Rolls" },
