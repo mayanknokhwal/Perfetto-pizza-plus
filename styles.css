@@ -1903,18 +1903,26 @@ body.shop-closed .checkout-btn {
 }
 
 /* --------------------------------------------------------------------------
-   13B. DYNAMIC BURGER, WRAP, BREAD, SANDWICH & MOMOS CARD 2-COLUMN GRID STYLES
+   13B. DYNAMIC BURGER, WRAP, BREAD, SANDWICH, MOMOS, PASTA, CHINESE, SHAKE & RICE CARD 2-COLUMN GRID STYLES
    -------------------------------------------------------------------------- */
 .sub-items-grid.burger-grid-container,
 .sub-items-grid.wrap-grid-container,
 .sub-items-grid.bread-grid-container,
 .sub-items-grid.sandwich-grid-container,
 .sub-items-grid.momos-grid-container,
+.sub-items-grid.pasta-grid-container,
+.sub-items-grid.chinese-grid-container,
+.sub-items-grid.shake-grid-container,
+.sub-items-grid.rice-grid-container,
 .burger-grid-container,
 .wrap-grid-container,
 .bread-grid-container,
 .sandwich-grid-container,
-.momos-grid-container {
+.momos-grid-container,
+.pasta-grid-container,
+.chinese-grid-container,
+.shake-grid-container,
+.rice-grid-container {
     display: grid !important;
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 12px !important;
@@ -1927,11 +1935,19 @@ body.shop-closed .checkout-btn {
     .sub-items-grid.bread-grid-container,
     .sub-items-grid.sandwich-grid-container,
     .sub-items-grid.momos-grid-container,
+    .sub-items-grid.pasta-grid-container,
+    .sub-items-grid.chinese-grid-container,
+    .sub-items-grid.shake-grid-container,
+    .sub-items-grid.rice-grid-container,
     .burger-grid-container,
     .wrap-grid-container,
     .bread-grid-container,
     .sandwich-grid-container,
-    .momos-grid-container {
+    .momos-grid-container,
+    .pasta-grid-container,
+    .chinese-grid-container,
+    .shake-grid-container,
+    .rice-grid-container {
         gap: 8px !important;
     }
 }
@@ -1940,7 +1956,11 @@ body.shop-closed .checkout-btn {
 .wrap-card,
 .bread-card,
 .sandwich-card,
-.momos-card {
+.momos-card,
+.pasta-card,
+.chinese-card,
+.shake-card,
+.rice-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: 18px;
@@ -1958,18 +1978,26 @@ body.shop-closed .checkout-btn {
 .wrap-card:hover,
 .bread-card:hover,
 .sandwich-card:hover,
-.momos-card:hover {
+.momos-card:hover,
+.pasta-card:hover,
+.chinese-card:hover,
+.shake-card:hover,
+.rice-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
     border-color: var(--border-hover);
 }
 
-/* 1. Burger, Wrap, Bread, Sandwich & Momos Top Banner Image */
+/* 1. Burger, Wrap, Bread, Sandwich, Momos, Pasta, Chinese, Shake & Rice Top Banner Image */
 .burger-card-image-wrapper,
 .wrap-card-image-wrapper,
 .bread-card-image-wrapper,
 .sandwich-card-image-wrapper,
-.momos-card-image-wrapper {
+.momos-card-image-wrapper,
+.pasta-card-image-wrapper,
+.chinese-card-image-wrapper,
+.shake-card-image-wrapper,
+.rice-card-image-wrapper {
     position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
@@ -1987,11 +2015,15 @@ body.shop-closed .checkout-btn {
 .wrap-card-img,
 .bread-card-img,
 .sandwich-card-img,
-.momos-card-img {
+.momos-card-img,
+.pasta-card-img,
+.chinese-card-img,
+.shake-card-img,
+.rice-card-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center;
+    object-position: center 25%;
     border-radius: 17px 17px 0 0;
     transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2000,16 +2032,24 @@ body.shop-closed .checkout-btn {
 .wrap-card:hover .wrap-card-img,
 .bread-card:hover .bread-card-img,
 .sandwich-card:hover .sandwich-card-img,
-.momos-card:hover .momos-card-img {
+.momos-card:hover .momos-card-img,
+.pasta-card:hover .pasta-card-img,
+.chinese-card:hover .chinese-card-img,
+.shake-card:hover .shake-card-img,
+.rice-card:hover .rice-card-img {
     transform: scale(1.08);
 }
 
-/* 2. Burger, Wrap, Bread, Sandwich & Momos Card Body */
+/* 2. Burger, Wrap, Bread, Sandwich, Momos, Pasta, Chinese, Shake & Rice Card Body */
 .burger-card-body,
 .wrap-card-body,
 .bread-card-body,
 .sandwich-card-body,
-.momos-card-body {
+.momos-card-body,
+.pasta-card-body,
+.chinese-card-body,
+.shake-card-body,
+.rice-card-body {
     padding: 8px 8px 4px 8px;
     display: flex;
     flex-direction: column;
@@ -2022,7 +2062,9 @@ body.shop-closed .checkout-btn {
 .wrap-card-title,
 .bread-card-title,
 .sandwich-card-title,
-.momos-card-title {
+.momos-card-title,
+.pasta-card-title,
+.chinese-card-title {
     font-size: 0.84rem;
     font-weight: var(--fw-bold, 700);
     color: var(--text-main);
@@ -2053,7 +2095,9 @@ body.shop-closed .checkout-btn {
 .wrap-card-title.has-marquee,
 .bread-card-title.has-marquee,
 .sandwich-card-title.has-marquee,
-.momos-card-title.has-marquee {
+.momos-card-title.has-marquee,
+.pasta-card-title.has-marquee,
+.chinese-card-title.has-marquee {
     overflow: hidden;
     mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
     -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
@@ -2064,7 +2108,9 @@ body.shop-closed .checkout-btn {
 .wrap-card-title.has-marquee .card-title-text,
 .bread-card-title.has-marquee .card-title-text,
 .sandwich-card-title.has-marquee .card-title-text,
-.momos-card-title.has-marquee .card-title-text {
+.momos-card-title.has-marquee .card-title-text,
+.pasta-card-title.has-marquee .card-title-text,
+.chinese-card-title.has-marquee .card-title-text {
     will-change: transform;
     animation: marquee-scroll var(--marquee-duration, 5s) ease-in-out infinite alternate;
 }
@@ -2078,12 +2124,14 @@ body.shop-closed .checkout-btn {
     }
 }
 
-/* 3. Burger, Wrap, Bread, Sandwich & Momos Price Row */
+/* 3. Burger, Wrap, Bread, Sandwich, Momos, Pasta & Chinese Price Row */
 .burger-price-row,
 .wrap-price-row,
 .bread-price-row,
 .sandwich-price-row,
-.momos-price-row {
+.momos-price-row,
+.pasta-price-row,
+.chinese-price-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2098,6 +2146,8 @@ body.shop-closed .checkout-btn {
 .bread-card-price,
 .sandwich-card-price,
 .momos-card-price,
+.pasta-card-price,
+.chinese-card-price,
 .product-price {
     font-size: 1.05rem;
     font-weight: var(--fw-black);
@@ -2111,7 +2161,9 @@ body.shop-closed .checkout-btn {
 .wrap-add-cart-btn,
 .bread-add-cart-btn,
 .sandwich-add-cart-btn,
-.momos-add-cart-btn {
+.momos-add-cart-btn,
+.pasta-add-cart-btn,
+.chinese-add-cart-btn {
     width: 100%;
     min-height: 36px;
     background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
@@ -2138,7 +2190,9 @@ body.shop-closed .checkout-btn {
 .wrap-add-cart-btn:hover,
 .bread-add-cart-btn:hover,
 .sandwich-add-cart-btn:hover,
-.momos-add-cart-btn:hover {
+.momos-add-cart-btn:hover,
+.pasta-add-cart-btn:hover,
+.chinese-add-cart-btn:hover {
     background: linear-gradient(135deg, #e55e00 0%, #e02446 100%);
 }
 
@@ -2146,7 +2200,9 @@ body.shop-closed .checkout-btn {
 .wrap-add-cart-btn:active,
 .bread-add-cart-btn:active,
 .sandwich-add-cart-btn:active,
-.momos-add-cart-btn:active {
+.momos-add-cart-btn:active,
+.pasta-add-cart-btn:active,
+.chinese-add-cart-btn:active {
     transform: scale(0.98);
 }
 
@@ -2159,7 +2215,11 @@ body.shop-closed .checkout-btn {
 .sandwich-add-cart-btn.disabled,
 .sandwich-add-cart-btn:disabled,
 .momos-add-cart-btn.disabled,
-.momos-add-cart-btn:disabled {
+.momos-add-cart-btn:disabled,
+.pasta-add-cart-btn.disabled,
+.pasta-add-cart-btn:disabled,
+.chinese-add-cart-btn.disabled,
+.chinese-add-cart-btn:disabled {
     background: var(--bg-input) !important;
     color: var(--text-muted) !important;
     cursor: not-allowed;
@@ -2174,6 +2234,8 @@ body.shop-closed .checkout-btn {
 .sandwich-addon-selector,
 .bread-addon-selector,
 .momos-addon-selector,
+.pasta-addon-selector,
+.chinese-addon-selector,
 .pizza-addon-selector,
 .addons-row,
 .addon-options-container {
@@ -2199,6 +2261,8 @@ body.shop-closed .checkout-btn {
 .sandwich-addon-label,
 .bread-addon-label,
 .momos-addon-label,
+.pasta-addon-label,
+.chinese-addon-label,
 .pizza-addon-selector .burger-addon-label {
     font-size: 0.62rem;
     font-weight: var(--fw-black);
@@ -2220,6 +2284,8 @@ body.shop-closed .checkout-btn {
 .sandwich-addon-options,
 .bread-addon-options,
 .momos-addon-options,
+.pasta-addon-options,
+.chinese-addon-options,
 .pizza-addon-selector .burger-addon-options,
 .addon-options {
     display: flex;
@@ -2233,11 +2299,71 @@ body.shop-closed .checkout-btn {
 .sandwich-addon-box,
 .bread-addon-box,
 .momos-addon-box,
+.pasta-addon-box,
 .pizza-addon-selector .burger-addon-box {
     width: 26px;
     height: 26px;
     min-width: 26px;
     min-height: 26px;
+
+/* --------------------------------------------------------------------------
+   13D. SHAKE CARD "WITH ICE CREAM" CUSTOM ADD-ON SELECTOR
+   -------------------------------------------------------------------------- */
+.shake-addon-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+    margin-bottom: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.shake-icecream-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    background-color: var(--bg-input);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: var(--fw-bold, 700);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.shake-icecream-btn:hover {
+    border-color: var(--primary-orange);
+    color: var(--text-main);
+}
+
+.shake-icecream-btn.active,
+.shake-icecream-btn.selected {
+    background: rgba(255, 107, 0, 0.14) !important;
+    border-color: #ff6b00 !important;
+    color: #ff6b00 !important;
+    box-shadow: 0 0 8px rgba(255, 107, 0, 0.25);
+}
+
+.shake-icecream-icon {
+    font-size: 0.85rem;
+    line-height: 1;
+}
+
+.shake-icecream-label {
+    white-space: nowrap;
+}
+
+.shake-icecream-price {
+    font-size: 0.68rem;
+    font-weight: var(--fw-extrabold);
+    opacity: 0.95;
+}
     max-width: 26px;
     max-height: 26px;
     border-radius: 7px;

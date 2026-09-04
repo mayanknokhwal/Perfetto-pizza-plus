@@ -67,6 +67,19 @@ const DEFAULT_CATEGORY_ADDONS = {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20
+    },
+    "Pasta": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
+    },
+    "Shake": {
+        withIceCream: 30
+    },
+    "Chinese Food": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
 
@@ -234,27 +247,81 @@ function recalculatePizzaCardPrice(pizzaId) {
 }
 window.recalculatePizzaCardPrice = recalculatePizzaCardPrice;
 
-function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
-    const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-    const catAddons = getCustomerCategoryAddons(categoryName);
-    const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
-    const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-    const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+function toggleShakeIceCreamAddon(itemId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    if (!cardSelectedAddons[itemId]) {
+        cardSelectedAddons[itemId] = { cheese: false, spicy: false, mayo: false, iceCream: false };
+    }
 
+    cardSelectedAddons[itemId].iceCream = !cardSelectedAddons[itemId].iceCream;
+    const isSelected = cardSelectedAddons[itemId].iceCream;
+
+    const btnEl = document.getElementById(`box-icecream-${itemId}`);
+    if (btnEl) {
+        if (isSelected) {
+            btnEl.classList.add('active', 'selected');
+        } else {
+            btnEl.classList.remove('active', 'selected');
+        }
+    }
+
+    const catAddons = getCustomerCategoryAddons('Shake');
+    const iceCreamRate = catAddons.withIceCream !== undefined ? catAddons.withIceCream : 30;
+
+    const allItems = getAllCustomerMenuItems();
+    const itemObj = allItems.find(i => i.id === itemId);
+    const basePrice = (itemObj && itemObj.price) ? itemObj.price : 119;
+
+    let total = basePrice;
+    if (cardSelectedAddons[itemId].iceCream) total += iceCreamRate;
+
+    const priceEl = document.getElementById(`card-price-${itemId}`) || document.getElementById(`price-${itemId}`);
+    if (priceEl) {
+        priceEl.textContent = formatPrice(total);
+        priceEl.classList.add('price-pop-active');
+        clearTimeout(priceEl._popTimer);
+        priceEl._popTimer = setTimeout(() => {
+            priceEl.classList.remove('price-pop-active');
+        }, 150);
+    }
+
+    showToast(isSelected ? 'Added Ice Cream' : 'Removed Ice Cream', 1800);
+}
+window.toggleShakeIceCreamAddon = toggleShakeIceCreamAddon;
+
+function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
+    const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false, iceCream: false };
+    const catAddons = getCustomerCategoryAddons(categoryName);
+    
     const addons = [];
     let calculatedPrice = basePrice;
 
-    if (sel.cheese) {
-        addons.push({ name: 'Extra Cheese', price: cheeseRate });
-        calculatedPrice += cheeseRate;
-    }
-    if (sel.spicy) {
-        addons.push({ name: 'Extra Spicy', price: spicyRate });
-        calculatedPrice += spicyRate;
-    }
-    if (sel.mayo) {
-        addons.push({ name: '🍥 Extra Mayo', price: mayoRate });
-        calculatedPrice += mayoRate;
+    if (categoryName === 'Shake') {
+        const iceCreamRate = catAddons.withIceCream !== undefined ? catAddons.withIceCream : 30;
+        if (sel.iceCream) {
+            addons.push({ name: '🍨 With Ice Cream', price: iceCreamRate });
+            calculatedPrice += iceCreamRate;
+        }
+    } else {
+        const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
+        const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+        const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+        if (sel.cheese) {
+            addons.push({ name: 'Extra Cheese', price: cheeseRate });
+            calculatedPrice += cheeseRate;
+        }
+        if (sel.spicy) {
+            addons.push({ name: 'Extra Spicy', price: spicyRate });
+            calculatedPrice += spicyRate;
+        }
+        if (sel.mayo) {
+            addons.push({ name: '🍥 Extra Mayo', price: mayoRate });
+            calculatedPrice += mayoRate;
+        }
     }
 
     addToCart(itemName, calculatedPrice, itemImg, addons);
@@ -806,9 +873,12 @@ const categorySubItems = {
         { name: "Stuffed Cheese Pocket", desc: "Crispy crust filled with herbs & cheese", price: 159.00, tag: "Hot" }
     ],
     "Chinese Food": [
-        { name: "Kung Pao Chicken", desc: "Tender chicken with peanuts & chili peppers", price: 249.00, tag: "Spicy 🌶️" },
-        { name: "Manchurian Gravy", desc: "Vegetable dumplings in savory Manchurian sauce", price: 199.00, tag: "Popular" },
-        { name: "Sweet & Sour Crispy Veg", desc: "Crispy veggies tossed in sweet sour glaze", price: 189.00, tag: "Veg 🥗" }
+        { id: "chn-honey-chilly-cauliflower", name: "Honey Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/kgp9bjrS/Honey-Chilly-Cauliflower.jpg", desc: "Crispy florets tossed in sweet honey chilli glaze" },
+        { id: "chn-honey-chilly-potato", name: "Honey Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/GfY6XTJR/Honey-Chilly-Potato.jpg", desc: "Crispy potato fries glazed with honey, sesame and spicy chilli" },
+        { id: "chn-veg-manchurian", name: "Veg Manchurian", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/NgMyx9My/Veg-Manchurian.jpg", desc: "Vegetable dumplings tossed in spicy garlic soy Manchurian sauce" },
+        { id: "chn-chilly-cauliflower", name: "Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/pBPy144w/Chilly-Cauliflower.jpg", desc: "Crispy fried cauliflower tossed with bell peppers and chilli sauce" },
+        { id: "chn-chilly-paneer", name: "Chilly Paneer", category: "Chinese Food", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/HTm4J9Vh/Chilly-Paneer.jpg", desc: "Cubes of cottage cheese tossed with onion, capsicum & dark soy sauce" },
+        { id: "chn-chilly-potato", name: "Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/9k7pS8S3/Chilly-Potato.jpg", desc: "Spicy crisp potato fingers tossed in garlic chilli sauce" }
     ],
     "Colo Drinks": [
         { name: "Classic Sparkling Cola", desc: "Ice cold refreshing fizzy beverage", price: 60.00, tag: "Chilled" },
@@ -816,9 +886,16 @@ const categorySubItems = {
         { name: "Citrus Lime Fizz", desc: "Zesty lemon lime sparkling drink", price: 70.00, tag: "Popular" }
     ],
     "Pasta": [
-        { name: "Creamy Alfredo Pasta", desc: "Rich parmesan cream sauce with fettuccine", price: 249.00, tag: "Popular" },
-        { name: "Penna Arrabbiata", desc: "Spicy tomato garlic sauce with fresh basil", price: 229.00, tag: "Spicy 🌶️" },
-        { name: "Pesto Supreme Pasta", desc: "Fresh basil pesto with pine nuts & olive oil", price: 269.00, tag: "Chef Special" }
+        { id: "pst-baked-mix", name: "Baked Mix Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Z1k7wYcZ/Baked-Mix-Pasta.jpg", desc: "Oven baked pasta with rich combination of red and white sauces topped with melted cheese" },
+        { id: "pst-baked-red", name: "Baked Red Pasta", category: "Pasta", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/0pLfYKfN/Baked-Red-Pasta.jpg", desc: "Tangy tomato arrabbiata pasta baked with extra mozzarella" },
+        { id: "pst-baked-sweet-spicy", name: "Baked Sweet & Spicy Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/PzgbnkXp/Baked-Sweet-Spicy-Pasta.jpg", desc: "Sweet chilli and herb infused pasta baked to cheesy perfection" },
+        { id: "pst-baked-tandoori", name: "Baked Tandoori Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/mFhbQZsN/Baked-Tandoori-Pasta.jpg", desc: "Smoky tandoori sauce pasta baked with golden cheese layer" },
+        { id: "pst-baked-white", name: "Baked White Pasta", category: "Pasta", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/0jQLrKgh/Baked-White-Pasta.jpg", desc: "Creamy alfredo sauce pasta baked with Italian herbs and cheese" },
+        { id: "pst-creamy", name: "Creamy Pasta", category: "Pasta", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/Q3yyX7ss/Creamy-Pasta.jpg", desc: "Rich smooth parmesan cream sauce tossed with penne" },
+        { id: "pst-red", name: "Red Pasta", category: "Pasta", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/mCHkdqkg/Red-Pasta.jpg", desc: "Classic spicy tomato sauce pasta with Italian basil" },
+        { id: "pst-supreme", name: "Supreme Pasta", category: "Pasta", isMultiSize: false, price: 159, available: true, img: "https://i.ibb.co/NDByPtY/Supreme-Pasta.jpg", desc: "Chef special pasta with fresh veggies, olives, jalapenos and secret herbs" },
+        { id: "pst-tandoori", name: "Tandoori Pasta", category: "Pasta", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/hRg5D667/Tandoori-Pasta.jpg", desc: "Indian fusion pasta tossed in spicy tandoori mayo sauce" },
+        { id: "pst-baked-makhani", name: "Baked Makhani Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/v4KDB6tm/Baked-Makhani-Pasta.jpg", desc: "Rich butter makhani gravy pasta baked with melted mozzarella" }
     ],
     "Wrap": [
         { id: "wrp-tandoori", name: "Tandoori Wrap", price: 99.00, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
@@ -853,6 +930,23 @@ const categorySubItems = {
         { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
         { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
         { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
+    ],
+    "Shake": [
+        { id: "shk-black-currant", name: "Black Currant Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/nN8ZnFYV/Black-Currant-Shake.jpg", desc: "Rich creamy shake blended with luscious black currant flavor" },
+        { id: "shk-butter-scotch", name: "Butter Scotch Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/Wvy1Zfbj/Butter-Scotch-Shake.jpg", desc: "Smooth butterscotch milkshake topped with crunchy caramel nuggets" },
+        { id: "shk-chocolate", name: "Chocolate Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/dsmztpV7/Chocolate-Shake.jpg", desc: "Classic rich cocoa chocolate shake blended to perfection" },
+        { id: "shk-kitkat-crunchy", name: "Kit Kat Crunchy Shake", category: "Shake", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/wZZf2jWy/Kit-Kat-Crunchy-Shake.jpg", desc: "Delicious chocolate shake blended with real crispy KitKat wafers" },
+        { id: "shk-oreo-feast", name: "Oreo Feast Shake", category: "Shake", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/YqNxTL3/Oreo-Feast-Shake.jpg", desc: "Thick creamy shake loaded with crushed Oreo cookies" },
+        { id: "shk-pineapple", name: "Pineapple Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/pc2FGBh/Pineapple-Shake.jpg", desc: "Refreshing tropical pineapple milkshake" },
+        { id: "shk-rasmalai", name: "Rasmalai Shake", category: "Shake", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/vCtBxC5V/Rasmalai-Shake.jpg", desc: "Royal Indian fusion shake with authentic rasmalai flavor & dry fruits" },
+        { id: "shk-strawberry", name: "Strawberry Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/jvcrqP0Z/Strawberry-Shake.jpg", desc: "Sweet and tangy fresh strawberry milkshake" },
+        { id: "shk-vanilla", name: "Vanilla Shake", category: "Shake", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/nqzRxxjB/Vanilla-Shake.jpg", desc: "Smooth classic Madagascar vanilla milkshake" }
+    ],
+    "Rice": [
+        { id: "ric-veg-fried", name: "Veg Fried Rice", category: "Rice", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/0j2C4vR2/Veg-Fried-Rice.jpg", desc: "Classic stir-fried rice tossed with fresh garden vegetables & aromatic seasonings" },
+        { id: "ric-singapuri", name: "Singapuri Rice", category: "Rice", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/q3wnW2kC/Singapuri-Rice.jpg", desc: "Spicy & exotic Singapore style fried rice infused with mild curry spices" },
+        { id: "ric-chilly-garlic", name: "Chilly Garlic Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/wFBqyMBD/Chilly-Garlic-Rice.jpg", desc: "Zesty fried rice wok-tossed with pungent chili garlic sauce" },
+        { id: "ric-haka", name: "Haka Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/4g1rfZ9V/Haka-Rice.jpg", desc: "Authentic Hakka style wok-tossed rice with crisp vegetables" }
     ]
 };
 
@@ -2092,6 +2186,197 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <div class="momos-price-row">
                             <span class="price-prefix">Price:</span>
                             <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Pasta") {
+            const catAddons = getCustomerCategoryAddons('Pasta');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+            subItemsGrid.className = 'sub-items-grid pasta-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 129) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="pasta-addon-selector burger-addon-selector">
+                        <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="pasta-addon-options burger-addon-options">
+                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Pasta', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="pasta-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Pasta', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="pasta-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="pasta-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="pasta-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="pasta-card-body burger-card-body">
+                        <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        ${boxesMarkup}
+                        <div class="pasta-price-row burger-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="pasta-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Chinese Food" || categoryName === "Chinese") {
+            const catAddons = getCustomerCategoryAddons('Chinese Food');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+            subItemsGrid.className = 'sub-items-grid chinese-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 129) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="chinese-addon-selector burger-addon-selector">
+                        <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="chinese-addon-options burger-addon-options">
+                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="chinese-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Chinese Food', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="chinese-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="chinese-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="chinese-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="chinese-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="chinese-card-body burger-card-body">
+                        <h4 class="chinese-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        ${boxesMarkup}
+                        <div class="chinese-price-row burger-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="chinese-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Shake") {
+            const catAddons = getCustomerCategoryAddons('Shake');
+            const iceCreamPrice = catAddons.withIceCream !== undefined ? catAddons.withIceCream : 30;
+
+            subItemsGrid.className = 'sub-items-grid shake-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { iceCream: false };
+
+                const currentTotal = (item.price || 119) + (selected.iceCream ? iceCreamPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="shake-addon-selector">
+                        <button type="button" class="shake-icecream-btn ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
+                            <span class="shake-icecream-icon">🍨</span>
+                            <span class="shake-icecream-label">With Ice Cream</span>
+                            <span class="shake-icecream-price">+₹${iceCreamPrice}</span>
+                        </button>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="shake-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Shake', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="shake-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="shake-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="shake-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="shake-card-body burger-card-body">
+                        <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        ${boxesMarkup}
+                        <div class="shake-price-row burger-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="shake-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
+        } else if (categoryName === "Rice") {
+            subItemsGrid.className = 'sub-items-grid rice-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="rice-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="rice-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="rice-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="rice-card-body burger-card-body">
+                        <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
+                            <span class="price-prefix">Price:</span>
+                            <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
                         </div>
                     </div>
                     ${addBtnMarkup}
