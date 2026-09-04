@@ -4125,11 +4125,12 @@
             { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ZzKMq3h7/Taco.jpg", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
             { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" },
 
-            // 17. SPRING ROLLS (4 options matching app.js getSubItems)
-            { id: "spr-1", name: "Spring Rolls Option 1", category: "Spring Rolls", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Freshly prepared item variation for Spring Rolls" },
-            { id: "spr-2", name: "Spring Rolls Option 2", category: "Spring Rolls", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Special chef recipe variation for Spring Rolls" },
-            { id: "spr-3", name: "Spring Rolls Option 3", category: "Spring Rolls", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Deluxe portion variation for Spring Rolls" },
-            { id: "spr-4", name: "Spring Rolls Option 4", category: "Spring Rolls", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Combo style variation for Spring Rolls" },
+            // 17. SPRING ROLLS (5 items)
+            { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+            { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+            { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+            { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+            { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" },
 
             // 18. WRAP
             { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
@@ -4190,6 +4191,11 @@
                 extraMayo: 20
             },
             "Noodles": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Spring Rolls": {
                 extraCheese: 25,
                 extraSpicy: 0,
                 extraMayo: 20
@@ -4322,6 +4328,14 @@
             { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
         ];
 
+        const NEW_SPRING_ROLLS_MENU_ITEMS = [
+            { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+            { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+            { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+            { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+            { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
+        ];
+
         function sanitizeAdminMenuItems(items) {
             if (!Array.isArray(items)) return items;
             let updated = [...items];
@@ -4356,6 +4370,14 @@
             if (hasOldNoodles) {
                 const nonNoodles = updated.filter(i => i.category !== 'Noodles');
                 updated = [...nonNoodles, ...NEW_NOODLES_MENU_ITEMS];
+                modified = true;
+            }
+
+            // 5. Sanitize Spring Rolls items
+            const hasOldSpringRolls = updated.some(i => i.category === 'Spring Rolls' && (i.id === 'spr-1' || i.id === 'spr-2' || i.id === 'spr-3' || i.id === 'spr-4' || (i.name && i.name.startsWith('Spring Rolls Option')) || !NEW_SPRING_ROLLS_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
+            if (hasOldSpringRolls) {
+                const nonSpringRolls = updated.filter(i => i.category !== 'Spring Rolls');
+                updated = [...nonSpringRolls, ...NEW_SPRING_ROLLS_MENU_ITEMS];
                 modified = true;
             }
 
@@ -4561,10 +4583,10 @@
             document.getElementById('subview-cat-title').textContent = `${catMeta.name} Menu`;
             document.getElementById('subview-cat-img').src = catMeta.img;
 
-            // Handle Category Add-ons Pricing Bar (Burger, Wrap, Bread, Sandwich, Momos, Pasta, Shake, Chinese Food & Noodles)
+            // Handle Category Add-ons Pricing Bar (Burger, Wrap, Bread, Sandwich, Momos, Pasta, Shake, Chinese Food, Noodles & Spring Rolls)
             const addonsBar = document.getElementById('category-addons-bar');
             if (addonsBar) {
-                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza' || categoryName === 'Sandwich' || categoryName === 'Bread' || categoryName === 'Momos' || categoryName === 'Pasta' || categoryName === 'Shake' || categoryName === 'Chinese Food' || categoryName === 'Noodles') {
+                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza' || categoryName === 'Sandwich' || categoryName === 'Bread' || categoryName === 'Momos' || categoryName === 'Pasta' || categoryName === 'Shake' || categoryName === 'Chinese Food' || categoryName === 'Noodles' || categoryName === 'Spring Rolls') {
                     addonsBar.style.display = 'flex';
                     const catNameEl = document.getElementById('addons-cat-name');
                     if (catNameEl) catNameEl.textContent = categoryName;
@@ -4654,9 +4676,9 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger, Wrap, Bread, Sandwich, Momos, Pasta, Chinese Food & Noodles)
+        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger, Wrap, Bread, Sandwich, Momos, Pasta, Chinese Food, Noodles & Spring Rolls)
         function handleCategoryAddonChange() {
-            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap' && activeCategory !== 'Sandwich' && activeCategory !== 'Bread' && activeCategory !== 'Momos' && activeCategory !== 'Pasta' && activeCategory !== 'Chinese Food' && activeCategory !== 'Noodles')) return;
+            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap' && activeCategory !== 'Sandwich' && activeCategory !== 'Bread' && activeCategory !== 'Momos' && activeCategory !== 'Pasta' && activeCategory !== 'Chinese Food' && activeCategory !== 'Noodles' && activeCategory !== 'Spring Rolls')) return;
 
             const cheeseInput = document.getElementById('addon-extra-cheese-input');
             const spicyInput = document.getElementById('addon-extra-spicy-input');

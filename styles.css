@@ -2400,6 +2400,7 @@ body.shop-closed .checkout-btn {
 .pizza-addon-selector,
 .shake-addon-selector,
 .noodles-addon-selector,
+.spring-rolls-addon-selector,
 .addons-row,
 .addon-options-container {
     display: flex;
@@ -2427,6 +2428,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-label,
 .chinese-addon-label,
 .noodles-addon-label,
+.spring-rolls-addon-label,
 .pizza-addon-selector .burger-addon-label {
     font-size: 0.62rem;
     font-weight: var(--fw-black);
@@ -2453,6 +2455,7 @@ body.shop-closed .checkout-btn {
 .pizza-addon-selector .burger-addon-options,
 .shake-addon-options,
 .noodles-addon-options,
+.spring-rolls-addon-options,
 .addon-options {
     display: flex;
     gap: 4px;
@@ -2468,6 +2471,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-box,
 .chinese-addon-box,
 .noodles-addon-box,
+.spring-rolls-addon-box,
 .pizza-addon-selector .burger-addon-box {
     width: 26px;
     height: 26px;
@@ -2569,6 +2573,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-box:hover,
 .chinese-addon-box:hover,
 .noodles-addon-box:hover,
+.spring-rolls-addon-box:hover,
 .pizza-addon-selector .burger-addon-box:hover {
     background: rgba(255, 107, 0, 0.08) !important;
     transform: scale(1.05);
@@ -2590,6 +2595,8 @@ body.shop-closed .checkout-btn {
 .chinese-addon-box.active,
 .noodles-addon-box.selected,
 .noodles-addon-box.active,
+.spring-rolls-addon-box.selected,
+.spring-rolls-addon-box.active,
 .pizza-addon-selector .burger-addon-box.selected,
 .pizza-addon-selector .burger-addon-box.active {
     background: var(--bg-surface) !important;
@@ -2606,6 +2613,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-box.selected.active-cheese,
 .chinese-addon-box.selected.active-cheese,
 .noodles-addon-box.selected.active-cheese,
+.spring-rolls-addon-box.selected.active-cheese,
 .pizza-addon-selector .burger-addon-box.selected.active-cheese {
     border-color: #f59e0b !important;
     box-shadow: 0 2px 6px rgba(245, 158, 11, 0.35) !important;
@@ -2619,6 +2627,7 @@ body.shop-closed .checkout-btn {
 .pasta-addon-box.selected.active-spicy,
 .chinese-addon-box.selected.active-spicy,
 .noodles-addon-box.selected.active-spicy,
+.spring-rolls-addon-box.selected.active-spicy,
 .pizza-addon-selector .burger-addon-box.selected.active-spicy {
     border-color: #ef4444 !important;
     box-shadow: 0 2px 6px rgba(239, 68, 68, 0.35) !important;
@@ -2632,9 +2641,173 @@ body.shop-closed .checkout-btn {
 .pasta-addon-box.selected.active-mayo,
 .chinese-addon-box.selected.active-mayo,
 .noodles-addon-box.selected.active-mayo,
+.spring-rolls-addon-box.selected.active-mayo,
 .pizza-addon-selector .burger-addon-box.selected.active-mayo {
     border-color: #fb7185 !important;
     box-shadow: 0 2px 6px rgba(251, 113, 133, 0.35) !important;
+}
+
+/* --------------------------------------------------------------------------
+   13B-SR. SPRING ROLLS SINGLE-COLUMN (1 CARD PER ROW) & HORIZONTAL BANNER LAYOUT
+   -------------------------------------------------------------------------- */
+.sub-items-grid.spring-rolls-grid-container,
+.spring-rolls-grid-container {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    align-items: stretch;
+    width: 100% !important;
+}
+
+@media (max-width: 480px) {
+    .sub-items-grid.spring-rolls-grid-container,
+    .spring-rolls-grid-container {
+        gap: 12px !important;
+    }
+}
+
+.spring-rolls-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    width: 100%;
+}
+
+.spring-rolls-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+    border-color: var(--border-hover);
+}
+
+.spring-rolls-card-image-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: radial-gradient(circle at center, var(--primary-light) 0%, transparent 75%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 17px 17px 0 0;
+}
+
+.spring-rolls-card-img {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    object-position: center center;
+    display: block;
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.spring-rolls-card:hover .spring-rolls-card-img {
+    transform: scale(1.05);
+}
+
+.spring-rolls-card-body {
+    padding: 10px 12px 6px 12px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: flex-start;
+    gap: 4px;
+}
+
+.spring-rolls-card-title {
+    font-size: 0.95rem;
+    font-weight: var(--fw-bold, 700);
+    color: var(--text-main);
+    line-height: 1.25;
+    letter-spacing: -0.25px;
+    margin: 0 0 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    height: auto;
+    min-height: auto;
+    font-family: var(--font-heading);
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    container-type: inline-size;
+}
+
+.spring-rolls-card-title.has-marquee {
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 calc(100% - 10px), transparent 100%);
+}
+
+.spring-rolls-card-title.has-marquee .card-title-text {
+    will-change: transform;
+    animation: marquee-scroll var(--marquee-duration, 5s) ease-in-out infinite alternate;
+}
+
+.spring-rolls-price-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 4px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    margin-bottom: 0;
+}
+
+.spring-rolls-card-price {
+    font-size: 1.15rem;
+    font-weight: var(--fw-black);
+    color: var(--primary-orange);
+    font-family: var(--font-heading);
+    display: inline-block;
+}
+
+.spring-rolls-add-cart-btn {
+    width: 100%;
+    min-height: 40px;
+    background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+    color: #ffffff;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 0 0 17px 17px;
+    font-size: 0.85rem;
+    font-weight: var(--fw-black);
+    font-family: var(--font-heading);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    margin-top: 4px;
+    touch-action: manipulation;
+}
+
+.spring-rolls-add-cart-btn:hover {
+    background: linear-gradient(135deg, #e55e00 0%, #e02446 100%);
+}
+
+.spring-rolls-add-cart-btn:active {
+    transform: scale(0.98);
+}
+
+.spring-rolls-add-cart-btn.disabled,
+.spring-rolls-add-cart-btn:disabled {
+    background: var(--bg-input) !important;
+    color: var(--text-muted) !important;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 /* --------------------------------------------------------------------------

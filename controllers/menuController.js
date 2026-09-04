@@ -148,10 +148,11 @@ const DEFAULT_MENU_ITEMS = [
     { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" },
 
     // 17. SPRING ROLLS
-    { id: "spr-1", name: "Spring Rolls Option 1", category: "Spring Rolls", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Freshly prepared item variation for Spring Rolls" },
-    { id: "spr-2", name: "Spring Rolls Option 2", category: "Spring Rolls", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Special chef recipe variation for Spring Rolls" },
-    { id: "spr-3", name: "Spring Rolls Option 3", category: "Spring Rolls", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Deluxe portion variation for Spring Rolls" },
-    { id: "spr-4", name: "Spring Rolls Option 4", category: "Spring Rolls", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png", desc: "Combo style variation for Spring Rolls" },
+    { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+    { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+    { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+    { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+    { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" },
 
     // 18. WRAP
     { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
@@ -204,6 +205,11 @@ const DEFAULT_CATEGORY_ADDONS = {
         extraMayo: 20
     },
     "Noodles": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
+    },
+    "Spring Rolls": {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20

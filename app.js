@@ -85,6 +85,11 @@ const DEFAULT_CATEGORY_ADDONS = {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20
+    },
+    "Spring Rolls": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
 
@@ -1046,10 +1051,25 @@ const categorySubItems = {
         { id: "sde-saucy-fries", name: "Saucy Fries", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/gZ0RCYrS/Saucy-Fries.jpg", desc: "Crispy fries drizzled generously with signature savory and cheesy sauces" },
         { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ZzKMq3h7/Taco.jpg", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
         { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" }
+    ],
+    "Spring Rolls": [
+        { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+        { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+        { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+        { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+        { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
     ]
 };
 
 const MENU_STORAGE_KEY = 'menuData';
+
+const NEW_SPRING_ROLLS_MENU_ITEMS = [
+    { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+    { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+    { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+    { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+    { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
+];
 
 const NEW_MOJITO_MENU_ITEMS = [
     { id: "moj-fresh-lime-soda", name: "Fresh Lime Soda", category: "Mojito", isMultiSize: false, price: 59, available: true, img: "https://i.ibb.co/tMGr4c9y/Fresh-Lime-Soda.jpg", desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint" },
@@ -1442,6 +1462,30 @@ function sanitizeStoredMenuItems(items) {
         if (item.category === 'Mojito' && item.id && MOJITO_IMAGE_MAP[item.id]) {
             if (item.img !== MOJITO_IMAGE_MAP[item.id]) {
                 item.img = MOJITO_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // 14. Sanitize Spring Rolls items
+    const hasOldSpringRolls = updated.some(i => i.category === 'Spring Rolls' && (i.id === 'spr-1' || i.id === 'spr-2' || i.id === 'spr-3' || i.id === 'spr-4' || (i.name && i.name.startsWith('Spring Rolls Option')) || !NEW_SPRING_ROLLS_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
+    if (hasOldSpringRolls) {
+        const nonSpringRolls = updated.filter(i => i.category !== 'Spring Rolls');
+        updated = [...nonSpringRolls, ...NEW_SPRING_ROLLS_MENU_ITEMS];
+        modified = true;
+    }
+
+    const SPRING_ROLLS_IMAGE_MAP = {
+        "spr-chilly-paneer-kathi-roll": "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg",
+        "spr-crispy-spring-roll": "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg",
+        "spr-paneer-kathi-roll": "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg",
+        "spr-spring-roll": "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg",
+        "spr-veg-kathi-roll": "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Spring Rolls' && item.id && SPRING_ROLLS_IMAGE_MAP[item.id]) {
+            if (item.img !== SPRING_ROLLS_IMAGE_MAP[item.id]) {
+                item.img = SPRING_ROLLS_IMAGE_MAP[item.id];
                 modified = true;
             }
         }
@@ -2279,6 +2323,64 @@ function refreshActiveCustomerView(freshItems) {
                             <div class="mojito-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                                 <span class="price-prefix">Price:</span>
                                 <span class="mojito-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 79)}</span>
+                            </div>
+                        </div>
+                        ${addBtnMarkup}
+                    </div>
+                    `;
+                }).join('');
+            } else if (categoryName === "Spring Rolls") {
+                const catAddons = getCustomerCategoryAddons('Spring Rolls');
+                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+                subItemsGrid.className = 'sub-items-grid spring-rolls-grid-container';
+                subItemsGrid.innerHTML = items.map(item => {
+                    const isAvailable = item.available !== false;
+                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                    const currentTotal = (item.price || 99) +
+                        (selected.cheese ? cheesePrice : 0) +
+                        (selected.spicy ? spicyPrice : 0) +
+                        (selected.mayo ? mayoPrice : 0);
+
+                    const boxesMarkup = isAvailable ? `
+                        <div class="spring-rolls-addon-selector burger-addon-selector">
+                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="spring-rolls-addon-options burger-addon-options">
+                                <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
+                                    🧀
+                                </button>
+                                <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
+                                    🌶️
+                                </button>
+                                <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
+                                    🍥
+                                </button>
+                            </div>
+                        </div>
+                    ` : '';
+
+                    const addBtnMarkup = isAvailable
+                        ? `<button class="spring-rolls-add-cart-btn" onclick="addCardWithAddonsToCart('Spring Rolls', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                        : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                    return `
+                    <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}">
+                        ${outOfStockBadge}
+                        <div class="spring-rolls-card-image-wrapper">
+                            <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
+                        </div>
+                        <div class="spring-rolls-card-body">
+                            <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            ${boxesMarkup}
+                            <div class="spring-rolls-price-row">
+                                <span class="price-prefix">Price:</span>
+                                <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                             </div>
                         </div>
                         ${addBtnMarkup}
@@ -3360,6 +3462,64 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 </div>
                 `;
             }).join('');
+        } else if (categoryName === "Spring Rolls") {
+            const catAddons = getCustomerCategoryAddons('Spring Rolls');
+            const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+            const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+            const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+
+            subItemsGrid.className = 'sub-items-grid spring-rolls-grid-container';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+
+                const currentTotal = (item.price || 99) +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const boxesMarkup = isAvailable ? `
+                    <div class="spring-rolls-addon-selector burger-addon-selector">
+                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="spring-rolls-addon-options burger-addon-options">
+                            <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
+                                🧀
+                            </button>
+                            <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
+                                🌶️
+                            </button>
+                            <button type="button" class="spring-rolls-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
+                                🍥
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="spring-rolls-add-cart-btn" onclick="addCardWithAddonsToCart('Spring Rolls', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="spring-rolls-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
+                    </div>
+                    <div class="spring-rolls-card-body">
+                        <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        ${boxesMarkup}
+                        <div class="spring-rolls-price-row">
+                            <span class="price-prefix">Price:</span>
+                            <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
         } else {
             subItemsGrid.classList.remove('pizza-grid-container');
             subItemsGrid.innerHTML = items.map(item => {
@@ -3411,7 +3571,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 function applyMarqueeToOverflowTitles() {
     requestAnimationFrame(() => {
         const titleContainers = document.querySelectorAll(
-            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title, .pasta-card-title, .chinese-card-title, .shake-card-title, .rice-card-title, .coffee-card-title, .noodles-card-title, .desserts-card-title, .salad-card-title, .side-orders-card-title, .cold-drinks-card-title, .mojito-card-title'
+            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title, .pasta-card-title, .chinese-card-title, .shake-card-title, .rice-card-title, .coffee-card-title, .noodles-card-title, .desserts-card-title, .salad-card-title, .side-orders-card-title, .cold-drinks-card-title, .mojito-card-title, .spring-rolls-card-title'
         );
         if (!titleContainers.length) return;
 
