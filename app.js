@@ -1195,7 +1195,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                         </div>
                         <div class="pizza-card-body">
-                            <h4 class="pizza-card-title">${item.name}</h4>
+                            <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                             ${descMarkup}
                             
                             <div class="pizza-size-selector">
@@ -1267,7 +1267,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
                         </div>
                         <div class="${prefix}-card-body">
-                            <h4 class="${prefix}-card-title">${item.name}</h4>
+                            <h4 class="${prefix}-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                             ${boxesMarkup}
                             <div class="${prefix}-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -1325,7 +1325,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
                         </div>
                         <div class="bread-card-body">
-                            <h4 class="bread-card-title">${item.name}</h4>
+                            <h4 class="bread-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                             ${boxesMarkup}
                             <div class="bread-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -1383,7 +1383,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
                         </div>
                         <div class="sandwich-card-body">
-                            <h4 class="sandwich-card-title">${item.name}</h4>
+                            <h4 class="sandwich-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                             ${boxesMarkup}
                             <div class="sandwich-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -1441,7 +1441,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
                         </div>
                         <div class="momos-card-body">
-                            <h4 class="momos-card-title">${item.name}</h4>
+                            <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                             ${boxesMarkup}
                             <div class="momos-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -1493,6 +1493,9 @@ function refreshActiveCustomerView(freshItems) {
 
     // Refresh cart in case prices or availability of in-cart items changed
     updateCartUI();
+
+    // Check and apply smooth marquee scrolling for overflowing card titles
+    applyMarqueeToOverflowTitles();
 }
 
 // Background Live Menu Poller & Server Synchronization
@@ -1838,7 +1841,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                     </div>
                     <div class="pizza-card-body">
-                        <h4 class="pizza-card-title">${item.name}</h4>
+                        <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                         ${descMarkup}
                         
                         <div class="pizza-size-selector">
@@ -1910,7 +1913,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
                     </div>
                     <div class="${prefix}-card-body">
-                        <h4 class="${prefix}-card-title">${item.name}</h4>
+                        <h4 class="${prefix}-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="${prefix}-price-row">
                             <span class="price-prefix">Price:</span>
@@ -1968,7 +1971,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
                     </div>
                     <div class="bread-card-body">
-                        <h4 class="bread-card-title">${item.name}</h4>
+                        <h4 class="bread-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="bread-price-row">
                             <span class="price-prefix">Price:</span>
@@ -2026,7 +2029,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
                     </div>
                     <div class="sandwich-card-body">
-                        <h4 class="sandwich-card-title">${item.name}</h4>
+                        <h4 class="sandwich-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="sandwich-price-row">
                             <span class="price-prefix">Price:</span>
@@ -2084,7 +2087,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
                     </div>
                     <div class="momos-card-body">
-                        <h4 class="momos-card-title">${item.name}</h4>
+                        <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="momos-price-row">
                             <span class="price-prefix">Price:</span>
@@ -2130,12 +2133,56 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
     switchTab('category-detail', false, true);
 
+    // Trigger smooth marquee auto-scroll evaluation for overflowing titles
+    applyMarqueeToOverflowTitles();
+
     if (isRestoringState && lastCategoryState.scrollY > 0) {
         setTimeout(() => {
             window.scrollTo({ top: lastCategoryState.scrollY, behavior: 'instant' });
         }, 10);
     }
 }
+
+// --------------------------------------------------------------------------
+// AUTOMATIC SINGLE-LINE OVERFLOW MARQUEE AUTO-SCROLL SYSTEM
+// --------------------------------------------------------------------------
+function applyMarqueeToOverflowTitles() {
+    requestAnimationFrame(() => {
+        const titleContainers = document.querySelectorAll(
+            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title'
+        );
+        if (!titleContainers.length) return;
+
+        titleContainers.forEach(container => {
+            const span = container.querySelector('.card-title-text');
+            if (!span) return;
+
+            // Reset marquee class first for pure unconstrained measurement
+            container.classList.remove('has-marquee');
+
+            const containerWidth = container.clientWidth;
+            const textWidth = span.scrollWidth;
+
+            if (containerWidth > 0 && textWidth > containerWidth + 2) {
+                const overflowPx = Math.ceil(textWidth - containerWidth);
+                container.style.setProperty('--marquee-overflow', `-${overflowPx + 6}px`);
+                const duration = Math.max(3.5, Math.min(8, (overflowPx / 18) + 2.5));
+                container.style.setProperty('--marquee-duration', `${duration.toFixed(1)}s`);
+                container.classList.add('has-marquee');
+            } else {
+                container.classList.remove('has-marquee');
+                container.style.removeProperty('--marquee-overflow');
+                container.style.removeProperty('--marquee-duration');
+            }
+        });
+    });
+}
+
+// Window resize handler for dynamic title marquee recalculation
+window.addEventListener('resize', () => {
+    if (window._marqueeResizeTimeout) clearTimeout(window._marqueeResizeTimeout);
+    window._marqueeResizeTimeout = setTimeout(applyMarqueeToOverflowTitles, 150);
+});
 
 // --------------------------------------------------------------------------
 // SHOP OPEN / CLOSED STATUS SYSTEM
@@ -2625,7 +2672,9 @@ function addToCart(name, price, img, addons = []) {
     saveCartToStorage();
     updateCartUI();
 
-    showToast(`Added ${fullItemName} to your cart!`);
+    // Display clean single-line notification with primary item name (and size if applicable)
+    const cleanToastItemName = String(name || '').replace(/\s*\(\+.*?\)$/i, '').trim();
+    showToast(`Added ${cleanToastItemName} to your cart!`);
 }
 
 function updateQuantity(index, change) {
@@ -4958,16 +5007,23 @@ function confirmClearCustomerOrderHistory() {
 // --------------------------------------------------------------------------
 // 7. TOAST NOTIFICATION SYSTEM
 // --------------------------------------------------------------------------
-let toastTimeout;
-function showToast(msg, duration = 2800) {
-    clearTimeout(toastTimeout);
+let toastTimeout = null;
+function showToast(msg, duration = 2400) {
+    // Immediately clear any active timer to prevent stacked or flickering notifications
+    if (toastTimeout) {
+        clearTimeout(toastTimeout);
+        toastTimeout = null;
+    }
+
     let text = msg;
     if (typeof text === 'object' && text !== null) {
         text = text.message || text.error || text.details || JSON.stringify(text);
     }
-    const toastEl = document.getElementById('toast') || toast;
-    const toastMsgEl = (toastEl ? toastEl.querySelector('#toast-message') : null) || toastMessage;
-    const toastIconEl = (toastEl ? toastEl.querySelector('#toast-icon') : null) || document.getElementById('toast-icon');
+    const toastEl = document.getElementById('toast') || (typeof toast !== 'undefined' ? toast : null);
+    if (!toastEl) return;
+
+    const toastMsgEl = toastEl.querySelector('#toast-message') || (typeof toastMessage !== 'undefined' ? toastMessage : null);
+    const toastIconEl = toastEl.querySelector('#toast-icon') || document.getElementById('toast-icon');
 
     if (toastMsgEl) {
         toastMsgEl.textContent = String(text || '');
@@ -4980,16 +5036,19 @@ function showToast(msg, duration = 2800) {
         } else if (lower.includes('spicy')) {
             toastIconEl.className = 'toast-icon';
             toastIconEl.textContent = '🌶️';
+        } else if (lower.includes('mayo')) {
+            toastIconEl.className = 'toast-icon';
+            toastIconEl.textContent = '🍥';
         } else {
             toastIconEl.textContent = '';
             toastIconEl.className = 'fa-solid fa-circle-check toast-icon';
         }
     }
-    if (toastEl) {
-        toastEl.classList.add('show');
-    }
+
+    toastEl.classList.add('show');
     toastTimeout = setTimeout(() => {
-        if (toastEl) toastEl.classList.remove('show');
+        toastEl.classList.remove('show');
+        toastTimeout = null;
     }, duration);
 }
 
@@ -5742,7 +5801,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                     <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                 </div>
                 <div class="pizza-card-body">
-                    <h4 class="pizza-card-title">${item.name}</h4>
+                    <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
                     ${descMarkup}
                     
                     <div class="pizza-size-selector">
@@ -5816,6 +5875,9 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
     if (emptyState) {
         emptyState.style.display = totalMatches === 0 ? 'block' : 'none';
     }
+
+    // Check marquee auto-scroll for matching pizza cards
+    applyMarqueeToOverflowTitles();
 }
 
 function initCustomerSearchEvents() {
