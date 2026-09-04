@@ -991,10 +991,23 @@ const categorySubItems = {
         { id: "ric-singapuri", name: "Singapuri Rice", category: "Rice", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/q3wnW2kC/Singapuri-Rice.jpg", desc: "Spicy & exotic Singapore style fried rice infused with mild curry spices" },
         { id: "ric-chilly-garlic", name: "Chilly Garlic Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/wFBqyMBD/Chilly-Garlic-Rice.jpg", desc: "Zesty fried rice wok-tossed with pungent chili garlic sauce" },
         { id: "ric-haka", name: "Haka Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/4g1rfZ9V/Haka-Rice.jpg", desc: "Authentic Hakka style wok-tossed rice with crisp vegetables" }
+    ],
+    "Hot Cold Coffee": [
+        { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
+        { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
+    ],
+    "Coffee": [
+        { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
+        { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
     ]
 };
 
 const MENU_STORAGE_KEY = 'menuData';
+
+const NEW_COFFEE_MENU_ITEMS = [
+    { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
+    { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
+];
 
 const NEW_MOMOS_MENU_ITEMS = [
     { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
@@ -1171,6 +1184,27 @@ function sanitizeStoredMenuItems(items) {
         if (item.category === 'Momos' && item.id && MOMOS_IMAGE_MAP[item.id]) {
             if (item.img !== MOMOS_IMAGE_MAP[item.id]) {
                 item.img = MOMOS_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // 7. Sanitize Hot & Cold Coffee items
+    const hasOldCoffee = updated.some(i => (i.category === 'Hot Cold Coffee' || i.category === 'Coffee' || i.category === 'Hot & Cold Coffee') && (i.id === 'cof-1' || i.id === 'cof-2' || i.id === 'cof-3' || i.id === 'cof-4' || (i.name && i.name.startsWith('Hot Cold Coffee Option')) || !NEW_COFFEE_MENU_ITEMS.some(nc => nc.id === i.id || nc.name === i.name)));
+    if (hasOldCoffee) {
+        const nonCoffee = updated.filter(i => i.category !== 'Hot Cold Coffee' && i.category !== 'Coffee' && i.category !== 'Hot & Cold Coffee');
+        updated = [...nonCoffee, ...NEW_COFFEE_MENU_ITEMS];
+        modified = true;
+    }
+
+    const COFFEE_IMAGE_MAP = {
+        "cof-cold": "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg",
+        "cof-hot": "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg"
+    };
+    updated.forEach(item => {
+        if ((item.category === 'Hot Cold Coffee' || item.category === 'Coffee' || item.category === 'Hot & Cold Coffee') && item.id && COFFEE_IMAGE_MAP[item.id]) {
+            if (item.img !== COFFEE_IMAGE_MAP[item.id]) {
+                item.img = COFFEE_IMAGE_MAP[item.id];
                 modified = true;
             }
         }
@@ -2433,6 +2467,35 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 </div>
                 `;
             }).join('');
+        } else if (categoryName === "Hot Cold Coffee" || categoryName === "Hot & Cold Coffee" || categoryName === "Coffee") {
+            subItemsGrid.className = 'sub-items-grid coffee-grid-container grid grid-cols-2 gap-3';
+            subItemsGrid.innerHTML = items.map(item => {
+                const isAvailable = item.available !== false;
+                const outOfStockClass = isAvailable ? '' : 'out-of-stock';
+                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+
+                const addBtnMarkup = isAvailable
+                    ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
+                    : `<button class="coffee-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+
+                return `
+                <div class="coffee-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
+                    ${outOfStockBadge}
+                    <div class="coffee-card-image-wrapper burger-card-image-wrapper">
+                        <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
+                    </div>
+                    <div class="coffee-card-body burger-card-body">
+                        <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
+                            <span class="price-prefix">Price:</span>
+                            <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
+                        </div>
+                    </div>
+                    ${addBtnMarkup}
+                </div>
+                `;
+            }).join('');
         } else {
             subItemsGrid.classList.remove('pizza-grid-container');
             subItemsGrid.innerHTML = items.map(item => {
@@ -2484,7 +2547,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 function applyMarqueeToOverflowTitles() {
     requestAnimationFrame(() => {
         const titleContainers = document.querySelectorAll(
-            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title'
+            '.pizza-card-title, .burger-card-title, .wrap-card-title, .bread-card-title, .sandwich-card-title, .momos-card-title, .pasta-card-title, .chinese-card-title, .shake-card-title, .rice-card-title, .coffee-card-title'
         );
         if (!titleContainers.length) return;
 

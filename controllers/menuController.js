@@ -77,10 +77,8 @@ const DEFAULT_MENU_ITEMS = [
     { id: "des-4", name: "Desserts Option 4", category: "Desserts", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/YBQ73fv2/dasserts.png", desc: "Combo style variation for Desserts" },
 
     // 8. HOT COLD COFFEE
-    { id: "cof-1", name: "Hot Cold Coffee Option 1", category: "Hot Cold Coffee", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Freshly prepared item variation for Hot Cold Coffee" },
-    { id: "cof-2", name: "Hot Cold Coffee Option 2", category: "Hot Cold Coffee", isMultiSize: false, price: 199, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Special chef recipe variation for Hot Cold Coffee" },
-    { id: "cof-3", name: "Hot Cold Coffee Option 3", category: "Hot Cold Coffee", isMultiSize: false, price: 219, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Deluxe portion variation for Hot Cold Coffee" },
-    { id: "cof-4", name: "Hot Cold Coffee Option 4", category: "Hot Cold Coffee", isMultiSize: false, price: 259, available: true, img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png", desc: "Combo style variation for Hot Cold Coffee" },
+    { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
+    { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" },
 
     // 9. MOJITO
     { id: "moj-1", name: "Mojito Option 1", category: "Mojito", isMultiSize: false, price: 179, available: true, img: "https://i.ibb.co/kV2Wvsdq/mojito.png", desc: "Freshly prepared item variation for Mojito" },
