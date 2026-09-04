@@ -55,13 +55,14 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 4. STORE SETTINGS & CONFIGURATION (DAILY BANNERS, STORE SETTINGS, MENU)
+    // 4. STORE SETTINGS & CONFIGURATION (DAILY BANNERS, STORE SETTINGS, WALLET & MENU)
     // - Includes:
+    //   * 'settings/wallet_config' (Cashback slabs, expiry days, min redemption order value, wallet system status)
     //   * 'settings/daily_banners' (Dynamic homepage carousel banners, min 2, max 7)
     //   * 'settings/storeSettings' (Open/closed status, operating hours, delivery radius,
     //     free delivery limits, master delivery OTP, zone charges, customer care)
     //   * 'settings/menu' (Combined cached menu document for single-listener efficiency)
-    // - Public / Customer: Full read access for dynamic hero banners and real-time store state.
+    // - Public / Customer: Full read access for dynamic hero banners, wallet cashback slabs, and real-time store state.
     // - Admin: Write / update access for dashboard management.
     // =========================================================================
     match /settings/{settingDoc} {
@@ -71,6 +72,12 @@ service cloud.firestore {
       match /{subcollection=**} {
         allow read, write: if true;
       }
+    }
+
+    // Explicit match for wallet configuration
+    match /settings/wallet_config {
+      allow read: if true;
+      allow write: if true;
     }
 
     // =========================================================================
@@ -102,6 +109,34 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow write: if true;
+
+      // Customer wallet and transaction subcollections
+      match /wallet/{walletDoc} {
+        allow read, write: if true;
+      }
+
+      match /transactions/{transactionId} {
+        allow read, write: if true;
+      }
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 6B. CUSTOMER WALLETS & CASHBACK TRANSACTIONS
+    // - Stores customer wallet balances, cashback credits, redemption debits, and transaction ledger.
+    // - Customer: Read access to their own wallet balance and transaction history.
+    // - System / Staff / Admin: Credit cashback rewards upon order completion, debit on redemption.
+    // =========================================================================
+    match /wallets/{walletId} {
+      allow read: if true;
+      allow write: if true;
+
+      match /transactions/{transactionId} {
+        allow read, write: if true;
+      }
 
       match /{subcollection=**} {
         allow read, write: if true;

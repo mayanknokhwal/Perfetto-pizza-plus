@@ -1859,6 +1859,169 @@
         }
 
         /* --------------------------------------------------------------------------
+           10B. WALLET & CASHBACK SLABS CONFIGURATION CARD
+           -------------------------------------------------------------------------- */
+        .wallet-cashback-settings-card {
+            border-color: rgba(16, 185, 129, 0.25);
+        }
+
+        .btn-save-wallet-settings {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            padding: 10px 22px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+            transition: all 0.2s ease;
+            font-family: var(--font-heading);
+            font-size: 0.90rem;
+        }
+
+        .btn-save-wallet-settings:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        }
+
+        .btn-save-wallet-settings:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .wallet-slabs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .wallet-slab-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: var(--transition-smooth);
+        }
+
+        .wallet-slab-card:hover {
+            border-color: rgba(255, 107, 0, 0.4);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .slab-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slab-badge {
+            font-size: 0.78rem;
+            font-weight: 800;
+            font-family: var(--font-heading);
+            color: var(--primary-orange);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .slab-percent-pill {
+            font-size: 0.70rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .slab-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slab-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .slab-field-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .slab-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+            transition: var(--transition-smooth);
+        }
+
+        .slab-input-wrapper:focus-within {
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2);
+        }
+
+        .slab-input-wrapper i {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .slab-num-input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-main);
+            font-size: 0.92rem;
+            font-weight: 700;
+            width: 100%;
+            font-family: var(--font-heading);
+        }
+
+        .slab-arrow-divider {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-subtle);
+            font-size: 0.75rem;
+            margin: -2px 0;
+        }
+
+        .slab-cashback-highlight {
+            background: rgba(245, 158, 11, 0.08);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .slab-card-summary {
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 8px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px dashed var(--border-subtle);
+        }
+
+        .slab-card-summary strong {
+            color: var(--text-main);
+        }
+
+        /* --------------------------------------------------------------------------
            10. CLEAR ACTIVITY LOGS BUTTON (MASTER ADMIN RESTRICTED)
            -------------------------------------------------------------------------- */
         .btn-clear-logs {
@@ -3519,6 +3682,212 @@
                             <i class="fa-solid fa-circle-info" style="color: var(--primary-orange);"></i>
                             <span>Minimum 2 banners required. Invalid or empty URLs automatically resolve to the Perfetto Pizza default logo.</span>
                         </div>
+                    </div>
+                </div>
+
+                <!-- WALLET & CASHBACK SLABS CONFIGURATION CARD -->
+                <div class="store-settings-card wallet-cashback-settings-card" id="admin-wallet-settings-card">
+                    <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+                        <div>
+                            <h3>
+                                <i class="fa-solid fa-wallet" style="color: var(--primary-orange);"></i> Wallet & Cashback Slabs Configuration
+                                <span class="wallet-status-badge" id="admin-wallet-status-badge" style="font-size: 0.72rem; padding: 3px 9px; border-radius: 20px; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">System Active</span>
+                            </h3>
+                            <p>Configure automatic cashback rewards by order value slabs, cashback validity / expiry days, and wallet redemption rules.</p>
+                        </div>
+                        <div class="wallet-header-actions">
+                            <button type="button" class="btn-save-wallet-settings" id="btn-save-wallet-settings" onclick="handleSaveWalletSettingsClick()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Wallet Settings
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- GENERAL SETTINGS GRID -->
+                    <div class="store-settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-bottom: 24px;">
+                        <!-- Toggle: Enable/Disable Wallet System -->
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-toggle-on" style="color: var(--primary-orange);"></i> Wallet & Cashback System
+                            </label>
+                            <div class="setting-toggle-box">
+                                <span id="wallet-system-toggle-status" style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Enabled</span>
+                                <label class="switch" style="margin: 0;">
+                                    <input type="checkbox" id="toggle-wallet-enabled" checked onchange="updateWalletToggleLabel(this.checked)">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <span style="font-size: 0.76rem; color: var(--text-muted);">Enable or pause automatic cashback rewards and wallet redemption</span>
+                        </div>
+
+                        <!-- Cashback Expiry in Days -->
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-calendar-xmark" style="color: var(--accent-amber);"></i> Cashback Expiry (Days)
+                            </label>
+                            <div class="search-box">
+                                <i class="fa-solid fa-hourglass-half"></i>
+                                <input type="number" id="input-cashback-expiry-days" class="search-input" value="7" min="1" max="365" placeholder="e.g. 7" oninput="onWalletConfigChange()">
+                            </div>
+                            <span style="font-size: 0.76rem; color: var(--text-muted);">Validity window before earned cashback expires (Default: 7 days)</span>
+                        </div>
+
+                        <!-- Minimum Order Value Required to Redeem Wallet Cash -->
+                        <div class="setting-input-group">
+                            <label class="setting-input-label">
+                                <i class="fa-solid fa-cart-shopping" style="color: var(--accent-blue);"></i> Min Order to Redeem (₹)
+                            </label>
+                            <div class="search-box">
+                                <i class="fa-solid fa-indian-rupee-sign"></i>
+                                <input type="number" id="input-wallet-min-redemption-order" class="search-input" value="200" min="0" placeholder="e.g. 200" oninput="onWalletConfigChange()">
+                            </div>
+                            <span style="font-size: 0.76rem; color: var(--text-muted);">Cart subtotal required before customer can use wallet cash (Default: ₹200)</span>
+                        </div>
+                    </div>
+
+                    <!-- CASHBACK SLABS CONFIGURATION SECTION -->
+                    <div class="wallet-slabs-section" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 20px; margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+                            <div>
+                                <h4 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin: 0;">
+                                    <i class="fa-solid fa-gift" style="color: var(--primary-orange);"></i> Cashback Reward Slabs
+                                </h4>
+                                <p style="font-size: 0.80rem; color: var(--text-muted); margin: 3px 0 0 0;">Highest qualifying slab amount will be credited to customer's wallet upon order delivery.</p>
+                            </div>
+                            <span class="slabs-count-pill" style="font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 12px; background: rgba(255, 107, 0, 0.15); color: var(--primary-orange); border: 1px solid rgba(255, 107, 0, 0.3);">4 Active Slabs</span>
+                        </div>
+
+                        <div class="wallet-slabs-grid">
+                            <!-- SLAB 1 -->
+                            <div class="wallet-slab-card" id="card-slab-1">
+                                <div class="slab-card-header">
+                                    <span class="slab-badge">Slab 1</span>
+                                    <span class="slab-percent-pill" id="slab1-rate-tag">10% Return</span>
+                                </div>
+                                <div class="slab-card-body">
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Min Order Amount (₹)</label>
+                                        <div class="slab-input-wrapper">
+                                            <i class="fa-solid fa-cart-arrow-down"></i>
+                                            <input type="number" id="input-slab1-min" class="slab-num-input" value="200" min="0" placeholder="200" oninput="onSlabInputChange(1)">
+                                        </div>
+                                    </div>
+                                    <div class="slab-arrow-divider">
+                                        <i class="fa-solid fa-arrow-down"></i>
+                                    </div>
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Cashback Amount (₹)</label>
+                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                            <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
+                                            <input type="number" id="input-slab1-cashback" class="slab-num-input" value="20" min="0" placeholder="20" oninput="onSlabInputChange(1)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slab-card-summary" id="slab1-summary-text">
+                                    Earn <strong>₹20</strong> on orders ≥ <strong>₹200</strong>
+                                </div>
+                            </div>
+
+                            <!-- SLAB 2 -->
+                            <div class="wallet-slab-card" id="card-slab-2">
+                                <div class="slab-card-header">
+                                    <span class="slab-badge">Slab 2</span>
+                                    <span class="slab-percent-pill" id="slab2-rate-tag">10% Return</span>
+                                </div>
+                                <div class="slab-card-body">
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Min Order Amount (₹)</label>
+                                        <div class="slab-input-wrapper">
+                                            <i class="fa-solid fa-cart-arrow-down"></i>
+                                            <input type="number" id="input-slab2-min" class="slab-num-input" value="500" min="0" placeholder="500" oninput="onSlabInputChange(2)">
+                                        </div>
+                                    </div>
+                                    <div class="slab-arrow-divider">
+                                        <i class="fa-solid fa-arrow-down"></i>
+                                    </div>
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Cashback Amount (₹)</label>
+                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                            <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
+                                            <input type="number" id="input-slab2-cashback" class="slab-num-input" value="50" min="0" placeholder="50" oninput="onSlabInputChange(2)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slab-card-summary" id="slab2-summary-text">
+                                    Earn <strong>₹50</strong> on orders ≥ <strong>₹500</strong>
+                                </div>
+                            </div>
+
+                            <!-- SLAB 3 -->
+                            <div class="wallet-slab-card" id="card-slab-3">
+                                <div class="slab-card-header">
+                                    <span class="slab-badge">Slab 3</span>
+                                    <span class="slab-percent-pill" id="slab3-rate-tag">10% Return</span>
+                                </div>
+                                <div class="slab-card-body">
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Min Order Amount (₹)</label>
+                                        <div class="slab-input-wrapper">
+                                            <i class="fa-solid fa-cart-arrow-down"></i>
+                                            <input type="number" id="input-slab3-min" class="slab-num-input" value="1000" min="0" placeholder="1000" oninput="onSlabInputChange(3)">
+                                        </div>
+                                    </div>
+                                    <div class="slab-arrow-divider">
+                                        <i class="fa-solid fa-arrow-down"></i>
+                                    </div>
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Cashback Amount (₹)</label>
+                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                            <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
+                                            <input type="number" id="input-slab3-cashback" class="slab-num-input" value="100" min="0" placeholder="100" oninput="onSlabInputChange(3)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slab-card-summary" id="slab3-summary-text">
+                                    Earn <strong>₹100</strong> on orders ≥ <strong>₹1000</strong>
+                                </div>
+                            </div>
+
+                            <!-- SLAB 4 -->
+                            <div class="wallet-slab-card" id="card-slab-4">
+                                <div class="slab-card-header">
+                                    <span class="slab-badge">Slab 4</span>
+                                    <span class="slab-percent-pill" id="slab4-rate-tag">10% Return</span>
+                                </div>
+                                <div class="slab-card-body">
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Min Order Amount (₹)</label>
+                                        <div class="slab-input-wrapper">
+                                            <i class="fa-solid fa-cart-arrow-down"></i>
+                                            <input type="number" id="input-slab4-min" class="slab-num-input" value="2000" min="0" placeholder="2000" oninput="onSlabInputChange(4)">
+                                        </div>
+                                    </div>
+                                    <div class="slab-arrow-divider">
+                                        <i class="fa-solid fa-arrow-down"></i>
+                                    </div>
+                                    <div class="slab-field-group">
+                                        <label class="slab-field-label">Cashback Amount (₹)</label>
+                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                            <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
+                                            <input type="number" id="input-slab4-cashback" class="slab-num-input" value="200" min="0" placeholder="200" oninput="onSlabInputChange(4)">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="slab-card-summary" id="slab4-summary-text">
+                                    Earn <strong>₹200</strong> on orders ≥ <strong>₹2000</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FOOTER ACTIONS & REALTIME STATUS -->
+                    <div class="wallet-settings-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 14px;">
+                        <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i>
+                            <span>Configuration is synced to Firestore document <code>settings/wallet_config</code> with real-time customer updates.</span>
+                        </div>
+                        <button type="button" class="btn-save-wallet-settings" id="btn-save-wallet-settings-bottom" onclick="handleSaveWalletSettingsClick()">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Wallet Settings
+                        </button>
                     </div>
                 </div>
             </section>
@@ -7109,6 +7478,189 @@
         }
         window.loadAdminDailyBanners = loadAdminDailyBanners;
 
+        // --------------------------------------------------------------------------
+        // WALLET & CASHBACK SLABS CONFIGURATION CONTROLLER
+        // --------------------------------------------------------------------------
+        const DEFAULT_WALLET_CONFIG = {
+            enabled: true,
+            expiryDays: 7,
+            minRedemptionOrder: 200,
+            slabs: [
+                { minOrder: 200, cashback: 20 },
+                { minOrder: 500, cashback: 50 },
+                { minOrder: 1000, cashback: 100 },
+                { minOrder: 2000, cashback: 200 }
+            ]
+        };
+        window.DEFAULT_WALLET_CONFIG = DEFAULT_WALLET_CONFIG;
+
+        let adminWalletConfig = JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG));
+
+        function applyAdminWalletConfig(config) {
+            if (!config) return;
+            adminWalletConfig = {
+                enabled: config.enabled !== false,
+                expiryDays: config.expiryDays !== undefined ? parseInt(config.expiryDays, 10) : DEFAULT_WALLET_CONFIG.expiryDays,
+                minRedemptionOrder: config.minRedemptionOrder !== undefined ? parseFloat(config.minRedemptionOrder) : DEFAULT_WALLET_CONFIG.minRedemptionOrder,
+                slabs: Array.isArray(config.slabs) && config.slabs.length >= 4 ? config.slabs : DEFAULT_WALLET_CONFIG.slabs
+            };
+
+            const toggleEl = document.getElementById('toggle-wallet-enabled');
+            if (toggleEl) {
+                toggleEl.checked = adminWalletConfig.enabled !== false;
+                updateWalletToggleLabel(toggleEl.checked);
+            }
+
+            const expiryEl = document.getElementById('input-cashback-expiry-days');
+            if (expiryEl) {
+                expiryEl.value = adminWalletConfig.expiryDays;
+            }
+
+            const minRedeemEl = document.getElementById('input-wallet-min-redemption-order');
+            if (minRedeemEl) {
+                minRedeemEl.value = adminWalletConfig.minRedemptionOrder;
+            }
+
+            const slabs = adminWalletConfig.slabs;
+            for (let i = 1; i <= 4; i++) {
+                const s = slabs[i - 1] || DEFAULT_WALLET_CONFIG.slabs[i - 1];
+                const minEl = document.getElementById(`input-slab${i}-min`);
+                const cbEl = document.getElementById(`input-slab${i}-cashback`);
+                if (minEl) minEl.value = s.minOrder;
+                if (cbEl) cbEl.value = s.cashback;
+                updateSlabSummary(i);
+            }
+        }
+        window.applyAdminWalletConfig = applyAdminWalletConfig;
+
+        function updateWalletToggleLabel(checked) {
+            const statusEl = document.getElementById('wallet-system-toggle-status');
+            const badgeEl = document.getElementById('admin-wallet-status-badge');
+            if (statusEl) {
+                statusEl.textContent = checked ? 'Enabled' : 'Disabled';
+                statusEl.style.color = checked ? 'var(--accent-green)' : 'var(--text-muted)';
+            }
+            if (badgeEl) {
+                badgeEl.textContent = checked ? 'System Active' : 'System Paused';
+                badgeEl.style.color = checked ? '#10b981' : '#94a3b8';
+                badgeEl.style.background = checked ? 'rgba(16, 185, 129, 0.15)' : 'rgba(148, 163, 184, 0.15)';
+                badgeEl.style.borderColor = checked ? 'rgba(16, 185, 129, 0.3)' : 'rgba(148, 163, 184, 0.3)';
+            }
+        }
+        window.updateWalletToggleLabel = updateWalletToggleLabel;
+
+        function updateSlabSummary(index) {
+            const minEl = document.getElementById(`input-slab${index}-min`);
+            const cbEl = document.getElementById(`input-slab${index}-cashback`);
+            const tagEl = document.getElementById(`slab${index}-rate-tag`);
+            const sumEl = document.getElementById(`slab${index}-summary-text`);
+
+            const minVal = minEl ? parseFloat(minEl.value) || 0 : 0;
+            const cbVal = cbEl ? parseFloat(cbEl.value) || 0 : 0;
+
+            if (tagEl) {
+                if (minVal > 0 && cbVal > 0) {
+                    const pct = ((cbVal / minVal) * 100).toFixed(0);
+                    tagEl.textContent = `${pct}% Return`;
+                } else {
+                    tagEl.textContent = `₹${cbVal} Cashback`;
+                }
+            }
+            if (sumEl) {
+                sumEl.innerHTML = `Earn <strong>₹${cbVal}</strong> on orders ≥ <strong>₹${minVal}</strong>`;
+            }
+        }
+        window.updateSlabSummary = updateSlabSummary;
+
+        function onSlabInputChange(index) {
+            updateSlabSummary(index);
+        }
+        window.onSlabInputChange = onSlabInputChange;
+
+        function onWalletConfigChange() {
+            // Live validation hook
+        }
+        window.onWalletConfigChange = onWalletConfigChange;
+
+        async function fetchAdminWalletConfig() {
+            if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                try {
+                    const doc = await adminFirestore.collection('settings').doc('wallet_config').get();
+                    if (doc.exists && doc.data()) {
+                        applyAdminWalletConfig(doc.data());
+                        return doc.data();
+                    }
+                } catch (e) {
+                    console.warn('Firestore wallet_config fetch notice:', e.message);
+                }
+            }
+            applyAdminWalletConfig(DEFAULT_WALLET_CONFIG);
+            return DEFAULT_WALLET_CONFIG;
+        }
+        window.fetchAdminWalletConfig = fetchAdminWalletConfig;
+
+        async function handleSaveWalletSettingsClick() {
+            const saveBtns = [
+                document.getElementById('btn-save-wallet-settings'),
+                document.getElementById('btn-save-wallet-settings-bottom')
+            ].filter(Boolean);
+
+            const origHtmls = saveBtns.map(b => b.innerHTML);
+            saveBtns.forEach(btn => {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            });
+
+            try {
+                const toggleEl = document.getElementById('toggle-wallet-enabled');
+                const expiryEl = document.getElementById('input-cashback-expiry-days');
+                const minRedeemEl = document.getElementById('input-wallet-min-redemption-order');
+
+                const isEnabled = toggleEl ? toggleEl.checked : true;
+                const expiryDays = expiryEl ? Math.max(1, parseInt(expiryEl.value, 10) || 7) : 7;
+                const minRedeem = minRedeemEl ? Math.max(0, parseFloat(minRedeemEl.value) || 200) : 200;
+
+                const slabs = [];
+                for (let i = 1; i <= 4; i++) {
+                    const minEl = document.getElementById(`input-slab${i}-min`);
+                    const cbEl = document.getElementById(`input-slab${i}-cashback`);
+                    const defaultSlab = DEFAULT_WALLET_CONFIG.slabs[i - 1];
+                    const minOrder = minEl ? Math.max(0, parseFloat(minEl.value) || defaultSlab.minOrder) : defaultSlab.minOrder;
+                    const cashback = cbEl ? Math.max(0, parseFloat(cbEl.value) || defaultSlab.cashback) : defaultSlab.cashback;
+                    slabs.push({ minOrder, cashback });
+                }
+
+                const docPayload = {
+                    key: 'wallet_config',
+                    enabled: isEnabled,
+                    expiryDays: expiryDays,
+                    minRedemptionOrder: minRedeem,
+                    slabs: slabs,
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+                };
+
+                if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                    await adminFirestore.collection('settings').doc('wallet_config').set(docPayload, { merge: true });
+                }
+
+                adminWalletConfig = docPayload;
+                showToast('✅ Wallet & Cashback settings saved to Firestore (settings/wallet_config)!');
+
+                if (typeof logAdminActivity === 'function') {
+                    logAdminActivity(`Updated Wallet & Cashback configuration (${isEnabled ? 'Enabled' : 'Disabled'}, ${slabs.length} slabs)`);
+                }
+            } catch (err) {
+                console.error('Error saving wallet settings:', err);
+                showToast('❌ Failed to save wallet settings: ' + err.message);
+            } finally {
+                saveBtns.forEach((btn, idx) => {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtmls[idx] || '<i class="fa-solid fa-floppy-disk"></i> Save Wallet Settings';
+                });
+            }
+        }
+        window.handleSaveWalletSettingsClick = handleSaveWalletSettingsClick;
+
         async function checkAdminAuthSession() {
             // 1. Initialize Firestore real-time client
             try {
@@ -7260,6 +7812,7 @@
             initMenuData();
             initOrderSettingsUI();
             loadAdminDailyBanners();
+            fetchAdminWalletConfig();
 
             // Start real-time session security listener for instant block lockdown
             if (user && user.phone) {
@@ -8285,6 +8838,7 @@
         }
 
         let adminBannersUnsubscribe = null;
+        let adminWalletUnsubscribe = null;
         function listenToAdminSettingsRealtime() {
             if (!adminFirestore) return;
             if (!adminSettingsUnsubscribe) {
@@ -8316,6 +8870,20 @@
                     });
                 } catch (e) {
                     console.warn('Error attaching Admin Firestore daily banners listener:', e);
+                }
+            }
+
+            if (!adminWalletUnsubscribe) {
+                try {
+                    adminWalletUnsubscribe = adminFirestore.collection('settings').doc('wallet_config').onSnapshot((doc) => {
+                        if (doc.exists && doc.data()) {
+                            applyAdminWalletConfig(doc.data());
+                        }
+                    }, (err) => {
+                        console.warn('Firestore admin wallet_config real-time notice:', err.message);
+                    });
+                } catch (e) {
+                    console.warn('Error attaching Admin Firestore wallet_config listener:', e);
                 }
             }
         }

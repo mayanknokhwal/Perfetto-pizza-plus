@@ -15,7 +15,7 @@ const cors = require('cors');
 const { handleMenuRequest } = require('../controllers/menuController');
 const { handleOrdersRequest } = require('../controllers/ordersController');
 const { handleUsersRequest } = require('../controllers/usersController');
-const { handleSettingsRequest, handleBannersRequest } = require('../controllers/settingsController');
+const { handleSettingsRequest, handleBannersRequest, handleWalletConfigRequest } = require('../controllers/settingsController');
 const { handleAdminAuthRequest } = require('../controllers/adminAuthController');
 const { handlePaymentRequest } = require('../controllers/paymentController');
 const { handleOtpRequest } = require('../controllers/otpController');
@@ -143,6 +143,9 @@ app.all(['/api/settings', '/settings'], (req, res) => handleSettingsRequest(req,
 // 4.1 Daily Banners API: /api/banners, /banners
 app.all(['/api/banners', '/banners'], (req, res) => handleBannersRequest(req, res));
 
+// 4.2 Wallet & Cashback API: /api/wallet, /api/wallet/config, /wallet
+app.all(['/api/wallet/config', '/api/wallet', '/wallet/config', '/wallet'], (req, res) => handleWalletConfigRequest(req, res));
+
 // 5. Admin & Staff Auth & Team API: /api/admin-auth, /admin-auth, /api/admin, /api/team, /team
 app.all(['/api/admin-auth', '/admin-auth', '/api/admin', '/api/team', '/team'], (req, res) => handleAdminAuthRequest(req, res));
 
@@ -166,6 +169,9 @@ app.use((req, res, next) => {
     }
     if (rawUrl.includes('/banners')) {
         return handleBannersRequest(req, res);
+    }
+    if (rawUrl.includes('/wallet')) {
+        return handleWalletConfigRequest(req, res);
     }
     if (rawUrl.includes('/menu')) {
         return handleMenuRequest(req, res);

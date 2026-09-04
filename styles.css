@@ -5814,3 +5814,528 @@ body.shop-closed .checkout-btn {
     background: var(--primary-orange);
     color: #ffffff;
 }
+
+/* --------------------------------------------------------------------------
+   WALLET & CASHBACK CLIENT UI STYLING (STEP 2)
+   Dynamic Incentive Bar in Cart & Wallet Redemption at Checkout
+   -------------------------------------------------------------------------- */
+.cart-cashback-bar {
+    width: 100%;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    padding: 10px 14px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.08) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.06);
+    transition: all 0.25s ease;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .cart-cashback-bar {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(180, 83, 9, 0.12) 100%);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+.cart-cashback-bar.cashback-max-unlocked {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.14) 0%, rgba(5, 150, 105, 0.09) 100%);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.cashback-bar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--text-main);
+}
+
+.cashback-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.cashback-bar-left i {
+    font-size: 1.05rem;
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.cart-cashback-bar.cashback-max-unlocked .cashback-bar-left i {
+    color: #10b981;
+}
+
+.cashback-bar-text {
+    color: var(--text-main);
+    font-size: 0.81rem;
+    font-weight: 600;
+}
+
+.cashback-bar-text strong {
+    font-weight: 800;
+    color: #f59e0b;
+}
+
+.cart-cashback-bar.cashback-max-unlocked .cashback-bar-text strong {
+    color: #10b981;
+}
+
+.cashback-current-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Checkout Wallet Redemption Card */
+.checkout-wallet-redemption-card {
+    background: var(--bg-surface-elevated);
+    border: 1.5px solid rgba(16, 185, 129, 0.3);
+    border-radius: 16px;
+    padding: 12px 14px;
+    margin-top: 4px;
+    transition: all 0.25s ease;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .checkout-wallet-redemption-card {
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.35);
+}
+
+.checkout-wallet-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.checkout-wallet-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.wallet-icon-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.wallet-text-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wallet-balance-title {
+    font-size: 0.84rem;
+    font-weight: 800;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.wallet-balance-sub {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+}
+
+.wallet-balance-sub strong {
+    color: #10b981;
+    font-weight: 800;
+}
+
+.checkout-wallet-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    padding: 6px 10px;
+    border-radius: 20px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.checkout-wallet-checkbox-label:hover {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+.checkout-wallet-checkbox-label.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+.checkout-wallet-checkbox-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+}
+
+.wallet-custom-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    background: var(--bg-surface);
+    border: 2px solid #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.checkout-wallet-checkbox-label input[type="checkbox"]:checked + .wallet-custom-check {
+    background: #10b981;
+}
+
+.checkout-wallet-checkbox-label input[type="checkbox"]:checked + .wallet-custom-check::after {
+    content: '✔';
+    color: #ffffff;
+    font-size: 0.70rem;
+    font-weight: 900;
+}
+
+.wallet-use-text {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #10b981;
+    letter-spacing: 0.02em;
+}
+
+.wallet-ineligible-hint {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.wallet-ineligible-hint i {
+    color: #f59e0b;
+    font-size: 0.78rem;
+}
+
+.wallet-discount-row {
+    color: #10b981 !important;
+}
+
+.wallet-discount-row .checkout-summary-label {
+    color: #10b981 !important;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.wallet-discount-row .checkout-summary-val {
+    color: #10b981 !important;
+    font-weight: 800;
+}
+
+/* --------------------------------------------------------------------------
+   PROFILE TAB: PERFETTO WALLET CARD & LEDGER STYLING
+   -------------------------------------------------------------------------- */
+.profile-wallet-card {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.06) 100%);
+    border: 1.5px solid rgba(16, 185, 129, 0.3);
+    border-radius: 20px;
+    padding: 18px 20px;
+    margin-top: 14px;
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.08);
+    transition: all 0.25s ease;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+[data-theme="dark"] .profile-wallet-card {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(6, 78, 59, 0.2) 100%);
+    border-color: rgba(16, 185, 129, 0.35);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.profile-wallet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.wallet-card-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.wallet-card-icon-wrap {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+}
+
+.wallet-card-title {
+    font-family: var(--font-heading);
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.wallet-card-subtitle {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    margin: 2px 0 0 0;
+}
+
+.wallet-status-pill {
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.profile-wallet-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wallet-amount-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.wallet-amount-display {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+}
+
+.wallet-currency-sym {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #10b981;
+    font-family: var(--font-heading);
+}
+
+.wallet-amount-val {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--text-main);
+    font-family: var(--font-heading);
+    line-height: 1;
+}
+
+.wallet-expiry-tag {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    padding: 4px 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.wallet-rules-hint {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.wallet-rules-hint i {
+    color: #10b981;
+    font-size: 0.82rem;
+}
+
+/* Wallet Ledger in Profile */
+.profile-wallet-ledger {
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.wallet-ledger-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-main);
+    padding: 4px 0;
+}
+
+.wallet-ledger-header:hover {
+    color: #10b981;
+}
+
+.wallet-transactions-list {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.wallet-tx-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 0.80rem;
+}
+
+.wallet-tx-item.tx-credit {
+    border-left: 3px solid #10b981;
+}
+
+.wallet-tx-item.tx-debit {
+    border-left: 3px solid #ef4444;
+}
+
+.wallet-tx-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wallet-tx-title {
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.wallet-tx-date {
+    font-size: 0.70rem;
+    color: var(--text-muted);
+}
+
+.wallet-tx-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.wallet-tx-amount {
+    font-weight: 800;
+    font-family: var(--font-heading);
+    font-size: 0.90rem;
+}
+
+.wallet-tx-amount.amount-credit {
+    color: #10b981;
+}
+
+.wallet-tx-amount.amount-debit {
+    color: #ef4444;
+}
+
+.wallet-tx-expiry {
+    font-size: 0.68rem;
+    color: #f59e0b;
+}
+
+/* OTP Modal Cashback Card */
+.otp-cashback-reward-card {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.16) 0%, rgba(5, 150, 105, 0.1) 100%);
+    border: 1.5px solid rgba(16, 185, 129, 0.4);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    margin-bottom: 6px;
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.otp-cashback-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #10b981;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.otp-cashback-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+}
+
+.otp-cashback-title {
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: #10b981;
+}
+
+.otp-cashback-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}

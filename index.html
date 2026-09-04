@@ -281,6 +281,51 @@
                     </div>
                 </div>
 
+                <!-- PERFETTO WALLET BALANCE & REWARDS CARD -->
+                <div class="profile-wallet-card" id="profile-wallet-card">
+                    <div class="profile-wallet-header">
+                        <div class="wallet-card-title-group">
+                            <div class="wallet-card-icon-wrap">
+                                <i class="fa-solid fa-wallet"></i>
+                            </div>
+                            <div>
+                                <h4 class="wallet-card-title">Perfetto Wallet</h4>
+                                <p class="wallet-card-subtitle">Cashback Rewards & Balance</p>
+                            </div>
+                        </div>
+                        <span class="wallet-status-pill" id="profile-wallet-status-pill">Active</span>
+                    </div>
+
+                    <div class="profile-wallet-body">
+                        <div class="wallet-amount-row">
+                            <div class="wallet-amount-display">
+                                <span class="wallet-currency-sym">₹</span>
+                                <span class="wallet-amount-val" id="profile-wallet-val">0</span>
+                            </div>
+                            <div class="wallet-expiry-tag" id="profile-wallet-expiry-tag" style="display: none;">
+                                <i class="fa-solid fa-hourglass-half"></i>
+                                <span id="profile-wallet-expiry-text">Expires in 7 days</span>
+                            </div>
+                        </div>
+
+                        <div class="wallet-rules-hint" id="profile-wallet-rules-hint">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span id="profile-wallet-rules-text">Auto-cashback on eligible orders • Redeemable on orders ≥ ₹200</span>
+                        </div>
+                    </div>
+
+                    <!-- WALLET RECENT TRANSACTIONS EXPANDABLE -->
+                    <div class="profile-wallet-ledger" id="profile-wallet-ledger">
+                        <div class="wallet-ledger-header" onclick="toggleWalletLedgerView()">
+                            <span><i class="fa-solid fa-clock-rotate-left"></i> Wallet Transactions</span>
+                            <i class="fa-solid fa-chevron-down" id="arrow-wallet-ledger"></i>
+                        </div>
+                        <div class="wallet-transactions-list" id="profile-wallet-tx-list" style="display: none;">
+                            <!-- Rendered dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
                 <!-- STATS ROW (Clean Total Orders Only) -->
                 <div class="profile-stats-row">
                     <div class="stat-card">
@@ -419,6 +464,13 @@
 
                 <div id="cart-items-container" class="cart-items-list">
                     <!-- Dynamic cart items rendered here -->
+                </div>
+
+                <!-- DYNAMIC CASHBACK INCENTIVE BAR -->
+                <div class="cart-cashback-bar" id="cart-cashback-bar" style="display: none;">
+                    <div class="cashback-bar-inner" id="cart-cashback-content">
+                        <!-- Dynamically populated via JS -->
+                    </div>
                 </div>
 
                 <!-- DYNAMIC CART THRESHOLD STATUS BANNER -->
@@ -765,10 +817,38 @@
                             <span class="checkout-summary-label">Delivery Fee</span>
                             <span class="checkout-summary-val" id="checkout-delivery">₹0</span>
                         </div>
+                        <div class="checkout-summary-row wallet-discount-row" id="checkout-wallet-discount-row" style="display: none;">
+                            <span class="checkout-summary-label"><i class="fa-solid fa-wallet"></i> Wallet Discount</span>
+                            <span class="checkout-summary-val" id="checkout-wallet-discount">-₹0</span>
+                        </div>
                         <div class="checkout-summary-divider"></div>
                         <div class="checkout-summary-row total-row">
                             <span>Grand Total</span>
                             <span class="checkout-total-val" id="checkout-total">₹0</span>
+                        </div>
+                    </div>
+
+                    <!-- WALLET REDEMPTION BOX -->
+                    <div class="checkout-wallet-redemption-card" id="checkout-wallet-card" style="display: none;">
+                        <div class="checkout-wallet-inner">
+                            <div class="checkout-wallet-left">
+                                <div class="wallet-icon-circle">
+                                    <i class="fa-solid fa-wallet"></i>
+                                </div>
+                                <div class="wallet-text-group">
+                                    <span class="wallet-balance-title">Perfetto Wallet Cash</span>
+                                    <span class="wallet-balance-sub">Available: <strong id="checkout-wallet-available-val">₹0</strong></span>
+                                </div>
+                            </div>
+                            <label class="checkout-wallet-checkbox-label" id="checkout-wallet-checkbox-label">
+                                <input type="checkbox" id="checkbox-use-wallet" onchange="handleToggleUseWallet(this.checked)">
+                                <span class="wallet-custom-check"></span>
+                                <span class="wallet-use-text" id="checkout-wallet-use-label">Use ₹0</span>
+                            </label>
+                        </div>
+                        <div class="wallet-ineligible-hint" id="checkout-wallet-hint" style="display: none;">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span id="checkout-wallet-hint-text">Min order ₹200 required to redeem wallet cash</span>
                         </div>
                     </div>
 
@@ -924,6 +1004,17 @@
                         <div class="otp-summary-row total-row">
                             <span><i class="fa-solid fa-receipt" style="color: var(--primary-orange);"></i> Total Amount:</span>
                             <strong class="otp-total-amount" id="otp-modal-total-amount">₹0</strong>
+                        </div>
+                    </div>
+
+                    <!-- CASHBACK REWARD CELEBRATION CARD -->
+                    <div class="otp-cashback-reward-card" id="otp-modal-cashback-card" style="display: none;">
+                        <div class="otp-cashback-icon-wrap">
+                            <i class="fa-solid fa-gift"></i>
+                        </div>
+                        <div class="otp-cashback-info">
+                            <div class="otp-cashback-title" id="otp-modal-cashback-text">🎉 ₹20 Cashback credited to your wallet!</div>
+                            <div class="otp-cashback-subtitle" id="otp-modal-cashback-expiry">Valid for 7 days. Use on your next order!</div>
                         </div>
                     </div>
 

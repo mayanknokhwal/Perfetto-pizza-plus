@@ -4,7 +4,7 @@
  * Handles GET, PUT, PATCH for shop status, delivery radius, min order, free delivery, zone charges, customer care
  */
 
-const { DEFAULT_SETTINGS, DEFAULT_DAILY_BANNERS, DEFAULT_FALLBACK_BANNER_LOGO } = require('../lib/globalStores');
+const { DEFAULT_SETTINGS, DEFAULT_DAILY_BANNERS, DEFAULT_FALLBACK_BANNER_LOGO, DEFAULT_WALLET_CONFIG } = require('../lib/globalStores');
 const { FIREBASE_CONFIG, getFirestoreDoc, setFirestoreDoc } = require('../lib/firestore');
 const {
     fetchDailyBannersFromFirestore,
@@ -127,11 +127,83 @@ async function handleBannersRequest(req, res) {
     }
 }
 
+/**
+ * Handles /api/wallet/config or /api/wallet requests (GET, PUT, POST)
+ * Document: settings/wallet_config
+ */
+async function handleWalletConfigRequest(req, res) {
+    try {
+        if (req.method === 'GET') {
+            let config = global.__perfettoWalletConfig;
+            try {
+                const doc = await getFirestoreDoc('settings', 'wallet_config');
+                if (doc) {
+                    config = { ...global.__perfettoWalletConfig, ...doc };
+                    global.__perfettoWalletConfig = config;
+                }
+            } catch (e) {
+                console.warn('Firestore wallet_config fetch notice:', e.message);
+            }
+
+            return res.status(200).json({
+                success: true,
+                config: config || DEFAULT_WALLET_CONFIG
+            });
+        }
+
+        if (req.method === 'PUT' || req.method === 'POST' || req.method === 'PATCH') {
+            let body = req.body;
+            if (typeof body === 'string') {
+                try { body = JSON.parse(body); } catch (e) { body = {}; }
+            }
+
+            const isEnabled = body.enabled !== undefined ? Boolean(body.enabled) : true;
+            const expiryDays = body.expiryDays !== undefined ? Math.max(1, parseInt(body.expiryDays, 10) || 7) : 7;
+            const minRedemptionOrder = body.minRedemptionOrder !== undefined ? Math.max(0, parseFloat(body.minRedemptionOrder) || 200) : 200;
+
+            const slabs = Array.isArray(body.slabs) && body.slabs.length >= 4
+                ? body.slabs.map((s, i) => ({
+                    minOrder: Math.max(0, parseFloat(s.minOrder) || DEFAULT_WALLET_CONFIG.slabs[i].minOrder),
+                    cashback: Math.max(0, parseFloat(s.cashback) || DEFAULT_WALLET_CONFIG.slabs[i].cashback)
+                }))
+                : DEFAULT_WALLET_CONFIG.slabs;
+
+            const updatedConfig = {
+                key: 'wallet_config',
+                enabled: isEnabled,
+                expiryDays,
+                minRedemptionOrder,
+                slabs,
+                updatedAt: new Date().toISOString()
+            };
+
+            global.__perfettoWalletConfig = updatedConfig;
+            await setFirestoreDoc('settings', 'wallet_config', updatedConfig);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Wallet & Cashback settings saved successfully to Firebase Firestore',
+                config: updatedConfig
+            });
+        }
+
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    } catch (error) {
+        console.error('Error in handleWalletConfigRequest:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal Server Error'
+        });
+    }
+}
+
 module.exports = {
     handleSettingsRequest,
     handleBannersRequest,
+    handleWalletConfigRequest,
     DEFAULT_SETTINGS,
     DEFAULT_DAILY_BANNERS,
     DEFAULT_FALLBACK_BANNER_LOGO,
+    DEFAULT_WALLET_CONFIG
 };
 

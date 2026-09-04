@@ -4020,6 +4020,523 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
     }
 }
 
+// --------------------------------------------------------------------------
+// 4B. WALLET & CASHBACK CLIENT CONTROLLER (STEP 2)
+// Dynamic Incentive Bar in Cart & Wallet Redemption at Checkout
+// --------------------------------------------------------------------------
+const DEFAULT_WALLET_CONFIG = {
+    enabled: true,
+    expiryDays: 7,
+    minRedemptionOrder: 200,
+    slabs: [
+        { minOrder: 200, cashback: 20 },
+        { minOrder: 500, cashback: 50 },
+        { minOrder: 1000, cashback: 100 },
+        { minOrder: 2000, cashback: 200 }
+    ]
+};
+
+let customerWalletConfig = (function() {
+    try {
+        const stored = localStorage.getItem('perfetto_wallet_config');
+        if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG));
+})();
+
+let currentCustomerWallet = (function() {
+    try {
+        const stored = localStorage.getItem('perfetto_customer_wallet');
+        if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return { balance: 0, nonExpiredBalance: 0 };
+})();
+
+let isWalletRedemptionSelected = false;
+let appliedWalletDiscountAmount = 0;
+let customerWalletRealtimeUnsubscribe = null;
+let walletConfigRealtimeUnsubscribe = null;
+
+function calculateValidWalletBalance(walletDoc) {
+    if (!walletDoc) return { balance: 0, nonExpiredBalance: 0 };
+    const rawBalance = typeof walletDoc.balance === 'number' ? walletDoc.balance : (parseFloat(walletDoc.balance) || 0);
+    let validBalance = rawBalance;
+
+    // Check expiry timestamp on wallet doc
+    if (walletDoc.expiresAt) {
+        const exp = walletDoc.expiresAt.toDate ? walletDoc.expiresAt.toDate() : new Date(walletDoc.expiresAt);
+        if (!isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+            validBalance = 0;
+        }
+    }
+
+    return {
+        balance: Math.max(0, rawBalance),
+        nonExpiredBalance: Math.max(0, validBalance)
+    };
+}
+
+async function fetchCustomerWallet(phone) {
+    if (!phone) return currentCustomerWallet;
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone) return currentCustomerWallet;
+
+    if (customerFirestore) {
+        try {
+            const doc = await customerFirestore.collection('wallets').doc(cleanPhone).get();
+            if (doc.exists && doc.data()) {
+                const valid = calculateValidWalletBalance(doc.data());
+                currentCustomerWallet = {
+                    ...doc.data(),
+                    ...valid
+                };
+                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                return currentCustomerWallet;
+            }
+        } catch (e) {
+            console.warn('Error fetching customer wallet:', e.message);
+        }
+    }
+
+    return currentCustomerWallet;
+}
+window.fetchCustomerWallet = fetchCustomerWallet;
+
+function listenToCustomerWalletRealtime(phone) {
+    if (!phone || !customerFirestore) return;
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone) return;
+
+    if (customerWalletRealtimeUnsubscribe) {
+        try { customerWalletRealtimeUnsubscribe(); } catch (e) {}
+        customerWalletRealtimeUnsubscribe = null;
+    }
+
+    try {
+        customerWalletRealtimeUnsubscribe = customerFirestore.collection('wallets').doc(cleanPhone).onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                const valid = calculateValidWalletBalance(doc.data());
+                currentCustomerWallet = {
+                    ...doc.data(),
+                    ...valid
+                };
+                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                updateCheckoutWalletUI();
+            }
+        }, (err) => {
+            console.warn('Real-time wallet listener notice:', err.message);
+        });
+    } catch (e) {
+        console.warn('Error setting up customer wallet listener:', e);
+    }
+}
+
+function updateCartCashbackIncentiveBar(subtotal) {
+    const bar = document.getElementById('cart-cashback-bar');
+    const content = document.getElementById('cart-cashback-content');
+    if (!bar || !content) return;
+
+    if (!customerWalletConfig || customerWalletConfig.enabled === false || cart.length === 0 || subtotal <= 0) {
+        bar.style.display = 'none';
+        return;
+    }
+
+    const rawSlabs = Array.isArray(customerWalletConfig.slabs) && customerWalletConfig.slabs.length > 0
+        ? customerWalletConfig.slabs
+        : DEFAULT_WALLET_CONFIG.slabs;
+
+    const slabs = [...rawSlabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
+    if (slabs.length === 0) {
+        bar.style.display = 'none';
+        return;
+    }
+
+    let unlockedCashback = 0;
+    let nextSlab = null;
+
+    for (let i = 0; i < slabs.length; i++) {
+        const slab = slabs[i];
+        const minOrder = Number(slab.minOrder) || 0;
+        const cashback = Number(slab.cashback) || 0;
+
+        if (subtotal >= minOrder) {
+            unlockedCashback = cashback;
+        } else {
+            nextSlab = { minOrder, cashback };
+            break;
+        }
+    }
+
+    bar.style.display = 'block';
+
+    if (nextSlab) {
+        const diff = Math.max(0, nextSlab.minOrder - subtotal);
+        bar.classList.remove('cashback-max-unlocked');
+
+        const unlockedBadge = unlockedCashback > 0
+            ? `<span class="cashback-current-badge"><i class="fa-solid fa-gift"></i> ₹${unlockedCashback} Unlocked</span>`
+            : '';
+
+        content.innerHTML = `
+            <div class="cashback-bar-left">
+                <i class="fa-solid fa-coins"></i>
+                <span class="cashback-bar-text">Add <strong>${formatPrice(diff)}</strong> more to earn <strong>${formatPrice(nextSlab.cashback)} Cashback</strong> on this order!</span>
+            </div>
+            ${unlockedBadge}
+        `;
+    } else {
+        bar.classList.add('cashback-max-unlocked');
+        content.innerHTML = `
+            <div class="cashback-bar-left">
+                <i class="fa-solid fa-circle-check"></i>
+                <span class="cashback-bar-text">🎉 You unlocked maximum <strong>${formatPrice(unlockedCashback)} Cashback</strong> on this order!</span>
+            </div>
+            <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> Max Cashback</span>
+        `;
+    }
+}
+window.updateCartCashbackIncentiveBar = updateCartCashbackIncentiveBar;
+
+function updateCheckoutWalletUI() {
+    const walletCard = document.getElementById('checkout-wallet-card');
+    const availValEl = document.getElementById('checkout-wallet-available-val');
+    const checkbox = document.getElementById('checkbox-use-wallet');
+    const labelEl = document.getElementById('checkout-wallet-use-label');
+    const checkLabelWrap = document.getElementById('checkout-wallet-checkbox-label');
+    const hintEl = document.getElementById('checkout-wallet-hint');
+    const hintTextEl = document.getElementById('checkout-wallet-hint-text');
+    const discountRow = document.getElementById('checkout-wallet-discount-row');
+    const discountValEl = document.getElementById('checkout-wallet-discount');
+    const totalEl = document.getElementById('checkout-total');
+
+    if (!walletCard) return;
+
+    const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
+    const availableBalance = (currentCustomerWallet && typeof currentCustomerWallet.nonExpiredBalance === 'number')
+        ? currentCustomerWallet.nonExpiredBalance
+        : ((currentCustomerWallet && currentCustomerWallet.balance) || 0);
+
+    if (!isSystemEnabled || availableBalance <= 0 || cart.length === 0) {
+        walletCard.style.display = 'none';
+        isWalletRedemptionSelected = false;
+        appliedWalletDiscountAmount = 0;
+        if (discountRow) discountRow.style.display = 'none';
+        return;
+    }
+
+    // Show wallet card
+    walletCard.style.display = 'block';
+    if (availValEl) availValEl.textContent = formatPrice(availableBalance);
+
+    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    const savedProfile = getSavedDeliveryProfile();
+    const customCoords = (savedProfile && savedProfile.gpsLat && savedProfile.gpsLng)
+        ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
+        : null;
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
+    const deliveryFee = deliveryInfo.finalDeliveryFee;
+    const baseTotal = subtotal + deliveryFee;
+
+    const minRedemption = (customerWalletConfig && typeof customerWalletConfig.minRedemptionOrder === 'number')
+        ? customerWalletConfig.minRedemptionOrder
+        : 200;
+
+    const isEligible = subtotal >= minRedemption;
+    const maxRedeemable = Math.min(availableBalance, baseTotal);
+
+    if (!isEligible) {
+        // Ineligible: cart < minRedemption
+        if (checkbox) {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+        }
+        if (checkLabelWrap) {
+            checkLabelWrap.classList.add('is-disabled');
+        }
+        if (labelEl) {
+            labelEl.textContent = `Use ₹0`;
+        }
+        if (hintEl && hintTextEl) {
+            hintEl.style.display = 'flex';
+            const diff = minRedemption - subtotal;
+            hintTextEl.textContent = `Min order ${formatPrice(minRedemption)} required to redeem wallet cash (Add ${formatPrice(diff)} more).`;
+        }
+        isWalletRedemptionSelected = false;
+        appliedWalletDiscountAmount = 0;
+        if (discountRow) discountRow.style.display = 'none';
+        if (totalEl) totalEl.textContent = formatPrice(baseTotal);
+    } else {
+        // Eligible!
+        if (checkbox) {
+            checkbox.disabled = false;
+            checkbox.checked = isWalletRedemptionSelected;
+        }
+        if (checkLabelWrap) {
+            checkLabelWrap.classList.remove('is-disabled');
+        }
+        if (labelEl) {
+            labelEl.textContent = `Use ${formatPrice(maxRedeemable)} Cash`;
+        }
+        if (hintEl) {
+            hintEl.style.display = 'none';
+        }
+
+        if (isWalletRedemptionSelected) {
+            appliedWalletDiscountAmount = maxRedeemable;
+            const finalTotal = Math.max(0, baseTotal - appliedWalletDiscountAmount);
+            if (discountRow) discountRow.style.display = 'flex';
+            if (discountValEl) discountValEl.textContent = `-${formatPrice(appliedWalletDiscountAmount)}`;
+            if (totalEl) totalEl.textContent = formatPrice(finalTotal);
+        } else {
+            appliedWalletDiscountAmount = 0;
+            if (discountRow) discountRow.style.display = 'none';
+            if (totalEl) totalEl.textContent = formatPrice(baseTotal);
+        }
+    }
+}
+window.updateCheckoutWalletUI = updateCheckoutWalletUI;
+
+function handleToggleUseWallet(isChecked) {
+    isWalletRedemptionSelected = isChecked;
+    updateCheckoutWalletUI();
+}
+window.handleToggleUseWallet = handleToggleUseWallet;
+
+async function debitCustomerWallet(phone, amount, orderId) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone || !amount || amount <= 0) return;
+
+    try {
+        if (customerFirestore) {
+            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
+            const snap = await walletRef.get();
+            const currentBal = (snap.exists && typeof snap.data().balance === 'number') ? snap.data().balance : 0;
+            const newBal = Math.max(0, currentBal - amount);
+
+            await walletRef.set({
+                phone: cleanPhone,
+                balance: newBal,
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString()
+            }, { merge: true });
+
+            await walletRef.collection('transactions').add({
+                type: 'debit',
+                amount: amount,
+                orderId: String(orderId),
+                description: `Redeemed on Order #${orderId}`,
+                createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString()
+            });
+        }
+
+        currentCustomerWallet.balance = Math.max(0, (currentCustomerWallet.balance || 0) - amount);
+        currentCustomerWallet.nonExpiredBalance = Math.max(0, (currentCustomerWallet.nonExpiredBalance || 0) - amount);
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+        updateProfileWalletUI();
+    } catch (err) {
+        console.warn('Error debiting customer wallet in Firestore:', err);
+    }
+}
+window.debitCustomerWallet = debitCustomerWallet;
+
+function calculateOrderCashback(subtotal) {
+    if (!customerWalletConfig || customerWalletConfig.enabled === false || subtotal <= 0) return 0;
+    const rawSlabs = Array.isArray(customerWalletConfig.slabs) && customerWalletConfig.slabs.length > 0
+        ? customerWalletConfig.slabs
+        : DEFAULT_WALLET_CONFIG.slabs;
+
+    const sorted = [...rawSlabs].sort((a, b) => (Number(b.minOrder) || 0) - (Number(a.minOrder) || 0));
+    for (const slab of sorted) {
+        if (subtotal >= Number(slab.minOrder || 0)) {
+            return Number(slab.cashback || 0);
+        }
+    }
+    return 0;
+}
+window.calculateOrderCashback = calculateOrderCashback;
+
+async function creditCustomerWallet(phone, amount, orderId) {
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone || !amount || amount <= 0) return;
+
+    const expiryDays = (customerWalletConfig && typeof customerWalletConfig.expiryDays === 'number')
+        ? customerWalletConfig.expiryDays
+        : 7;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+        if (customerFirestore) {
+            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
+            const snap = await walletRef.get();
+            const data = snap.exists ? snap.data() : {};
+            const currentBal = typeof data.balance === 'number' ? data.balance : 0;
+            const newBal = currentBal + amount;
+
+            await walletRef.set({
+                phone: cleanPhone,
+                balance: newBal,
+                expiresAt: expiresAt,
+                lastCreditedAt: now.toISOString(),
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : now.toISOString()
+            }, { merge: true });
+
+            await walletRef.collection('transactions').add({
+                type: 'credit',
+                amount: amount,
+                orderId: String(orderId),
+                description: `Cashback earned on Order #${orderId}`,
+                createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : now.toISOString(),
+                expiresAt: expiresAt,
+                expiryDays: expiryDays,
+                status: 'active'
+            });
+        }
+
+        // Update local storage and in-memory wallet
+        const prevBal = (currentCustomerWallet && currentCustomerWallet.balance) || 0;
+        const newBalance = prevBal + amount;
+        const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+        existingTx.unshift({
+            type: 'credit',
+            amount: amount,
+            orderId: String(orderId),
+            description: `Cashback earned on Order #${orderId}`,
+            createdAt: now.toISOString(),
+            expiresAt: expiresAt,
+            expiryDays: expiryDays,
+            status: 'active'
+        });
+
+        currentCustomerWallet = {
+            ...currentCustomerWallet,
+            phone: cleanPhone,
+            balance: newBalance,
+            nonExpiredBalance: newBalance,
+            expiresAt: expiresAt,
+            transactions: existingTx.slice(0, 30)
+        };
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+        updateProfileWalletUI();
+    } catch (err) {
+        console.warn('Error crediting customer wallet in Firestore:', err);
+    }
+}
+window.creditCustomerWallet = creditCustomerWallet;
+
+function updateProfileWalletUI() {
+    const valEl = document.getElementById('profile-wallet-val');
+    const expiryTag = document.getElementById('profile-wallet-expiry-tag');
+    const expiryText = document.getElementById('profile-wallet-expiry-text');
+    const rulesText = document.getElementById('profile-wallet-rules-text');
+
+    if (!valEl) return;
+
+    const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
+
+    // Filter out expired balances
+    const valid = calculateValidWalletBalance(currentCustomerWallet);
+    const balance = valid.nonExpiredBalance;
+
+    valEl.textContent = balance;
+
+    const minRedeem = (customerWalletConfig && customerWalletConfig.minRedemptionOrder) || 200;
+    if (rulesText) {
+        rulesText.textContent = isSystemEnabled
+            ? `Auto-cashback on eligible orders • Redeemable on orders ≥ ₹${minRedeem}`
+            : `Wallet rewards system is currently paused.`;
+    }
+
+    if (balance > 0 && currentCustomerWallet.expiresAt) {
+        const expDate = new Date(currentCustomerWallet.expiresAt);
+        if (!isNaN(expDate.getTime())) {
+            const diffMs = expDate.getTime() - Date.now();
+            const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) {
+                if (expiryTag && expiryText) {
+                    expiryTag.style.display = 'flex';
+                    expiryText.textContent = diffDays === 1 ? 'Expires in 1 day' : `Expires in ${diffDays} days`;
+                }
+            } else if (expiryTag) {
+                expiryTag.style.display = 'none';
+            }
+        }
+    } else if (expiryTag) {
+        expiryTag.style.display = 'none';
+    }
+
+    renderProfileWalletTxList();
+}
+window.updateProfileWalletUI = updateProfileWalletUI;
+
+function toggleWalletLedgerView() {
+    const list = document.getElementById('profile-wallet-tx-list');
+    const arrow = document.getElementById('arrow-wallet-ledger');
+    if (!list) return;
+
+    const isHidden = list.style.display === 'none' || list.style.display === '';
+    list.style.display = isHidden ? 'flex' : 'none';
+    if (arrow) {
+        arrow.className = isHidden ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
+    }
+}
+window.toggleWalletLedgerView = toggleWalletLedgerView;
+
+function renderProfileWalletTxList() {
+    const container = document.getElementById('profile-wallet-tx-list');
+    if (!container) return;
+
+    const txList = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+    const now = Date.now();
+
+    if (txList.length === 0) {
+        container.innerHTML = `
+            <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
+                No wallet transactions yet. Place an order of ₹200+ to earn cashback!
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = txList.slice(0, 15).map(tx => {
+        const isCredit = tx.type === 'credit' || (tx.amount && Number(tx.amount) > 0);
+        const amt = Math.abs(Number(tx.amount) || 0);
+        const dateStr = tx.createdAt ? new Date(tx.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently';
+
+        let expiryNotice = '';
+        if (isCredit && tx.expiresAt) {
+            const expTime = new Date(tx.expiresAt).getTime();
+            if (expTime < now) {
+                expiryNotice = '<span style="color: #ef4444;">(Expired)</span>';
+            } else {
+                const days = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
+                expiryNotice = `<span>(Valid for ${days}d)</span>`;
+            }
+        }
+
+        return `
+            <div class="wallet-tx-item ${isCredit ? 'tx-credit' : 'tx-debit'}">
+                <div class="wallet-tx-left">
+                    <span class="wallet-tx-title">${tx.description || (isCredit ? 'Cashback Received' : 'Wallet Redeemed')}</span>
+                    <span class="wallet-tx-date">${dateStr}</span>
+                </div>
+                <div class="wallet-tx-right">
+                    <span class="wallet-tx-amount ${isCredit ? 'amount-credit' : 'amount-debit'}">${isCredit ? '+' : '-'}₹${amt}</span>
+                    <span class="wallet-tx-expiry">${expiryNotice}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+window.renderProfileWalletTxList = renderProfileWalletTxList;
+
 // REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
 window.addEventListener('storage', (e) => {
     if (!e.key || e.key === SHOP_STATUS_KEY || e.key === OPENING_TIME_KEY || e.key === CLOSING_TIME_KEY || e.key === AUTO_SCHEDULE_KEY || e.key === MANUAL_OVERRIDE_KEY) {
@@ -4027,6 +4544,14 @@ window.addEventListener('storage', (e) => {
     }
     if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
         updateCartUI();
+    }
+    if (!e.key || e.key === 'perfetto_wallet_config' || e.key === 'perfetto_customer_wallet') {
+        try {
+            if (e.key === 'perfetto_wallet_config') customerWalletConfig = JSON.parse(localStorage.getItem('perfetto_wallet_config') || '{}');
+            if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = JSON.parse(localStorage.getItem('perfetto_customer_wallet') || '{}');
+        } catch (err) {}
+        updateCartUI();
+        updateCheckoutWalletUI();
     }
     if (!e.key || e.key === MENU_STORAGE_KEY) {
         if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
@@ -4218,10 +4743,9 @@ function updateCartUI() {
         }
     }
 
-    if (totalEl) totalEl.textContent = formatPrice(total);
-
-    // 4. Update Cart Threshold Banner & Checkout Button State
+    // 4. Update Cart Threshold Banner, Cashback Incentive Bar & Checkout Button State
     updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim);
+    updateCartCashbackIncentiveBar(subtotal);
 
     // 5. Ensure shop closed state overrides if shop is closed
     checkAndUpdateShopStatusUI();
@@ -4336,6 +4860,14 @@ function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
+    // Fetch latest wallet balance & attach real-time listener for current customer phone
+    if (profile && profile.phone) {
+        fetchCustomerWallet(profile.phone).then(() => {
+            updateCheckoutWalletUI();
+        });
+        listenToCustomerWalletRealtime(profile.phone);
+    }
+
     const itemCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     const customCoords = (profile && profile.gpsLat !== undefined && profile.gpsLng !== undefined && profile.gpsLat !== null && profile.gpsLng !== null)
@@ -4388,6 +4920,9 @@ function openCheckoutModal(profile) {
             ${gpsInfo}
         `;
     }
+
+    // 3. Update & render customer wallet redemption state
+    updateCheckoutWalletUI();
 
     // Reset Address confirmation state & hide payment alert
     isCheckoutAddressConfirmed = false;
@@ -4536,7 +5071,10 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
 
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
     const deliveryFee = deliveryInfo.finalDeliveryFee;
-    const grandTotal = subtotal + deliveryFee;
+    const baseGrandTotal = subtotal + deliveryFee;
+    const walletDiscountToApply = isWalletRedemptionSelected ? Math.min(appliedWalletDiscountAmount, baseGrandTotal) : 0;
+    const grandTotal = Math.max(0, baseGrandTotal - walletDiscountToApply);
+    const earnedCashback = calculateOrderCashback(subtotal);
 
     const orderId = specificOrderId || getNextOrderSequenceNumber().toString();
     const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
@@ -4584,12 +5122,27 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         items: orderItems,
         subtotal: Math.round(subtotal),
         deliveryFee: deliveryFee,
+        walletDiscount: Math.round(walletDiscountToApply),
+        usedWalletCash: Math.round(walletDiscountToApply),
+        earnedCashback: Math.round(earnedCashback),
         total: Math.round(grandTotal),
         paymentMethod: paymentMethod,
         paymentStatus: paymentStatus,
         status: 'new',
         createdAt: now.toISOString()
     };
+
+    // If wallet cash was used, debit customer's wallet in Firestore & local state
+    if (walletDiscountToApply > 0 && profile && profile.phone) {
+        debitCustomerWallet(profile.phone, walletDiscountToApply, orderId);
+        isWalletRedemptionSelected = false;
+        appliedWalletDiscountAmount = 0;
+    }
+
+    // If cashback was earned on this order, credit customer's wallet with expiry
+    if (earnedCashback > 0 && profile && profile.phone) {
+        creditCustomerWallet(profile.phone, earnedCashback, orderId);
+    }
 
     // 1. Save order to LocalStorage (Immediate Offline Resilience)
     let ordersList = [];
@@ -4881,6 +5434,24 @@ function openOrderOtpSuccessModal(order) {
     // Render individual glowing digit boxes
     if (digitsContainer) {
         digitsContainer.innerHTML = otp.split('').map(d => `<span class="otp-digit-box">${d}</span>`).join('');
+    }
+
+    // Display enthusiastic earned cashback confirmation if cashback was awarded
+    const cashbackCard = document.getElementById('otp-modal-cashback-card');
+    const cashbackText = document.getElementById('otp-modal-cashback-text');
+    const cashbackExpiry = document.getElementById('otp-modal-cashback-expiry');
+    const earnedCashback = (order && order.earnedCashback) ? Number(order.earnedCashback) : 0;
+    const expiryDays = (customerWalletConfig && typeof customerWalletConfig.expiryDays === 'number') ? customerWalletConfig.expiryDays : 7;
+
+    if (cashbackCard) {
+        if (earnedCashback > 0) {
+            cashbackCard.style.display = 'flex';
+            if (cashbackText) cashbackText.textContent = `🎉 ₹${earnedCashback} Cashback credited to your wallet!`;
+            if (cashbackExpiry) cashbackExpiry.textContent = `Valid for ${expiryDays} days. Use on your next order!`;
+            showToast(`🎉 ₹${earnedCashback} Cashback credited to your wallet! Valid for ${expiryDays} days.`, 5000);
+        } else {
+            cashbackCard.style.display = 'none';
+        }
     }
 
     modal.style.display = 'flex';
@@ -6201,6 +6772,15 @@ function updateProfileTotalsUI() {
     } catch (e) { }
 
     renderProfileHeaderAndInputs(currentProfile);
+
+    // Update Perfetto Wallet UI in Profile Tab & sync latest Firestore balance
+    updateProfileWalletUI();
+    if (currentProfile && currentProfile.phone) {
+        fetchCustomerWallet(currentProfile.phone).then(() => {
+            updateProfileWalletUI();
+        });
+        listenToCustomerWalletRealtime(currentProfile.phone);
+    }
 }
 
 function toggleSavedAddressesView() {
@@ -7570,6 +8150,27 @@ function listenToRealtimeMenuAndRates() {
             });
         } catch (e) {
             console.warn('Error setting up daily banners real-time listener:', e);
+        }
+    }
+
+    // B.3 Real-Time Wallet & Cashback Slabs Config Sync ('settings/wallet_config')
+    if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
+        try {
+            walletConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('wallet_config').onSnapshot((doc) => {
+                if (doc.exists && doc.data()) {
+                    customerWalletConfig = {
+                        ...DEFAULT_WALLET_CONFIG,
+                        ...doc.data()
+                    };
+                    localStorage.setItem('perfetto_wallet_config', JSON.stringify(customerWalletConfig));
+                    updateCartUI();
+                    updateCheckoutWalletUI();
+                }
+            }, (err) => {
+                console.warn('Firestore wallet_config real-time notice:', err.message);
+            });
+        } catch (e) {
+            console.warn('Error setting up wallet_config real-time listener:', e);
         }
     }
 }
