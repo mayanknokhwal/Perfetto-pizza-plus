@@ -62,23 +62,71 @@ export function normalizeWalletConfig(raw) {
 }
 
 /**
- * Calculates eligible cashback amount for a given order total based on active slabs
+ * Calculates eligible cashback reward or boundaries for a given order total based on active slabs.
+ * Follows fair uniform distribution: [prevTierCashback + 1, currentTierCashback]
  * @param {number} orderAmount 
  * @param {Object} walletConfig 
+ * @param {boolean} [generateRandom=false] 
  * @returns {number}
  */
-export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG) {
-    if (!walletConfig || walletConfig.enabled === false) return 0;
-    const slabs = walletConfig.slabs || DEFAULT_WALLET_CONFIG.slabs;
+export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG, generateRandom = false) {
+    if (!walletConfig || walletConfig.enabled === false || orderAmount <= 0) return 0;
+    const rawSlabs = walletConfig.slabs || DEFAULT_WALLET_CONFIG.slabs;
     
-    // Sort slabs descending by minOrder
-    const sorted = [...slabs].sort((a, b) => b.minOrder - a.minOrder);
-    for (const slab of sorted) {
-        if (orderAmount >= slab.minOrder) {
-            return slab.cashback;
+    // Sort slabs ascending by minOrder
+    const sorted = [...rawSlabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
+    let qualifiedIndex = -1;
+    for (let i = 0; i < sorted.length; i++) {
+        if (orderAmount >= (Number(sorted[i].minOrder) || 0)) {
+            qualifiedIndex = i;
         }
     }
-    return 0;
+    if (qualifiedIndex === -1) return 0;
+
+    const currentSlab = sorted[qualifiedIndex];
+    const max = Number(currentSlab.cashback) || 0;
+    let min = 1;
+    if (qualifiedIndex > 0) {
+        min = (Number(sorted[qualifiedIndex - 1].cashback) || 0) + 1;
+    }
+    if (max < min) min = Math.max(1, Math.min(min, max));
+
+    if (generateRandom) {
+        if (min >= max) return max;
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    return max;
+}
+
+/**
+ * Returns boundaries [min, max] for a given order total
+ * @param {number} orderAmount 
+ * @param {Object} walletConfig 
+ * @returns {{ qualified: boolean, min: number, max: number, tierIndex: number }}
+ */
+export function getCashbackTierBoundaries(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG) {
+    if (!walletConfig || walletConfig.enabled === false || orderAmount <= 0) {
+        return { qualified: false, min: 0, max: 0, tierIndex: -1 };
+    }
+    const rawSlabs = walletConfig.slabs || DEFAULT_WALLET_CONFIG.slabs;
+    const sorted = [...rawSlabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
+    let qualifiedIndex = -1;
+    for (let i = 0; i < sorted.length; i++) {
+        if (orderAmount >= (Number(sorted[i].minOrder) || 0)) {
+            qualifiedIndex = i;
+        }
+    }
+    if (qualifiedIndex === -1) return { qualified: false, min: 0, max: 0, tierIndex: -1 };
+
+    const max = Number(sorted[qualifiedIndex].cashback) || 0;
+    let min = 1;
+    if (qualifiedIndex > 0) {
+        min = (Number(sorted[qualifiedIndex - 1].cashback) || 0) + 1;
+    }
+    if (max < min) min = Math.max(1, Math.min(min, max));
+
+    return { qualified: true, min, max, tierIndex: qualifiedIndex };
 }
 
 // --------------------------------------------------------------------------

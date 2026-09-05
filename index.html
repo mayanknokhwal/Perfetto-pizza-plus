@@ -331,6 +331,22 @@
                             <i class="fa-solid fa-circle-check"></i>
                             <span id="profile-wallet-rules-text" data-i18n="wallet_rules_default">Auto-cashback on eligible orders • 100% usable on any order</span>
                         </div>
+
+                        <!-- UNCLAIMED SCRATCH CARDS BANNER IN PROFILE -->
+                        <div class="profile-scratch-unclaimed-banner" id="profile-scratch-unclaimed-banner" style="display: none;" onclick="openFirstUnclaimedScratchCard()">
+                            <div class="scratch-unclaimed-left">
+                                <div class="scratch-unclaimed-icon-ring">
+                                    <i class="fa-solid fa-gift fa-bounce"></i>
+                                </div>
+                                <div class="scratch-unclaimed-text">
+                                    <strong id="profile-scratch-banner-title">🎁 You have an Unclaimed Scratch Card!</strong>
+                                    <span id="profile-scratch-banner-sub">Scratch to reveal your cashback reward</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-scratch-banner-action" id="btn-scratch-banner-action">
+                                Scratch Now ✨
+                            </button>
+                        </div>
                     </div>
 
                     <!-- WALLET RECENT TRANSACTIONS EXPANDABLE -->
@@ -959,6 +975,19 @@
                         </div>
                     </div>
 
+                    <!-- CHECKOUT CASHBACK SCRATCH CARD TEASER -->
+                    <div class="checkout-cashback-teaser-card" id="checkout-cashback-teaser" style="display: none;">
+                        <div class="checkout-teaser-inner">
+                            <div class="checkout-teaser-icon">
+                                <i class="fa-solid fa-gift"></i>
+                            </div>
+                            <div class="checkout-teaser-content">
+                                <span class="checkout-teaser-title" id="checkout-cashback-teaser-text">Win up to ₹45 Cashback (Scratch Card unlocked!)</span>
+                                <span class="checkout-teaser-sub" id="checkout-cashback-teaser-sub">Credited directly to your wallet upon order delivery</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- STEP 1: DELIVERY ADDRESS SUMMARY CARD -->
                     <div class="checkout-step-section" id="checkout-address-section">
                         <div class="checkout-section-header">
@@ -1135,6 +1164,71 @@
                         </button>
                     </div>
 
+                </div>
+
+            </div>
+        </div>
+
+        <!-- INTERACTIVE SCRATCH CARD REWARD MODAL / OVERLAY -->
+        <div class="scratch-modal-overlay" id="scratch-card-modal" aria-hidden="true" style="display: none;">
+            <canvas id="scratch-confetti-canvas" class="scratch-confetti-canvas"></canvas>
+            <div class="scratch-modal-card" role="dialog" aria-labelledby="scratch-modal-title">
+                
+                <!-- CLOSE BUTTON -->
+                <button type="button" class="scratch-modal-close-btn" id="btn-close-scratch-modal" onclick="closeScratchCardModal()" aria-label="Close Scratch Card">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+
+                <!-- HEADER -->
+                <div class="scratch-modal-header">
+                    <div class="scratch-badge-icon">
+                        <i class="fa-solid fa-gift"></i>
+                    </div>
+                    <div>
+                        <h3 class="scratch-modal-title" id="scratch-modal-title" data-i18n="scratch_card_title">Cashback Scratch Card 🎁</h3>
+                        <p class="scratch-modal-subtitle" id="scratch-modal-subtitle">
+                            Order <span id="scratch-modal-order-id" class="scratch-modal-order-tag">#--</span> • Scratch to reveal your reward!
+                        </p>
+                    </div>
+                </div>
+
+                <!-- SCRATCH CARD STAGE WRAPPER -->
+                <div class="scratch-card-box-wrapper">
+                    <div class="scratch-card-stage" id="scratch-card-stage">
+                        <!-- REVEAL STATE (Underneath Canvas) -->
+                        <div class="scratch-reveal-content" id="scratch-reveal-content">
+                            <div class="scratch-reveal-glow-ray"></div>
+                            <div class="scratch-win-badge">
+                                <i class="fa-solid fa-crown"></i> <span id="scratch-reveal-congrats-text" data-i18n="scratch_you_won">YOU WON!</span>
+                            </div>
+                            <div class="scratch-amount-display" id="scratch-reveal-amount">
+                                ₹0
+                            </div>
+                            <div class="scratch-reward-label" id="scratch-reveal-label" data-i18n="scratch_cashback_bonus">
+                                Cashback Reward
+                            </div>
+                            <div class="scratch-validity-note" id="scratch-reveal-validity">
+                                Valid for 7 days in your wallet
+                            </div>
+                        </div>
+
+                        <!-- SCRATCHABLE INTERACTIVE CANVAS (On Top of Reveal State) -->
+                        <canvas id="scratch-interactive-canvas" class="scratch-interactive-canvas"></canvas>
+                    </div>
+
+                    <!-- INSTRUCTION & STATUS HINT -->
+                    <div class="scratch-instruction-hint" id="scratch-instruction-hint">
+                        <i class="fa-solid fa-hand-pointer fa-bounce" id="scratch-hint-icon"></i>
+                        <span id="scratch-instruction-text" data-i18n="scratch_instruction">Scratch the card using your finger or mouse!</span>
+                    </div>
+                </div>
+
+                <!-- MODAL ACTION BUTTONS -->
+                <div class="scratch-modal-actions">
+                    <button type="button" class="btn-scratch-claim" id="btn-scratch-claim" onclick="handleClaimScratchReward()" disabled>
+                        <i class="fa-solid fa-wallet"></i>
+                        <span id="scratch-claim-btn-text" data-i18n="scratch_claim_btn">Claim to Wallet</span>
+                    </button>
                 </div>
 
             </div>

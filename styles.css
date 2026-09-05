@@ -6528,6 +6528,83 @@ html[lang="hi"] .nav-label {
     font-weight: 800;
 }
 
+/* Checkout Cashback Scratch Card Teaser */
+.checkout-cashback-teaser-card {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(217, 119, 6, 0.08) 100%);
+    border: 1.5px solid rgba(245, 158, 11, 0.35);
+    border-radius: 16px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    margin-bottom: 6px;
+    transition: all 0.25s ease;
+    box-sizing: border-box;
+}
+
+[data-theme="dark"] .checkout-cashback-teaser-card {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(180, 83, 9, 0.12) 100%);
+    border-color: rgba(245, 158, 11, 0.45);
+}
+
+.checkout-cashback-teaser-card.teaser-wallet-applied {
+    background: rgba(100, 116, 139, 0.1);
+    border-color: rgba(148, 163, 184, 0.3);
+    opacity: 0.88;
+}
+
+.checkout-teaser-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.checkout-teaser-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+}
+
+.checkout-cashback-teaser-card.teaser-wallet-applied .checkout-teaser-icon {
+    background: rgba(148, 163, 184, 0.18);
+    color: var(--text-muted);
+    box-shadow: none;
+}
+
+.checkout-teaser-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.checkout-teaser-title {
+    font-size: 0.86rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.3;
+}
+
+.checkout-cashback-teaser-card:not(.teaser-wallet-applied) .checkout-teaser-title {
+    color: #f59e0b;
+}
+
+[data-theme="dark"] .checkout-cashback-teaser-card:not(.teaser-wallet-applied) .checkout-teaser-title {
+    color: #fbbf24;
+}
+
+.checkout-teaser-sub {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    line-height: 1.25;
+}
+
 /* --------------------------------------------------------------------------
    PROFILE TAB: PERFETTO WALLET CARD & LEDGER STYLING
    -------------------------------------------------------------------------- */
@@ -7089,4 +7166,523 @@ html[lang="hi"] .nav-label {
     background: var(--primary-orange-hover);
     transform: translateY(-1px);
     box-shadow: 0 6px 16px rgba(255, 107, 0, 0.35);
+}
+
+/* ==========================================================================
+   INTERACTIVE SCRATCH CARD REWARD MODAL & SHIMMER ENGINE
+   ========================================================================== */
+.scratch-modal-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(8, 10, 16, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 100005;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.scratch-confetti-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 100006;
+}
+
+.scratch-modal-card {
+    background: linear-gradient(165deg, #201c2e 0%, #14121d 100%);
+    border: 1.5px solid rgba(245, 158, 11, 0.4);
+    border-radius: 26px;
+    box-shadow: 0 25px 65px rgba(0, 0, 0, 0.75), 0 0 40px rgba(245, 158, 11, 0.18);
+    width: 100%;
+    max-width: 400px;
+    padding: 24px 20px;
+    position: relative;
+    z-index: 100007;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    animation: scratchModalPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-sizing: border-box;
+}
+
+@keyframes scratchModalPopIn {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.scratch-modal-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.scratch-modal-close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
+    transform: rotate(90deg);
+}
+
+.scratch-modal-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+.scratch-badge-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.55rem;
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45);
+    margin-bottom: 4px;
+}
+
+.scratch-modal-title {
+    font-family: var(--font-heading);
+    font-size: 1.32rem;
+    font-weight: 800;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: -0.01em;
+}
+
+.scratch-modal-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.scratch-modal-order-tag {
+    color: #f59e0b;
+    font-weight: 800;
+}
+
+/* Scratch Card Stage & Reveal Box */
+.scratch-card-box-wrapper {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.scratch-card-stage {
+    width: 100%;
+    max-width: 320px;
+    height: 215px;
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.65), 0 0 0 2px rgba(245, 158, 11, 0.45);
+    background: #110e19;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* REVEAL CONTENT (UNDER CANVAS) */
+.scratch-reveal-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #352404 0%, #151003 100%);
+    z-index: 1;
+    padding: 16px;
+    box-sizing: border-box;
+    text-align: center;
+    overflow: hidden;
+}
+
+.scratch-reveal-glow-ray {
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: scratchRayPulse 3s infinite ease-in-out;
+}
+
+@keyframes scratchRayPulse {
+    0%, 100% {
+        transform: scale(0.9);
+        opacity: 0.6;
+    }
+    50% {
+        transform: scale(1.15);
+        opacity: 1;
+    }
+}
+
+.scratch-win-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    color: #f59e0b;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+    z-index: 2;
+}
+
+.scratch-amount-display {
+    font-family: var(--font-heading);
+    font-size: 3.25rem;
+    font-weight: 900;
+    line-height: 1.08;
+    background: linear-gradient(135deg, #fff3b0 0%, #f59e0b 50%, #d97706 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 4px 14px rgba(245, 158, 11, 0.55));
+    margin: 2px 0;
+    z-index: 2;
+}
+
+.scratch-reward-label {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: 0.02em;
+    z-index: 2;
+}
+
+.scratch-validity-note {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 4px;
+    z-index: 2;
+}
+
+/* INTERACTIVE SCRATCH CANVAS */
+.scratch-interactive-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    cursor: crosshair;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity 0.45s ease;
+}
+
+/* Instruction Hint */
+.scratch-instruction-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #f59e0b;
+    padding: 7px 14px;
+    border-radius: 10px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px dashed rgba(245, 158, 11, 0.3);
+    width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
+}
+
+/* Action Claim Button */
+.scratch-modal-actions {
+    width: 100%;
+    max-width: 320px;
+    margin-top: 8px;
+}
+
+.btn-scratch-claim {
+    width: 100%;
+    padding: 13px 20px;
+    border-radius: 14px;
+    border: none;
+    font-family: var(--font-heading);
+    font-size: 1.02rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.35);
+    cursor: not-allowed;
+}
+
+.btn-scratch-claim:disabled {
+    cursor: not-allowed;
+}
+
+.btn-scratch-claim.btn-ready-to-claim {
+    background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.45);
+    cursor: pointer;
+    animation: claimPulseGlow 1.8s infinite;
+}
+
+.btn-scratch-claim.btn-ready-to-claim:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(245, 158, 11, 0.6);
+}
+
+.btn-scratch-claim.claimed-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+    cursor: default;
+    animation: none;
+}
+
+@keyframes claimPulseGlow {
+    0%, 100% {
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 10px 32px rgba(245, 158, 11, 0.7);
+        transform: scale(1.02);
+    }
+}
+
+/* UNCLAIMED BANNER IN PROFILE WALLET CARD */
+.profile-scratch-unclaimed-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(234, 88, 12, 0.12));
+    border: 1.5px solid rgba(245, 158, 11, 0.45);
+    border-radius: 14px;
+    padding: 11px 13px;
+    margin-top: 12px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+    gap: 8px;
+}
+
+.profile-scratch-unclaimed-banner:hover {
+    transform: translateY(-1px);
+    border-color: rgba(245, 158, 11, 0.7);
+    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.25);
+}
+
+.scratch-unclaimed-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+}
+
+.scratch-unclaimed-icon-ring {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 1.05rem;
+    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.35);
+}
+
+.scratch-unclaimed-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.scratch-unclaimed-text strong {
+    font-size: 0.84rem;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.scratch-unclaimed-text span {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.btn-scratch-banner-action {
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 0.78rem;
+    padding: 7px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.3);
+    transition: transform 0.2s ease;
+}
+
+.btn-scratch-banner-action:hover {
+    transform: scale(1.04);
+}
+
+/* ORDER HISTORY SCRATCH CARD REWARDS */
+.order-history-scratch-promo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(255, 107, 0, 0.08));
+    border: 1.5px solid rgba(245, 158, 11, 0.45);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 9px 0;
+    gap: 10px;
+    box-shadow: 0 3px 12px rgba(245, 158, 11, 0.12);
+}
+
+.scratch-promo-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left;
+}
+
+.scratch-promo-icon-wrap {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 0.95rem;
+}
+
+.scratch-promo-title {
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.scratch-promo-sub {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.65);
+}
+
+.btn-open-scratch-card {
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    color: #ffffff;
+    border: none;
+    border-radius: 9px;
+    font-weight: 800;
+    font-size: 0.78rem;
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+    transition: transform 0.2s ease;
+}
+
+.btn-open-scratch-card:hover {
+    transform: scale(1.05);
+}
+
+.order-history-scratch-claimed {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin: 8px 0;
+}
+
+.order-history-scratch-locked {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px dashed rgba(245, 158, 11, 0.3);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin: 8px 0;
+}
+
+/* RESPONSIVE TUNING */
+@media (max-width: 480px) {
+    .scratch-modal-card {
+        padding: 20px 16px;
+        border-radius: 22px;
+    }
+    .scratch-card-stage {
+        height: 200px;
+    }
+    .scratch-amount-display {
+        font-size: 2.85rem;
+    }
+    .scratch-modal-title {
+        font-size: 1.2rem;
+    }
+    .profile-scratch-unclaimed-banner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    .btn-scratch-banner-action {
+        width: 100%;
+        text-align: center;
+    }
 }
