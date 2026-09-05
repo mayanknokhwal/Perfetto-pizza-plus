@@ -3698,7 +3698,7 @@
                     </div>
 
                     <!-- GENERAL SETTINGS GRID -->
-                    <div class="store-settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-bottom: 24px;">
+                    <div class="store-settings-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 24px;">
                         <!-- Toggle: Enable/Disable Wallet System -->
                         <div class="setting-input-group">
                             <label class="setting-input-label">
@@ -3724,18 +3724,6 @@
                                 <input type="number" id="input-cashback-expiry-days" class="search-input" value="7" min="1" max="30" maxlength="2" placeholder="1 - 30" oninput="onCashbackExpiryInput(this)" onchange="onCashbackExpiryBlur(this)" onblur="onCashbackExpiryBlur(this)">
                             </div>
                             <span style="font-size: 0.76rem; color: var(--text-muted);">Validity window before earned cashback expires (1 – 30 days, default: 7)</span>
-                        </div>
-
-                        <!-- Minimum Order Value Required to Redeem Wallet Cash -->
-                        <div class="setting-input-group">
-                            <label class="setting-input-label">
-                                <i class="fa-solid fa-cart-shopping" style="color: var(--accent-blue);"></i> Min Order to Redeem (₹)
-                            </label>
-                            <div class="search-box">
-                                <i class="fa-solid fa-indian-rupee-sign"></i>
-                                <input type="number" id="input-wallet-min-redemption-order" class="search-input" value="200" min="0" placeholder="e.g. 200" oninput="onWalletConfigChange()">
-                            </div>
-                            <span style="font-size: 0.76rem; color: var(--text-muted);">Cart subtotal required before customer can use wallet cash (Default: ₹200)</span>
                         </div>
                     </div>
 
@@ -7613,7 +7601,8 @@
         const DEFAULT_WALLET_CONFIG = {
             enabled: true,
             expiryDays: 7,
-            minRedemptionOrder: 200,
+            minRedemptionOrder: 0,
+            minOrderToRedeem: 0,
             slabs: [
                 { minOrder: 200, cashback: 20 },
                 { minOrder: 500, cashback: 50 },
@@ -7874,7 +7863,8 @@
             adminWalletConfig = {
                 enabled: config.enabled !== false,
                 expiryDays: config.expiryDays !== undefined ? parseInt(config.expiryDays, 10) : DEFAULT_WALLET_CONFIG.expiryDays,
-                minRedemptionOrder: config.minRedemptionOrder !== undefined ? parseFloat(config.minRedemptionOrder) : DEFAULT_WALLET_CONFIG.minRedemptionOrder,
+                minRedemptionOrder: config.minRedemptionOrder !== undefined ? parseFloat(config.minRedemptionOrder) : 0,
+                minOrderToRedeem: 0,
                 slabs: rawSlabs.slice(0, TOTAL_WALLET_SLABS)
             };
 
@@ -7887,11 +7877,6 @@
             const expiryEl = document.getElementById('input-cashback-expiry-days');
             if (expiryEl) {
                 expiryEl.value = adminWalletConfig.expiryDays;
-            }
-
-            const minRedeemEl = document.getElementById('input-wallet-min-redemption-order');
-            if (minRedeemEl) {
-                minRedeemEl.value = adminWalletConfig.minRedemptionOrder;
             }
 
             for (let i = 1; i <= TOTAL_WALLET_SLABS; i++) {
@@ -8028,7 +8013,6 @@
             try {
                 const toggleEl = document.getElementById('toggle-wallet-enabled');
                 const expiryEl = document.getElementById('input-cashback-expiry-days');
-                const minRedeemEl = document.getElementById('input-wallet-min-redemption-order');
 
                 const isEnabled = toggleEl ? toggleEl.checked : true;
 
@@ -8038,8 +8022,6 @@
                 if (expiryDays > 30) expiryDays = 30;
                 if (expiryEl) expiryEl.value = String(expiryDays);
 
-                const minRedeem = minRedeemEl ? Math.max(0, parseFloat(minRedeemEl.value) || 200) : 200;
-
                 // Run final integrity pass across all 5 slabs to guarantee clean ascending configurations
                 const slabs = validateAndEnforceAllSlabsIntegrity();
 
@@ -8047,7 +8029,8 @@
                     key: 'wallet_config',
                     enabled: isEnabled,
                     expiryDays: expiryDays,
-                    minRedemptionOrder: minRedeem,
+                    minRedemptionOrder: 0,
+                    minOrderToRedeem: 0,
                     slabs: slabs,
                     updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
                 };

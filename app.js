@@ -4086,7 +4086,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         banner.className = 'cart-threshold-banner status-upsell-free';
         content.innerHTML = `
             <i class="fa-solid fa-truck-arrow-right"></i>
-            <span>${isHindi ? `मुफ़्त होम डिलीवरी पाने के लिए ${formatPrice(diff)} का सामान और जोड़ें!` : `Add ${formatPrice(diff)} more to get FREE Home Delivery!`}</span>
+            <span>${isHindi ? `मुफ्त होम डिलीवरी के लिए ${formatPrice(diff)} और जोड़ें!` : `Add ${formatPrice(diff)} more to get FREE Home Delivery!`}</span>
         `;
         if (checkoutBtn && !isShopClosed) {
             checkoutBtn.removeAttribute('disabled');
@@ -4111,7 +4111,8 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
 const DEFAULT_WALLET_CONFIG = {
     enabled: true,
     expiryDays: 7,
-    minRedemptionOrder: 200,
+    minRedemptionOrder: 0,
+    minOrderToRedeem: 0,
     slabs: [
         { minOrder: 200, cashback: 20 },
         { minOrder: 500, cashback: 50 },
@@ -4296,7 +4297,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
         content.innerHTML = `
             <div class="cashback-bar-left">
                 <i class="fa-solid fa-coins"></i>
-                <span class="cashback-bar-text">${isHindiCashback ? `इस ऑर्डर पर <strong>${formatPrice(nextSlab.cashback)} कैशबैक</strong> पाने के लिए <strong>${formatPrice(diff)}</strong> का सामान और जोड़ें!` : `Add <strong>${formatPrice(diff)}</strong> more to earn <strong>${formatPrice(nextSlab.cashback)} Cashback</strong> on this order!`}</span>
+                <span class="cashback-bar-text">${isHindiCashback ? `<strong>${formatPrice(diff)}</strong> और जोड़ें और <strong>${formatPrice(nextSlab.cashback)} कैशबैक</strong> पाएं!` : `Add <strong>${formatPrice(diff)}</strong> more to earn <strong>${formatPrice(nextSlab.cashback)} Cashback</strong>!`}</span>
             </div>
             ${unlockedBadge}
         `;
@@ -4351,66 +4352,35 @@ function updateCheckoutWalletUI() {
     const deliveryFee = deliveryInfo.finalDeliveryFee;
     const baseTotal = subtotal + deliveryFee;
 
-    const minRedemption = (customerWalletConfig && typeof customerWalletConfig.minRedemptionOrder === 'number')
-        ? customerWalletConfig.minRedemptionOrder
-        : 200;
-
-    const isEligible = subtotal >= minRedemption;
+    // 100% Unrestricted Redemption: Allow customers to redeem up to 100% of available wallet balance on any order value
     const maxRedeemable = Math.min(availableBalance, baseTotal);
 
-    if (!isEligible) {
-        // Ineligible: cart < minRedemption
-        if (checkbox) {
-            checkbox.checked = false;
-            checkbox.disabled = true;
-        }
-        if (checkLabelWrap) {
-            checkLabelWrap.classList.add('is-disabled');
-        }
-        if (labelEl) {
-            labelEl.textContent = typeof t === 'function' ? t('wallet_use_zero') : `Use ₹0`;
-        }
-        if (hintEl && hintTextEl) {
-            hintEl.style.display = 'flex';
-            const diff = minRedemption - subtotal;
-            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-            hintTextEl.textContent = isHindi 
-                ? `वॉलेट कैश इस्तेमाल करने के लिए न्यूनतम ऑर्डर ${formatPrice(minRedemption)} आवश्यक है (${formatPrice(diff)} और जोड़ें)।`
-                : `Min order ${formatPrice(minRedemption)} required to redeem wallet cash (Add ${formatPrice(diff)} more).`;
-        }
-        isWalletRedemptionSelected = false;
+    if (checkbox) {
+        checkbox.disabled = false;
+        checkbox.checked = isWalletRedemptionSelected;
+    }
+    if (checkLabelWrap) {
+        checkLabelWrap.classList.remove('is-disabled');
+    }
+    if (labelEl) {
+        labelEl.textContent = typeof t === 'function' 
+            ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
+            : `Use ${formatPrice(maxRedeemable)} Cash`;
+    }
+    if (hintEl) {
+        hintEl.style.display = 'none';
+    }
+
+    if (isWalletRedemptionSelected) {
+        appliedWalletDiscountAmount = maxRedeemable;
+        const finalTotal = Math.max(0, baseTotal - appliedWalletDiscountAmount);
+        if (discountRow) discountRow.style.display = 'flex';
+        if (discountValEl) discountValEl.textContent = `-${formatPrice(appliedWalletDiscountAmount)}`;
+        if (totalEl) totalEl.textContent = formatPrice(finalTotal);
+    } else {
         appliedWalletDiscountAmount = 0;
         if (discountRow) discountRow.style.display = 'none';
         if (totalEl) totalEl.textContent = formatPrice(baseTotal);
-    } else {
-        // Eligible!
-        if (checkbox) {
-            checkbox.disabled = false;
-            checkbox.checked = isWalletRedemptionSelected;
-        }
-        if (checkLabelWrap) {
-            checkLabelWrap.classList.remove('is-disabled');
-        }
-        if (labelEl) {
-            labelEl.textContent = typeof t === 'function' 
-                ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
-                : `Use ${formatPrice(maxRedeemable)} Cash`;
-        }
-        if (hintEl) {
-            hintEl.style.display = 'none';
-        }
-
-        if (isWalletRedemptionSelected) {
-            appliedWalletDiscountAmount = maxRedeemable;
-            const finalTotal = Math.max(0, baseTotal - appliedWalletDiscountAmount);
-            if (discountRow) discountRow.style.display = 'flex';
-            if (discountValEl) discountValEl.textContent = `-${formatPrice(appliedWalletDiscountAmount)}`;
-            if (totalEl) totalEl.textContent = formatPrice(finalTotal);
-        } else {
-            appliedWalletDiscountAmount = 0;
-            if (discountRow) discountRow.style.display = 'none';
-            if (totalEl) totalEl.textContent = formatPrice(baseTotal);
-        }
     }
 }
 window.updateCheckoutWalletUI = updateCheckoutWalletUI;
@@ -4581,11 +4551,10 @@ function updateProfileWalletUI() {
 
     valEl.textContent = balance;
 
-    const minRedeem = (customerWalletConfig && customerWalletConfig.minRedemptionOrder) || 200;
     if (rulesText) {
         rulesText.textContent = isSystemEnabled
-            ? (typeof t === 'function' ? t('wallet_rules_default', { min: minRedeem }) : `Auto-cashback on eligible orders • Redeemable on orders ≥ ₹${minRedeem}`)
-            : (typeof t === 'function' ? t('wallet_paused') : `Wallet rewards system is currently paused.`);
+            ? (typeof t === 'function' ? t('wallet_rules_default') : 'Auto-cashback on eligible orders • 100% usable on any order')
+            : (typeof t === 'function' ? t('wallet_paused') : 'Wallet rewards system is currently paused.');
     }
 
     if (balance > 0 && currentCustomerWallet.expiresAt) {
@@ -5346,6 +5315,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const qualifiesForCashback = (walletDiscountToApply <= 0);
     const earnedCashback = qualifiesForCashback ? calculateOrderCashback(subtotal) : 0;
 
+    const resolvedPaymentMethod = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Wallet Cash' : paymentMethod;
+    const resolvedPaymentStatus = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Paid via Wallet' : paymentStatus;
+
     const orderId = specificOrderId || getNextOrderSequenceNumber().toString();
     const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
     const orderItems = cart.map(item => ({
@@ -5396,8 +5368,8 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         usedWalletCash: Math.round(walletDiscountToApply),
         earnedCashback: Math.round(earnedCashback),
         total: Math.round(grandTotal),
-        paymentMethod: paymentMethod,
-        paymentStatus: paymentStatus,
+        paymentMethod: resolvedPaymentMethod,
+        paymentStatus: resolvedPaymentStatus,
         status: 'new',
         createdAt: now.toISOString()
     };
@@ -5700,7 +5672,13 @@ function openOrderOtpSuccessModal(order) {
 
     const isHindiModal = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     if (orderIdEl) orderIdEl.textContent = `#${orderId}`;
-    if (paymentModeEl) paymentModeEl.textContent = isHindiModal ? 'कैश ऑन डिलीवरी (COD)' : (order.paymentMethod || order.paymentStatus || 'Cash on Delivery');
+    if (paymentModeEl) {
+        if (order.total === 0 && (order.walletDiscount > 0 || order.usedWalletCash > 0)) {
+            paymentModeEl.textContent = isHindiModal ? 'वॉलेट कैश (भुगतान हो चुका)' : 'Wallet Cash (Fully Paid)';
+        } else {
+            paymentModeEl.textContent = isHindiModal ? 'कैश ऑन डिलीवरी (COD)' : (order.paymentMethod || order.paymentStatus || 'Cash on Delivery');
+        }
+    }
     if (totalAmountEl) totalAmountEl.textContent = `₹${order.total || 0}`;
     if (copyBtnText) copyBtnText.textContent = typeof t === 'function' ? t('copy_otp') : 'Copy OTP';
 
@@ -8097,7 +8075,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                     <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                 </div>
                 <div class="pizza-card-body">
-                    <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                    <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                     ${descMarkup}
                     
                     <div class="pizza-size-selector">
@@ -8145,7 +8123,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                 </div>
                 <div class="sub-item-details">
                     <div class="sub-item-top-row">
-                        <span class="sub-item-name">${item.name}</span>
+                        <span class="sub-item-name">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span>
                         ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
                     </div>
                     <p class="sub-item-desc">${item.desc || ''}</p>

@@ -76,10 +76,12 @@
             wallet_expires_in: "Expires in",
             wallet_expires_in_days: "Expires in {days} days",
             wallet_expires_in_one_day: "Expires in 1 day",
+            expires_in_7_days: "Expires in 7 days",
+            wallet_expires_in_7_days: "Expires in 7 days",
             wallet_use_cash: "Use {amount} Cash",
             wallet_use_zero: "Use ₹0",
             wallet_available: "Available:",
-            wallet_rules_default: "Auto-cashback on eligible orders • Redeemable on orders ≥ ₹{min}",
+            wallet_rules_default: "Auto-cashback on eligible orders • 100% usable on any order",
             wallet_paused: "Wallet rewards system is currently paused.",
             wallet_transactions: "Wallet Transactions",
             wallet_no_transactions: "No wallet transactions yet. Place an order of ₹200+ to earn cashback!",
@@ -186,10 +188,12 @@
             wallet_expires_in: "वैधता",
             wallet_expires_in_days: "{days} दिनों में समाप्त",
             wallet_expires_in_one_day: "1 दिन में समाप्त",
+            expires_in_7_days: "7 दिनों में समाप्त",
+            wallet_expires_in_7_days: "7 दिनों में समाप्त",
             wallet_use_cash: "{amount} कैशबैक इस्तेमाल करें",
             wallet_use_zero: "₹0 इस्तेमाल करें",
             wallet_available: "उपलब्ध बैलेंस:",
-            wallet_rules_default: "योग्य ऑर्डर्स पर ऑटो-कैशबैक • ₹{min}+ के ऑर्डर पर इस्तेमाल करें",
+            wallet_rules_default: "योग्य ऑर्डर्स पर ऑटो-कैशबैक • किसी भी ऑर्डर पर 100% इस्तेमाल करें",
             wallet_paused: "वॉलेट रिवॉर्ड सिस्टम अभी रोक दिया गया है।",
             wallet_transactions: "वॉलेट लेन-देन",
             wallet_no_transactions: "अभी कोई लेन-देन नहीं है। ₹200+ का ऑर्डर करके कैशबैक पाएं!",
@@ -256,10 +260,11 @@
     const MENU_ITEM_TRANSLATIONS = {
         // Spring Rolls & Kathi Rolls
         "Chilly Paneer Kathi Roll": "चिली पनीर काठी रोल",
+        "Chilli Paneer Kathi Roll": "चिली पनीर काठी रोल",
         "Crispy Spring Roll": "क्रिसपी स्प्रिंग रोल",
         "Paneer Kathi Roll": "पनीर काठी रोल",
         "Spring Roll": "स्प्रिंग रोल",
-        "Veg Kathi Roll": "वेज़ काठी रोल",
+        "Veg Kathi Roll": "वेज काठी रोल",
 
         // Mojito & Coolers
         "Fresh Lime Soda": "फ़्रेश लाइम सोडा",
@@ -297,10 +302,12 @@
         // Noodles
         "Butter Paneer Noodles": "बटर पनीर नूडल्स",
         "Chilly Garlic Noodles": "चिली गार्लिक नूडल्स",
+        "Chilli Garlic Noodles": "चिली गार्लिक नूडल्स",
         "Haka Noodles": "हक्का नूडल्स",
+        "Hakka Noodles": "हक्का नूडल्स",
         "Paneer Noodles": "पनीर नूडल्स",
         "Singapuri Noodles": "सिंगापुरी नूडल्स",
-        "Veg Noodles": "वेज़ नूडल्स",
+        "Veg Noodles": "वेज नूडल्स",
 
         // Coffee
         "Cold Coffee": "कोल्ड कॉफ़ी",
@@ -308,16 +315,19 @@
 
         // Momos
         "Chilly Paneer Momos": "चिली पनीर मोमोज़",
-        "Chilly Veg Momos": "चिली वेज़ मोमोज़",
+        "Chilli Paneer Momos": "चिली पनीर मोमोज़",
+        "Chilly Veg Momos": "चिली वेज मोमोज़",
+        "Chilli Veg Momos": "चिली वेज मोमोज़",
         "Crispy Paneer Momos": "क्रिसपी पनीर मोमोज़",
-        "Crispy Veg Momos": "क्रिसपी वेज़ मोमोज़",
+        "Crispy Veg Momos": "क्रिसपी वेज मोमोज़",
         "Pan Fried Paneer Momos": "पैन फ्राइड पनीर मोमोज़",
-        "Pan Fried Veg Momo": "पैन फ्राइड वेज़ मोमो",
+        "Pan Fried Veg Momo": "पैन फ्राइड वेज मोमो",
+        "Pan Fried Veg Momos": "पैन फ्राइड वेज मोमोज़",
         "Paneer Momos": "पनीर मोमोज़",
         "Special Paneer Momos": "स्पेशल पनीर मोमोज़",
         "Tandoori Paneer Momos": "तंदूरी पनीर मोमोज़",
-        "Tandoori Veg Momos": "तंदूरी वेज़ मोमोज़",
-        "Veg Momos": "वेज़ मोमोज़",
+        "Tandoori Veg Momos": "तंदूरी वेज मोमोज़",
+        "Veg Momos": "वेज मोमोज़",
 
         // Sandwiches
         "Double Decker Sandwich": "डबल डेकर सैंडविच",
@@ -328,10 +338,13 @@
 
         // Burgers
         "Acharri Burger": "अचारी बर्गर",
+        "Achari Burger": "अचारी बर्गर",
         "Aloo Patty Burger": "आलू पैटी बर्गर",
         "Cheese Spicy": "चीज़ स्पाइसी बर्गर",
+        "Cheese Spicy Burger": "चीज़ स्पाइसी बर्गर",
         "Cheesy Burger": "चीज़ी बर्गर",
         "Crispy Paneer": "क्रिसपी पनीर बर्गर",
+        "Crispy Paneer Burger": "क्रिसपी पनीर बर्गर",
         "Peri Peri Burger": "पेरी पेरी बर्गर",
         "Special Burger": "स्पेशल बर्गर",
         "Tandoori Burger": "तंदूरी बर्गर",
@@ -348,8 +361,21 @@
         // Breads
         "Cheese Corn Bread": "चीज़ कॉर्न ब्रेड",
         "Garlic Bread": "गार्लिक ब्रेड",
-        "Perfetto Stuffed Bread": "पर्फेटो स्टफ़्ड ब्रेड",
-        "Stuffed Bread": "स्टफ़्ड ब्रेड",
+        "Perfetto Stuffed Bread": "पर्फेटो स्टफ्ड ब्रेड",
+        "Stuffed Bread": "स्टफ्ड ब्रेड",
+
+        // Chinese Food
+        "Honey Chilly Cauliflower": "हनी चिली कॉलीफ्लावर",
+        "Honey Chilli Cauliflower": "हनी चिली कॉलीफ्लावर",
+        "Honey Chilly Potato": "हनी चिली पोटैटो",
+        "Honey Chilli Potato": "हनी चिली पोटैटो",
+        "Chilly Cauliflower": "चिली कॉलीफ्लावर",
+        "Chilli Cauliflower": "चिली कॉलीफ्लावर",
+        "Chilly Potato": "चिली पोटैटो",
+        "Chilli Potato": "चिली पोटैटो",
+        "Chilly Paneer": "चिली पनीर",
+        "Chilli Paneer": "चिली पनीर",
+        "Veg Manchurian": "वेज मंचूरियन",
 
         // Pizzas
         "Double Cheese Margherita": "डबल चीज़ मार्गेरीटा",
@@ -358,48 +384,117 @@
         "Hot Country": "हॉट कंट्री पिज़्ज़ा",
         "Indian Veggie": "इंडियन वेजी पिज़्ज़ा",
         "Lovers Pizza": "लवर्स पिज़्ज़ा",
+        "Lover's Pizza": "लवर्स पिज़्ज़ा",
         "Makhani Pizza": "मखनी पिज़्ज़ा",
+        "Paradize Pizza": "पैराडाइज पिज़्ज़ा",
         "Paradise Pizza": "पैराडाइज पिज़्ज़ा",
+        "Perfetto Special Pizza": "पर्फेटो स्पेशल पिज़्ज़ा",
         "Perfetto Special": "पर्फेटो स्पेशल पिज़्ज़ा",
         "Spicy Pizza": "स्पाइसी पिज़्ज़ा",
         "Supreme Pizza": "सुप्रीम पिज़्ज़ा",
         "Tandoori Pizza": "तंदूरी पिज़्ज़ा",
         "Achari Pizza": "अचारी पिज़्ज़ा",
-        "Cheese n Corn": "चीज़ एंड कॉर्न पिज़्ज़ा",
-        "Cheese n Mushroom": "चीज़ एंड मशरूम पिज़्ज़ा",
+        "Acharri Pizza": "अचारी पिज़्ज़ा",
+        "Cheese 'n Corn": "चीज़ कॉर्न पिज़्ज़ा",
+        "Cheese n Corn": "चीज़ कॉर्न पिज़्ज़ा",
+        "Cheese 'n Mushroom": "चीज़ मशरूम पिज़्ज़ा",
+        "Cheese n Mushroom": "चीज़ मशरूम पिज़्ज़ा",
         "Chipotle Pizza": "चिपोटले पिज़्ज़ा",
         "Delight Pizza": "डिलाइट पिज़्ज़ा",
         "Deluxe Pizza": "डीलक्स पिज़्ज़ा",
-        "Farm House": "फ़ार्म हाउस पिज़्ज़ा",
+        "Farm House": "फार्म हाउस पिज़्ज़ा",
+        "Farmhouse": "फार्म हाउस पिज़्ज़ा",
 
         // Shakes
         "Black Currant Shake": "ब्लैक करंट शेक",
         "Butter Scotch Shake": "बटर स्कॉच शेक",
         "Chocolate Shake": "चॉकलेट शेक",
         "Kit Kat Crunchy Shake": "किट कैट क्रंची शेक",
-        "Oreo Feast Shake": "ओरियो फ़ीस्ट शेक",
+        "KitKat Crunchy Shake": "किट कैट क्रंची शेक",
+        "Oreo Feast Shake": "ओरियो फीस्ट शेक",
         "Pineapple Shake": "पाइनएप्पल शेक",
         "Rasmalai Shake": "रसमलाई शेक",
         "Strawberry Shake": "स्ट्रॉबेरी शेक",
         "Vanilla Shake": "वैनिला शेक",
 
         // Rice
-        "Veg Fried Rice": "वेज़ फ्राइड राइस",
+        "Veg Fried Rice": "वेज फ्राइड राइस",
         "Singapuri Rice": "सिंगापुरी राइस",
         "Chilly Garlic Rice": "चिली गार्लिक राइस",
+        "Chilli Garlic Rice": "चिली गार्लिक राइस",
         "Haka Rice": "हक्का राइस",
+        "Hakka Rice": "हक्का राइस",
 
-        // Pasta & Chinese
+        // Pasta
+        "Baked Mix Pasta": "बेक्ड मिक्स पास्ता",
+        "Baked Red Pasta": "बेक्ड रेड पास्ता",
+        "Baked Sweet & Spicy Pasta": "बेक्ड स्वीट एंड स्पाइसी पास्ता",
+        "Baked Sweet and Spicy Pasta": "बेक्ड स्वीट एंड स्पाइसी पास्ता",
+        "Baked Tandoori Pasta": "बेक्ड तंदूरी पास्ता",
+        "Baked White Pasta": "बेक्ड व्हाइट पास्ता",
+        "Baked Makhani Pasta": "बेक्ड मखनी पास्ता",
+        "Creamy Pasta": "क्रीमी पास्ता",
+        "Red Pasta": "रेड पास्ता",
+        "Supreme Pasta": "सुप्रीम पास्ता",
+        "Tandoori Pasta": "तंदूरी पास्ता",
         "Red Sauce Pasta": "रेड सॉस पास्ता",
         "White Sauce Pasta": "व्हाइट सॉस पास्ता",
-        "Mix Sauce Pasta": "मिक्स सॉस पास्ता",
-        "Tandoori Pasta": "तंदूरी पास्ता",
-        "Chilly Paneer": "चिली पनीर",
-        "Veg Manchurian": "वेज़ मंचूरियन"
+        "Mix Sauce Pasta": "मिक्स सॉस पास्ता"
     };
 
-    // Dynamic word-level translation dictionary for custom dish names
+    // Dynamic word-level translation dictionary for custom dish names & tokens
     const WORD_TRANSLATIONS = {
+        "Honey": "हनी",
+        "Cauliflower": "कॉलीफ्लावर",
+        "Potato": "पोटैटो",
+        "Manchurian": "मंचूरियन",
+        "Stuffed": "स्टफ्ड",
+        "Baked": "बेक्ड",
+        "Creamy": "क्रीमी",
+        "Sauce": "सॉस",
+        "Saucy": "सॉसी",
+        "Mix": "मिक्स",
+        "Mixed": "मिक्स",
+        "Sweet": "स्वीट",
+        "Spicy": "स्पाइसी",
+        "White": "व्हाइट",
+        "Red": "रेड",
+        "Makhani": "मखनी",
+        "Supreme": "सुप्रीम",
+        "Deluxe": "डीलक्स",
+        "Delight": "डिलाइट",
+        "Farm": "फार्म",
+        "House": "हाउस",
+        "Country": "कंट्री",
+        "Harissa": "हरीसा",
+        "Chipotle": "चिपोटले",
+        "Margherita": "मार्गेरीटा",
+        "Currant": "करंट",
+        "Black": "ब्लैक",
+        "Scotch": "स्कॉच",
+        "Pineapple": "पाइनएप्पल",
+        "Rasmalai": "रसमलाई",
+        "Lime": "लाइम",
+        "Soda": "सोडा",
+        "Apple": "एप्पल",
+        "Mint": "मिंट",
+        "Virgin": "वर्जिन",
+        "Mineral": "मिनरल",
+        "Water": "वाटर",
+        "Soft": "सॉफ्ट",
+        "Drink": "ड्रिंक",
+        "Drinks": "ड्रिंक्स",
+        "Coke": "कोक",
+        "Cola": "कोला",
+        "Milky": "मिल्की",
+        "Mango": "मैंगो",
+        "Parcel": "पार्सल",
+        "Zingy": "ज़िंगी",
+        "Taco": "टैको",
+        "French": "फ़्रेंच",
+        "Russian": "रशियन",
+        "Gravy": "ग्रेवी",
+        "Dry": "ड्राई",
         "Pizza": "पिज़्ज़ा",
         "Burger": "बर्गर",
         "Wrap": "रैप",
@@ -421,17 +516,15 @@
         "Cheese": "चीज़",
         "Cheesy": "चीज़ी",
         "Crispy": "क्रिसपी",
-        "Spicy": "स्पाइसी",
         "Tandoori": "तंदूरी",
-        "Saucy": "सॉसी",
         "Butter": "बटर",
         "Acharri": "अचारी",
         "Achari": "अचारी",
         "Aloo": "आलू",
         "Patty": "पैटी",
         "Special": "स्पेशल",
-        "Fried": "फ़्राइड",
-        "Veg": "वेज़",
+        "Fried": "फ्राइड",
+        "Veg": "वेज",
         "Veggie": "वेजी",
         "Green": "ग्रीन",
         "Chilly": "चिली",
@@ -440,31 +533,41 @@
         "Corn": "कॉर्न",
         "Mushroom": "मशरूम",
         "Masala": "मसाला",
-        "Sweet": "स्वीट",
         "Hot": "हॉट",
         "Cold": "कोल्ड",
         "Ice Cream": "आइसक्रीम",
+        "Icecream": "आइसक्रीम",
         "Chocolate": "चॉकलेट",
         "Vanilla": "वैनिला",
         "Strawberry": "स्ट्रॉबेरी",
-        "Mango": "मैंगो",
         "Oreo": "ओरियो",
         "Kit Kat": "किट कैट",
         "KitKat": "किट कैट",
-        "Parcel": "पार्सल",
-        "Taco": "टैको",
         "Kathi": "काठी",
-        "With": "विद",
         "Double": "डबल",
         "Decker": "डेकर",
         "Grilled": "ग्रिल्ड",
         "Lava": "लावा",
         "Cake": "केक",
-        "Feast": "फ़ीस्ट",
+        "Feast": "फीस्ट",
         "Crunchy": "क्रंची",
         "Singapuri": "सिंगापुरी",
         "Haka": "हक्का",
-        "Hakka": "हक्का"
+        "Hakka": "हक्का",
+        "Onion": "प्याज",
+        "Capsicum": "शिमला मिर्च",
+        "Tomato": "टमाटर",
+        "Olives": "ऑलिव्स",
+        "Olive": "ऑलिव",
+        "Jalapeno": "हैलापीनो",
+        "Jalapenos": "हैलापीनो",
+        "Paprika": "पेप्रिका",
+        "Bellpeper": "शिमला मिर्च",
+        "Extra": "एक्स्ट्रा",
+        "Mayo": "मेयो",
+        "Free": "मुफ़्त",
+        "With": "विद",
+        "And": "एंड"
     };
 
     // State
@@ -490,37 +593,83 @@
         applyAppLanguage(lang);
     }
 
-    function t(key, fallback = '') {
+    function t(key, params, fallback = '') {
+        if (typeof params === 'string' && !fallback) {
+            fallback = params;
+            params = null;
+        }
+
+        // Dynamic regex for expires_in_X_days
+        if (typeof key === 'string') {
+            const expMatch = key.match(/^expires_in_(\d+)_days?$/i);
+            if (expMatch) {
+                const days = expMatch[1];
+                return currentLanguage === 'hi'
+                    ? (days === '1' ? '1 दिन में समाप्त' : `${days} दिनों में समाप्त`)
+                    : (days === '1' ? 'Expires in 1 day' : `Expires in ${days} days`);
+            }
+        }
+
         const langPack = TRANSLATIONS[currentLanguage] || TRANSLATIONS.en;
+        let str = '';
         if (langPack && langPack[key] !== undefined) {
-            return langPack[key];
+            str = langPack[key];
+        } else if (TRANSLATIONS.en && TRANSLATIONS.en[key] !== undefined) {
+            str = TRANSLATIONS.en[key];
+        } else {
+            str = fallback || key;
         }
-        if (TRANSLATIONS.en && TRANSLATIONS.en[key] !== undefined) {
-            return TRANSLATIONS.en[key];
+
+        if (params && typeof params === 'object' && typeof str === 'string') {
+            for (const [k, v] of Object.entries(params)) {
+                str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+            }
         }
-        return fallback || key;
+
+        return str;
     }
 
     function tItem(itemName) {
         if (!itemName) return '';
         if (currentLanguage === 'en') return itemName;
+
+        let clean = String(itemName).trim();
+
+        // Separate size suffix like " (S)", " (M)", " (L)" or quantity/unit
+        let suffix = '';
+        const sizeMatch = clean.match(/\s*(\([SML]\))$/i);
+        if (sizeMatch) {
+            suffix = ' ' + sizeMatch[1].toUpperCase();
+            clean = clean.slice(0, sizeMatch.index).trim();
+        }
+
         // 1. Check exact match in dictionary
-        if (MENU_ITEM_TRANSLATIONS[itemName]) {
-            return MENU_ITEM_TRANSLATIONS[itemName];
+        if (MENU_ITEM_TRANSLATIONS[clean]) {
+            return MENU_ITEM_TRANSLATIONS[clean] + suffix;
         }
-        // 2. Check case-insensitive match
-        const lower = itemName.trim().toLowerCase();
+
+        // 2. Check case-insensitive & quote-normalized match
+        const normalizeKey = s => s.toLowerCase().replace(/['"’]/g, "'").replace(/\s+/g, ' ').trim();
+        const normClean = normalizeKey(clean);
         for (const [key, val] of Object.entries(MENU_ITEM_TRANSLATIONS)) {
-            if (key.toLowerCase() === lower) return val;
+            if (normalizeKey(key) === normClean) {
+                return val + suffix;
+            }
         }
-        // 3. Fallback: Word by word phonetic translation
-        let translated = itemName;
+
+        // 3. Fallback: Token-level replacement using comprehensive WORD_TRANSLATIONS
+        let translated = clean;
+        translated = translated.replace(/\s*&\s*/g, ' and ');
+        translated = translated.replace(/\s+'n\s+/gi, ' and ');
+
         const sortedWords = Object.keys(WORD_TRANSLATIONS).sort((a, b) => b.length - a.length);
         for (const word of sortedWords) {
-            const regex = new RegExp(`\\b${word}\\b`, 'gi');
+            const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedWord}\\b`, 'gi');
             translated = translated.replace(regex, WORD_TRANSLATIONS[word]);
         }
-        return translated;
+
+        return translated + suffix;
     }
 
     function tCategory(catName) {
@@ -627,15 +776,19 @@
         }
     }
 
+    let pendingModalLanguage = 'en';
+
     function showFirstVisitLanguageModal() {
         const modal = document.getElementById('first-visit-lang-modal');
         if (!modal) return;
 
-        // Highlight current option if any
+        pendingModalLanguage = currentLanguage || 'en';
+
+        // Highlight current selection with radio check mark
         const optEn = document.getElementById('lang-opt-en');
         const optHi = document.getElementById('lang-opt-hi');
-        if (optEn) optEn.classList.toggle('selected', currentLanguage === 'en');
-        if (optHi) optHi.classList.toggle('selected', currentLanguage === 'hi');
+        if (optEn) optEn.classList.toggle('selected', pendingModalLanguage === 'en');
+        if (optHi) optHi.classList.toggle('selected', pendingModalLanguage === 'hi');
 
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
@@ -648,26 +801,32 @@
         });
     }
 
-    function selectFirstVisitLanguage(lang) {
+    function onLanguageOptionClick(lang) {
         if (lang !== 'en' && lang !== 'hi') lang = 'en';
+        pendingModalLanguage = lang;
 
-        // 1. Highlight clicked card visually
+        // Selecting English or Hindi should only highlight the option with a radio check mark
         const optEn = document.getElementById('lang-opt-en');
         const optHi = document.getElementById('lang-opt-hi');
         if (optEn) optEn.classList.toggle('selected', lang === 'en');
         if (optHi) optHi.classList.toggle('selected', lang === 'hi');
+    }
+    window.onLanguageOptionClick = onLanguageOptionClick;
 
-        // 2. Save chosen value to local storage (permanent for this device)
+    function confirmLanguageSelection() {
+        const lang = pendingModalLanguage || currentLanguage || 'en';
+
+        // 1. Save chosen value to local storage (permanent for this device)
         try {
             localStorage.setItem(STORAGE_KEY, lang);
         } catch (e) {
             console.warn('Unable to write language to localStorage:', e);
         }
 
-        // 3. Apply selected language translations immediately across active screen
+        // 2. Apply selected language translations immediately across active screen
         setAppLanguage(lang);
 
-        // 4. Dismiss modal with smooth exit animation
+        // 3. Dismiss modal with smooth exit animation
         const modal = document.getElementById('first-visit-lang-modal');
         if (modal) {
             modal.classList.remove('active');
@@ -677,6 +836,11 @@
                 modal.setAttribute('aria-hidden', 'true');
             }, 320);
         }
+    }
+    window.confirmLanguageSelection = confirmLanguageSelection;
+
+    function selectFirstVisitLanguage(lang) {
+        onLanguageOptionClick(lang);
     }
 
     // Expose API globally
@@ -698,7 +862,9 @@
     window.initFirstVisitLanguageModal = initFirstVisitLanguageModal;
     window.showFirstVisitLanguageModal = showFirstVisitLanguageModal;
     window.openLanguageSelectionModal = showFirstVisitLanguageModal;
-    window.selectFirstVisitLanguage = selectFirstVisitLanguage;
+    window.selectFirstVisitLanguage = onLanguageOptionClick;
+    window.onLanguageOptionClick = onLanguageOptionClick;
+    window.confirmLanguageSelection = confirmLanguageSelection;
 
     // Auto initialize on DOMContentLoaded
     if (document.readyState === 'loading') {

@@ -533,17 +533,71 @@ body.lang-modal-open {
     color: var(--text-muted, #64748b);
 }
 
-.lang-card-check {
-    font-size: 1.3rem;
-    color: var(--border-color, #cbd5e1);
-    transition: all 0.22s ease;
+.lang-card-radio {
+    font-size: 1.35rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-left: auto;
+    width: 28px;
+    height: 28px;
 }
 
-.lang-card-option:hover .lang-card-check,
-.lang-card-option.selected .lang-card-check {
+.lang-card-radio .radio-unchecked {
+    display: block;
+    color: var(--border-color, #cbd5e1);
+    transition: all 0.2s ease;
+}
+
+.lang-card-radio .radio-checked {
+    display: none;
     color: var(--primary-orange, #ff6b00);
-    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+.lang-card-option.selected .lang-card-radio .radio-unchecked {
+    display: none;
+}
+
+.lang-card-option.selected .lang-card-radio .radio-checked {
+    display: block;
+    animation: radioPop 0.24s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes radioPop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Full-Width Confirm Action Button */
+.lang-modal-confirm-btn {
+    width: 100%;
+    height: 52px;
+    margin-top: 22px;
+    background: linear-gradient(135deg, var(--primary-orange, #ff6b00), #ff8c38);
+    color: #ffffff;
+    border: none;
+    border-radius: 16px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(255, 107, 0, 0.35);
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lang-modal-confirm-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(255, 107, 0, 0.45);
+    filter: brightness(1.05);
+}
+
+.lang-modal-confirm-btn:active {
+    transform: scale(0.98);
 }
 
 /* Dark Mode Adaptation */
@@ -593,6 +647,14 @@ body.lang-modal-open {
 
 [data-theme="dark"] .lang-card-secondary {
     color: #94a3b8;
+}
+
+[data-theme="dark"] .lang-card-radio .radio-unchecked {
+    color: rgba(255, 255, 255, 0.25);
+}
+
+[data-theme="dark"] .lang-card-radio .radio-checked {
+    color: var(--primary-orange, #ff6b00);
 }
 
 /* Category Hero Bar Actions */
@@ -1065,34 +1127,59 @@ body.shop-closed .checkout-btn {
 }
 
 /* Distinct Accent Colors for Account Settings */
+/* 1. Order History: Royal Blue / Indigo accent */
 .menu-item-icon.icon-order-history {
-    background: rgba(255, 107, 0, 0.12);
-    color: #ff6b00;
+    background: rgba(79, 70, 229, 0.14) !important;
+    color: #4f46e5 !important;
 }
 
 [data-theme="dark"] .menu-item-icon.icon-order-history {
-    background: rgba(255, 107, 0, 0.22);
-    color: #ff8533;
+    background: rgba(99, 102, 241, 0.22) !important;
+    color: #818cf8 !important;
 }
 
+/* 2. Edit Profile & Home Address: Vibrant Warm Orange accent */
 .menu-item-icon.icon-profile-address {
-    background: rgba(255, 46, 99, 0.12);
-    color: #ff2e63;
+    background: rgba(255, 107, 0, 0.14) !important;
+    color: #ff6b00 !important;
 }
 
 [data-theme="dark"] .menu-item-icon.icon-profile-address {
-    background: rgba(255, 46, 99, 0.22);
-    color: #ff527f;
+    background: rgba(255, 107, 0, 0.24) !important;
+    color: #ff8c38 !important;
 }
 
+/* 3. Language / भाषा: Royal Purple accent */
+.menu-item-icon.icon-profile-lang {
+    background: rgba(147, 51, 234, 0.14) !important;
+    color: #9333ea !important;
+}
+
+[data-theme="dark"] .menu-item-icon.icon-profile-lang {
+    background: rgba(168, 85, 247, 0.22) !important;
+    color: #c084fc !important;
+}
+
+/* 4. Info & Legal Policies: Slate / Charcoal accent */
 .menu-item-icon.icon-legal-info {
-    background: rgba(37, 99, 235, 0.12);
-    color: #2563eb;
+    background: rgba(71, 85, 105, 0.14) !important;
+    color: #475569 !important;
 }
 
 [data-theme="dark"] .menu-item-icon.icon-legal-info {
-    background: rgba(59, 130, 246, 0.22);
-    color: #60a5fa;
+    background: rgba(148, 163, 184, 0.20) !important;
+    color: #cbd5e1 !important;
+}
+
+/* 5. Store Notice: Emerald / Teal Green accent */
+.menu-item-icon.icon-store-notice {
+    background: rgba(16, 185, 129, 0.14) !important;
+    color: #059669 !important;
+}
+
+[data-theme="dark"] .menu-item-icon.icon-store-notice {
+    background: rgba(16, 185, 129, 0.24) !important;
+    color: #34d399 !important;
 }
 
 .menu-item-text {
@@ -1545,6 +1632,15 @@ body.shop-closed .checkout-btn {
     font-size: 0.75rem;
     font-weight: var(--fw-black);
     letter-spacing: 0.02em;
+}
+
+html[lang="hi"] .nav-label {
+    font-family: 'Noto Sans Devanagari', 'Outfit', sans-serif;
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: normal;
+    text-rendering: optimizeLegibility;
 }
 
 .nav-icon-wrapper {
@@ -6816,13 +6912,23 @@ body.shop-closed .checkout-btn {
 
 /* Profile List Icons */
 .icon-store-notice {
-    background: rgba(255, 107, 0, 0.12) !important;
-    color: var(--primary-orange) !important;
+    background: rgba(16, 185, 129, 0.14) !important;
+    color: #059669 !important;
+}
+
+[data-theme="dark"] .icon-store-notice {
+    background: rgba(16, 185, 129, 0.24) !important;
+    color: #34d399 !important;
 }
 
 .notice-icon {
-    background: rgba(255, 107, 0, 0.15) !important;
-    color: var(--primary-orange) !important;
+    background: rgba(16, 185, 129, 0.14) !important;
+    color: #059669 !important;
+}
+
+[data-theme="dark"] .notice-icon {
+    background: rgba(16, 185, 129, 0.24) !important;
+    color: #34d399 !important;
 }
 
 /* Store Notice Modal / Bottom Sheet */

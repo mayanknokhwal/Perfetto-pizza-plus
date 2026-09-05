@@ -329,7 +329,7 @@
 
                         <div class="wallet-rules-hint" id="profile-wallet-rules-hint">
                             <i class="fa-solid fa-circle-check"></i>
-                            <span id="profile-wallet-rules-text">Auto-cashback on eligible orders • Redeemable on orders ≥ ₹200</span>
+                            <span id="profile-wallet-rules-text" data-i18n="wallet_rules_default">Auto-cashback on eligible orders • 100% usable on any order</span>
                         </div>
                     </div>
 
@@ -410,7 +410,7 @@
                     </div>
 
                     <div class="menu-item-row profile-lang-row" id="menu-profile-lang-row">
-                        <div class="menu-item-icon icon-profile-lang" style="background: rgba(255, 107, 0, 0.12); color: var(--primary-orange, #ff6b00);">
+                        <div class="menu-item-icon icon-profile-lang">
                             <i class="fa-solid fa-language"></i>
                         </div>
                         <div class="menu-item-text">
@@ -667,7 +667,7 @@
 
                     <div class="lang-options-grid">
                         <!-- English Option Card -->
-                        <button type="button" class="lang-card-option" id="lang-opt-en" onclick="selectFirstVisitLanguage('en')" aria-label="Select English">
+                        <button type="button" class="lang-card-option" id="lang-opt-en" onclick="onLanguageOptionClick('en')" aria-label="Select English">
                             <div class="lang-card-indicator">
                                 <span class="lang-card-letter">EN</span>
                             </div>
@@ -675,13 +675,14 @@
                                 <span class="lang-card-primary">English</span>
                                 <span class="lang-card-secondary">Default • English</span>
                             </div>
-                            <div class="lang-card-check">
-                                <i class="fa-solid fa-circle-check"></i>
+                            <div class="lang-card-radio">
+                                <i class="fa-regular fa-circle radio-unchecked"></i>
+                                <i class="fa-solid fa-circle-check radio-checked"></i>
                             </div>
                         </button>
 
                         <!-- Hindi Option Card -->
-                        <button type="button" class="lang-card-option" id="lang-opt-hi" onclick="selectFirstVisitLanguage('hi')" aria-label="Select Hindi">
+                        <button type="button" class="lang-card-option" id="lang-opt-hi" onclick="onLanguageOptionClick('hi')" aria-label="Select Hindi">
                             <div class="lang-card-indicator hi">
                                 <span class="lang-card-letter">हिं</span>
                             </div>
@@ -689,11 +690,17 @@
                                 <span class="lang-card-primary">हिंदी</span>
                                 <span class="lang-card-secondary">Hindi • देवनागरी</span>
                             </div>
-                            <div class="lang-card-check">
-                                <i class="fa-solid fa-circle-check"></i>
+                            <div class="lang-card-radio">
+                                <i class="fa-regular fa-circle radio-unchecked"></i>
+                                <i class="fa-solid fa-circle-check radio-checked"></i>
                             </div>
                         </button>
                     </div>
+
+                    <!-- Full-Width Confirm Action Button -->
+                    <button type="button" class="lang-modal-confirm-btn" id="lang-modal-confirm-btn" onclick="confirmLanguageSelection()">
+                        Confirm / कन्फर्म करें
+                    </button>
                 </div>
             </div>
         </div>
@@ -948,7 +955,7 @@
                         </div>
                         <div class="wallet-ineligible-hint" id="checkout-wallet-hint" style="display: none;">
                             <i class="fa-solid fa-circle-info"></i>
-                            <span id="checkout-wallet-hint-text">Min order ₹200 required to redeem wallet cash</span>
+                            <span id="checkout-wallet-hint-text">100% of your wallet balance can be used on this order</span>
                         </div>
                     </div>
 

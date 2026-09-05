@@ -159,7 +159,7 @@ async function handleWalletConfigRequest(req, res) {
 
             const isEnabled = body.enabled !== undefined ? Boolean(body.enabled) : true;
             const expiryDays = body.expiryDays !== undefined ? Math.min(30, Math.max(1, parseInt(body.expiryDays, 10) || 7)) : 7;
-            const minRedemptionOrder = body.minRedemptionOrder !== undefined ? Math.max(0, parseFloat(body.minRedemptionOrder) || 200) : 200;
+            const minRedemptionOrder = body.minRedemptionOrder !== undefined ? Math.max(0, parseFloat(body.minRedemptionOrder) || 0) : 0;
 
             let rawSlabs = Array.isArray(body.slabs) ? [...body.slabs] : [];
             if (rawSlabs.length < 5) {
@@ -183,6 +183,7 @@ async function handleWalletConfigRequest(req, res) {
                 enabled: isEnabled,
                 expiryDays,
                 minRedemptionOrder,
+                minOrderToRedeem: 0,
                 slabs,
                 updatedAt: new Date().toISOString()
             };
