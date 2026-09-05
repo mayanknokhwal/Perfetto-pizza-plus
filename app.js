@@ -6538,6 +6538,25 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
         console.warn('Firestore pending_delivery scratch reward update notice:', fsErr);
     }
 
+    // 3. Persist to backend API
+    try {
+        fetch(resolveApiUrl('/api/orders'), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                orderId: orderId,
+                rewardStatus: 'pending_delivery',
+                wonCashback: amount,
+                earnedCashback: amount,
+                scratchRevealed: true,
+                scratchClaimed: false,
+                scratchExpiresAt: expiresAt,
+                scratchExpiryDays: activeDays,
+                cashbackExpiryDays: activeDays
+            })
+        }).catch(() => {});
+    } catch (apiErr) {}
+
     if (typeof renderOrderHistoryDetails === 'function') {
         renderOrderHistoryDetails();
     }
@@ -6682,8 +6701,8 @@ function revealScratchCardReward() {
         // Render explicit deferred status message
         if (hintText) {
             hintText.textContent = isHindi
-                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
-                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is delivered.`;
+                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर सफलतापूर्वक डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
+                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is successfully delivered.`;
         }
         if (hintIcon) {
             hintIcon.className = 'fa-solid fa-truck-fast fa-bounce';
@@ -7060,8 +7079,8 @@ function openScratchCardModal(order, demoAmount) {
         }
         if (hintText) {
             hintText.textContent = isHindi
-                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
-                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is delivered.`;
+                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर सफलतापूर्वक डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
+                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is successfully delivered.`;
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-truck-fast';
     } else {
