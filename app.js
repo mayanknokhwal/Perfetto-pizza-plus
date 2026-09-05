@@ -25,6 +25,65 @@ function formatPrice(amount) {
     return `₹${Math.round(amount)}`;
 }
 
+// Centralized Localization Helper Bridge
+function t(key, params) {
+    if (typeof window !== 'undefined' && typeof window.perfettoTranslate === 'function') {
+        return window.perfettoTranslate(key, params);
+    }
+    return key;
+}
+function tItem(name) {
+    if (typeof window !== 'undefined' && typeof window.perfettoTranslateItem === 'function') {
+        return window.perfettoTranslateItem(name);
+    }
+    return name;
+}
+function tCategory(cat) {
+    if (typeof window !== 'undefined' && typeof window.perfettoTranslateCategory === 'function') {
+        return window.perfettoTranslateCategory(cat);
+    }
+    return cat;
+}
+function tAddon(addon) {
+    if (typeof window !== 'undefined' && typeof window.perfettoTranslateAddon === 'function') {
+        return window.perfettoTranslateAddon(addon);
+    }
+    return addon;
+}
+
+// Global hook for instant reactive re-rendering across the app when language changes
+window.onAppLanguageChanged = function (newLang) {
+    // 1. Re-render Category Detail if open
+    if (activeTabName === 'category-detail' && lastCategoryState.categoryName) {
+        openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+    }
+    // 2. Refresh Cart UI
+    if (typeof updateCartUI === 'function') {
+        updateCartUI();
+    }
+    // 3. Refresh Profile UI & Wallet
+    if (typeof updateProfileWalletUI === 'function') {
+        updateProfileWalletUI();
+    }
+    if (typeof updateProfileTotalsUI === 'function') {
+        updateProfileTotalsUI();
+    }
+    // 4. Refresh Checkout Wallet UI if modal is open
+    const checkoutModal = document.getElementById('checkout-modal');
+    if (checkoutModal && checkoutModal.style.display !== 'none' && typeof updateCheckoutWalletUI === 'function') {
+        updateCheckoutWalletUI();
+    }
+    // 5. Update header search input placeholder
+    const searchInput = document.getElementById('customer-search-input');
+    if (searchInput && typeof t === 'function') {
+        searchInput.placeholder = t('search_placeholder');
+    }
+    // 6. Update Sticky Floating Cart Bar
+    if (typeof updateFloatingCartBar === 'function') {
+        updateFloatingCartBar();
+    }
+};
+
 // Cart State & Persistence
 const CART_STORAGE_KEY = 'perfetto_pizza_cart';
 const DELIVERY_PROFILE_KEY = 'customerDeliveryProfile';
@@ -2718,10 +2777,14 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
     const items = getSubItems(categoryName, categoryImg);
 
-    const titleText = categoryName.toLowerCase().includes('menu') ? categoryName : `${categoryName} Menu`;
+    const translatedCat = typeof tCategory === 'function' ? tCategory(categoryName) : categoryName;
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+    const titleText = isHindi
+        ? (categoryName.toLowerCase().includes('menu') ? translatedCat : `${translatedCat} मेन्यू`)
+        : (categoryName.toLowerCase().includes('menu') ? categoryName : `${categoryName} Menu`);
     if (heroTitleEl) heroTitleEl.textContent = titleText;
     if (heroImgEl) heroImgEl.src = categoryImg;
-    if (heroCountEl) heroCountEl.textContent = `${items.length} options available`;
+    if (heroCountEl) heroCountEl.textContent = `${items.length} ${typeof t === 'function' ? t('options_available') : 'options available'}`;
 
     if (subItemsGrid) {
         if (categoryName === "Pizza") {
@@ -2747,10 +2810,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const addBtnMarkup = isAvailable
-                    ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 const prices = item.prices || { S: 199, M: 299, L: 399 };
                 const selectedSize = 'M';
@@ -2761,15 +2824,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const addonsMarkup = isAvailable ? `
                     <div class="burger-addon-selector pizza-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="burger-addon-options">
-                            <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
+                            <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
+                            <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="Extra Mayo (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
+                            <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -2783,11 +2846,11 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                     </div>
                     <div class="pizza-card-body">
-                        <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${descMarkup}
                         
                         <div class="pizza-size-selector">
-                            <span class="size-label">Size:</span>
+                            <span class="size-label">${typeof t === 'function' ? t('size_label') : 'Size:'}</span>
                             <div class="size-options">
                                 <button class="size-btn" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${prices.S}, event)">S</button>
                                 <button class="size-btn selected" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${prices.M}, event)">M</button>
@@ -2798,7 +2861,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${addonsMarkup}
                         
                         <div class="pizza-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -2818,7 +2881,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -2829,15 +2892,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="burger-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="burger-addon-options">
-                            <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
+                            <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
+                            <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'mayo', event)">
+                            <button type="button" class="burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -2845,8 +2908,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="${prefix}-add-cart-btn" onclick="addCardWithAddonsToCart('${categoryName}', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="${prefix}-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="${prefix}-add-cart-btn" onclick="addCardWithAddonsToCart('${categoryName}', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="${prefix}-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="${prefix}-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -2855,10 +2918,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
                     </div>
                     <div class="${prefix}-card-body">
-                        <h4 class="${prefix}-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="${prefix}-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="${prefix}-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="${prefix}-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -2876,7 +2939,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -2887,15 +2950,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="bread-addon-selector burger-addon-selector">
-                        <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="bread-addon-options burger-addon-options">
-                            <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
+                            <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="bread-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Bread', '${itemId}', 'spicy', event)">
+                            <button type="button" class="bread-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Bread', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="bread-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'mayo', event)">
+                            <button type="button" class="bread-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -2903,8 +2966,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="bread-add-cart-btn" onclick="addCardWithAddonsToCart('Bread', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="bread-add-cart-btn" onclick="addCardWithAddonsToCart('Bread', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="bread-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -2913,10 +2976,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
                     </div>
                     <div class="bread-card-body">
-                        <h4 class="bread-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="bread-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="bread-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="bread-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -2934,7 +2997,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -2945,15 +3008,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="sandwich-addon-selector burger-addon-selector">
-                        <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="sandwich-addon-options burger-addon-options">
-                            <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
+                            <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="sandwich-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'spicy', event)">
+                            <button type="button" class="sandwich-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="sandwich-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'mayo', event)">
+                            <button type="button" class="sandwich-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -2961,8 +3024,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="sandwich-add-cart-btn" onclick="addCardWithAddonsToCart('Sandwich', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="sandwich-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="sandwich-add-cart-btn" onclick="addCardWithAddonsToCart('Sandwich', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="sandwich-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="sandwich-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -2971,10 +3034,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
                     </div>
                     <div class="sandwich-card-body">
-                        <h4 class="sandwich-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="sandwich-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="sandwich-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -2992,7 +3055,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -3003,15 +3066,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="momos-addon-selector burger-addon-selector">
-                        <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="momos-addon-options burger-addon-options">
-                            <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
+                            <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="momos-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Momos', '${itemId}', 'spicy', event)">
+                            <button type="button" class="momos-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Momos', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="momos-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'mayo', event)">
+                            <button type="button" class="momos-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -3019,8 +3082,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="momos-add-cart-btn" onclick="addCardWithAddonsToCart('Momos', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="momos-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="momos-add-cart-btn" onclick="addCardWithAddonsToCart('Momos', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="momos-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="momos-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3029,10 +3092,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
                     </div>
                     <div class="momos-card-body">
-                        <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="momos-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -3050,7 +3113,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -3061,15 +3124,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="pasta-addon-selector burger-addon-selector">
-                        <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="pasta-addon-options burger-addon-options">
-                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
+                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Pasta', '${itemId}', 'spicy', event)">
+                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Pasta', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'mayo', event)">
+                            <button type="button" class="pasta-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -3077,8 +3140,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="pasta-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Pasta', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="pasta-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="pasta-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Pasta', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="pasta-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="pasta-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3087,10 +3150,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="pasta-card-body burger-card-body">
-                        <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="pasta-price-row burger-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="pasta-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -3108,7 +3171,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -3119,15 +3182,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="chinese-addon-selector burger-addon-selector">
-                        <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="chinese-addon-options burger-addon-options">
-                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
+                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'spicy', event)">
+                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'mayo', event)">
+                            <button type="button" class="chinese-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -3135,8 +3198,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="chinese-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Chinese Food', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="chinese-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="chinese-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Chinese Food', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="chinese-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="chinese-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3145,10 +3208,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="chinese-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="chinese-card-body burger-card-body">
-                        <h4 class="chinese-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="chinese-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="chinese-price-row burger-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="chinese-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -3164,7 +3227,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { iceCream: false };
 
@@ -3172,18 +3235,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="shake-addon-selector burger-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="shake-addon-options">
-                            <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
-                                🍨 With Ice Cream
+                            <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="${typeof tAddon === 'function' ? tAddon('With Ice Cream') : 'With Ice Cream'} (+₹${iceCreamPrice})">
+                                🍨 ${typeof tAddon === 'function' ? tAddon('With Ice Cream') : 'With Ice Cream'}
                             </button>
                         </div>
                     </div>
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="shake-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Shake', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="shake-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="shake-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Shake', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="shake-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="shake-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3192,10 +3255,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="shake-card-body burger-card-body">
-                        <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="shake-price-row burger-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="shake-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -3208,12 +3271,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="rice-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="rice-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="rice-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3222,9 +3285,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="rice-card-body burger-card-body">
-                        <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
                         </div>
                     </div>
@@ -3237,12 +3300,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="coffee-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="coffee-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="coffee-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3251,9 +3314,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="coffee-card-body burger-card-body">
-                        <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
                         </div>
                     </div>
@@ -3271,7 +3334,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -3282,15 +3345,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="noodles-addon-selector burger-addon-selector">
-                        <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                        <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                         <div class="noodles-addon-options burger-addon-options">
-                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
+                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Noodles', '${itemId}', 'spicy', event)">
+                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Noodles', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'mayo', event)">
+                            <button type="button" class="noodles-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -3298,8 +3361,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="noodles-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Noodles', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="noodles-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="noodles-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Noodles', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="noodles-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="noodles-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3308,10 +3371,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="noodles-card-body burger-card-body">
-                        <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         ${boxesMarkup}
                         <div class="noodles-price-row burger-price-row">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="noodles-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                         </div>
                     </div>
@@ -3324,12 +3387,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="desserts-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="desserts-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="desserts-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3338,9 +3401,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="desserts-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="desserts-card-body burger-card-body">
-                        <h4 class="desserts-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="desserts-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="desserts-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="desserts-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
                         </div>
                     </div>
@@ -3353,12 +3416,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="salad-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 69}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="salad-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="salad-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 69}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="salad-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="salad-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3367,9 +3430,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="salad-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="salad-card-body burger-card-body">
-                        <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="salad-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="salad-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 69)}</span>
                         </div>
                     </div>
@@ -3382,12 +3445,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="side-orders-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 89}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="side-orders-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="side-orders-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 89}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="side-orders-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="side-orders-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3396,9 +3459,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="side-orders-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="side-orders-card-body burger-card-body">
-                        <h4 class="side-orders-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="side-orders-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="side-orders-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="side-orders-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 89)}</span>
                         </div>
                     </div>
@@ -3411,12 +3474,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="cold-drinks-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 40}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="cold-drinks-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="cold-drinks-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 40}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="cold-drinks-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="cold-drinks-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3425,9 +3488,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="cold-drinks-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="cold-drinks-card-body burger-card-body">
-                        <h4 class="cold-drinks-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="cold-drinks-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="cold-drinks-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="cold-drinks-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 40)}</span>
                         </div>
                     </div>
@@ -3440,12 +3503,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="mojito-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 79}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="mojito-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="mojito-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 79}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="mojito-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="mojito-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
@@ -3454,9 +3517,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="mojito-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="mojito-card-body burger-card-body">
-                        <h4 class="mojito-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="mojito-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="mojito-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                            <span class="price-prefix">Price:</span>
+                            <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="mojito-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 79)}</span>
                         </div>
                     </div>
@@ -3474,7 +3537,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
@@ -3485,15 +3548,15 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="spring-rolls-addon-selector">
-                        <span class="spring-rolls-addon-label">ADD-ONS:</span>
+                        <span class="spring-rolls-addon-label">${typeof t === 'function' ? t('addons_label') : 'ADD-ONS:'}</span>
                         <div class="spring-rolls-addon-options">
-                            <button type="button" class="spring-rolls-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
+                            <button type="button" class="spring-rolls-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
                                 🧀
                             </button>
-                            <button type="button" class="spring-rolls-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
+                            <button type="button" class="spring-rolls-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
                                 🌶️
                             </button>
-                            <button type="button" class="spring-rolls-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
+                            <button type="button" class="spring-rolls-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
                                 🍥
                             </button>
                         </div>
@@ -3501,8 +3564,8 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="spring-rolls-add-cart-btn" onclick="addCardWithAddonsToCart('Spring Rolls', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                    : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                    ? `<button class="spring-rolls-add-cart-btn" onclick="addCardWithAddonsToCart('Spring Rolls', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}" data-category="Spring Rolls">
@@ -3511,11 +3574,11 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
                     </div>
                     <div class="spring-rolls-card-body">
-                        <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                        <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="spring-rolls-action-row">
                             ${boxesMarkup}
                             <div class="spring-rolls-price-row">
-                                <span class="price-prefix">Price:</span>
+                                <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                                 <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
                             </div>
                         </div>
@@ -3529,10 +3592,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
             subItemsGrid.innerHTML = items.map(item => {
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+                const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const addBtnMarkup = isAvailable
-                    ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')"><i class="fa-solid fa-plus"></i> Add</button>`
-                    : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> Out of Stock</button>`;
+                    ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')"><i class="fa-solid fa-plus"></i> ${typeof t === 'function' ? t('add_to_cart') : 'Add'}</button>`
+                    : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'Out of Stock'}</button>`;
 
                 return `
                 <div class="sub-item-card ${outOfStockClass}">
@@ -3542,7 +3605,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     </div>
                     <div class="sub-item-details">
                         <div class="sub-item-top-row">
-                            <span class="sub-item-name">${item.name}</span>
+                            <span class="sub-item-name">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span>
                             ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
                         </div>
                         <p class="sub-item-desc">${item.desc}</p>
@@ -3985,13 +4048,15 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
 
     const isShopClosed = getCustomerShopStatus() === 'closed';
 
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+
     if (subtotal < minOrderVal) {
         // CONDITION A: Below Minimum Order Value
         const diff = (minOrderVal - subtotal).toFixed(2);
         banner.className = 'cart-threshold-banner status-below-min';
         content.innerHTML = `
             <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.</span>
+            <span>${isHindi ? `न्यूनतम ऑर्डर ${formatPrice(minOrderVal)} है। ऑर्डर पूरा करने के लिए ${formatPrice(diff)} का सामान और जोड़ें।` : `Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`}</span>
         `;
         if (checkoutBtn) {
             checkoutBtn.setAttribute('disabled', 'true');
@@ -4002,7 +4067,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         banner.className = 'cart-threshold-banner status-upsell-free';
         content.innerHTML = `
             <i class="fa-solid fa-truck-arrow-right"></i>
-            <span>Add ${formatPrice(diff)} more to get FREE Home Delivery!</span>
+            <span>${isHindi ? `मुफ़्त होम डिलीवरी पाने के लिए ${formatPrice(diff)} का सामान और जोड़ें!` : `Add ${formatPrice(diff)} more to get FREE Home Delivery!`}</span>
         `;
         if (checkoutBtn && !isShopClosed) {
             checkoutBtn.removeAttribute('disabled');
@@ -4012,7 +4077,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         banner.className = 'cart-threshold-banner status-unlocked-free';
         content.innerHTML = `
             <i class="fa-solid fa-circle-check"></i>
-            <span>Congratulations! You have unlocked FREE Delivery.</span>
+            <span>${isHindi ? `बधाई हो! आपको मुफ़्त डिलीवरी मिल गई है।` : `Congratulations! You have unlocked FREE Delivery.`}</span>
         `;
         if (checkoutBtn && !isShopClosed) {
             checkoutBtn.removeAttribute('disabled');
@@ -4045,12 +4110,38 @@ let customerWalletConfig = (function() {
 })();
 
 let currentCustomerWallet = (function() {
+    let directBal = 0;
+    const directStored = localStorage.getItem('perfetto_wallet_balance');
+    if (directStored !== null && !isNaN(Number(directStored))) {
+        directBal = Math.max(0, Number(directStored));
+    }
     try {
         const stored = localStorage.getItem('perfetto_customer_wallet');
-        if (stored) return JSON.parse(stored);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (directStored !== null && !isNaN(Number(directStored))) {
+                parsed.balance = directBal;
+                parsed.nonExpiredBalance = directBal;
+            } else if (typeof parsed.balance === 'number') {
+                localStorage.setItem('perfetto_wallet_balance', parsed.balance);
+            }
+            return parsed;
+        }
     } catch (e) {}
-    return { balance: 0, nonExpiredBalance: 0 };
+    return { balance: directBal, nonExpiredBalance: directBal, transactions: [] };
 })();
+
+function getEffectiveWalletBalance() {
+    const directStored = localStorage.getItem('perfetto_wallet_balance');
+    if (directStored !== null && !isNaN(Number(directStored))) {
+        return Math.max(0, Number(directStored));
+    }
+    if (currentCustomerWallet && typeof currentCustomerWallet.balance === 'number') {
+        return Math.max(0, currentCustomerWallet.balance);
+    }
+    return 0;
+}
+window.getEffectiveWalletBalance = getEffectiveWalletBalance;
 
 let isWalletRedemptionSelected = false;
 let appliedWalletDiscountAmount = 0;
@@ -4091,6 +4182,7 @@ async function fetchCustomerWallet(phone) {
                     ...valid
                 };
                 localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                localStorage.setItem('perfetto_wallet_balance', currentCustomerWallet.balance);
                 return currentCustomerWallet;
             }
         } catch (e) {
@@ -4121,6 +4213,8 @@ function listenToCustomerWalletRealtime(phone) {
                     ...valid
                 };
                 localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                localStorage.setItem('perfetto_wallet_balance', currentCustomerWallet.balance);
+                updateProfileWalletUI();
                 updateCheckoutWalletUI();
             }
         }, (err) => {
@@ -4169,18 +4263,20 @@ function updateCartCashbackIncentiveBar(subtotal) {
 
     bar.style.display = 'block';
 
+    const isHindiCashback = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+
     if (nextSlab) {
         const diff = Math.max(0, nextSlab.minOrder - subtotal);
         bar.classList.remove('cashback-max-unlocked');
 
         const unlockedBadge = unlockedCashback > 0
-            ? `<span class="cashback-current-badge"><i class="fa-solid fa-gift"></i> ₹${unlockedCashback} Unlocked</span>`
+            ? `<span class="cashback-current-badge"><i class="fa-solid fa-gift"></i> ₹${unlockedCashback} ${isHindiCashback ? 'अनलॉक' : 'Unlocked'}</span>`
             : '';
 
         content.innerHTML = `
             <div class="cashback-bar-left">
                 <i class="fa-solid fa-coins"></i>
-                <span class="cashback-bar-text">Add <strong>${formatPrice(diff)}</strong> more to earn <strong>${formatPrice(nextSlab.cashback)} Cashback</strong> on this order!</span>
+                <span class="cashback-bar-text">${isHindiCashback ? `इस ऑर्डर पर <strong>${formatPrice(nextSlab.cashback)} कैशबैक</strong> पाने के लिए <strong>${formatPrice(diff)}</strong> का सामान और जोड़ें!` : `Add <strong>${formatPrice(diff)}</strong> more to earn <strong>${formatPrice(nextSlab.cashback)} Cashback</strong> on this order!`}</span>
             </div>
             ${unlockedBadge}
         `;
@@ -4189,9 +4285,9 @@ function updateCartCashbackIncentiveBar(subtotal) {
         content.innerHTML = `
             <div class="cashback-bar-left">
                 <i class="fa-solid fa-circle-check"></i>
-                <span class="cashback-bar-text">🎉 You unlocked maximum <strong>${formatPrice(unlockedCashback)} Cashback</strong> on this order!</span>
+                <span class="cashback-bar-text">${isHindiCashback ? `🎉 आपने इस ऑर्डर पर अधिकतम <strong>${formatPrice(unlockedCashback)} कैशबैक</strong> अनलॉक कर लिया!` : `🎉 You unlocked maximum <strong>${formatPrice(unlockedCashback)} Cashback</strong> on this order!`}</span>
             </div>
-            <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> Max Cashback</span>
+            <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> ${isHindiCashback ? 'अधिकतम कैशबैक' : 'Max Cashback'}</span>
         `;
     }
 }
@@ -4212,9 +4308,7 @@ function updateCheckoutWalletUI() {
     if (!walletCard) return;
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
-    const availableBalance = (currentCustomerWallet && typeof currentCustomerWallet.nonExpiredBalance === 'number')
-        ? currentCustomerWallet.nonExpiredBalance
-        : ((currentCustomerWallet && currentCustomerWallet.balance) || 0);
+    const availableBalance = getEffectiveWalletBalance();
 
     if (!isSystemEnabled || availableBalance <= 0 || cart.length === 0) {
         walletCard.style.display = 'none';
@@ -4254,12 +4348,15 @@ function updateCheckoutWalletUI() {
             checkLabelWrap.classList.add('is-disabled');
         }
         if (labelEl) {
-            labelEl.textContent = `Use ₹0`;
+            labelEl.textContent = typeof t === 'function' ? t('wallet_use_zero') : `Use ₹0`;
         }
         if (hintEl && hintTextEl) {
             hintEl.style.display = 'flex';
             const diff = minRedemption - subtotal;
-            hintTextEl.textContent = `Min order ${formatPrice(minRedemption)} required to redeem wallet cash (Add ${formatPrice(diff)} more).`;
+            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+            hintTextEl.textContent = isHindi 
+                ? `वॉलेट कैश इस्तेमाल करने के लिए न्यूनतम ऑर्डर ${formatPrice(minRedemption)} आवश्यक है (${formatPrice(diff)} और जोड़ें)।`
+                : `Min order ${formatPrice(minRedemption)} required to redeem wallet cash (Add ${formatPrice(diff)} more).`;
         }
         isWalletRedemptionSelected = false;
         appliedWalletDiscountAmount = 0;
@@ -4275,7 +4372,9 @@ function updateCheckoutWalletUI() {
             checkLabelWrap.classList.remove('is-disabled');
         }
         if (labelEl) {
-            labelEl.textContent = `Use ${formatPrice(maxRedeemable)} Cash`;
+            labelEl.textContent = typeof t === 'function' 
+                ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
+                : `Use ${formatPrice(maxRedeemable)} Cash`;
         }
         if (hintEl) {
             hintEl.style.display = 'none';
@@ -4303,19 +4402,40 @@ function handleToggleUseWallet(isChecked) {
 window.handleToggleUseWallet = handleToggleUseWallet;
 
 async function debitCustomerWallet(phone, amount, orderId) {
-    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
-    if (!cleanPhone || !amount || amount <= 0) return;
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const debitAmt = Number(amount) || 0;
+    if (debitAmt <= 0) return;
+
+    const currentWalletBalance = Number(localStorage.getItem('perfetto_wallet_balance') || (currentCustomerWallet && currentCustomerWallet.balance) || 0);
+    const updatedWalletBalance = Math.max(0, currentWalletBalance - debitAmt);
+    localStorage.setItem('perfetto_wallet_balance', updatedWalletBalance);
+
+    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
+    currentCustomerWallet.balance = updatedWalletBalance;
+    currentCustomerWallet.nonExpiredBalance = updatedWalletBalance;
+
+    const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+    existingTx.unshift({
+        type: 'debit',
+        amount: debitAmt,
+        orderId: String(orderId),
+        description: `Redeemed on Order #${orderId}`,
+        createdAt: new Date().toISOString()
+    });
+    currentCustomerWallet.transactions = existingTx.slice(0, 30);
+    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    updateCheckoutWalletUI();
 
     try {
-        if (customerFirestore) {
+        if (customerFirestore && cleanPhone) {
             const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
-            const snap = await walletRef.get();
-            const currentBal = (snap.exists && typeof snap.data().balance === 'number') ? snap.data().balance : 0;
-            const newBal = Math.max(0, currentBal - amount);
-
             await walletRef.set({
                 phone: cleanPhone,
-                balance: newBal,
+                balance: updatedWalletBalance,
                 updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                     ? firebase.firestore.FieldValue.serverTimestamp()
                     : new Date().toISOString()
@@ -4323,7 +4443,7 @@ async function debitCustomerWallet(phone, amount, orderId) {
 
             await walletRef.collection('transactions').add({
                 type: 'debit',
-                amount: amount,
+                amount: debitAmt,
                 orderId: String(orderId),
                 description: `Redeemed on Order #${orderId}`,
                 createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
@@ -4331,11 +4451,6 @@ async function debitCustomerWallet(phone, amount, orderId) {
                     : new Date().toISOString()
             });
         }
-
-        currentCustomerWallet.balance = Math.max(0, (currentCustomerWallet.balance || 0) - amount);
-        currentCustomerWallet.nonExpiredBalance = Math.max(0, (currentCustomerWallet.nonExpiredBalance || 0) - amount);
-        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
-        updateProfileWalletUI();
     } catch (err) {
         console.warn('Error debiting customer wallet in Firestore:', err);
     }
@@ -4359,8 +4474,14 @@ function calculateOrderCashback(subtotal) {
 window.calculateOrderCashback = calculateOrderCashback;
 
 async function creditCustomerWallet(phone, amount, orderId) {
-    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
-    if (!cleanPhone || !amount || amount <= 0) return;
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const earnedCashback = Number(amount) || 0;
+    if (earnedCashback <= 0) return;
+
+    // Cumulative Addition Logic:
+    const currentWalletBalance = Number(localStorage.getItem('perfetto_wallet_balance') || 0);
+    const updatedWalletBalance = currentWalletBalance + earnedCashback;
+    localStorage.setItem('perfetto_wallet_balance', updatedWalletBalance);
 
     const expiryDays = (customerWalletConfig && typeof customerWalletConfig.expiryDays === 'number')
         ? customerWalletConfig.expiryDays
@@ -4368,17 +4489,37 @@ async function creditCustomerWallet(phone, amount, orderId) {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
 
-    try {
-        if (customerFirestore) {
-            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
-            const snap = await walletRef.get();
-            const data = snap.exists ? snap.data() : {};
-            const currentBal = typeof data.balance === 'number' ? data.balance : 0;
-            const newBal = currentBal + amount;
+    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
+    currentCustomerWallet.balance = updatedWalletBalance;
+    currentCustomerWallet.nonExpiredBalance = updatedWalletBalance;
+    currentCustomerWallet.expiresAt = expiresAt;
+    currentCustomerWallet.lastCreditedAt = now.toISOString();
 
+    const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+    existingTx.unshift({
+        type: 'credit',
+        amount: earnedCashback,
+        orderId: String(orderId),
+        description: `credited +₹${earnedCashback} for Order #${orderId}`,
+        createdAt: now.toISOString(),
+        expiresAt: expiresAt,
+        expiryDays: expiryDays,
+        status: 'active'
+    });
+    currentCustomerWallet.transactions = existingTx.slice(0, 30);
+    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    updateCheckoutWalletUI();
+
+    try {
+        if (customerFirestore && cleanPhone) {
+            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
             await walletRef.set({
                 phone: cleanPhone,
-                balance: newBal,
+                balance: updatedWalletBalance,
                 expiresAt: expiresAt,
                 lastCreditedAt: now.toISOString(),
                 updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
@@ -4388,9 +4529,9 @@ async function creditCustomerWallet(phone, amount, orderId) {
 
             await walletRef.collection('transactions').add({
                 type: 'credit',
-                amount: amount,
+                amount: earnedCashback,
                 orderId: String(orderId),
-                description: `Cashback earned on Order #${orderId}`,
+                description: `credited +₹${earnedCashback} for Order #${orderId}`,
                 createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                     ? firebase.firestore.FieldValue.serverTimestamp()
                     : now.toISOString(),
@@ -4399,32 +4540,6 @@ async function creditCustomerWallet(phone, amount, orderId) {
                 status: 'active'
             });
         }
-
-        // Update local storage and in-memory wallet
-        const prevBal = (currentCustomerWallet && currentCustomerWallet.balance) || 0;
-        const newBalance = prevBal + amount;
-        const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
-        existingTx.unshift({
-            type: 'credit',
-            amount: amount,
-            orderId: String(orderId),
-            description: `Cashback earned on Order #${orderId}`,
-            createdAt: now.toISOString(),
-            expiresAt: expiresAt,
-            expiryDays: expiryDays,
-            status: 'active'
-        });
-
-        currentCustomerWallet = {
-            ...currentCustomerWallet,
-            phone: cleanPhone,
-            balance: newBalance,
-            nonExpiredBalance: newBalance,
-            expiresAt: expiresAt,
-            transactions: existingTx.slice(0, 30)
-        };
-        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
-        updateProfileWalletUI();
     } catch (err) {
         console.warn('Error crediting customer wallet in Firestore:', err);
     }
@@ -4441,17 +4556,16 @@ function updateProfileWalletUI() {
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
 
-    // Filter out expired balances
-    const valid = calculateValidWalletBalance(currentCustomerWallet);
-    const balance = valid.nonExpiredBalance;
+    // Read updated cumulative balance dynamically
+    const balance = getEffectiveWalletBalance();
 
     valEl.textContent = balance;
 
     const minRedeem = (customerWalletConfig && customerWalletConfig.minRedemptionOrder) || 200;
     if (rulesText) {
         rulesText.textContent = isSystemEnabled
-            ? `Auto-cashback on eligible orders • Redeemable on orders ≥ ₹${minRedeem}`
-            : `Wallet rewards system is currently paused.`;
+            ? (typeof t === 'function' ? t('wallet_rules_default', { min: minRedeem }) : `Auto-cashback on eligible orders • Redeemable on orders ≥ ₹${minRedeem}`)
+            : (typeof t === 'function' ? t('wallet_paused') : `Wallet rewards system is currently paused.`);
     }
 
     if (balance > 0 && currentCustomerWallet.expiresAt) {
@@ -4462,7 +4576,9 @@ function updateProfileWalletUI() {
             if (diffDays > 0) {
                 if (expiryTag && expiryText) {
                     expiryTag.style.display = 'flex';
-                    expiryText.textContent = diffDays === 1 ? 'Expires in 1 day' : `Expires in ${diffDays} days`;
+                    expiryText.textContent = diffDays === 1 
+                        ? (typeof t === 'function' ? t('wallet_expires_in_one_day') : 'Expires in 1 day') 
+                        : (typeof t === 'function' ? t('wallet_expires_in_days', { days: diffDays }) : `Expires in ${diffDays} days`);
                 }
             } else if (expiryTag) {
                 expiryTag.style.display = 'none';
@@ -4493,6 +4609,16 @@ function renderProfileWalletTxList() {
     const container = document.getElementById('profile-wallet-tx-list');
     if (!container) return;
 
+    try {
+        const stored = localStorage.getItem('perfetto_customer_wallet');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed.transactions) && (!currentCustomerWallet.transactions || currentCustomerWallet.transactions.length === 0)) {
+                currentCustomerWallet.transactions = parsed.transactions;
+            }
+        }
+    } catch (e) {}
+
     const txList = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
     const now = Date.now();
 
@@ -4521,10 +4647,12 @@ function renderProfileWalletTxList() {
             }
         }
 
+        const txTitle = tx.description || (isCredit ? `credited +₹${amt} for Order #${tx.orderId || ''}` : `Redeemed on Order #${tx.orderId || ''}`);
+
         return `
             <div class="wallet-tx-item ${isCredit ? 'tx-credit' : 'tx-debit'}">
                 <div class="wallet-tx-left">
-                    <span class="wallet-tx-title">${tx.description || (isCredit ? 'Cashback Received' : 'Wallet Redeemed')}</span>
+                    <span class="wallet-tx-title">${txTitle}</span>
                     <span class="wallet-tx-date">${dateStr}</span>
                 </div>
                 <div class="wallet-tx-right">
@@ -4655,12 +4783,13 @@ window.addEventListener('storage', (e) => {
     if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
         updateCartUI();
     }
-    if (!e.key || e.key === 'perfetto_wallet_config' || e.key === 'perfetto_customer_wallet') {
+    if (!e.key || e.key === 'perfetto_wallet_config' || e.key === 'perfetto_customer_wallet' || e.key === 'perfetto_wallet_balance') {
         try {
             if (e.key === 'perfetto_wallet_config') customerWalletConfig = JSON.parse(localStorage.getItem('perfetto_wallet_config') || '{}');
             if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = JSON.parse(localStorage.getItem('perfetto_customer_wallet') || '{}');
         } catch (err) {}
         updateCartUI();
+        updateProfileWalletUI();
         updateCheckoutWalletUI();
     }
     if (!e.key || e.key === 'perfetto_store_notice') {
@@ -4785,8 +4914,8 @@ function updateCartUI() {
         cartContainer.innerHTML = `
             <div class="empty-cart-view">
                 <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
-                <h4>Your cart is empty</h4>
-                <p>Browse categories on Home and add items to your cart!</p>
+                <h4>${typeof t === 'function' ? t('cart_empty_title') : 'Your cart is empty'}</h4>
+                <p>${typeof t === 'function' ? t('cart_empty_desc') : 'Browse categories on Home and add items to your cart!'}</p>
             </div>
         `;
     } else {
@@ -4796,10 +4925,11 @@ function updateCartUI() {
                 ? `<div class="cart-addons-tags">${item.addons.map(a => {
                     const rawName = typeof a === 'string' ? a : (a.name || '');
                     const aName = rawName.replace(/^\+\s*/, '').trim();
+                    const translatedAddon = typeof tAddon === 'function' ? tAddon(aName) : aName;
                     const isMayo = aName.toLowerCase().includes('mayo');
-                    const hasIcon = aName.startsWith('🧀') || aName.startsWith('🌶️') || aName.startsWith('🍥');
-                    const icon = hasIcon ? '' : (aName.toLowerCase().includes('cheese') ? '🧀 ' : (aName.toLowerCase().includes('spicy') ? '🌶️ ' : (isMayo ? '🍥 ' : '')));
-                    return `<span class="cart-addon-pill ${isMayo ? 'cart-addon-mayo' : ''}">${icon}${aName}</span>`;
+                    const hasIcon = aName.startsWith('🧀') || aName.startsWith('🌶️') || aName.startsWith('🍥') || aName.startsWith('🍨');
+                    const icon = hasIcon ? '' : (aName.toLowerCase().includes('cheese') ? '🧀 ' : (aName.toLowerCase().includes('spicy') ? '🌶️ ' : (isMayo ? '🍥 ' : (aName.toLowerCase().includes('ice cream') ? '🍨 ' : ''))));
+                    return `<span class="cart-addon-pill ${isMayo ? 'cart-addon-mayo' : ''}">${icon}${translatedAddon}</span>`;
                 }).join('')}</div>`
                 : '';
 
@@ -4807,7 +4937,7 @@ function updateCartUI() {
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
-                    <h5 class="cart-item-name">${item.baseName || item.name}</h5>
+                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}</h5>
                     ${addonTagsMarkup}
                     <span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>
                 </div>
@@ -4842,15 +4972,16 @@ function updateCartUI() {
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
 
     if (deliveryEl) {
+        const freeTag = `<span class="free-delivery-tag">${typeof t === 'function' ? t('delivery_free') : 'FREE'}</span>`;
         if (cart.length > 0 && deliveryInfo.isFreeDelivery) {
             if (deliveryInfo.baseDeliveryFee > 0) {
-                deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">${formatPrice(deliveryInfo.baseDeliveryFee)}</span><span class="free-delivery-tag">FREE</span>`;
+                deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">${formatPrice(deliveryInfo.baseDeliveryFee)}</span>${freeTag}`;
             } else {
-                deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+                deliveryEl.innerHTML = freeTag;
             }
         } else if (cart.length > 0) {
             if (delivery === 0) {
-                deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
+                deliveryEl.innerHTML = freeTag;
             } else {
                 deliveryEl.textContent = formatPrice(delivery);
             }
@@ -4886,7 +5017,8 @@ function updateFloatingCartBar() {
     if (totalCount > 0 && isApplicableTab) {
         floatingBar.style.display = 'flex';
         if (countBadge) {
-            countBadge.textContent = `${totalCount} ITEM${totalCount !== 1 ? 'S' : ''}`;
+            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+            countBadge.textContent = isHindi ? `${totalCount} सामान` : `${totalCount} ITEM${totalCount !== 1 ? 'S' : ''}`;
         }
         if (priceDisplay) {
             priceDisplay.textContent = formatPrice(subtotal);
@@ -5048,7 +5180,7 @@ function openCheckoutModal(profile) {
 
     if (confirmBtn) {
         confirmBtn.className = 'btn-confirm-address-action';
-        confirmBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Confirm Address';
+        confirmBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${typeof t === 'function' ? t('confirm_address') : 'Confirm Address'}`;
     }
     if (paymentSection) {
         paymentSection.style.opacity = '0.5';
@@ -5082,7 +5214,7 @@ function handleConfirmAddressForCheckout() {
 
     if (confirmBtn) {
         confirmBtn.className = 'btn-confirm-address-action address-confirmed';
-        confirmBtn.innerHTML = '<i class="fa-solid fa-circle-check"></i> Address Confirmed ✓';
+        confirmBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${typeof t === 'function' ? t('address_confirmed') : 'Address Confirmed ✓'}`;
     }
     if (paymentSection) {
         paymentSection.style.opacity = '1';
@@ -5190,7 +5322,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const baseGrandTotal = subtotal + deliveryFee;
     const walletDiscountToApply = isWalletRedemptionSelected ? Math.min(appliedWalletDiscountAmount, baseGrandTotal) : 0;
     const grandTotal = Math.max(0, baseGrandTotal - walletDiscountToApply);
-    const earnedCashback = calculateOrderCashback(subtotal);
+    // Cashback qualifies only when wallet balance was NOT redeemed on this order
+    const qualifiesForCashback = (walletDiscountToApply <= 0);
+    const earnedCashback = qualifiesForCashback ? calculateOrderCashback(subtotal) : 0;
 
     const orderId = specificOrderId || getNextOrderSequenceNumber().toString();
     const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
@@ -5248,16 +5382,18 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         createdAt: now.toISOString()
     };
 
+    const customerPhone = (profile && profile.phone) ? profile.phone : ((currentUserProfile && currentUserProfile.phone) || '');
+
     // If wallet cash was used, debit customer's wallet in Firestore & local state
-    if (walletDiscountToApply > 0 && profile && profile.phone) {
-        debitCustomerWallet(profile.phone, walletDiscountToApply, orderId);
+    if (walletDiscountToApply > 0) {
+        debitCustomerWallet(customerPhone, walletDiscountToApply, orderId);
         isWalletRedemptionSelected = false;
         appliedWalletDiscountAmount = 0;
     }
 
-    // If cashback was earned on this order, credit customer's wallet with expiry
-    if (earnedCashback > 0 && profile && profile.phone) {
-        creditCustomerWallet(profile.phone, earnedCashback, orderId);
+    // If cashback was earned on this order, credit customer's wallet with cumulative addition
+    if (earnedCashback > 0 && qualifiesForCashback) {
+        creditCustomerWallet(customerPhone, earnedCashback, orderId);
     }
 
     // 1. Save order to LocalStorage (Immediate Offline Resilience)
@@ -5542,10 +5678,11 @@ function openOrderOtpSuccessModal(order) {
     const totalAmountEl = document.getElementById('otp-modal-total-amount');
     const copyBtnText = document.getElementById('copy-otp-btn-text');
 
+    const isHindiModal = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     if (orderIdEl) orderIdEl.textContent = `#${orderId}`;
-    if (paymentModeEl) paymentModeEl.textContent = order.paymentMethod || order.paymentStatus || 'Cash on Delivery';
+    if (paymentModeEl) paymentModeEl.textContent = isHindiModal ? 'कैश ऑन डिलीवरी (COD)' : (order.paymentMethod || order.paymentStatus || 'Cash on Delivery');
     if (totalAmountEl) totalAmountEl.textContent = `₹${order.total || 0}`;
-    if (copyBtnText) copyBtnText.textContent = 'Copy OTP';
+    if (copyBtnText) copyBtnText.textContent = typeof t === 'function' ? t('copy_otp') : 'Copy OTP';
 
     // Render individual glowing digit boxes
     if (digitsContainer) {
@@ -5562,8 +5699,16 @@ function openOrderOtpSuccessModal(order) {
     if (cashbackCard) {
         if (earnedCashback > 0) {
             cashbackCard.style.display = 'flex';
-            if (cashbackText) cashbackText.textContent = `🎉 ₹${earnedCashback} Cashback credited to your wallet!`;
-            if (cashbackExpiry) cashbackExpiry.textContent = `Valid for ${expiryDays} days. Use on your next order!`;
+            if (cashbackText) {
+                cashbackText.textContent = typeof t === 'function'
+                    ? t('cashback_credited', { amount: earnedCashback })
+                    : `🎉 ₹${earnedCashback} Cashback credited to your wallet!`;
+            }
+            if (cashbackExpiry) {
+                cashbackExpiry.textContent = typeof t === 'function'
+                    ? t('cashback_validity', { days: expiryDays })
+                    : `Valid for ${expiryDays} days. Use on your next order!`;
+            }
             showToast(`🎉 ₹${earnedCashback} Cashback credited to your wallet! Valid for ${expiryDays} days.`, 5000);
         } else {
             cashbackCard.style.display = 'none';
@@ -6891,9 +7036,11 @@ function updateProfileTotalsUI() {
 
     // Update Perfetto Wallet UI in Profile Tab & sync latest Firestore balance
     updateProfileWalletUI();
+    renderProfileWalletTxList();
     if (currentProfile && currentProfile.phone) {
         fetchCustomerWallet(currentProfile.phone).then(() => {
             updateProfileWalletUI();
+            renderProfileWalletTxList();
         });
         listenToCustomerWalletRealtime(currentProfile.phone);
     }
@@ -8654,3 +8801,4 @@ window.cleanupAllCustomerListeners = cleanupAllCustomerListeners;
 window.openStoreNoticeModal = openStoreNoticeModal;
 window.closeStoreNoticeModal = closeStoreNoticeModal;
 window.updateStoreNoticeUI = updateStoreNoticeUI;
+window.openCategoryDetail = openCategoryDetail;

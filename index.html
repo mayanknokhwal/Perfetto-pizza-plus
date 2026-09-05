@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" type="image/png" href="https://i.ibb.co/HfRxNYQv/perfetto-Black.png">
-    <!-- Google Fonts: Outfit & Plus Jakarta Sans with bold weights -->
+    <!-- Google Fonts: Outfit & Plus Jakarta Sans with bold weights, and Noto Sans Devanagari for clean Hindi typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@500;600;700;800;900&family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
         rel="stylesheet">
     <!-- FontAwesome vector icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -56,6 +56,13 @@
                 </div>
 
                 <div class="header-actions">
+                    <!-- Language Toggle Switch (EN | हिं) -->
+                    <div class="lang-switch-toggle" id="lang-switch-header" role="group" aria-label="Language Selector">
+                        <button type="button" class="lang-btn active" data-lang="en" onclick="setAppLanguage('en')">EN</button>
+                        <span class="lang-divider">|</span>
+                        <button type="button" class="lang-btn" data-lang="hi" onclick="setAppLanguage('hi')">हिं</button>
+                    </div>
+
                     <!-- Theme Toggle Button (Now on the left of search) -->
                     <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Light and Dark Mode">
                         <div class="toggle-icon-wrapper">
@@ -78,7 +85,7 @@
                 <div class="search-bar-inner">
                     <i class="fa-solid fa-magnifying-glass search-bar-icon"></i>
                     <input type="text" id="customer-search-input" class="customer-search-input"
-                        placeholder="Search pizza, burger, pasta..." autocomplete="off">
+                        placeholder="Search pizza, burger, pasta..." data-i18n-placeholder="search_placeholder" autocomplete="off">
                     <button class="search-clear-btn" id="customer-search-clear" aria-label="Clear Search">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
@@ -90,7 +97,7 @@
         <div class="shop-closed-banner" id="shop-closed-banner" style="display: none;">
             <div class="banner-content">
                 <i class="fa-solid fa-store-slash banner-icon"></i>
-                <span>This time shop is closed. We are not accepting orders right now.</span>
+                <span data-i18n="shop_closed_banner">This time shop is closed. We are not accepting orders right now.</span>
             </div>
         </div>
 
@@ -99,7 +106,7 @@
             <div class="category-hero-content">
                 <button class="hero-back-btn" id="category-back-btn" aria-label="Back to Home">
                     <i class="fa-solid fa-arrow-left"></i>
-                    <span>Back</span>
+                    <span data-i18n="back">Back</span>
                 </button>
                 <div class="hero-category-info">
                     <div class="hero-thumb-wrapper">
@@ -110,13 +117,20 @@
                         <span class="category-hero-count" id="category-hero-count">18 options available</span>
                     </div>
                 </div>
-                <button class="theme-toggle-btn hero-theme-toggle" id="category-theme-toggle"
-                    aria-label="Toggle Light and Dark Mode">
-                    <div class="toggle-icon-wrapper">
-                        <i class="fa-solid fa-moon moon-icon"></i>
-                        <i class="fa-solid fa-sun sun-icon"></i>
+                <div class="category-hero-actions">
+                    <div class="lang-switch-toggle hero-lang-switch" id="lang-switch-hero" role="group" aria-label="Language Selector">
+                        <button type="button" class="lang-btn active" data-lang="en" onclick="setAppLanguage('en')">EN</button>
+                        <span class="lang-divider">|</span>
+                        <button type="button" class="lang-btn" data-lang="hi" onclick="setAppLanguage('hi')">हिं</button>
                     </div>
-                </button>
+                    <button class="theme-toggle-btn hero-theme-toggle" id="category-theme-toggle"
+                        aria-label="Toggle Light and Dark Mode">
+                        <div class="toggle-icon-wrapper">
+                            <i class="fa-solid fa-moon moon-icon"></i>
+                            <i class="fa-solid fa-sun sun-icon"></i>
+                        </div>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -142,7 +156,7 @@
 
                 <!-- 1. 'DAILY OFFER' SECTION -->
                 <section class="daily-offer-section">
-                    <h2 class="section-title-bold">DAILY OFFER</h2>
+                    <h2 class="section-title-bold" data-i18n="daily_offer">DAILY OFFER</h2>
                     <div class="offer-slider-wrapper" id="offer-slider-wrapper">
                         <div class="offer-slider-track" id="offer-slider-track">
                             <div class="offer-slide">
@@ -168,7 +182,7 @@
 
                 <!-- 2. 'FAST FOOD' SECTION -->
                 <section class="fast-food-section">
-                    <h2 class="section-title-bold">FAST FOOD</h2>
+                    <h2 class="section-title-bold" data-i18n="fast_food_title">FAST FOOD</h2>
 
                     <!-- 3. Responsive CSS Grid (2 Columns Mobile View) with 18 clickable image cards -->
                     <div class="fast-food-grid">
@@ -253,7 +267,7 @@
             <section class="tab-view" id="view-category-detail">
                 <div class="sub-items-section">
                     <div class="sub-items-header">
-                        <h4 class="section-title-bold">VARIETIES & OPTIONS</h4>
+                        <h4 class="section-title-bold" data-i18n="varieties_options">VARIETIES & OPTIONS</h4>
                     </div>
                     <div class="sub-items-grid" id="sub-items-grid">
                         <!-- Dynamic sub-category items rendered via JS -->
@@ -303,11 +317,11 @@
                                 <i class="fa-solid fa-wallet"></i>
                             </div>
                             <div>
-                                <h4 class="wallet-card-title">Perfetto Wallet</h4>
-                                <p class="wallet-card-subtitle">Cashback Rewards & Balance</p>
+                                <h4 class="wallet-card-title" data-i18n="wallet_title">Perfetto Wallet</h4>
+                                <p class="wallet-card-subtitle" data-i18n="wallet_subtitle">Cashback Rewards & Balance</p>
                             </div>
                         </div>
-                        <span class="wallet-status-pill" id="profile-wallet-status-pill">Active</span>
+                        <span class="wallet-status-pill" id="profile-wallet-status-pill" data-i18n="wallet_active">Active</span>
                     </div>
 
                     <div class="profile-wallet-body">
@@ -318,7 +332,7 @@
                             </div>
                             <div class="wallet-expiry-tag" id="profile-wallet-expiry-tag" style="display: none;">
                                 <i class="fa-solid fa-hourglass-half"></i>
-                                <span id="profile-wallet-expiry-text">Expires in 7 days</span>
+                                <span id="profile-wallet-expiry-text" data-i18n="expires_in_7_days">Expires in 7 days</span>
                             </div>
                         </div>
 
@@ -331,7 +345,7 @@
                     <!-- WALLET RECENT TRANSACTIONS EXPANDABLE -->
                     <div class="profile-wallet-ledger" id="profile-wallet-ledger">
                         <div class="wallet-ledger-header" onclick="toggleWalletLedgerView()">
-                            <span><i class="fa-solid fa-clock-rotate-left"></i> Wallet Transactions</span>
+                            <span><i class="fa-solid fa-clock-rotate-left"></i> <span data-i18n="wallet_transactions">Wallet Transactions</span></span>
                             <i class="fa-solid fa-chevron-down" id="arrow-wallet-ledger"></i>
                         </div>
                         <div class="wallet-transactions-list" id="profile-wallet-tx-list" style="display: none;">
@@ -344,19 +358,19 @@
                 <div class="profile-stats-row">
                     <div class="stat-card">
                         <span class="stat-num" id="stat-total-orders">0</span>
-                        <span class="stat-label">Total Orders</span>
+                        <span class="stat-label" data-i18n="total_orders">Total Orders</span>
                     </div>
                 </div>
 
                 <!-- ACCOUNT SETTINGS (ORDER HISTORY, EDIT PROFILE & INFO/LEGAL) -->
                 <div class="menu-list-group">
-                    <h4 class="group-title">Account Settings</h4>
+                    <h4 class="group-title" data-i18n="account_settings">Account Settings</h4>
 
                     <div class="menu-item-row" id="menu-order-history" onclick="toggleOrderHistoryView()">
                         <div class="menu-item-icon icon-order-history"><i class="fa-solid fa-clock-rotate-left"></i></div>
                         <div class="menu-item-text">
-                            <span class="item-title">Order History</span>
-                            <span class="item-subtitle">View past orders & details</span>
+                            <span class="item-title" data-i18n="order_history">Order History</span>
+                            <span class="item-subtitle" data-i18n="order_history_sub">View past orders & details</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow" id="arrow-order-history"></i>
                     </div>
@@ -367,11 +381,11 @@
                             <div class="saved-title-group">
                                 <i class="fa-solid fa-receipt"
                                     style="color: var(--primary-orange); margin-right: 6px;"></i>
-                                <span>Recent Orders</span>
+                                <span data-i18n="recent_orders">Recent Orders</span>
                             </div>
                             <button type="button" class="btn-clear-history" id="btn-clear-history"
                                 onclick="clearCustomerOrderHistory()">
-                                <i class="fa-solid fa-trash-can"></i> Clear History
+                                <i class="fa-solid fa-trash-can"></i> <span data-i18n="clear_history">Clear History</span>
                             </button>
                         </div>
                         <div id="order-history-list" class="order-history-list">
@@ -382,8 +396,8 @@
                     <div class="menu-item-row" id="menu-saved-addresses" onclick="toggleSavedAddressesView()">
                         <div class="menu-item-icon icon-profile-address"><i class="fa-solid fa-house-chimney-user"></i></div>
                         <div class="menu-item-text">
-                            <span class="item-title">Edit Profile & Home Address</span>
-                            <span class="item-subtitle">View & update your profile and delivery address</span>
+                            <span class="item-title" data-i18n="edit_profile_address">Edit Profile & Home Address</span>
+                            <span class="item-subtitle" data-i18n="edit_profile_sub">View & update your profile and delivery address</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow" id="arrow-saved-addresses"></i>
                     </div>
@@ -482,8 +496,8 @@
                     <div class="menu-item-row" id="menu-store-notice" onclick="openStoreNoticeModal()">
                         <div class="menu-item-icon icon-store-notice"><i class="fa-solid fa-bullhorn"></i></div>
                         <div class="menu-item-text">
-                            <span class="item-title">Store Notice</span>
-                            <span class="item-subtitle">Announcements, holiday alerts &amp; store updates</span>
+                            <span class="item-title" data-i18n="store_notice">Store Notice</span>
+                            <span class="item-subtitle" data-i18n="store_notice_sub">Announcements, holiday alerts &amp; store updates</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow" id="arrow-store-notice"></i>
                     </div>
@@ -493,8 +507,8 @@
             <!-- CART TAB VIEW -->
             <section class="tab-view" id="view-cart">
                 <div class="cart-view-header">
-                    <h3>Your Food Cart</h3>
-                    <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()">Clear All</button>
+                    <h3 data-i18n="cart_title">Your Food Cart</h3>
+                    <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()" data-i18n="clear_history">Clear All</button>
                 </div>
 
                 <div id="cart-items-container" class="cart-items-list">
@@ -517,19 +531,19 @@
 
                 <div class="cart-summary-card" id="cart-summary">
                     <div class="summary-line">
-                        <span>Subtotal</span>
+                        <span data-i18n="subtotal">Subtotal</span>
                         <span id="cart-subtotal">₹0</span>
                     </div>
                     <div class="summary-line">
-                        <span>Delivery Fee</span>
+                        <span data-i18n="delivery_fee">Delivery Fee</span>
                         <span id="cart-delivery">₹0</span>
                     </div>
                     <div class="summary-line total-line">
-                        <span>Grand Total</span>
+                        <span data-i18n="grand_total">Grand Total</span>
                         <span id="cart-total">₹0</span>
                     </div>
                     <button class="checkout-btn" onclick="processCheckout()">
-                        Proceed to Checkout <i class="fa-solid fa-arrow-right"></i>
+                        <span data-i18n="proceed_to_checkout">Proceed to Checkout</span> <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </div>
             </section>
@@ -584,7 +598,7 @@
                 <div class="floating-cart-price" id="floating-cart-total">₹0</div>
             </div>
             <div class="floating-cart-right">
-                <span class="floating-cart-cta-text">View Cart</span>
+                <span class="floating-cart-cta-text" data-i18n="view_cart">View Cart</span>
                 <i class="fa-solid fa-arrow-right floating-cart-arrow"></i>
             </div>
         </div>
@@ -598,7 +612,7 @@
                     <div class="nav-icon-wrapper">
                         <i class="fa-solid fa-user"></i>
                     </div>
-                    <span class="nav-label">Profile</span>
+                    <span class="nav-label" data-i18n="nav_profile">Profile</span>
                 </button>
 
                 <!-- HOME BUTTON (CENTER, VISUALLY EMPHASIZED) -->
@@ -608,7 +622,7 @@
                             <i class="fa-solid fa-house"></i>
                         </div>
                     </div>
-                    <span class="nav-label">Home</span>
+                    <span class="nav-label" data-i18n="nav_home">Home</span>
                 </button>
 
                 <!-- CART BUTTON -->
@@ -617,7 +631,7 @@
                         <i class="fa-solid fa-basket-shopping"></i>
                         <span class="cart-badge" id="cart-badge-count">0</span>
                     </div>
-                    <span class="nav-label">Cart</span>
+                    <span class="nav-label" data-i18n="nav_cart">Cart</span>
                 </button>
 
             </div>
@@ -828,8 +842,8 @@
                             <i class="fa-solid fa-bag-shopping"></i>
                         </div>
                         <div>
-                            <h3 class="checkout-modal-title" id="checkout-modal-title">Review & Place Order</h3>
-                            <p class="checkout-modal-subtitle">Confirm your delivery address & choose payment</p>
+                            <h3 class="checkout-modal-title" id="checkout-modal-title" data-i18n="review_place_order">Review & Place Order</h3>
+                            <p class="checkout-modal-subtitle" data-i18n="review_subtitle">Confirm your delivery address & choose payment</p>
                         </div>
                     </div>
                     <button type="button" class="checkout-modal-close-btn" onclick="closeCheckoutModal()"
@@ -849,7 +863,7 @@
                             <span class="checkout-summary-val" id="checkout-subtotal">₹0</span>
                         </div>
                         <div class="checkout-summary-row">
-                            <span class="checkout-summary-label">Delivery Fee</span>
+                            <span class="checkout-summary-label" data-i18n="delivery_fee">Delivery Fee</span>
                             <span class="checkout-summary-val" id="checkout-delivery">₹0</span>
                         </div>
                         <div class="checkout-summary-row wallet-discount-row" id="checkout-wallet-discount-row" style="display: none;">
@@ -858,7 +872,7 @@
                         </div>
                         <div class="checkout-summary-divider"></div>
                         <div class="checkout-summary-row total-row">
-                            <span>Grand Total</span>
+                            <span data-i18n="grand_total">Grand Total</span>
                             <span class="checkout-total-val" id="checkout-total">₹0</span>
                         </div>
                     </div>
@@ -871,7 +885,7 @@
                                     <i class="fa-solid fa-wallet"></i>
                                 </div>
                                 <div class="wallet-text-group">
-                                    <span class="wallet-balance-title">Perfetto Wallet Cash</span>
+                                    <span class="wallet-balance-title" data-i18n="wallet_title">Perfetto Wallet Cash</span>
                                     <span class="wallet-balance-sub">Available: <strong id="checkout-wallet-available-val">₹0</strong></span>
                                 </div>
                             </div>
@@ -891,18 +905,18 @@
                     <div class="checkout-step-section" id="checkout-address-section">
                         <div class="checkout-section-header">
                             <div class="step-badge">1</div>
-                            <h4 class="checkout-section-title">Delivery Address</h4>
+                            <h4 class="checkout-section-title" data-i18n="delivery_address">Delivery Address</h4>
                         </div>
 
                         <div class="saved-address-card checkout-address-card">
                             <div class="saved-address-card-header">
                                 <div class="saved-title-group">
                                     <i class="fa-solid fa-house-chimney" style="color: var(--primary-orange);"></i>
-                                    <span class="saved-address-label">Delivering To</span>
+                                    <span class="saved-address-label" data-i18n="delivering_to">Delivering To</span>
                                 </div>
                                 <button type="button" class="change-address-btn"
                                     onclick="handleEditAddressFromCheckout()">
-                                    <i class="fa-solid fa-pen-to-square"></i> Edit Details
+                                    <i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_details">Edit Details</span>
                                 </button>
                             </div>
                             <div class="saved-address-content" id="checkout-address-content">
@@ -913,7 +927,7 @@
                         <!-- CONFIRM ADDRESS BUTTON -->
                         <button type="button" class="btn-confirm-address-action" id="btn-confirm-address-action"
                             onclick="handleConfirmAddressForCheckout()">
-                            <i class="fa-solid fa-circle-check"></i> Confirm Address
+                            <i class="fa-solid fa-circle-check"></i> <span data-i18n="confirm_address">Confirm Address</span>
                         </button>
                     </div>
 
@@ -922,7 +936,7 @@
                         style="opacity: 0.5; pointer-events: none;">
                         <div class="checkout-section-header">
                             <div class="step-badge">2</div>
-                            <h4 class="checkout-section-title">Select Payment Mode</h4>
+                            <h4 class="checkout-section-title" data-i18n="select_payment_mode">Select Payment Mode</h4>
                         </div>
 
                         <div class="payment-options-grid">
@@ -935,14 +949,14 @@
                                     </div>
                                     <div class="payment-option-info">
                                         <div class="payment-title-row">
-                                            <span class="payment-name">Cash on Delivery (COD)</span>
+                                            <span class="payment-name" data-i18n="payment_cod">Cash on Delivery (COD)</span>
                                             <span class="payment-tag-active"><i class="fa-solid fa-circle-check"></i> Available & Recommended</span>
                                         </div>
-                                        <p class="payment-desc">Pay via cash or scan QR using any UPI app upon delivery</p>
+                                        <p class="payment-desc" data-i18n="cod_subtext">Pay via cash or scan QR using any UPI app upon delivery</p>
                                     </div>
                                 </div>
                                 <div class="btn-place-order-pill">
-                                    <span>Place Order</span>
+                                    <span data-i18n="place_order">Place Order</span>
                                     <i class="fa-solid fa-arrow-right"></i>
                                 </div>
                             </div>
@@ -997,7 +1011,7 @@
                             <i class="fa-solid fa-circle-check"></i>
                         </div>
                         <div>
-                            <h3 class="checkout-modal-title" id="order-otp-modal-title">ORDER PLACED SUCCESSFULLY! 🎉</h3>
+                            <h3 class="checkout-modal-title" id="order-otp-modal-title" data-i18n="order_placed_success">ORDER PLACED SUCCESSFULLY! 🎉</h3>
                             <p class="checkout-modal-subtitle">Order <span id="otp-modal-order-id" class="otp-modal-order-tag">#--</span> is being prepared</p>
                         </div>
                     </div>
@@ -1009,13 +1023,13 @@
                     <!-- SIMPLIFIED YELLOW-HIGHLIGHTED SCREENSHOT ADVICE ALERT BOX -->
                     <div class="otp-screenshot-alert-card">
                         <i class="fa-solid fa-camera"></i>
-                        <span class="screenshot-alert-title">PLEASE TAKE A SCREENSHOT OF THIS OTP!</span>
+                        <span class="screenshot-alert-title" data-i18n="screenshot_advice">PLEASE TAKE A SCREENSHOT OF THIS OTP!</span>
                     </div>
 
                     <!-- PROMINENT OTP DISPLAY BOX -->
                     <div class="otp-display-hero-box">
                         <span class="otp-hero-label">
-                            <i class="fa-solid fa-shield-halved"></i> Delivery Verification OTP
+                            <i class="fa-solid fa-shield-halved"></i> <span data-i18n="delivery_verification_otp">Delivery Verification OTP</span>
                         </span>
                         <div class="otp-code-digits" id="otp-modal-digits-display">
                             <span class="otp-digit-box">--</span>
@@ -1025,7 +1039,7 @@
                         </div>
                         <div class="otp-actions-bar">
                             <button type="button" class="btn-copy-otp-code" id="btn-copy-otp" onclick="copyDeliveryOtpToClipboard()">
-                                <i class="fa-solid fa-copy"></i> <span id="copy-otp-btn-text">Copy OTP</span>
+                                <i class="fa-solid fa-copy"></i> <span id="copy-otp-btn-text" data-i18n="copy_otp">Copy OTP</span>
                             </button>
                         </div>
                     </div>
@@ -1033,11 +1047,11 @@
                     <!-- CLEAN DETAILS SUMMARY: PAYMENT METHOD & TOTAL AMOUNT ONLY -->
                     <div class="otp-order-summary-card">
                         <div class="otp-summary-row">
-                            <span><i class="fa-solid fa-credit-card" style="color: #22c55e;"></i> Payment Method:</span>
+                            <span><i class="fa-solid fa-credit-card" style="color: #22c55e;"></i> <span data-i18n="payment_method">Payment Method:</span></span>
                             <strong id="otp-modal-payment-mode">Cash on Delivery</strong>
                         </div>
                         <div class="otp-summary-row total-row">
-                            <span><i class="fa-solid fa-receipt" style="color: var(--primary-orange);"></i> Total Amount:</span>
+                            <span><i class="fa-solid fa-receipt" style="color: var(--primary-orange);"></i> <span data-i18n="total_amount">Total Amount:</span></span>
                             <strong class="otp-total-amount" id="otp-modal-total-amount">₹0</strong>
                         </div>
                     </div>
@@ -1056,10 +1070,10 @@
                     <!-- ACTION BUTTONS -->
                     <div class="otp-modal-actions-group">
                         <button type="button" class="btn-touch btn-view-order-history" onclick="viewOrderHistoryFromOtpModal()">
-                            <i class="fa-solid fa-clock-rotate-left"></i> View in Order History
+                            <i class="fa-solid fa-clock-rotate-left"></i> <span data-i18n="view_in_order_history">View in Order History</span>
                         </button>
                         <button type="button" class="btn-touch btn-got-otp-done" onclick="closeOrderOtpSuccessModal()">
-                            <i class="fa-solid fa-check"></i> Got It &amp; Continue
+                            <i class="fa-solid fa-check"></i> <span data-i18n="got_it_continue">Got It &amp; Continue</span>
                         </button>
                     </div>
 
@@ -1230,6 +1244,8 @@
     <!-- Centralized Firebase Configuration -->
     <script type="module" src="./lib/firebaseConfig.js"></script>
 
+    <!-- Centralized Localization Translations -->
+    <script src="translations.js"></script>
     <script src="app.js?v=2.0"></script>
 </body>
 
