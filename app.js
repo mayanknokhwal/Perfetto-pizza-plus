@@ -2590,10 +2590,11 @@ async function fetchLiveBannersFromBackend() {
         try {
             const doc = await customerFirestore.collection('settings').doc('daily_banners').get();
             if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                const normalized = doc.data().banners.map((b, i) => ({
+                const normalized = doc.data().banners.slice(0, 4).map((b, i) => ({
                     id: b.id || `b${i + 1}`,
-                    url: resolveBannerUrl(b.url)
-                })).slice(0, 7);
+                    url: resolveBannerUrl(b.url),
+                    enabled: b.enabled !== false
+                }));
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
                 renderDynamicOfferSlider(normalized);
                 return;
@@ -2608,10 +2609,11 @@ async function fetchLiveBannersFromBackend() {
         if (res.ok) {
             const data = await res.json();
             if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
-                const normalized = data.banners.map((b, i) => ({
+                const normalized = data.banners.slice(0, 4).map((b, i) => ({
                     id: b.id || `b${i + 1}`,
-                    url: resolveBannerUrl(b.url)
-                })).slice(0, 7);
+                    url: resolveBannerUrl(b.url),
+                    enabled: b.enabled !== false
+                }));
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
                 renderDynamicOfferSlider(normalized);
                 return;
@@ -8982,13 +8984,14 @@ function showToast(msg, duration = 2400) {
 
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
-// 8. DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (SEAMLESS AUTO-CAROUSEL)
+// 8. DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (SEAMLESS DYNAMIC AUTO-CAROUSEL)
 // --------------------------------------------------------------------------
 const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png' },
-    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png' },
-    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png' }
+    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true },
+    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
+    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
+    { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
 ];
 
 window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
@@ -9015,33 +9018,39 @@ let offerSliderPauseTimeout = null;
 let currentOfferSlideIndex = 0;
 
 function renderDynamicOfferSlider(customBanners = null) {
-    let banners = customBanners;
-    if (!Array.isArray(banners) || banners.length === 0) {
+    let rawBanners = customBanners;
+    if (!Array.isArray(rawBanners) || rawBanners.length === 0) {
         try {
             const saved = localStorage.getItem('perfetto_daily_banners');
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    banners = parsed;
+                    rawBanners = parsed;
                 }
             }
         } catch (e) { }
     }
-    if (!Array.isArray(banners) || banners.length === 0) {
-        banners = DEFAULT_DAILY_BANNERS;
+    if (!Array.isArray(rawBanners) || rawBanners.length === 0) {
+        rawBanners = DEFAULT_DAILY_BANNERS;
     }
-    if (banners.length > 7) banners = banners.slice(0, 7);
+
+    // Filter only currently enabled banners from the 4 slots
+    let activeBanners = rawBanners.slice(0, 4).filter(b => b && b.enabled !== false);
+    if (activeBanners.length === 0) {
+        // Fallback to slot 1 if all are somehow marked false
+        activeBanners = [rawBanners[0] || DEFAULT_DAILY_BANNERS[0]];
+    }
 
     const track = document.getElementById('offer-slider-track');
     const dotsContainer = document.getElementById('offer-dots');
     if (!track || !dotsContainer) return;
 
-    if (currentOfferSlideIndex >= banners.length) {
+    if (currentOfferSlideIndex >= activeBanners.length) {
         currentOfferSlideIndex = 0;
     }
 
-    // Render track slides dynamically for all banners
-    track.innerHTML = banners.map((banner, idx) => {
+    // Render track slides dynamically for active banners
+    track.innerHTML = activeBanners.map((banner, idx) => {
         const safeUrl = resolveBannerUrl(banner.url);
         return `
             <div class="offer-slide" data-banner-id="${banner.id || ('b' + (idx + 1))}" data-slide-index="${idx}">
@@ -9050,21 +9059,28 @@ function renderDynamicOfferSlider(customBanners = null) {
         `;
     }).join('');
 
-    // Render pagination dots for all banners
-    dotsContainer.innerHTML = banners.map((_, idx) => 
-        `<span class="dot ${idx === currentOfferSlideIndex ? 'active' : ''}" data-index="${idx}"></span>`
-    ).join('');
+    // Single Banner Mode: Hide indicator dots completely
+    if (activeBanners.length <= 1) {
+        dotsContainer.style.display = 'none';
+        dotsContainer.innerHTML = '';
+    } else {
+        dotsContainer.style.display = 'flex';
+        dotsContainer.innerHTML = activeBanners.map((_, idx) => 
+            `<span class="dot ${idx === currentOfferSlideIndex ? 'active' : ''}" data-index="${idx}"></span>`
+        ).join('');
+    }
 
-    initOfferSlider();
+    initOfferSlider(activeBanners.length);
 }
 window.renderDynamicOfferSlider = renderDynamicOfferSlider;
 
-function initOfferSlider() {
+function initOfferSlider(activeBannerCount) {
     const wrapper = document.getElementById('offer-slider-wrapper');
     const track = document.getElementById('offer-slider-track');
     const dotsContainer = document.getElementById('offer-dots');
     if (!wrapper || !track || !dotsContainer) return;
 
+    // Clear any running timers
     if (offerSliderAutoScrollInterval) {
         clearInterval(offerSliderAutoScrollInterval);
         offerSliderAutoScrollInterval = null;
@@ -9076,11 +9092,43 @@ function initOfferSlider() {
 
     const slides = Array.from(track.querySelectorAll('.offer-slide'));
     const totalSlides = slides.length;
+
+    // Detach all previous swipe/drag listeners clean
+    wrapper.ontouchstart = null;
+    wrapper.ontouchmove = null;
+    wrapper.ontouchend = null;
+    wrapper.ontouchcancel = null;
+    wrapper.onmousedown = null;
+    wrapper.onmousemove = null;
+    wrapper.onmouseup = null;
+    wrapper.onmouseleave = null;
+
+    // --------------------------------------------------------------------------
+    // SINGLE BANNER MODE: Exactly 1 banner is active
+    // Disable swiping/touch gestures and auto-scroll completely; fixed & static.
+    // --------------------------------------------------------------------------
     if (totalSlides <= 1) {
+        track.style.display = 'block';
+        track.style.width = '100%';
         track.style.transform = 'translateX(0%)';
         track.style.transition = 'none';
+        if (slides[0]) {
+            slides[0].style.flex = '0 0 100%';
+            slides[0].style.width = '100%';
+            slides[0].style.minWidth = '100%';
+        }
+        dotsContainer.style.display = 'none';
+        dotsContainer.innerHTML = '';
+        wrapper.style.cursor = 'default';
         return;
     }
+
+    // --------------------------------------------------------------------------
+    // MULTI BANNER MODE: 2 to 4 banners active
+    // 3s auto-scroll loop + 5.5s pause/hold delay after user touch/drag
+    // --------------------------------------------------------------------------
+    dotsContainer.style.display = 'flex';
+    wrapper.style.cursor = 'grab';
 
     const dots = Array.from(dotsContainer.querySelectorAll('.dot'));
 
@@ -9127,7 +9175,7 @@ function initOfferSlider() {
         stopAutoScroll();
         offerSliderAutoScrollInterval = setInterval(() => {
             nextSlide();
-        }, 3000); // 3 seconds autoplay
+        }, 3000); // 3 seconds autoplay loop
     }
 
     function stopAutoScroll() {
@@ -9140,10 +9188,10 @@ function initOfferSlider() {
     function handleUserInteractionEnd() {
         stopAutoScroll();
         if (offerSliderPauseTimeout) clearTimeout(offerSliderPauseTimeout);
-        // Wait 6 seconds idle cooldown before resuming 3-second autoplay
+        // 5.5 seconds hold delay after manual swipe/drag before resuming 3s auto-scroll
         offerSliderPauseTimeout = setTimeout(() => {
             startAutoScroll();
-        }, 6000);
+        }, 5500);
     }
 
     // Dot click navigation
@@ -9167,6 +9215,7 @@ function initOfferSlider() {
         startX = clientX;
         currentX = startX;
         isDragging = true;
+        wrapper.style.cursor = 'grabbing';
     }
 
     function onMove(clientX) {
@@ -9177,6 +9226,7 @@ function initOfferSlider() {
     function onEnd() {
         if (!isDragging) return;
         isDragging = false;
+        wrapper.style.cursor = 'grab';
         const diffX = currentX - startX;
 
         if (Math.abs(diffX) > 35) {
@@ -9208,6 +9258,7 @@ function initOfferSlider() {
     wrapper.ontouchcancel = () => {
         if (isDragging) {
             isDragging = false;
+            wrapper.style.cursor = 'grab';
             handleUserInteractionEnd();
         }
     };
@@ -9227,11 +9278,12 @@ function initOfferSlider() {
     wrapper.onmouseleave = () => {
         if (isDragging) {
             isDragging = false;
+            wrapper.style.cursor = 'grab';
             handleUserInteractionEnd();
         }
     };
 
-    // Start initial 3-second autoplay
+    // Start initial 3-second autoplay loop
     startAutoScroll();
 }
 
@@ -10057,10 +10109,11 @@ function listenToRealtimeMenuAndRates() {
             bannersRealtimeUnsubscribe = customerFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
                 let banners = DEFAULT_DAILY_BANNERS;
                 if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                    banners = doc.data().banners.map((b, i) => ({
+                    banners = doc.data().banners.slice(0, 4).map((b, i) => ({
                         id: b.id || `b${i + 1}`,
-                        url: resolveBannerUrl(b.url)
-                    })).slice(0, 7);
+                        url: resolveBannerUrl(b.url),
+                        enabled: b.enabled !== false
+                    }));
                 }
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));
                 renderDynamicOfferSlider(banners);

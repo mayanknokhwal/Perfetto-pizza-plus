@@ -97,6 +97,7 @@ async function handleBannersRequest(req, res) {
                 success: true,
                 banners: banners,
                 count: banners.length,
+                activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
             });
         }
@@ -114,7 +115,8 @@ async function handleBannersRequest(req, res) {
                 success: true,
                 message: result.message,
                 banners: result.banners,
-                count: result.banners.length
+                count: result.banners.length,
+                activeCount: result.banners.filter(b => b.enabled).length
             });
         }
 

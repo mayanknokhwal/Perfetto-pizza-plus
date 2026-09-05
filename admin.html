@@ -1697,6 +1697,61 @@
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
         }
 
+        .banner-row-item.is-disabled {
+            opacity: 0.65;
+            background: rgba(255, 255, 255, 0.012);
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .banner-row-item.is-disabled .banner-thumbnail-img {
+            filter: grayscale(85%) opacity(0.6);
+        }
+
+        .banner-toggle-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            min-width: 60px;
+        }
+
+        .banner-toggle-switch {
+            width: 44px;
+            height: 24px;
+            margin: 0;
+        }
+
+        .banner-toggle-switch .slider:before {
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+        }
+
+        .banner-status-badge {
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 2px 7px;
+            border-radius: 4px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .banner-status-badge.badge-active {
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .banner-status-badge.badge-inactive {
+            color: #94a3b8;
+            background: rgba(148, 163, 184, 0.1);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
         .banner-num-pill {
             font-size: 0.8rem;
             font-weight: 800;
@@ -1705,7 +1760,7 @@
             border: 1px solid rgba(255, 107, 0, 0.2);
             padding: 4px 10px;
             border-radius: 6px;
-            min-width: 38px;
+            min-width: 65px;
             text-align: center;
             display: inline-block;
         }
@@ -1729,7 +1784,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: transform 0.25s ease;
+            transition: transform 0.25s ease, filter 0.25s ease;
         }
 
         .banner-thumbnail-box:hover .banner-thumbnail-img {
@@ -1778,84 +1833,15 @@
             background-color: rgba(15, 23, 42, 0.95);
         }
 
-        .btn-delete-banner {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            color: #ef4444;
-            border-radius: var(--radius-md);
-            width: 40px;
-            height: 40px;
-            min-width: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 0.95rem;
-        }
-
-        .btn-delete-banner:not([disabled]):hover {
-            background: #ef4444;
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
-            transform: translateY(-1px);
-        }
-
-        .btn-delete-banner[disabled] {
-            opacity: 0.3;
-            cursor: not-allowed;
-            background: rgba(255, 255, 255, 0.03);
-            border-color: rgba(255, 255, 255, 0.05);
-            color: var(--text-muted);
-            pointer-events: none;
-        }
-
-        .btn-add-banner {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            padding: 10px 20px;
-            border-radius: var(--radius-md);
-            cursor: pointer;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px dashed rgba(255, 255, 255, 0.2);
-            color: var(--text-main);
-            transition: all 0.2s ease;
-        }
-
-        .btn-add-banner:not([disabled]):hover {
-            background: rgba(255, 107, 0, 0.1);
-            border-color: var(--primary-orange);
-            color: var(--primary-orange);
-            transform: translateY(-1px);
-        }
-
-        .btn-add-banner[disabled] {
-            opacity: 0.4;
-            cursor: not-allowed;
-            pointer-events: none;
-            border-style: solid;
-        }
-
-        .btn-save-daily-banners {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            padding: 10px 22px;
-            border-radius: var(--radius-md);
-            background: linear-gradient(135deg, #ff6b00 0%, #ea580c 100%);
-            color: #fff;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.35);
-            transition: all 0.2s ease;
-        }
-
-        .btn-save-daily-banners:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 18px rgba(255, 107, 0, 0.45);
+        @media (max-width: 640px) {
+            .banner-row-item {
+                flex-wrap: wrap;
+                gap: 10px;
+                padding: 12px;
+            }
+            .banner-input-wrapper {
+                min-width: 100%;
+            }
         }
 
         /* --------------------------------------------------------------------------
@@ -3651,36 +3637,28 @@
                     </div>
                 </div>
 
-                <!-- DAILY BANNERS MANAGEMENT CARD (MIN 2, MAX 7) -->
+                <!-- DAILY BANNERS MANAGEMENT CARD (FIXED 4 SLOTS) -->
                 <div class="store-settings-card daily-banners-management-card" id="admin-daily-banners-card">
                     <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
                         <div>
                             <h3>
                                 <i class="fa-solid fa-images" style="color: var(--primary-orange);"></i> Manage Daily Banners
-                                <span class="banner-count-badge" id="admin-banner-count-badge">3 / 7 Banners</span>
+                                <span class="banner-count-badge" id="admin-banner-count-badge">4 / 4 Active</span>
                             </h3>
-                            <p>Paste image URLs (ImgBB, Cloudinary, direct links) for the customer home page carousel. Minimum 2 banners, maximum 7.</p>
-                        </div>
-                        <div class="banner-header-actions">
-                            <button type="button" class="btn-save-daily-banners" id="btn-save-daily-banners" onclick="handleSaveDailyBannersClick()">
-                                <i class="fa-solid fa-cloud-arrow-up"></i> Save Daily Banners
-                            </button>
+                            <p>Configure strictly 4 persistent banner slots for the customer homepage carousel. Toggle slots active or hidden (at least 1 banner must remain active).</p>
                         </div>
                     </div>
 
-                    <!-- BANNERS LIST CONTAINER -->
+                    <!-- BANNERS LIST CONTAINER (FIXED 4 SLOTS) -->
                     <div class="daily-banners-list" id="admin-banners-list">
-                        <!-- Dynamically populated via renderAdminBannersUI() -->
+                        <!-- Dynamically populated via renderAdminBannersUI() with 4 slots -->
                     </div>
 
                     <!-- FOOTER CONTROLS -->
-                    <div class="daily-banners-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 12px;">
-                        <button type="button" class="btn-add-banner" id="btn-add-banner-row" onclick="handleAddBannerRowClick()">
-                            <i class="fa-solid fa-plus"></i> Add New Banner
-                        </button>
+                    <div class="daily-banners-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 10px;">
                         <div class="banner-footer-hint" style="font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-circle-info" style="color: var(--primary-orange);"></i>
-                            <span>Minimum 2 banners required. Invalid or empty URLs automatically resolve to the Perfetto Pizza default logo.</span>
+                            <span>Fixed 4 slots. Toggle checkbox to activate/deactivate. At least 1 banner must remain active. Changes persist automatically via the top <strong>Save All Changes</strong> button.</span>
                         </div>
                     </div>
                 </div>
@@ -5900,9 +5878,13 @@
                     await saveWalletSettings(false);
                 }
 
-                // 4. Save Daily Banners if available
-                if (typeof saveAdminDailyBanners === 'function' && Array.isArray(adminDailyBannersList)) {
-                    saveAdminDailyBanners(adminDailyBannersList).catch(() => { });
+                // 4. Atomically persist 4 Daily Banner Slots directly in Save All Changes workflow
+                if (typeof saveAdminDailyBanners === 'function') {
+                    try {
+                        await saveAdminDailyBanners(adminDailyBannersList);
+                    } catch (bannerErr) {
+                        console.warn('Notice saving daily banners in saveAllChanges:', bannerErr);
+                    }
                 }
 
                 const modifiedIds = Object.keys(pendingMenuUpdates);
@@ -7326,13 +7308,14 @@
         window.hideAdminAuthSplash = hideAdminAuthSplash;
 
         // --------------------------------------------------------------------------
-        // DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (MIN 2, MAX 7)
+        // DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (FIXED 4 PERSISTENT SLOTS)
         // --------------------------------------------------------------------------
         const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
         const DEFAULT_DAILY_BANNERS = [
-            { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png' },
-            { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png' },
-            { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png' }
+            { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true },
+            { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
+            { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
+            { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
         ];
 
         window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
@@ -7354,15 +7337,32 @@
         }
         window.handleBannerImgError = handleBannerImgError;
 
+        let adminDailyBannersList = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+
+        function normalizeAdminBanners(raw) {
+            const list = Array.isArray(raw) ? raw : [];
+            let normalized = [];
+            for (let i = 0; i < 4; i++) {
+                const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: DEFAULT_FALLBACK_BANNER_LOGO, enabled: true };
+                normalized.push({
+                    id: (item.id && String(item.id).trim()) || `b${i + 1}`,
+                    url: resolveBannerUrl(item.url),
+                    enabled: item.enabled !== false
+                });
+            }
+            if (!normalized.some(b => b.enabled)) {
+                normalized[0].enabled = true;
+            }
+            return normalized;
+        }
+        window.normalizeAdminBanners = normalizeAdminBanners;
+
         async function fetchAdminDailyBanners() {
             if (adminFirestore) {
                 try {
                     const doc = await adminFirestore.collection('settings').doc('daily_banners').get();
-                    if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
-                        return doc.data().banners.map((b, i) => ({
-                            id: b.id || `b${i + 1}`,
-                            url: resolveBannerUrl(b.url)
-                        })).slice(0, 7);
+                    if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
+                        return normalizeAdminBanners(doc.data().banners);
                     }
                 } catch (e) {
                     console.warn('Firestore admin daily banners fetch note:', e.message);
@@ -7372,8 +7372,8 @@
                 const res = await fetch('/api/banners');
                 if (res.ok) {
                     const data = await res.json();
-                    if (data && data.success && Array.isArray(data.banners) && data.banners.length >= 2) {
-                        return data.banners;
+                    if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
+                        return normalizeAdminBanners(data.banners);
                     }
                 }
             } catch (e) { }
@@ -7383,22 +7383,28 @@
         window.fetchAdminDailyBanners = fetchAdminDailyBanners;
 
         async function saveAdminDailyBanners(bannersList) {
-            let sanitized = (Array.isArray(bannersList) ? bannersList : [])
-                .map((b, i) => ({
-                    id: (b.id && String(b.id).trim()) || `b${i + 1}`,
-                    url: resolveBannerUrl(b.url)
-                }));
-
-            if (sanitized.length < 2) {
-                DEFAULT_DAILY_BANNERS.forEach(defB => {
-                    if (sanitized.length < 2) sanitized.push({ ...defB });
+            // Synchronize DOM inputs directly so unsaved typing is committed
+            let slots = [];
+            for (let i = 0; i < 4; i++) {
+                const inputEl = document.getElementById(`banner-input-${i}`);
+                const toggleEl = document.getElementById(`banner-toggle-${i}`);
+                const current = (Array.isArray(bannersList) && bannersList[i]) || (adminDailyBannersList && adminDailyBannersList[i]) || DEFAULT_DAILY_BANNERS[i];
+                slots.push({
+                    id: current.id || `b${i + 1}`,
+                    url: resolveBannerUrl(inputEl ? inputEl.value : current.url),
+                    enabled: toggleEl ? toggleEl.checked : (current.enabled !== false)
                 });
             }
-            if (sanitized.length > 7) sanitized = sanitized.slice(0, 7);
+
+            // Enforce validation: At least 1 banner must remain active
+            if (!slots.some(s => s.enabled)) {
+                slots[0].enabled = true;
+            }
 
             const docPayload = {
-                banners: sanitized,
-                count: sanitized.length,
+                banners: slots,
+                count: 4,
+                activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),
                 key: 'daily_banners'
             };
@@ -7419,44 +7425,51 @@
                 });
             } catch (e) { }
 
-            return { success: true, banners: sanitized };
+            adminDailyBannersList = slots;
+            renderAdminBannersUI();
+            return { success: true, banners: slots };
         }
         window.saveAdminDailyBanners = saveAdminDailyBanners;
 
-        let adminDailyBannersList = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+        function updateAdminBannerCountBadge() {
+            const badge = document.getElementById('admin-banner-count-badge');
+            if (!badge) return;
+            const activeCount = adminDailyBannersList.filter(b => b.enabled !== false).length;
+            badge.textContent = `${activeCount} / 4 Active`;
+            badge.style.color = activeCount === 1 ? 'var(--primary-orange)' : '#10b981';
+        }
 
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
-            const badge = document.getElementById('admin-banner-count-badge');
-            const addBtn = document.getElementById('btn-add-banner-row');
             if (!listContainer) return;
 
-            const count = adminDailyBannersList.length;
-            if (badge) {
-                badge.textContent = `${count} / 7 Banners`;
-                badge.style.color = count >= 7 ? '#ef4444' : 'var(--primary-orange)';
-            }
-
-            if (addBtn) {
-                if (count >= 7) {
-                    addBtn.disabled = true;
-                    addBtn.title = 'Maximum 7 banners reached';
-                } else {
-                    addBtn.disabled = false;
-                    addBtn.title = 'Add another banner (up to 7)';
-                }
-            }
+            // Ensure exactly 4 slots
+            adminDailyBannersList = normalizeAdminBanners(adminDailyBannersList);
+            updateAdminBannerCountBadge();
 
             let html = '';
             adminDailyBannersList.forEach((banner, idx) => {
                 const safeUrl = resolveBannerUrl(banner.url);
                 const rawUrl = (banner.url || '').trim();
-                const isDeleteDisabled = count <= 2;
+                const isEnabled = banner.enabled !== false;
 
                 html += `
-                    <div class="banner-row-item" data-index="${idx}" id="banner-row-${idx}">
+                    <div class="banner-row-item ${isEnabled ? 'is-active' : 'is-disabled'}" data-index="${idx}" id="banner-row-${idx}">
+                        <div class="banner-toggle-col" title="Toggle Banner Slot #${idx + 1}">
+                            <label class="switch banner-toggle-switch" for="banner-toggle-${idx}">
+                                <input type="checkbox" 
+                                       id="banner-toggle-${idx}" 
+                                       ${isEnabled ? 'checked' : ''} 
+                                       onchange="onBannerToggleChange(${idx}, this)"
+                                       aria-label="Toggle Banner Slot #${idx + 1}">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="banner-status-badge ${isEnabled ? 'badge-active' : 'badge-inactive'}" id="banner-status-badge-${idx}">
+                                ${isEnabled ? 'Active' : 'Hidden'}
+                            </span>
+                        </div>
                         <div class="banner-drag-handle">
-                            <span class="banner-num-pill">#${idx + 1}</span>
+                            <span class="banner-num-pill">Slot #${idx + 1}</span>
                         </div>
                         <div class="banner-thumbnail-box" title="Visual Thumbnail Preview">
                             <img src="${safeUrl}" 
@@ -7471,22 +7484,12 @@
                                 <input type="url" 
                                        class="search-input banner-url-input" 
                                        id="banner-input-${idx}" 
-                                       placeholder="Paste ImgBB or direct image URL (e.g. https://i.ibb.co/...)" 
+                                       placeholder="Paste image URL for Slot #${idx + 1} (e.g. https://i.ibb.co/...)" 
                                        value="${rawUrl.replace(/"/g, '&quot;')}"
                                        oninput="onBannerUrlInput(${idx}, this.value)"
                                        autocomplete="off"
                                        spellcheck="false">
                             </div>
-                        </div>
-                        <div class="banner-actions">
-                            <button type="button" 
-                                    class="btn-delete-banner" 
-                                    id="btn-del-banner-${idx}" 
-                                    onclick="handleDeleteBannerRow(${idx})" 
-                                    ${isDeleteDisabled ? 'disabled title="Minimum 2 banners required"' : 'title="Delete Banner #' + (idx + 1) + '"'} 
-                                    aria-label="Delete Banner #${idx + 1}">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
                         </div>
                     </div>
                 `;
@@ -7506,83 +7509,44 @@
         }
         window.onBannerUrlInput = onBannerUrlInput;
 
-        function handleAddBannerRowClick() {
-            if (adminDailyBannersList.length >= 7) {
-                showToast('Maximum 7 daily banners allowed!');
-                return;
-            }
-            adminDailyBannersList.push({
-                id: 'b' + Date.now(),
-                url: ''
-            });
-            renderAdminBannersUI();
+        function onBannerToggleChange(index, checkboxEl) {
+            if (index < 0 || index >= adminDailyBannersList.length) return;
 
-            setTimeout(() => {
-                const newInput = document.getElementById(`banner-input-${adminDailyBannersList.length - 1}`);
-                if (newInput) {
-                    newInput.focus();
-                    newInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // Enforce validation: At least 1 banner must remain active (prevent unchecking all 4 slots)
+            if (!checkboxEl.checked) {
+                const activeCount = adminDailyBannersList.reduce((acc, b, i) => {
+                    if (i === index) return acc;
+                    return acc + (b.enabled !== false ? 1 : 0);
+                }, 0);
+
+                if (activeCount < 1) {
+                    checkboxEl.checked = true;
+                    adminDailyBannersList[index].enabled = true;
+                    showToast('At least 1 banner must remain active! You cannot deactivate all 4 slots.');
+                    return;
                 }
-            }, 50);
+            }
+
+            adminDailyBannersList[index].enabled = checkboxEl.checked;
+            const rowEl = document.getElementById(`banner-row-${index}`);
+            const badgeEl = document.getElementById(`banner-status-badge-${index}`);
+            if (rowEl) {
+                rowEl.classList.toggle('is-disabled', !checkboxEl.checked);
+                rowEl.classList.toggle('is-active', checkboxEl.checked);
+            }
+            if (badgeEl) {
+                badgeEl.textContent = checkboxEl.checked ? 'Active' : 'Hidden';
+                badgeEl.className = `banner-status-badge ${checkboxEl.checked ? 'badge-active' : 'badge-inactive'}`;
+            }
+            updateAdminBannerCountBadge();
         }
-        window.handleAddBannerRowClick = handleAddBannerRowClick;
-
-        function handleDeleteBannerRow(index) {
-            if (adminDailyBannersList.length <= 2) {
-                showToast('Minimum 2 banners are required for the carousel!');
-                return;
-            }
-            if (index >= 0 && index < adminDailyBannersList.length) {
-                adminDailyBannersList.splice(index, 1);
-                renderAdminBannersUI();
-                showToast('Banner removed. Click "Save Daily Banners" to apply.');
-            }
-        }
-        window.handleDeleteBannerRow = handleDeleteBannerRow;
-
-        async function handleSaveDailyBannersClick() {
-            const saveBtn = document.getElementById('btn-save-daily-banners');
-            const origHtml = saveBtn ? saveBtn.innerHTML : '';
-            if (saveBtn) {
-                saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-            }
-
-            try {
-                // Ensure DOM values are synced into adminDailyBannersList
-                adminDailyBannersList.forEach((b, idx) => {
-                    const inputEl = document.getElementById(`banner-input-${idx}`);
-                    if (inputEl) {
-                        b.url = inputEl.value;
-                    }
-                });
-
-                const res = await saveAdminDailyBanners(adminDailyBannersList);
-                if (res && res.banners) {
-                    adminDailyBannersList = res.banners;
-                }
-                renderAdminBannersUI();
-                showToast('Daily Banners saved successfully to Firebase Firestore!');
-                if (typeof logAdminActivity === 'function') {
-                    logAdminActivity(`Updated daily banners (${adminDailyBannersList.length} active banners)`);
-                }
-            } catch (err) {
-                console.error('Error saving daily banners:', err);
-                showToast('Error saving daily banners: ' + err.message);
-            } finally {
-                if (saveBtn) {
-                    saveBtn.disabled = false;
-                    saveBtn.innerHTML = origHtml || '<i class="fa-solid fa-cloud-arrow-up"></i> Save Daily Banners';
-                }
-            }
-        }
-        window.handleSaveDailyBannersClick = handleSaveDailyBannersClick;
+        window.onBannerToggleChange = onBannerToggleChange;
 
         async function loadAdminDailyBanners() {
             try {
                 const banners = await fetchAdminDailyBanners();
-                if (Array.isArray(banners) && banners.length >= 2) {
-                    adminDailyBannersList = banners;
+                if (Array.isArray(banners) && banners.length > 0) {
+                    adminDailyBannersList = normalizeAdminBanners(banners);
                 }
             } catch (e) {
                 console.warn('Error loading admin daily banners:', e);
@@ -9451,11 +9415,8 @@
             if (!adminBannersUnsubscribe) {
                 try {
                     adminBannersUnsubscribe = adminFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
-                        if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length >= 2) {
-                            adminDailyBannersList = doc.data().banners.map((b, i) => ({
-                                id: b.id || `b${i + 1}`,
-                                url: resolveBannerUrl(b.url)
-                            })).slice(0, 7);
+                        if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
+                            adminDailyBannersList = normalizeAdminBanners(doc.data().banners);
                             renderAdminBannersUI();
                         }
                     }, (err) => {

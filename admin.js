@@ -179,3 +179,43 @@ export function normalizeStoreNotice(raw) {
         updatedAt: raw.updatedAt || null
     };
 }
+
+// --------------------------------------------------------------------------
+// 4-SLOT PERSISTENT DAILY BANNERS CONFIGURATION & HELPERS
+// --------------------------------------------------------------------------
+export const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+
+export const DEFAULT_DAILY_BANNERS = [
+    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true },
+    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
+    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
+    { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
+];
+
+/**
+ * Validates and normalizes banner slots into strictly 4 persistent slots.
+ * Ensures at least 1 banner remains active.
+ * @param {Array} raw 
+ * @returns {Array<{id: string, url: string, enabled: boolean}>}
+ */
+export function normalizeDailyBanners(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    let normalized = [];
+    for (let i = 0; i < 4; i++) {
+        const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: DEFAULT_FALLBACK_BANNER_LOGO, enabled: true };
+        const url = (item.url && typeof item.url === 'string' && item.url.trim().length >= 4)
+            ? item.url.trim()
+            : DEFAULT_FALLBACK_BANNER_LOGO;
+        normalized.push({
+            id: (item.id && String(item.id).trim()) || `b${i + 1}`,
+            url,
+            enabled: item.enabled !== false
+        });
+    }
+
+    if (!normalized.some(b => b.enabled)) {
+        normalized[0].enabled = true;
+    }
+    return normalized;
+}
+
