@@ -2327,18 +2327,23 @@ function buildOrderCardHTML(order) {
 
     if (order.status === 'new') {
         if (isOnline) {
-            // Online Payment: Accept Order
+            // Online Payment: Staff Accept & Reject Choice
             actionButtonsHTML = `
-                <button class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)">
-                    <i class="fa-solid fa-fire"></i> Accept Order
-                </button>
+                <div class="cod-action-group">
+                    <button class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')">
+                        <i class="fa-solid fa-ban"></i> Reject Order
+                    </button>
+                    <button class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)">
+                        <i class="fa-solid fa-fire"></i> Accept Order
+                    </button>
+                </div>
             `;
         } else {
             // Cash on Delivery: Staff Accept & Reject Choice
             actionButtonsHTML = `
                 <div class="cod-action-group">
                     <button class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')">
-                        <i class="fa-solid fa-xmark"></i> Reject
+                        <i class="fa-solid fa-ban"></i> Reject Order
                     </button>
                     <button class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)">
                         <i class="fa-solid fa-check"></i> Accept Order
@@ -2347,10 +2352,15 @@ function buildOrderCardHTML(order) {
             `;
         }
     } else if (order.status === 'preparing' || order.status === 'ready' || order.status === 'delivery') {
-        // Streamlined direct OTP Verification (Unwanted intermediate buttons removed)
+        // Streamlined direct OTP Verification with Reject Order fallback
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
                 ${otpVerificationBoxHTML}
+                <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" style="padding: 7px 14px; font-size: 0.8rem; max-width: 160px; border-radius: 8px;">
+                        <i class="fa-solid fa-ban"></i> Reject Order
+                    </button>
+                </div>
             </div>
         `;
     } else if (order.status === 'rejected') {
