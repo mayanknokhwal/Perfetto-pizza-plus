@@ -6531,8 +6531,25 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
                 'scratchCard.expiresAt': expiresAt,
                 'scratchCard.expiresAtISO': new Date(expiresAt).toISOString(),
                 'scratchCard.expiryDays': activeDays,
-                'scratchCard.cashbackExpiryDays': activeDays
             }, { merge: true });
+
+            const rawPhone = order.customerPhone || order.phone || ((currentUserProfile && currentUserProfile.phone) || '');
+            const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+            if (cleanPhone) {
+                const userCardDoc = {
+                    lastScratchCard: {
+                        orderId: orderId,
+                        rewardStatus: 'pending_delivery',
+                        wonCashback: amount,
+                        revealed: true,
+                        claimed: false,
+                        expiresAt: expiresAt,
+                        updatedAt: new Date().toISOString()
+                    }
+                };
+                customerFirestore.collection('users').doc(`phone_${cleanPhone}`).set(userCardDoc, { merge: true }).catch(() => {});
+                customerFirestore.collection('users').doc(cleanPhone).set(userCardDoc, { merge: true }).catch(() => {});
+            }
         }
     } catch (fsErr) {
         console.warn('Firestore pending_delivery scratch reward update notice:', fsErr);
@@ -7173,6 +7190,24 @@ function saveUnscratchedCardFallback(order) {
                 'scratchCard.expiresAt': expiresAtMs,
                 'scratchCard.expiresAtISO': new Date(expiresAtMs).toISOString()
             }, { merge: true }).catch(() => {});
+
+            const rawPhone = order.customerPhone || order.phone || ((currentUserProfile && currentUserProfile.phone) || '');
+            const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+            if (cleanPhone) {
+                const userCardDoc = {
+                    lastScratchCard: {
+                        orderId: orderId,
+                        rewardStatus: 'unscratched',
+                        wonCashback: amount,
+                        revealed: false,
+                        claimed: false,
+                        expiresAt: expiresAtMs,
+                        updatedAt: new Date().toISOString()
+                    }
+                };
+                customerFirestore.collection('users').doc(`phone_${cleanPhone}`).set(userCardDoc, { merge: true }).catch(() => {});
+                customerFirestore.collection('users').doc(cleanPhone).set(userCardDoc, { merge: true }).catch(() => {});
+            }
         }
     } catch (fsErr) {}
 
