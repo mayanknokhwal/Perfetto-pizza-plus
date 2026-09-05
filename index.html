@@ -562,7 +562,7 @@
                         <span data-i18n="grand_total">Grand Total</span>
                         <span id="cart-total">₹0</span>
                     </div>
-                    <button class="checkout-btn" onclick="processCheckout()">
+                    <button class="checkout-btn" id="checkout-btn" onclick="processCheckout()">
                         <span data-i18n="proceed_to_checkout">Proceed to Checkout</span> <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </div>
@@ -1199,7 +1199,7 @@
                 <div class="scratch-card-box-wrapper">
                     <div class="scratch-card-stage" id="scratch-card-stage">
                         <!-- REVEAL STATE (Underneath Canvas) -->
-                        <div class="scratch-reveal-content" id="scratch-reveal-content">
+                        <div class="scratch-reveal-content" id="reward-content">
                             <div class="scratch-reveal-glow-ray"></div>
                             <div class="scratch-win-badge">
                                 <i class="fa-solid fa-crown"></i> <span id="scratch-reveal-congrats-text" data-i18n="scratch_you_won">YOU WON!</span>

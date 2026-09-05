@@ -7344,6 +7344,8 @@ html[lang="hi"] .nav-label {
 }
 
 /* REVEAL CONTENT (UNDER CANVAS) */
+#reward-content,
+#scratch-reveal-content,
 .scratch-reveal-content {
     position: absolute;
     inset: 0;
@@ -7353,6 +7355,7 @@ html[lang="hi"] .nav-label {
     justify-content: center;
     background: radial-gradient(circle at 50% 40%, #352404 0%, #151003 100%);
     z-index: 1;
+    isolation: isolate;
     padding: 16px;
     box-sizing: border-box;
     text-align: center;
@@ -7426,17 +7429,19 @@ html[lang="hi"] .nav-label {
 }
 
 /* INTERACTIVE SCRATCH CANVAS */
+#scratch-interactive-canvas,
 .scratch-interactive-canvas {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
-    z-index: 5;
+    z-index: 20;
     cursor: crosshair;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
     transition: opacity 0.45s ease;
+    opacity: 1;
 }
 
 /* Instruction Hint */

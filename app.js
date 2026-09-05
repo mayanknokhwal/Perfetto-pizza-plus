@@ -4467,8 +4467,14 @@ function updateCheckoutWalletUI() {
         ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
         : null;
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
-    const deliveryFee = deliveryInfo.finalDeliveryFee;
-    const baseTotal = subtotal + deliveryFee;
+    const deliveryFee = (cart.length > 0 && subtotal > 0)
+        ? (deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee)
+        : 0;
+    const baseTotal = (cart.length === 0 || subtotal <= 0)
+        ? 0
+        : (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery
+            ? subtotal
+            : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee))));
 
     // 100% Unrestricted Redemption: Allow customers to redeem up to 100% of available wallet balance on any order value
     const maxRedeemable = Math.min(availableBalance, baseTotal);
@@ -5207,15 +5213,20 @@ function updateCartUI() {
     const minOrderVal = getMinOrderValue();
     const freeDeliveryLim = getFreeDeliveryLimit();
 
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
 
-    let delivery = 0.00;
-    if (cart.length > 0) {
-        delivery = deliveryInfo.finalDeliveryFee;
-    }
+    const deliveryFee = (cart.length > 0 && subtotal > 0)
+        ? (deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee)
+        : 0;
 
-    const total = subtotal + delivery;
+    // Ensure grandTotal = Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)))
+    // If delivery is FREE, the Grand Total must strictly equal the active Subtotal amount (e.g., ₹1098, not ₹0)
+    const grandTotal = (cart.length === 0 || subtotal <= 0)
+        ? 0
+        : (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery
+            ? subtotal
+            : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee))));
 
     const subtotalEl = document.getElementById('cart-subtotal');
     const deliveryEl = document.getElementById('cart-delivery');
@@ -5225,22 +5236,35 @@ function updateCartUI() {
 
     if (deliveryEl) {
         const freeTag = `<span class="free-delivery-tag">${typeof t === 'function' ? t('delivery_free') : 'FREE'}</span>`;
-        if (cart.length > 0 && deliveryInfo.isFreeDelivery) {
+        if (cart.length > 0 && (deliveryInfo.isFreeDelivery || deliveryFee === 'FREE')) {
             if (deliveryInfo.baseDeliveryFee > 0) {
                 deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.85rem; margin-right: 4px;">${formatPrice(deliveryInfo.baseDeliveryFee)}</span>${freeTag}`;
             } else {
                 deliveryEl.innerHTML = freeTag;
             }
         } else if (cart.length > 0) {
-            if (delivery === 0) {
+            if (Number(deliveryFee) === 0) {
                 deliveryEl.innerHTML = freeTag;
             } else {
-                deliveryEl.textContent = formatPrice(delivery);
+                deliveryEl.textContent = formatPrice(Number(deliveryFee));
             }
         } else {
             deliveryEl.textContent = formatPrice(0);
         }
     }
+
+    // Sync computed Grand Total into cart drawer UI (fixes 0 amount bug)
+    if (totalEl) {
+        totalEl.textContent = formatPrice(grandTotal);
+    }
+
+    // Sync computed Grand Total into "Proceed to Checkout" button data attributes before review modal
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    checkoutBtns.forEach(btn => {
+        btn.setAttribute('data-grand-total', String(grandTotal));
+        btn.setAttribute('data-subtotal', String(subtotal));
+        btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+    });
 
     // 4. Update Cart Threshold Banner, Cashback Incentive Bar & Checkout Button State
     updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim);
@@ -5252,6 +5276,11 @@ function updateCartUI() {
     // 6. Update Sticky Floating Cart Pill Bar
     updateFloatingCartBar();
 }
+
+function renderCart() {
+    return updateCartUI();
+}
+window.renderCart = renderCart;
 
 function updateFloatingCartBar() {
     const floatingBar = document.getElementById('floating-cart-bar');
@@ -5342,6 +5371,20 @@ function processCheckout() {
         return;
     }
 
+    // Sync computed Grand Total into button data attributes before opening review order modal
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
+    const deliveryFee = deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee;
+    const grandTotal = (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery)
+        ? subtotal
+        : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    checkoutBtns.forEach(btn => {
+        btn.setAttribute('data-grand-total', String(grandTotal));
+        btn.setAttribute('data-subtotal', String(subtotal));
+        btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+    });
+
     // Check if delivery profile already exists and is complete
     const savedProfile = getSavedDeliveryProfile();
     if (savedProfile) {
@@ -5374,8 +5417,18 @@ function openCheckoutModal(profile) {
         ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
         : null;
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
-    const deliveryFee = deliveryInfo.finalDeliveryFee;
-    const grandTotal = subtotal + deliveryFee;
+    const deliveryFee = deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee;
+    const grandTotal = (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery)
+        ? subtotal
+        : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+
+    // Sync button data attributes before opening review order modal
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    checkoutBtns.forEach(btn => {
+        btn.setAttribute('data-grand-total', String(grandTotal));
+        btn.setAttribute('data-subtotal', String(subtotal));
+        btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+    });
 
     // 1. Update Order Summary inside Checkout Modal
     const itemCountEl = document.getElementById('checkout-item-count');
@@ -5386,16 +5439,16 @@ function openCheckoutModal(profile) {
     if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
     if (subtotalEl) subtotalEl.textContent = formatPrice(subtotal);
     if (deliveryEl) {
-        if (deliveryInfo.isFreeDelivery) {
+        if (deliveryInfo.isFreeDelivery || deliveryFee === 'FREE') {
             if (deliveryInfo.baseDeliveryFee > 0) {
                 deliveryEl.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); font-size: 0.82rem; margin-right: 4px;">${formatPrice(deliveryInfo.baseDeliveryFee)}</span><span class="free-delivery-tag">FREE</span>`;
             } else {
                 deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
             }
-        } else if (deliveryFee === 0) {
+        } else if (Number(deliveryFee) === 0) {
             deliveryEl.innerHTML = `<span class="free-delivery-tag">FREE</span>`;
         } else {
-            deliveryEl.textContent = formatPrice(deliveryFee);
+            deliveryEl.textContent = formatPrice(Number(deliveryFee));
         }
     }
     if (totalEl) totalEl.textContent = formatPrice(grandTotal);
@@ -6259,13 +6312,13 @@ function setupScratchCanvas(order, rewardAmount) {
     const stage = document.getElementById('scratch-card-stage');
     if (!canvas || !stage) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
     const rect = stage.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const width = rect.width || 320;
-    const height = rect.height || 215;
+    const width = (rect.width > 0 ? rect.width : (stage.offsetWidth || 320));
+    const height = (rect.height > 0 ? rect.height : (stage.offsetHeight || 215));
 
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
@@ -6278,30 +6331,34 @@ function setupScratchCanvas(order, rewardAmount) {
     ctx.scale(dpr, dpr);
     ctx.globalCompositeOperation = 'source-over';
 
-    // 1. Base Rich Metallic Gold Gradient
+    // 1. 100% Solid, Fully Opaque Base Metallic Gold Fill (#e5a93b) to prevent any opacity bleed or premature visibility
+    ctx.fillStyle = '#e5a93b';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Rich 100% Solid Metallic Gold Shimmer Gradient (all fully opaque stops)
     const grad = ctx.createLinearGradient(0, 0, width, height);
     grad.addColorStop(0, '#b8860b');
-    grad.addColorStop(0.18, '#f59e0b');
+    grad.addColorStop(0.18, '#e5a93b');
     grad.addColorStop(0.35, '#fff0a3');
     grad.addColorStop(0.52, '#d97706');
     grad.addColorStop(0.72, '#fbbf24');
-    grad.addColorStop(0.88, '#f59e0b');
+    grad.addColorStop(0.88, '#e5a93b');
     grad.addColorStop(1, '#92400e');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Elegant Shimmer Diagonal Streaks
+    // 3. Elegant Foil Shimmer Diagonal Streaks (drawn on top of 100% solid gold base)
     const streakGrad = ctx.createLinearGradient(0, height, width, 0);
     streakGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
     streakGrad.addColorStop(0.45, 'rgba(255, 255, 255, 0.12)');
-    streakGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.32)');
+    streakGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.35)');
     streakGrad.addColorStop(0.55, 'rgba(255, 255, 255, 0.12)');
     streakGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = streakGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // 3. Subtle Festive Foil Star / Dot Pattern
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    // 4. Subtle Festive Foil Star / Dot Pattern
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
     for (let x = 16; x < width; x += 32) {
         for (let y = 16; y < height; y += 32) {
             ctx.beginPath();
@@ -6310,16 +6367,16 @@ function setupScratchCanvas(order, rewardAmount) {
         }
     }
 
-    // 4. Gold Foil Border Inset
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.38)';
+    // 5. Gold Foil Border Inset
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
     ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, width - 20, height - 20);
 
-    ctx.strokeStyle = 'rgba(180, 83, 9, 0.4)';
+    ctx.strokeStyle = 'rgba(180, 83, 9, 0.5)';
     ctx.lineWidth = 1;
     ctx.strokeRect(14, 14, width - 28, height - 28);
 
-    // 5. Central Badge & Guidance Text
+    // 6. Central Badge & Guidance Text
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const boundaries = order ? getCashbackRewardBoundaries(order.subtotal || 0) : { max: rewardAmount };
     const maxBound = boundaries.max || rewardAmount;
@@ -6330,7 +6387,7 @@ function setupScratchCanvas(order, rewardAmount) {
     const badgeX = (width - badgeW) / 2;
     const badgeY = (height - badgeH) / 2;
 
-    ctx.fillStyle = 'rgba(20, 15, 28, 0.42)';
+    ctx.fillStyle = 'rgba(20, 15, 28, 0.55)';
     ctx.beginPath();
     if (ctx.roundRect) {
         ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 14);
@@ -6339,7 +6396,7 @@ function setupScratchCanvas(order, rewardAmount) {
     }
     ctx.fill();
 
-    ctx.strokeStyle = 'rgba(255, 235, 150, 0.65)';
+    ctx.strokeStyle = 'rgba(255, 235, 150, 0.7)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -6356,8 +6413,10 @@ function setupScratchCanvas(order, rewardAmount) {
     ctx.fillText(isHindi ? `₹${maxBound} तक जीतें 🎁` : `Win Up To ₹${maxBound} 🎁`, width / 2, badgeY + 42);
 
     ctx.font = '500 11px "Outfit", "Inter", sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
     ctx.fillText('अपनी उंगली से स्क्रैच करें (45%)', width / 2, badgeY + 61);
+
+    initScratchCardCanvasEvents();
 }
 
 function initScratchCardCanvasEvents() {
@@ -6365,75 +6424,142 @@ function initScratchCardCanvasEvents() {
     if (!canvas || canvas.__scratchEventsBound) return;
     canvas.__scratchEventsBound = true;
 
-    function getCanvasCoords(e) {
+    const brushRadius = 22; // Smooth comfortable brush radius in CSS px
+
+    function getCoords(clientX, clientY) {
         const rect = canvas.getBoundingClientRect();
-        const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : (e.clientX !== undefined ? e.clientX : 0);
-        const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : (e.clientY !== undefined ? e.clientY : 0);
         return {
             x: clientX - rect.left,
             y: clientY - rect.top
         };
     }
 
-    function onScratchStart(e) {
-        if (isScratchCardRevealed) return;
-        if (e.cancelable) e.preventDefault();
-        isScratchingCard = true;
-        const coords = getCanvasCoords(e);
-        scratchLastX = coords.x;
-        scratchLastY = coords.y;
-        performScratch(coords.x, coords.y, coords.x, coords.y);
-    }
-
-    function onScratchMove(e) {
-        if (!isScratchingCard || isScratchCardRevealed) return;
-        if (e.cancelable) e.preventDefault();
-        const coords = getCanvasCoords(e);
-        performScratch(scratchLastX, scratchLastY, coords.x, coords.y);
-        scratchLastX = coords.x;
-        scratchLastY = coords.y;
-
-        if (!scratchPixelCheckTimer) {
-            scratchPixelCheckTimer = setTimeout(() => {
-                scratchPixelCheckTimer = null;
-                checkScratchCompletion();
-            }, 120);
-        }
-    }
-
-    function onScratchEnd() {
-        if (!isScratchingCard) return;
-        isScratchingCard = false;
-        checkScratchCompletion();
-    }
-
-    function performScratch(x1, y1, x2, y2) {
+    function eraseBrush(x, y) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         const dpr = window.devicePixelRatio || 1;
 
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = 44 * dpr;
+        ctx.beginPath();
+        ctx.arc(x * dpr, y * dpr, brushRadius * dpr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function eraseContinuousPath(x1, y1, x2, y2) {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
+
+        const dist = Math.hypot(x2 - x1, y2 - y1);
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const step = Math.max(1, Math.round(brushRadius / 3));
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+
+        // Interpolated smooth circular arcs along stroke
+        for (let i = 0; i <= dist; i += step) {
+            const ix = (x1 + Math.cos(angle) * i) * dpr;
+            const iy = (y1 + Math.sin(angle) * i) * dpr;
+            ctx.beginPath();
+            ctx.arc(ix, iy, brushRadius * dpr, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Connecting round-cap line to guarantee solid continuous erasure
+        ctx.lineWidth = brushRadius * 2 * dpr;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-
         ctx.beginPath();
         ctx.moveTo(x1 * dpr, y1 * dpr);
         ctx.lineTo(x2 * dpr, y2 * dpr);
         ctx.stroke();
+
+        // End circle
+        ctx.beginPath();
+        ctx.arc(x2 * dpr, y2 * dpr, brushRadius * dpr, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.restore();
     }
 
-    canvas.addEventListener('pointerdown', onScratchStart, { passive: false });
-    canvas.addEventListener('pointermove', onScratchMove, { passive: false });
-    window.addEventListener('pointerup', onScratchEnd);
-    window.addEventListener('pointercancel', onScratchEnd);
+    function triggerCheck() {
+        if (!scratchPixelCheckTimer) {
+            scratchPixelCheckTimer = setTimeout(() => {
+                scratchPixelCheckTimer = null;
+                checkScratchCompletion();
+            }, 80);
+        }
+    }
 
-    // Fallbacks for older touch devices
-    canvas.addEventListener('touchstart', onScratchStart, { passive: false });
-    canvas.addEventListener('touchmove', onScratchMove, { passive: false });
-    window.addEventListener('touchend', onScratchEnd);
+    // Touch Event Handlers (passive: false + preventDefault() eliminates mobile scroll freezing)
+    function onTouchStart(e) {
+        if (isScratchCardRevealed) return;
+        if (e.cancelable) e.preventDefault();
+        isScratchingCard = true;
+        const touch = e.touches[0];
+        const coords = getCoords(touch.clientX, touch.clientY);
+        scratchLastX = coords.x;
+        scratchLastY = coords.y;
+        eraseBrush(coords.x, coords.y);
+    }
+
+    function onTouchMove(e) {
+        if (!isScratchingCard || isScratchCardRevealed) return;
+        if (e.cancelable) e.preventDefault();
+        const touch = e.touches[0];
+        const coords = getCoords(touch.clientX, touch.clientY);
+        eraseContinuousPath(scratchLastX, scratchLastY, coords.x, coords.y);
+        scratchLastX = coords.x;
+        scratchLastY = coords.y;
+        triggerCheck();
+    }
+
+    function onTouchEnd() {
+        if (!isScratchingCard) return;
+        isScratchingCard = false;
+        checkScratchCompletion();
+    }
+
+    // Mouse Event Handlers
+    function onMouseDown(e) {
+        if (isScratchCardRevealed || e.button !== 0) return;
+        e.preventDefault();
+        isScratchingCard = true;
+        const coords = getCoords(e.clientX, e.clientY);
+        scratchLastX = coords.x;
+        scratchLastY = coords.y;
+        eraseBrush(coords.x, coords.y);
+    }
+
+    function onMouseMove(e) {
+        if (!isScratchingCard || isScratchCardRevealed) return;
+        e.preventDefault();
+        const coords = getCoords(e.clientX, e.clientY);
+        eraseContinuousPath(scratchLastX, scratchLastY, coords.x, coords.y);
+        scratchLastX = coords.x;
+        scratchLastY = coords.y;
+        triggerCheck();
+    }
+
+    function onMouseUp() {
+        if (!isScratchingCard) return;
+        isScratchingCard = false;
+        checkScratchCompletion();
+    }
+
+    // Bind touch events on canvas with passive: false so preventDefault() stops mobile scrolling
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
+
+    // Bind mouse events on canvas and window
+    canvas.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
 }
 
 function checkScratchCompletion() {
@@ -6448,8 +6574,8 @@ function checkScratchCompletion() {
         const data = imgData.data;
         let transparent = 0;
         let total = 0;
-        // Sample every 32nd pixel (stride = 128 bytes) for ultra-fast 60fps performance
-        for (let i = 3; i < data.length; i += 128) {
+        // Sample every 16th pixel (stride = 64 bytes) for high accuracy and fast 60fps performance
+        for (let i = 3; i < data.length; i += 64) {
             total++;
             if (data[i] < 128) transparent++;
         }
@@ -7107,6 +7233,12 @@ function openScratchCardModal(order, demoAmount) {
         isScratchCardRevealed = false;
         isScratchingCard = false;
 
+        const canvas = document.getElementById('scratch-interactive-canvas');
+        if (canvas) {
+            canvas.style.opacity = '1';
+            canvas.style.pointerEvents = 'auto';
+        }
+
         if (claimBtn) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim';
@@ -7121,10 +7253,11 @@ function openScratchCardModal(order, demoAmount) {
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-hand-pointer fa-bounce';
 
-        // Draw canvas
-        setTimeout(() => {
+        // Draw solid canvas IMMEDIATELY before or as modal opens so canvas is 100% solid before paint (eliminates premature visibility)
+        setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount);
+        requestAnimationFrame(() => {
             setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount);
-        }, 30);
+        });
     }
 }
 
