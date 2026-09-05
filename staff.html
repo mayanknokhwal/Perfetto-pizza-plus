@@ -407,8 +407,26 @@
                         </div>
                     </div>
                     <p class="reject-warning-text">
-                        Are you sure you want to decline this Cash on Delivery order? It will be marked as Rejected and shifted to Completed/Archived queue.
+                        Are you sure you want to decline this Cash on Delivery order? Entering the Admin Master Delivery OTP is strictly required to authorize rejection and void rewards.
                     </p>
+                    <div class="reject-otp-auth-box" style="margin-top: 14px; text-align: left;">
+                        <label for="reject-modal-master-otp" style="display: block; font-size: 0.82rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">
+                            <i class="fa-solid fa-key" style="color: #ef4444;"></i> Admin Master Delivery OTP:
+                        </label>
+                        <input 
+                            type="password" 
+                            inputmode="numeric" 
+                            id="reject-modal-master-otp" 
+                            class="staff-otp-input" 
+                            placeholder="Enter 4-Digit Master OTP" 
+                            maxlength="4" 
+                            autocomplete="off"
+                            style="width: 100%; text-align: center; font-size: 1.25rem; letter-spacing: 6px; font-weight: 800; border: 1.5px solid rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1); border-radius: 10px; padding: 10px; color: #ffffff;"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)"
+                            onkeydown="if(event.key === 'Enter') confirmRejectOrder()"
+                        >
+                        <div id="reject-modal-otp-error" style="display: none; color: #ef4444; font-size: 0.78rem; font-weight: 600; margin-top: 6px; text-align: center;"></div>
+                    </div>
                 </div>
 
                 <div class="staff-modal-footer">

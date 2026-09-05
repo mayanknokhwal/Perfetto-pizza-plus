@@ -14,7 +14,7 @@ const {
 
 async function fetchLiveSettingsFromFirestore() {
     try {
-        const doc = await getFirestoreDoc('settings', 'storeSettings');
+        const doc = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config');
         if (doc) {
             global.__perfettoStoreSettings = { ...global.__perfettoStoreSettings, ...doc };
         }
@@ -64,8 +64,9 @@ async function handleSettingsRequest(req, res) {
             Object.assign(global.__perfettoStoreSettings, updateFields);
             global.__perfettoStoreSettings.updatedAt = new Date().toISOString();
 
-            // Persist to Firestore
+            // Persist to Firestore under both storeSettings and store_config
             await setFirestoreDoc('settings', 'storeSettings', global.__perfettoStoreSettings);
+            await setFirestoreDoc('settings', 'store_config', global.__perfettoStoreSettings);
 
             return res.status(200).json({
                 success: true,

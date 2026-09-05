@@ -349,7 +349,7 @@ async function handleOrdersRequest(req, res) {
             // 1. DELIVERY CONFIRMATION OR POST-DELIVERY SCRATCH REVEAL
             if (isDelivered) {
                 const wonAmt = Number(targetOrder.wonCashback || targetOrder.earnedCashback || targetOrder.scratchCard?.wonAmount || targetOrder.scratchCard?.amount || 0);
-                const isCardScratched = Boolean(targetOrder.scratchRevealed || targetOrder.scratchCard?.revealed);
+                const isCardScratched = Boolean(targetOrder.scratchRevealed || targetOrder.scratchCard?.revealed || targetOrder.rewardStatus === 'pending_delivery');
 
                 if (isCardScratched && wonAmt > 0) {
                     // Card was scratched (either before delivery or post-delivery in Order History) -> Credit wallet now
@@ -452,6 +452,27 @@ async function handleOrdersRequest(req, res) {
                     targetOrder.scratchCard.wonAmount = 0;
                     targetOrder.scratchCard.amount = 0;
                     targetOrder.scratchCard.voided = true;
+                }
+
+                // Also atomically sync voided status to customer profile in users/{phone}
+                const rawPhone = targetOrder.customerPhone || targetOrder.phone || targetOrder.customer?.phone || '';
+                const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+                if (cleanPhone) {
+                    try {
+                        let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`) || await getFirestoreDoc('users', cleanPhone);
+                        if (userDoc && Array.isArray(userDoc.scratchCards)) {
+                            userDoc.scratchCards = userDoc.scratchCards.map(sc => {
+                                if (String(sc.orderId) === targetId) {
+                                    return { ...sc, rewardStatus: 'voided', wonCashback: 0, voided: true };
+                                }
+                                return sc;
+                            });
+                            await setFirestoreDoc('users', `phone_${cleanPhone}`, userDoc);
+                            await setFirestoreDoc('users', cleanPhone, userDoc);
+                        }
+                    } catch (uVoidErr) {
+                        console.warn('Notice voiding scratch card in user profile:', uVoidErr.message);
+                    }
                 }
             }
 

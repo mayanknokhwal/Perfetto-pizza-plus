@@ -106,24 +106,44 @@ async function initStaffFirebase() {
 }
 
 let staffSettingsUnsubscribe = null;
+let staffConfigUnsubscribe = null;
 
 function listenToFirestoreStaffSettings() {
     const db = getStaffFirestore();
-    if (!db || staffSettingsUnsubscribe) return;
-    try {
-        staffSettingsUnsubscribe = db.collection('settings').doc('storeSettings')
-            .onSnapshot((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    if (data) {
-                        applyStaffStoreSettings(data);
+    if (!db) return;
+    if (!staffSettingsUnsubscribe) {
+        try {
+            staffSettingsUnsubscribe = db.collection('settings').doc('storeSettings')
+                .onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (data) {
+                            applyStaffStoreSettings(data);
+                        }
                     }
-                }
-            }, (err) => {
-                console.warn('Firestore staff settings real-time notice:', err.message);
-            });
-    } catch (e) {
-        console.warn('Error attaching Firestore staff settings listener:', e);
+                }, (err) => {
+                    console.warn('Firestore staff settings real-time notice:', err.message);
+                });
+        } catch (e) {
+            console.warn('Error attaching Firestore staff settings listener:', e);
+        }
+    }
+    if (!staffConfigUnsubscribe) {
+        try {
+            staffConfigUnsubscribe = db.collection('settings').doc('store_config')
+                .onSnapshot((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (data) {
+                            applyStaffStoreSettings(data);
+                        }
+                    }
+                }, (err) => {
+                    console.warn('Firestore staff store_config real-time notice:', err.message);
+                });
+        } catch (e) {
+            console.warn('Error attaching Firestore store_config listener:', e);
+        }
     }
 }
 
@@ -523,6 +543,10 @@ function handleStaffInstantBlockedLockdown(userName, userPhone) {
     if (typeof staffSettingsUnsubscribe === 'function') {
         try { staffSettingsUnsubscribe(); } catch(e) {}
         staffSettingsUnsubscribe = null;
+    }
+    if (typeof staffConfigUnsubscribe === 'function') {
+        try { staffConfigUnsubscribe(); } catch(e) {}
+        staffConfigUnsubscribe = null;
     }
     if (typeof ordersUnsubscribe !== 'undefined' && typeof ordersUnsubscribe === 'function') {
         try { ordersUnsubscribe(); } catch(e) {}
@@ -2135,6 +2159,81 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 
+function formatStaffOrderItem(item) {
+    const qty = item.qty || item.quantity || 1;
+    let rawName = String(item.name || item.title || '').trim();
+
+    // 1. Detect size from item.size or from rawName string
+    let size = '';
+    const rawSize = String(item.size || '').trim().toLowerCase();
+    if (rawSize === 's' || rawSize === 'small') size = 'S';
+    else if (rawSize === 'm' || rawSize === 'medium') size = 'M';
+    else if (rawSize === 'l' || rawSize === 'large') size = 'L';
+
+    if (!size) {
+        const sizeMatch = rawName.match(/\((?:Small|Medium|Large|[SML])\)/i) || rawName.match(/\b(Small|Medium|Large)\b/i);
+        if (sizeMatch) {
+            const sm = sizeMatch[0].replace(/[()]/g, '').trim().toLowerCase();
+            if (sm === 's' || sm === 'small') size = 'S';
+            else if (sm === 'm' || sm === 'medium') size = 'M';
+            else if (sm === 'l' || sm === 'large') size = 'L';
+        }
+    }
+
+    // 2. Detect add-ons from item.addons array AND rawName string
+    let hasCheese = false;
+    let hasSpicy = false;
+    let hasMayo = false;
+
+    if (Array.isArray(item.addons)) {
+        item.addons.forEach(a => {
+            const aName = (typeof a === 'string' ? a : (a?.name || '')).toLowerCase();
+            if (aName.includes('cheese')) hasCheese = true;
+            if (aName.includes('spicy')) hasSpicy = true;
+            if (aName.includes('mayo')) hasMayo = true;
+        });
+    }
+
+    const rawLower = rawName.toLowerCase();
+    if (rawLower.includes('cheese') && (rawLower.includes('extra') || rawLower.includes('+'))) hasCheese = true;
+    if (rawLower.includes('spicy') && (rawLower.includes('extra') || rawLower.includes('+'))) hasSpicy = true;
+    if (rawLower.includes('mayo') && (rawLower.includes('extra') || rawLower.includes('+'))) hasMayo = true;
+
+    // 3. Clean rawName: remove verbose addon strings (+...) and size strings
+    let cleanName = rawName
+        .replace(/\s*\(\+[^)]+\)/gi, '')
+        .replace(/\s*\(\s*Extra[^)]*\)/gi, '')
+        .replace(/\s*\(\s*(?:Small|Medium|Large|Standard|[SML])\s*\)/gi, '')
+        .replace(/\s*-\s*(?:Small|Medium|Large)/gi, '')
+        .trim();
+
+    // Append single-letter uppercase size bracket directly next to item name
+    if (size) {
+        cleanName = `${cleanName} (${size})`;
+    }
+
+    // Render corresponding visual emoji/icon indicators directly adjacent to item title
+    const emojiList = [];
+    if (hasCheese) emojiList.push('🧀');
+    if (hasSpicy) emojiList.push('🌶️');
+    if (hasMayo) emojiList.push('🍥');
+
+    const iconsMarkup = emojiList.length > 0
+        ? ` <span class="staff-item-addon-emojis" style="margin-left: 6px; font-size: 1rem; letter-spacing: 2px; vertical-align: middle;">${emojiList.join(' ')}</span>`
+        : '';
+
+    return `
+        <div class="item-row">
+            <div class="item-info-col">
+                <div class="item-title-row">
+                    <span class="item-qty-badge">${qty}x</span>
+                    <span class="item-name">${escapeHtml(cleanName)}${iconsMarkup}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 // --------------------------------------------------------------------------
 // 8A. BUILD MINIMAL COMPLETED ORDER CARD HTML
 // --------------------------------------------------------------------------
@@ -2143,28 +2242,8 @@ function buildCompletedOrderCardHTML(order) {
 
     const isRejected = order.status === 'rejected';
 
-    // Build Purchased Items List with quantities
-    const itemsHTML = (order.items || []).map(item => {
-        let cleanName = (item.name || '').replace(/\s*\(\s*Standard\s*\)/gi, '').trim();
-        const qty = item.qty || item.quantity || 1;
-        const sizeStr = item.size && item.size !== 'Standard' ? ` (${item.size})` : '';
-        const addonsList = Array.isArray(item.addons) && item.addons.length > 0 ? item.addons : [];
-        const addonsHTML = addonsList.length > 0
-            ? `<div class="item-addons-row">${addonsList.map(a => `<span class="item-addon-tag">${escapeHtml(typeof a === 'string' ? a : (a.name || ''))}</span>`).join('')}</div>`
-            : '';
-        return `
-            <div class="item-row">
-                <div class="item-info-col">
-                    <div class="item-title-row">
-                        <span class="item-qty-badge">${qty}x</span>
-                        <span class="item-name">${escapeHtml(cleanName)}${escapeHtml(sizeStr)}</span>
-                    </div>
-                    ${addonsHTML}
-                    ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${escapeHtml(item.notes)}</div>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
+    // Build Purchased Items List with clean formatting
+    const itemsHTML = (order.items || []).map(formatStaffOrderItem).join('');
 
     const hidePayment = shouldHideStaffPaymentDetails();
 
@@ -2313,27 +2392,8 @@ function buildOrderCardHTML(order) {
         `;
     }
 
-    // Build Items List
-    const itemsHTML = (order.items || []).map(item => {
-        let cleanName = (item.name || '').replace(/\s*\(\s*Standard\s*\)/gi, '').trim();
-        const qty = item.qty || item.quantity || 1;
-        const sizeStr = item.size && item.size !== 'Standard' ? ` (${item.size})` : '';
-        const addonsList = Array.isArray(item.addons) && item.addons.length > 0 ? item.addons : [];
-        const addonsHTML = addonsList.length > 0
-            ? `<div class="item-addons-row">${addonsList.map(a => `<span class="item-addon-tag">${escapeHtml(typeof a === 'string' ? a : (a.name || ''))}</span>`).join('')}</div>`
-            : '';
-        return `
-        <div class="item-row">
-            <div class="item-info-col">
-                <div class="item-title-row">
-                    <span class="item-qty-badge">${qty}x</span>
-                    <span class="item-name">${escapeHtml(cleanName)}${escapeHtml(sizeStr)}</span>
-                </div>
-                ${addonsHTML}
-                ${item.notes ? `<div class="item-notes"><i class="fa-solid fa-note-sticky"></i> Note: ${escapeHtml(item.notes)}</div>` : ''}
-            </div>
-        </div>
-    `}).join('');
+    // Build Items List with clean formatting
+    const itemsHTML = (order.items || []).map(formatStaffOrderItem).join('');
 
     // Pre-resolve turn-by-turn navigation URL
     const mapsUrl = getGoogleMapsNavigationUrl(order);
@@ -2473,15 +2533,19 @@ function regenerateMasterDeliveryOtpOnUse(orderId) {
         localStorage.setItem('masterDeliveryOtp', newMasterOtp);
     } catch (e) { }
 
-    // 2. Sync updated masterDeliveryOtp to Firebase Firestore
+    // 2. Sync updated masterDeliveryOtp to Firebase Firestore (both storeSettings and store_config)
     const db = getStaffFirestore();
     if (db) {
         try {
-            db.collection('settings').doc('storeSettings').set({
+            const updatePayload = {
                 masterDeliveryOtp: newMasterOtp,
                 updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
-            }, { merge: true }).catch((err) => {
-                console.warn('Firestore masterDeliveryOtp auto-regenerate write notice:', err.message);
+            };
+            db.collection('settings').doc('storeSettings').set(updatePayload, { merge: true }).catch((err) => {
+                console.warn('Firestore storeSettings masterDeliveryOtp write notice:', err.message);
+            });
+            db.collection('settings').doc('store_config').set(updatePayload, { merge: true }).catch((err) => {
+                console.warn('Firestore store_config masterDeliveryOtp write notice:', err.message);
             });
         } catch (e) {
             console.warn('Firestore settings update error:', e);
@@ -2631,6 +2695,8 @@ function handleRejectOrder(orderId) {
     const customerEl = document.getElementById('reject-modal-customer-name');
     const totalEl = document.getElementById('reject-modal-order-total');
     const totalRow = totalEl ? totalEl.closest('.reject-detail-row') : null;
+    const otpInput = document.getElementById('reject-modal-master-otp');
+    const otpError = document.getElementById('reject-modal-otp-error');
 
     if (orderTagEl) orderTagEl.textContent = `Order #${order.id}`;
     if (customerEl) customerEl.textContent = order.customerName || 'Customer';
@@ -2639,9 +2705,22 @@ function handleRejectOrder(orderId) {
         totalRow.style.display = shouldHideStaffPaymentDetails() ? 'none' : 'flex';
     }
 
+    if (otpInput) {
+        otpInput.value = '';
+        otpInput.classList.remove('otp-error-shake');
+    }
+    if (otpError) {
+        otpError.style.display = 'none';
+        otpError.textContent = '';
+    }
+
     if (modal) {
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
+    }
+
+    if (otpInput) {
+        setTimeout(() => otpInput.focus(), 100);
     }
 }
 window.handleRejectOrder = handleRejectOrder;
@@ -2649,6 +2728,17 @@ window.handleRejectOrder = handleRejectOrder;
 function closeStaffRejectModal() {
     pendingRejectOrderId = null;
     const modal = document.getElementById('staff-reject-modal');
+    const otpInput = document.getElementById('reject-modal-master-otp');
+    const otpError = document.getElementById('reject-modal-otp-error');
+
+    if (otpInput) {
+        otpInput.value = '';
+        otpInput.classList.remove('otp-error-shake');
+    }
+    if (otpError) {
+        otpError.style.display = 'none';
+        otpError.textContent = '';
+    }
     if (modal) {
         modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
@@ -2662,8 +2752,50 @@ function confirmRejectOrder() {
         return;
     }
     const orderIdToReject = pendingRejectOrderId;
+    const otpInput = document.getElementById('reject-modal-master-otp');
+    const otpError = document.getElementById('reject-modal-otp-error');
+    const enteredOtp = otpInput ? otpInput.value.trim().replace(/[^0-9]/g, '') : '';
+    const masterOtp = getMasterDeliveryOtp();
+
+    // 1. Strict Validation: Must provide 4-digit Master OTP
+    if (!enteredOtp || enteredOtp.length !== 4) {
+        if (otpInput) {
+            otpInput.classList.remove('otp-error-shake');
+            void otpInput.offsetWidth;
+            otpInput.classList.add('otp-error-shake');
+            otpInput.focus();
+        }
+        if (otpError) {
+            otpError.style.display = 'block';
+            otpError.textContent = '⚠️ 4-Digit Admin Master Delivery OTP is strictly required to authorize rejection.';
+        }
+        showStaffToast('⚠️ Please enter Admin Master Delivery OTP to authorize rejection.');
+        return;
+    }
+
+    // 2. Validate against active Master OTP
+    if (enteredOtp !== masterOtp) {
+        if (otpInput) {
+            otpInput.classList.remove('otp-error-shake');
+            void otpInput.offsetWidth;
+            otpInput.classList.add('otp-error-shake');
+            otpInput.select();
+        }
+        if (otpError) {
+            otpError.style.display = 'block';
+            otpError.textContent = `❌ Invalid Master OTP "${enteredOtp}". Authorization denied.`;
+        }
+        showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
+        return;
+    }
+
+    // 3. Valid Master OTP! Update order status to "rejected" and void reward
     closeStaffRejectModal();
     updateOrderStatus(orderIdToReject, 'rejected');
+
+    // 4. Immediately regenerate a new 4-digit Master OTP in Firestore to prevent reuse
+    regenerateMasterDeliveryOtpOnUse(orderIdToReject);
+    showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected & Reward Voided.`);
 }
 window.confirmRejectOrder = confirmRejectOrder;
 
@@ -3304,6 +3436,10 @@ function cleanupAllStaffListeners() {
         if (typeof staffSettingsUnsubscribe === 'function') {
             staffSettingsUnsubscribe();
             staffSettingsUnsubscribe = null;
+        }
+        if (typeof staffConfigUnsubscribe === 'function') {
+            staffConfigUnsubscribe();
+            staffConfigUnsubscribe = null;
         }
         if (typeof staffOrdersUnsubscribe === 'function') {
             staffOrdersUnsubscribe();
