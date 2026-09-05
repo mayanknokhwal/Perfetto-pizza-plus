@@ -298,6 +298,29 @@
                 </nav>
             </header>
 
+            <!-- AUDIO AUTOPLAY RESTRICTION / LIVE CHIME UNLOCK BANNER -->
+            <div id="staff-audio-banner" class="staff-audio-banner" style="display: none;" onclick="unlockStaffAudioAlerts(false)" role="alert" aria-live="assertive">
+                <div class="audio-banner-content">
+                    <i class="fa-solid fa-volume-xmark audio-banner-icon"></i>
+                    <span id="staff-audio-banner-text">Audio alerts restricted by browser. <strong>Tap here to enable sound chimes!</strong></span>
+                </div>
+                <button type="button" class="btn-dismiss-audio-banner" onclick="event.stopPropagation(); dismissStaffAudioBanner();" title="Dismiss Banner" aria-label="Dismiss audio warning">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- INCOMING ORDER VISUAL ALERT STRIP (PULSES ON NEW ORDER) -->
+            <div id="staff-incoming-alert-strip" class="staff-incoming-alert-strip" style="display: none;" onclick="showIncomingOrderModal()" role="status">
+                <div class="incoming-strip-pulse"></div>
+                <div class="incoming-strip-content">
+                    <i class="fa-solid fa-bell fa-shake"></i>
+                    <span id="staff-incoming-strip-text">NEW ORDER ARRIVED! Tap to view details</span>
+                </div>
+                <button type="button" class="btn-strip-view" onclick="event.stopPropagation(); showIncomingOrderModal();">
+                    View
+                </button>
+            </div>
+
             <!-- MAIN CONTENT AREA -->
             <main class="staff-main">
 

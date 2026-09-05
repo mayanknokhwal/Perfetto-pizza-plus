@@ -123,9 +123,11 @@ function listenToFirestoreStaffSettings() {
                     }
                 }, (err) => {
                     console.warn('Firestore staff settings real-time notice:', err.message);
+                    staffSettingsUnsubscribe = null;
                 });
         } catch (e) {
             console.warn('Error attaching Firestore staff settings listener:', e);
+            staffSettingsUnsubscribe = null;
         }
     }
     if (!staffConfigUnsubscribe) {
@@ -140,9 +142,11 @@ function listenToFirestoreStaffSettings() {
                     }
                 }, (err) => {
                     console.warn('Firestore staff store_config real-time notice:', err.message);
+                    staffConfigUnsubscribe = null;
                 });
         } catch (e) {
             console.warn('Error attaching Firestore store_config listener:', e);
+            staffConfigUnsubscribe = null;
         }
     }
 }
@@ -220,12 +224,17 @@ function listenToFirestoreStaffOrders() {
                     mergeLiveOrdersIntoStaff(liveOrders);
                 }
             }, (err) => {
-                console.error('Firestore staff orders real-time error:', err);
+                console.warn('Firestore staff orders real-time note:', err.message);
+                if (typeof staffOrdersUnsubscribe === 'function') {
+                    try { staffOrdersUnsubscribe(); } catch (e) { }
+                }
+                staffOrdersUnsubscribe = null;
                 showStaffToast('⚠️ Live sync interrupted. Switching to background polling...');
                 fetchOrdersFromBackend();
             });
     } catch (e) {
-        console.error('Error attaching Firestore staff listener:', e);
+        console.warn('Error attaching Firestore staff listener:', e);
+        staffOrdersUnsubscribe = null;
         fetchOrdersFromBackend();
     }
 }
@@ -1293,6 +1302,9 @@ function showStaffConfirmDialog({
     confirmType = 'danger'
 } = {}) {
     return new Promise((resolve) => {
+        if (typeof staffConfirmResolver === 'function') {
+            try { staffConfirmResolver(false); } catch (e) { }
+        }
         staffConfirmResolver = resolve;
         const modal = document.getElementById('staff-confirm-modal');
         const titleEl = document.getElementById('staff-confirm-title');
@@ -1444,6 +1456,7 @@ function processAutoAcceptanceForOnlineOrders() {
 // --------------------------------------------------------------------------
 // 3. INITIAL ORDERS DATASET & BACKEND SYNC (OLDEST FIRST QUEUE)
 // --------------------------------------------------------------------------
+const actionInFlightOrders = new Set();
 let staffOrders = [];
 
 function sortOrdersOldestFirst(orders) {
@@ -1460,10 +1473,8 @@ function isValidStaffOrder(order) {
     const id = String(order.id || order.orderId || '').trim();
     if (!id || id === 'undefined' || id === 'null' || id === 'NaN') return false;
 
-    const customerName = String(order.customerName || order.customer?.name || '').trim();
-    if (!customerName || customerName === 'undefined' || customerName === 'null') return false;
-
-    const items = order.items;
+    // Items array check (support items, cart, orderItems)
+    const items = order.items || order.cart || order.orderItems;
     if (!Array.isArray(items) || items.length === 0) return false;
 
     return true;
@@ -1599,7 +1610,9 @@ function unlockStaffAudioAlerts(silent = true) {
     // 1. Resume Web Audio Context if suspended
     const ctx = getStaffAudioContext();
     if (ctx && ctx.state === 'suspended') {
-        ctx.resume().catch(() => {});
+        ctx.resume().then(() => {
+            checkAndShowStaffAudioBanner();
+        }).catch(() => {});
     }
 
     // 2. Prime HTML5 Audio element to bypass WebView autoplay restrictions
@@ -1617,6 +1630,7 @@ function unlockStaffAudioAlerts(silent = true) {
                     audio.muted = prevMuted;
                     isStaffAudioUnlocked = true;
                     isAudioAutoplayBlocked = false;
+                    dismissStaffAudioBanner();
                     console.log('🔓 [Staff Audio] Audio element primed for notifications.');
                     if (pendingOrderAlertData && isOrderAlertAudioPlaying) {
                         const { orderId, details } = pendingOrderAlertData;
@@ -1632,11 +1646,30 @@ function unlockStaffAudioAlerts(silent = true) {
     } catch (e) { }
 
     isStaffAudioUnlocked = true;
+    dismissStaffAudioBanner();
 }
 window.unlockStaffAudioAlerts = unlockStaffAudioAlerts;
-function dismissStaffAudioBanner() {}
+
+function dismissStaffAudioBanner() {
+    const banner = document.getElementById('staff-audio-banner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
+}
 window.dismissStaffAudioBanner = dismissStaffAudioBanner;
-function checkAndShowStaffAudioBanner() {}
+
+function checkAndShowStaffAudioBanner() {
+    const banner = document.getElementById('staff-audio-banner');
+    if (!banner) return;
+    const ctx = getStaffAudioContext();
+    const needsUnlock = !isStaffAudioUnlocked || isAudioAutoplayBlocked || (ctx && ctx.state === 'suspended');
+    if (needsUnlock) {
+        banner.style.display = 'block';
+    } else {
+        banner.style.display = 'none';
+    }
+}
+window.checkAndShowStaffAudioBanner = checkAndShowStaffAudioBanner;
 
 // --------------------------------------------------------------------------
 // 4. UPWARD ELAPSED TIMER & DYNAMIC GRADIENT SHIFT CALCULATIONS
@@ -1788,6 +1821,39 @@ function syncCustomerOrders() {
     renderOrders();
 }
 
+let staffLiveTimersInterval = null;
+let staffBackendSyncInterval = null;
+let staffTimerWorker = null;
+
+function initStaffWebWorkerTimer() {
+    if (typeof Worker === 'undefined' || staffTimerWorker) return;
+    try {
+        const workerBlob = new Blob([`
+            var timerId = null;
+            self.onmessage = function(e) {
+                if (e.data === 'start') {
+                    if (timerId) clearInterval(timerId);
+                    timerId = setInterval(function() {
+                        self.postMessage('tick');
+                    }, 1000);
+                } else if (e.data === 'stop') {
+                    if (timerId) clearInterval(timerId);
+                    timerId = null;
+                }
+            };
+        `], { type: 'application/javascript' });
+        staffTimerWorker = new Worker(URL.createObjectURL(workerBlob));
+        staffTimerWorker.onmessage = function(e) {
+            if (e.data === 'tick' && currentStaffUser && Array.isArray(staffOrders) && staffOrders.length > 0) {
+                updateLiveTimers();
+            }
+        };
+        staffTimerWorker.postMessage('start');
+    } catch (e) {
+        console.warn('Web Worker timer not supported, falling back to window interval:', e);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Initial fetch of settings & check initial auth state
     fetchStaffSettingsFromBackend();
@@ -1796,24 +1862,100 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check and show audio alert banner if audio context is suspended
     checkAndShowStaffAudioBanner();
 
-    // Auto-unlock audio on first touch/click/pointer interaction anywhere on document or window
+    // Auto-unlock audio on any touch/click/pointer interaction anywhere on document or window
     const autoUnlockAudio = () => {
-        unlockStaffAudioAlerts(true);
+        const ctx = getStaffAudioContext();
+        if (!isStaffAudioUnlocked || isAudioAutoplayBlocked || (ctx && ctx.state === 'suspended')) {
+            unlockStaffAudioAlerts(true);
+        }
     };
     ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'click', 'keydown'].forEach(evt => {
-        document.addEventListener(evt, autoUnlockAudio, { once: true, passive: true });
-        window.addEventListener(evt, autoUnlockAudio, { once: true, passive: true });
+        document.addEventListener(evt, autoUnlockAudio, { passive: true });
+        window.addEventListener(evt, autoUnlockAudio, { passive: true });
+    });
+
+    // Modal backdrop dismissal handlers
+    const setupBackdropDismiss = (modalId, dismissFn) => {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    dismissFn();
+                }
+            });
+        }
+    };
+    setupBackdropDismiss('staff-confirm-modal', () => handleStaffConfirmResolve(false));
+    setupBackdropDismiss('staff-reject-modal', () => closeStaffRejectModal());
+    setupBackdropDismiss('staff-incoming-order-modal', () => dismissIncomingOrderAlert());
+
+    // Global keyboard shortcuts (Escape key dismissals)
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            const confirmModal = document.getElementById('staff-confirm-modal');
+            if (confirmModal && confirmModal.style.display !== 'none') {
+                handleStaffConfirmResolve(false);
+                return;
+            }
+            const rejectModal = document.getElementById('staff-reject-modal');
+            if (rejectModal && rejectModal.style.display !== 'none') {
+                closeStaffRejectModal();
+                return;
+            }
+            const incomingModal = document.getElementById('staff-incoming-order-modal');
+            if (incomingModal && incomingModal.style.display !== 'none') {
+                dismissIncomingOrderAlert();
+                return;
+            }
+        }
+    });
+
+    // App Visibility Listener (re-awaken on foreground return)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            console.log('👁️ [Staff Portal] App returned to foreground.');
+            const ctx = getStaffAudioContext();
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume().catch(() => {});
+            }
+            checkAndShowStaffAudioBanner();
+            if (currentStaffUser) {
+                fetchOrdersFromBackend();
+                renderOrders();
+            }
+        }
+    });
+
+    // Network resilience: auto-recovery on connection restore
+    window.addEventListener('online', () => {
+        console.log('🌐 [Staff Network] Connection restored (online).');
+        showStaffToast('🌐 Internet connection restored! Resyncing live orders...');
+        if (currentStaffUser) {
+            if (!staffOrdersUnsubscribe) listenToFirestoreStaffOrders();
+            if (!staffSettingsUnsubscribe) listenToFirestoreStaffSettings();
+            fetchOrdersFromBackend();
+        }
+    });
+
+    window.addEventListener('offline', () => {
+        console.warn('⚠️ [Staff Network] Connection lost (offline).');
+        showStaffToast('⚠️ Network connection lost! Operating in cached offline mode.');
     });
 
     // 1-second interval for smooth live upward elapsed timer & gradual color shift
-    setInterval(() => {
+    if (staffLiveTimersInterval) clearInterval(staffLiveTimersInterval);
+    staffLiveTimersInterval = setInterval(() => {
         if (currentStaffUser && staffOrders.length > 0) {
             updateLiveTimers();
         }
     }, 1000);
 
+    // Inline Web Worker ticker to avoid mobile background tab timer throttling
+    initStaffWebWorkerTimer();
+
     // 6-second interval for backend sync
-    setInterval(() => {
+    if (staffBackendSyncInterval) clearInterval(staffBackendSyncInterval);
+    staffBackendSyncInterval = setInterval(() => {
         if (currentStaffUser) {
             fetchOrdersFromBackend();
         }
@@ -2160,51 +2302,74 @@ function escapeHtml(str) {
 }
 
 function formatStaffOrderItem(item) {
-    const qty = item.qty || item.quantity || 1;
-    let rawName = String(item.name || item.title || '').trim();
+    if (!item) return '';
+    const isObj = typeof item === 'object';
+    const qty = Math.max(1, parseInt(isObj ? (item.qty || item.quantity || 1) : 1, 10) || 1);
+    let rawName = isObj ? String(item.name || item.title || item.itemName || '').trim() : String(item).trim();
+    if (!rawName) return '';
 
-    // 1. Detect size from item.size or from rawName string
+    // 1. Detect size from item properties or from rawName string
     let size = '';
-    const rawSize = String(item.size || '').trim().toLowerCase();
+    const rawSize = String(isObj ? (item.size || item.variant || item.sizeName || '') : '').trim().toLowerCase();
     if (rawSize === 's' || rawSize === 'small') size = 'S';
     else if (rawSize === 'm' || rawSize === 'medium') size = 'M';
     else if (rawSize === 'l' || rawSize === 'large') size = 'L';
+    else if (rawSize === 'r' || rawSize === 'regular' || rawSize === 'standard') size = 'R';
 
     if (!size) {
-        const sizeMatch = rawName.match(/\((?:Small|Medium|Large|[SML])\)/i) || rawName.match(/\b(Small|Medium|Large)\b/i);
+        const sizeMatch = rawName.match(/\((?:Small|Medium|Large|Regular|Standard|[SMLR])\)/i) || rawName.match(/\b(Small|Medium|Large|Regular)\b/i);
         if (sizeMatch) {
             const sm = sizeMatch[0].replace(/[()]/g, '').trim().toLowerCase();
             if (sm === 's' || sm === 'small') size = 'S';
             else if (sm === 'm' || sm === 'medium') size = 'M';
             else if (sm === 'l' || sm === 'large') size = 'L';
+            else if (sm === 'r' || sm === 'regular' || sm === 'standard') size = 'R';
         }
     }
 
-    // 2. Detect add-ons from item.addons array AND rawName string
+    // 2. Detect add-ons from item.addons (array or object dictionary) and rawName/notes
     let hasCheese = false;
     let hasSpicy = false;
     let hasMayo = false;
+    let hasIceCream = false;
 
-    if (Array.isArray(item.addons)) {
-        item.addons.forEach(a => {
-            const aName = (typeof a === 'string' ? a : (a?.name || '')).toLowerCase();
-            if (aName.includes('cheese')) hasCheese = true;
-            if (aName.includes('spicy')) hasSpicy = true;
-            if (aName.includes('mayo')) hasMayo = true;
-        });
+    const checkAddonText = (text) => {
+        if (!text || typeof text !== 'string') return;
+        const low = text.toLowerCase();
+        if (low.includes('cheese')) hasCheese = true;
+        if (low.includes('spicy') || low.includes('chilli') || low.includes('chili')) hasSpicy = true;
+        if (low.includes('mayo')) hasMayo = true;
+        if (low.includes('ice cream') || low.includes('icecream') || low.includes('ice-cream')) hasIceCream = true;
+    };
+
+    if (isObj && item.addons) {
+        if (Array.isArray(item.addons)) {
+            item.addons.forEach(a => {
+                if (typeof a === 'string') {
+                    checkAddonText(a);
+                } else if (a && typeof a === 'object') {
+                    checkAddonText(a.name || a.title || a.label || a.addon || '');
+                }
+            });
+        } else if (typeof item.addons === 'object') {
+            Object.entries(item.addons).forEach(([k, v]) => {
+                if (v) checkAddonText(k);
+            });
+        } else if (typeof item.addons === 'string') {
+            checkAddonText(item.addons);
+        }
     }
 
-    const rawLower = rawName.toLowerCase();
-    if (rawLower.includes('cheese') && (rawLower.includes('extra') || rawLower.includes('+'))) hasCheese = true;
-    if (rawLower.includes('spicy') && (rawLower.includes('extra') || rawLower.includes('+'))) hasSpicy = true;
-    if (rawLower.includes('mayo') && (rawLower.includes('extra') || rawLower.includes('+'))) hasMayo = true;
+    checkAddonText(rawName);
+    if (isObj && item.notes) checkAddonText(item.notes);
+    if (isObj && item.instructions) checkAddonText(item.instructions);
 
-    // 3. Clean rawName: remove verbose addon strings (+...) and size strings
+    // 3. Clean rawName: remove noisy addon strings (+...) and size brackets
     let cleanName = rawName
         .replace(/\s*\(\+[^)]+\)/gi, '')
         .replace(/\s*\(\s*Extra[^)]*\)/gi, '')
-        .replace(/\s*\(\s*(?:Small|Medium|Large|Standard|[SML])\s*\)/gi, '')
-        .replace(/\s*-\s*(?:Small|Medium|Large)/gi, '')
+        .replace(/\s*\(\s*(?:Small|Medium|Large|Regular|Standard|[SMLR])\s*\)/gi, '')
+        .replace(/\s*-\s*(?:Small|Medium|Large|Regular)/gi, '')
         .trim();
 
     // Append single-letter uppercase size bracket directly next to item name
@@ -2212,14 +2377,21 @@ function formatStaffOrderItem(item) {
         cleanName = `${cleanName} (${size})`;
     }
 
-    // Render corresponding visual emoji/icon indicators directly adjacent to item title
+    // Render corresponding visual emoji/icon indicators
     const emojiList = [];
     if (hasCheese) emojiList.push('🧀');
     if (hasSpicy) emojiList.push('🌶️');
     if (hasMayo) emojiList.push('🍥');
+    if (hasIceCream) emojiList.push('🍨');
 
     const iconsMarkup = emojiList.length > 0
         ? ` <span class="staff-item-addon-emojis" style="margin-left: 6px; font-size: 1rem; letter-spacing: 2px; vertical-align: middle;">${emojiList.join(' ')}</span>`
+        : '';
+
+    // Cooking / Chef notes display
+    const rawChefNotes = isObj ? String(item.notes || item.instructions || item.specialInstructions || '').trim() : '';
+    const chefNotesMarkup = rawChefNotes && !rawChefNotes.toLowerCase().startsWith('extra')
+        ? `<div class="staff-item-notes"><i class="fa-solid fa-note-sticky"></i> ${escapeHtml(rawChefNotes)}</div>`
         : '';
 
     return `
@@ -2229,6 +2401,7 @@ function formatStaffOrderItem(item) {
                     <span class="item-qty-badge">${qty}x</span>
                     <span class="item-name">${escapeHtml(cleanName)}${iconsMarkup}</span>
                 </div>
+                ${chefNotesMarkup}
             </div>
         </div>
     `;
@@ -2239,19 +2412,21 @@ function formatStaffOrderItem(item) {
 // --------------------------------------------------------------------------
 function buildCompletedOrderCardHTML(order) {
     const isAdminViewer = isStaffAdminUser(currentStaffUser);
-
     const isRejected = order.status === 'rejected';
 
     // Build Purchased Items List with clean formatting
-    const itemsHTML = (order.items || []).map(formatStaffOrderItem).join('');
+    const rawItems = order.items || order.cart || order.orderItems || [];
+    const itemsHTML = Array.isArray(rawItems) ? rawItems.map(formatStaffOrderItem).filter(Boolean).join('') : '';
 
     const hidePayment = shouldHideStaffPaymentDetails();
+    const totalVal = order.total || order.costs?.total || 0;
+    const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
 
     return `
         <article class="order-card completed-order-card" id="card-${order.id}">
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(order.customerName || 'Customer')}</span></span>
+                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                 </div>
                 <div class="completed-card-status-badge ${isRejected ? 'status-declined' : 'status-delivered'}">
                     <i class="fa-solid ${isRejected ? 'fa-ban' : 'fa-check-double'}"></i>
@@ -2261,13 +2436,13 @@ function buildCompletedOrderCardHTML(order) {
 
             <div class="card-body completed-card-body">
                 <div class="items-list">
-                    ${itemsHTML}
+                    ${itemsHTML || '<div class="item-row"><span class="item-name">Standard Items</span></div>'}
                 </div>
 
                 ${!hidePayment ? `
                 <div class="completed-summary-bar">
                     <span class="completed-total-label">Total Amount:</span>
-                    <span class="total-amount">₹${order.total || 0}</span>
+                    <span class="total-amount">₹${totalVal}</span>
                 </div>
                 ` : ''}
             </div>
@@ -2290,6 +2465,7 @@ function buildCompletedOrderCardHTML(order) {
 // --------------------------------------------------------------------------
 function buildOrderCardHTML(order) {
     const isOnline = isOnlinePaymentOrder(order);
+    const isInFlight = actionInFlightOrders.has(order.id);
 
     // Live upward elapsed timer data
     const timerData = getOrderElapsedData(order);
@@ -2309,6 +2485,7 @@ function buildOrderCardHTML(order) {
                     class="staff-otp-input" 
                     placeholder="Enter 4-Digit OTP"
                     autocomplete="off"
+                    ${isInFlight ? 'disabled' : ''}
                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)"
                     onkeydown="if(event.key === 'Enter') verifyAndCompleteOrderDelivery('${order.id}')"
                 >
@@ -2316,6 +2493,7 @@ function buildOrderCardHTML(order) {
                     type="button" 
                     class="btn-touch btn-verify-delivery" 
                     id="btn-verify-otp-${order.id}"
+                    ${isInFlight ? 'disabled' : ''}
                     onclick="verifyAndCompleteOrderDelivery('${order.id}')"
                     title="Verify Customer OTP & Complete Delivery"
                 >
@@ -2326,41 +2504,44 @@ function buildOrderCardHTML(order) {
     `;
 
     if (order.status === 'new') {
-        if (isOnline) {
-            // Online Payment: Staff Accept & Reject Choice
-            actionButtonsHTML = `
-                <div class="cod-action-group">
-                    <button class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')">
-                        <i class="fa-solid fa-ban"></i> Reject Order
-                    </button>
-                    <button class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)">
-                        <i class="fa-solid fa-fire"></i> Accept Order
-                    </button>
-                </div>
-            `;
-        } else {
-            // Cash on Delivery: Staff Accept & Reject Choice
-            actionButtonsHTML = `
-                <div class="cod-action-group">
-                    <button class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')">
-                        <i class="fa-solid fa-ban"></i> Reject Order
-                    </button>
-                    <button class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)">
-                        <i class="fa-solid fa-check"></i> Accept Order
-                    </button>
-                </div>
-            `;
-        }
-    } else if (order.status === 'preparing' || order.status === 'ready' || order.status === 'delivery') {
-        // Streamlined direct OTP Verification with Reject Order fallback
+        actionButtonsHTML = `
+            <div class="cod-action-group">
+                <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''}>
+                    <i class="fa-solid fa-ban"></i> Reject Order
+                </button>
+                <button type="button" class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)" ${isInFlight ? 'disabled' : ''}>
+                    <i class="fa-solid fa-fire-burner"></i> Accept Order
+                </button>
+            </div>
+        `;
+    } else if (order.status === 'preparing') {
+        // Preparing state: Dispatch Driver button + Direct OTP verification option + Reject Order
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
-                ${otpVerificationBoxHTML}
-                <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
-                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" style="padding: 7px 14px; font-size: 0.8rem; max-width: 160px; border-radius: 8px;">
-                        <i class="fa-solid fa-ban"></i> Reject Order
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
+                    <button type="button" class="btn-touch btn-dispatch" id="btn-dispatch-${order.id}" onclick="updateOrderStatus('${order.id}', 'delivery', this)" ${isInFlight ? 'disabled' : ''} style="flex: 1; padding: 10px 16px; border-radius: 10px; font-size: 0.88rem;">
+                        <i class="fa-solid fa-motorcycle"></i> Dispatch Driver
+                    </button>
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 10px 14px; font-size: 0.82rem; border-radius: 10px; width: auto;">
+                        <i class="fa-solid fa-ban"></i> Reject
                     </button>
                 </div>
+                ${otpVerificationBoxHTML}
+            </div>
+        `;
+    } else if (order.status === 'ready' || order.status === 'delivery') {
+        // Out for Delivery state: Dispatched Badge + Direct OTP verification + Reject Order
+        actionButtonsHTML = `
+            <div class="in-progress-action-stack">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div class="order-status-dispatched-badge">
+                        <i class="fa-solid fa-motorcycle fa-bounce"></i> Out for Delivery
+                    </div>
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; width: auto;">
+                        <i class="fa-solid fa-ban"></i> Reject
+                    </button>
+                </div>
+                ${otpVerificationBoxHTML}
             </div>
         `;
     } else if (order.status === 'rejected') {
@@ -2403,7 +2584,8 @@ function buildOrderCardHTML(order) {
     }
 
     // Build Items List with clean formatting
-    const itemsHTML = (order.items || []).map(formatStaffOrderItem).join('');
+    const rawItems = order.items || order.cart || order.orderItems || [];
+    const itemsHTML = Array.isArray(rawItems) ? rawItems.map(formatStaffOrderItem).filter(Boolean).join('') : '';
 
     // Pre-resolve turn-by-turn navigation URL
     const mapsUrl = getGoogleMapsNavigationUrl(order);
@@ -2415,12 +2597,13 @@ function buildOrderCardHTML(order) {
     // Customer Phone & Instant Call Trigger
     const rawPhone = order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '';
     const cleanPhone = String(rawPhone).replace(/[^0-9+]/g, '');
+    const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
 
     return `
         <article class="order-card" id="card-${order.id}">
             <div class="card-head">
                 <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(order.customerName || 'Customer')}</span></span>
+                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                 </div>
                 <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
                     <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
@@ -2439,7 +2622,7 @@ function buildOrderCardHTML(order) {
                         </div>
                         <div class="address-actions-group">
                             ${rawPhone ? `
-                                <a href="tel:${cleanPhone}" class="btn-customer-call" title="Call ${escapeHtml(order.customerName || 'Customer')} (${escapeHtml(rawPhone)})" aria-label="Call ${escapeHtml(order.customerName || 'Customer')} at ${escapeHtml(rawPhone)}">
+                                <a href="tel:${cleanPhone}" class="btn-customer-call" title="Call ${escapeHtml(customerName)} (${escapeHtml(rawPhone)})" aria-label="Call ${escapeHtml(customerName)} at ${escapeHtml(rawPhone)}">
                                     <i class="fa-solid fa-phone"></i>
                                     <span class="call-action-pill">Call</span>
                                 </a>
@@ -2453,7 +2636,7 @@ function buildOrderCardHTML(order) {
                 </div>
 
                 <div class="items-list">
-                    ${itemsHTML}
+                    ${itemsHTML || '<div class="item-row"><span class="item-name">Standard Items</span></div>'}
                 </div>
 
                 <div class="card-summary-line">
@@ -2478,6 +2661,7 @@ function buildOrderCardHTML(order) {
 // 9. IN-APP OTP DELIVERY VERIFICATION & STATUS UPDATER
 // --------------------------------------------------------------------------
 function verifyAndCompleteOrderDelivery(orderId) {
+    if (actionInFlightOrders.has(orderId)) return;
     const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
     if (!order) {
         showStaffToast('⚠️ Order not found in active kitchen queue.');
@@ -2517,20 +2701,25 @@ function verifyAndCompleteOrderDelivery(orderId) {
         return;
     }
 
-    // OTP matched successfully! Show loading state on verify button
+    actionInFlightOrders.add(order.id);
     const verifyBtn = document.getElementById(`btn-verify-otp-${order.id}`);
     if (verifyBtn) {
+        verifyBtn.disabled = true;
         verifyBtn.classList.add('btn-loading');
         verifyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
     }
 
-    // Complete delivery
-    updateOrderStatus(order.id, 'completed');
-    if (isMasterOtpMatch && !isCustomerOtpMatch) {
-        regenerateMasterDeliveryOtpOnUse(order.id);
-        showStaffToast(`🎉 Emergency Master OTP Verified! Order #${order.id} marked as Delivered!`);
-    } else {
-        showStaffToast(`🎉 OTP Verified! Order #${order.id} marked as Delivered successfully!`);
+    try {
+        // Complete delivery
+        updateOrderStatus(order.id, 'completed', verifyBtn);
+        if (isMasterOtpMatch && !isCustomerOtpMatch) {
+            regenerateMasterDeliveryOtpOnUse(order.id);
+            showStaffToast(`🎉 Emergency Master OTP Verified! Order #${order.id} marked as Delivered!`);
+        } else {
+            showStaffToast(`🎉 OTP Verified! Order #${order.id} marked as Delivered successfully!`);
+        }
+    } finally {
+        actionInFlightOrders.delete(order.id);
     }
 }
 window.verifyAndCompleteOrderDelivery = verifyAndCompleteOrderDelivery;
@@ -2613,89 +2802,95 @@ function regenerateMasterDeliveryOtpOnUse(orderId) {
 }
 
 function updateOrderStatus(orderId, newStatus, triggerBtn) {
+    if (actionInFlightOrders.has(orderId)) return;
+    actionInFlightOrders.add(orderId);
+
     // Silence any active order ringtone loop when staff interacts/accepts
     stopOrderAlertAudio();
 
-    if (triggerBtn && triggerBtn.classList) {
-        triggerBtn.classList.add('btn-loading');
+    if (triggerBtn) {
+        triggerBtn.disabled = true;
+        if (triggerBtn.classList) triggerBtn.classList.add('btn-loading');
     }
 
-    const order = staffOrders.find(o => String(o.id) === String(orderId));
-    if (!order) return;
-
-    order.status = newStatus;
-    const nowIso = new Date().toISOString();
-    order.updatedAt = nowIso;
-
-    if (newStatus === 'preparing' && !order.prepStartedAt) {
-        order.prepStartedAt = nowIso;
-    }
-
-    if (newStatus === 'completed') {
-        if (!order.completedAt) {
-            order.completedAt = nowIso;
-        }
-        const createdMs = getOrderCreationTimeMs(order);
-        const endMs = new Date(order.completedAt).getTime();
-        const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
-        if (isCardScratched) {
-            order.rewardStatus = 'active_credited';
-            order.scratchRevealed = true;
-            order.scratchClaimed = true;
-            if (!order.scratchCard) order.scratchCard = {};
-            order.scratchCard.status = 'active_credited';
-            order.scratchCard.revealed = true;
-            order.scratchCard.claimed = true;
-            order.scratchCard.claimedAt = nowIso;
-        } else {
-            // Unrevealed fallback: card awaits user scratching in Order History
-            order.rewardStatus = 'unscratched';
-            order.scratchRevealed = false;
-            order.scratchClaimed = false;
-            if (!order.scratchCard) order.scratchCard = {};
-            order.scratchCard.status = 'unscratched';
-            order.scratchCard.revealed = false;
-            order.scratchCard.claimed = false;
-        }
-    }
-
-    if (newStatus === 'rejected') {
-        order.rewardStatus = 'voided';
-        order.wonCashback = 0;
-        order.earnedCashback = 0;
-        if (order.scratchCard) {
-            order.scratchCard.status = 'voided';
-            order.scratchCard.wonAmount = 0;
-            order.scratchCard.amount = 0;
-            order.scratchCard.voided = true;
-        }
-    }
-
-    // 1. Save updated staffOrders to localStorage
     try {
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
-    } catch (e) {
-        console.error('Error saving updated order status:', e);
+        const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
+        if (!order) return;
+
+        order.status = newStatus;
+        const nowIso = new Date().toISOString();
+        order.updatedAt = nowIso;
+
+        if (newStatus === 'preparing' && !order.prepStartedAt) {
+            order.prepStartedAt = nowIso;
+        }
+
+        if (newStatus === 'completed') {
+            if (!order.completedAt) {
+                order.completedAt = nowIso;
+            }
+            const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
+            if (isCardScratched) {
+                order.rewardStatus = 'active_credited';
+                order.scratchRevealed = true;
+                order.scratchClaimed = true;
+                if (!order.scratchCard) order.scratchCard = {};
+                order.scratchCard.status = 'active_credited';
+                order.scratchCard.revealed = true;
+                order.scratchCard.claimed = true;
+                order.scratchCard.claimedAt = nowIso;
+            } else {
+                // Unrevealed fallback: card awaits user scratching in Order History
+                order.rewardStatus = 'unscratched';
+                order.scratchRevealed = false;
+                order.scratchClaimed = false;
+                if (!order.scratchCard) order.scratchCard = {};
+                order.scratchCard.status = 'unscratched';
+                order.scratchCard.revealed = false;
+                order.scratchCard.claimed = false;
+            }
+        }
+
+        if (newStatus === 'rejected') {
+            order.rewardStatus = 'voided';
+            order.wonCashback = 0;
+            order.earnedCashback = 0;
+            if (order.scratchCard) {
+                order.scratchCard.status = 'voided';
+                order.scratchCard.wonAmount = 0;
+                order.scratchCard.amount = 0;
+                order.scratchCard.voided = true;
+            }
+        }
+
+        // 1. Save updated staffOrders to localStorage
+        try {
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+        } catch (e) {
+            console.error('Error saving updated order status:', e);
+        }
+
+        // 2. Sync updated status to backend API
+        syncOrderStatusToBackend(order.id, newStatus);
+
+        let msg = `Order #${order.id} updated to ${newStatus.toUpperCase()}`;
+        if (newStatus === 'preparing') msg = `Order #${order.id} Accepted • Preparation started! 🍕`;
+        if (newStatus === 'ready') msg = `Order #${order.id} marked Ready for Pickup! ✅`;
+        if (newStatus === 'delivery') msg = `Order #${order.id} Dispatched • Out for Delivery 🛵`;
+        if (newStatus === 'completed') msg = `Order #${order.id} Delivered successfully! 🎉`;
+        if (newStatus === 'rejected') msg = `Order #${order.id} Declined / Rejected ❌`;
+
+        showStaffToast(msg);
+        renderOrders();
+    } finally {
+        actionInFlightOrders.delete(orderId);
     }
-
-    // 2. Sync updated status to backend API
-    syncOrderStatusToBackend(orderId, newStatus);
-
-    let msg = `Order #${orderId} updated to ${newStatus.toUpperCase()}`;
-    if (newStatus === 'preparing') msg = `Order #${orderId} Accepted • Preparation started! 🍕`;
-    if (newStatus === 'ready') msg = `Order #${orderId} marked Ready for Pickup! ✅`;
-    if (newStatus === 'delivery') msg = `Order #${orderId} is Out for Delivery 🛵`;
-    if (newStatus === 'completed') msg = `Order #${orderId} Delivered successfully! 🎉`;
-    if (newStatus === 'rejected') msg = `Order #${orderId} Declined / Rejected ❌`;
-
-    showStaffToast(msg);
-    renderOrders();
 }
 
 let pendingRejectOrderId = null;
 
 function handleRejectOrder(orderId) {
-    const order = staffOrders.find(o => String(o.id) === String(orderId));
+    const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
     if (!order) return;
 
     pendingRejectOrderId = order.id;
@@ -2709,8 +2904,8 @@ function handleRejectOrder(orderId) {
     const otpError = document.getElementById('reject-modal-otp-error');
 
     if (orderTagEl) orderTagEl.textContent = `Order #${order.id}`;
-    if (customerEl) customerEl.textContent = order.customerName || 'Customer';
-    if (totalEl) totalEl.textContent = `₹${order.total || 0}`;
+    if (customerEl) customerEl.textContent = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
+    if (totalEl) totalEl.textContent = `₹${order.total || order.costs?.total || 0}`;
     if (totalRow) {
         totalRow.style.display = shouldHideStaffPaymentDetails() ? 'none' : 'flex';
     }
@@ -2762,6 +2957,8 @@ function confirmRejectOrder() {
         return;
     }
     const orderIdToReject = pendingRejectOrderId;
+    if (actionInFlightOrders.has(orderIdToReject)) return;
+
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
     const enteredOtp = otpInput ? otpInput.value.trim().replace(/[^0-9]/g, '') : '';
@@ -2799,13 +2996,22 @@ function confirmRejectOrder() {
         return;
     }
 
-    // 3. Valid Master OTP! Update order status to "rejected" and void reward
-    closeStaffRejectModal();
-    updateOrderStatus(orderIdToReject, 'rejected');
+    actionInFlightOrders.add(orderIdToReject);
+    const confirmBtn = document.getElementById('btn-confirm-order-reject');
+    if (confirmBtn) confirmBtn.disabled = true;
 
-    // 4. Immediately regenerate a new 4-digit Master OTP in Firestore to prevent reuse
-    regenerateMasterDeliveryOtpOnUse(orderIdToReject);
-    showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected & Reward Voided.`);
+    try {
+        // 3. Valid Master OTP! Update order status to "rejected" and void reward
+        closeStaffRejectModal();
+        updateOrderStatus(orderIdToReject, 'rejected');
+
+        // 4. Immediately regenerate a new 4-digit Master OTP in Firestore to prevent reuse
+        regenerateMasterDeliveryOtpOnUse(orderIdToReject);
+        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected & Reward Voided.`);
+    } finally {
+        actionInFlightOrders.delete(orderIdToReject);
+        if (confirmBtn) confirmBtn.disabled = false;
+    }
 }
 window.confirmRejectOrder = confirmRejectOrder;
 
@@ -3295,6 +3501,16 @@ function startOrderAlertAudio(orderId = '', details = '') {
     isOrderAlertAudioPlaying = true;
     console.log(`🔊 [Order Alert Loop] Triggering continuous looping order alert for Order #${currentAlertingOrderId}...`);
 
+    // Show persistent visual pulsing alert strip
+    const strip = document.getElementById('staff-incoming-alert-strip');
+    const stripText = document.getElementById('staff-alert-strip-text');
+    if (strip) {
+        if (stripText) {
+            stripText.textContent = `🚨 INCOMING ORDER #${currentAlertingOrderId} RECEIVED! TAP TO REVIEW`;
+        }
+        strip.style.display = 'block';
+    }
+
     // 1. Play HTML5 Audio with audio.loop = true (continuous loop)
     let playedHtml5 = false;
     try {
@@ -3309,10 +3525,12 @@ function startOrderAlertAudio(orderId = '', details = '') {
                     console.log('▶️ [Order Alert Loop] HTML5 Audio playing in continuous loop.');
                     isStaffAudioUnlocked = true;
                     isAudioAutoplayBlocked = false;
+                    dismissStaffAudioBanner();
                 }).catch((err) => {
                     console.warn('HTML5 Audio autoplay restricted note:', err.message);
                     isAudioAutoplayBlocked = true;
                     pendingOrderAlertData = { orderId, details };
+                    checkAndShowStaffAudioBanner();
                     playSynthesizedAlertBeep();
                 });
                 playedHtml5 = true;
@@ -3340,7 +3558,13 @@ function stopOrderAlertAudio() {
     currentAlertingOrderId = null;
     pendingOrderAlertData = null;
 
-    // 1. Stop and reset HTML5 Audio immediately
+    // 1. Hide persistent visual alert strip
+    const strip = document.getElementById('staff-incoming-alert-strip');
+    if (strip) {
+        strip.style.display = 'none';
+    }
+
+    // 2. Stop and reset HTML5 Audio immediately
     try {
         if (staffOrderAlertAudio) {
             staffOrderAlertAudio.pause();
@@ -3349,7 +3573,7 @@ function stopOrderAlertAudio() {
         }
     } catch (e) { }
 
-    // 2. Hide Incoming Order Popup Modal
+    // 3. Hide Incoming Order Popup Modal
     hideIncomingOrderModal();
 }
 
@@ -3474,6 +3698,21 @@ function cleanupAllStaffListeners() {
         if (activeStaffPendingApprovalPoller) {
             clearInterval(activeStaffPendingApprovalPoller);
             activeStaffPendingApprovalPoller = null;
+        }
+        if (staffLiveTimersInterval) {
+            clearInterval(staffLiveTimersInterval);
+            staffLiveTimersInterval = null;
+        }
+        if (staffBackendSyncInterval) {
+            clearInterval(staffBackendSyncInterval);
+            staffBackendSyncInterval = null;
+        }
+        if (staffTimerWorker) {
+            try {
+                staffTimerWorker.postMessage('stop');
+                staffTimerWorker.terminate();
+            } catch (e) { }
+            staffTimerWorker = null;
         }
         stopOrderAlertAudio();
     } catch (e) {

@@ -2657,3 +2657,167 @@ body {
         gap: 24px;
     }
 }
+
+/* ==========================================================================
+   AUDIO RESTRICTION BANNER & INCOMING ORDER ALERT STRIP
+   ========================================================================== */
+.staff-audio-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(217, 119, 6, 0.15) 100%);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+    color: #fbbf24;
+    padding: 10px 18px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    animation: pulseAudioBanner 2s ease-in-out infinite;
+    z-index: 50;
+}
+
+@keyframes pulseAudioBanner {
+    0%, 100% { background-color: rgba(245, 158, 11, 0.16); }
+    50% { background-color: rgba(245, 158, 11, 0.28); }
+}
+
+.staff-audio-banner:hover {
+    background: rgba(245, 158, 11, 0.3);
+}
+
+.audio-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.audio-banner-icon {
+    font-size: 1.1rem;
+    color: #f59e0b;
+}
+
+.btn-dismiss-audio-banner {
+    background: transparent;
+    border: none;
+    color: #fbbf24;
+    font-size: 1rem;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 6px;
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.btn-dismiss-audio-banner:hover {
+    opacity: 1;
+    background: rgba(245, 158, 11, 0.25);
+}
+
+/* Flashing Alert Strip for Incoming New Orders */
+.staff-incoming-alert-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.25) 0%, rgba(239, 68, 68, 0.2) 100%);
+    border-bottom: 1.5px solid rgba(255, 107, 0, 0.6);
+    color: #ffffff;
+    padding: 12px 20px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    animation: flashIncomingStrip 1s ease-in-out infinite;
+    z-index: 60;
+}
+
+@keyframes flashIncomingStrip {
+    0%, 100% { background-color: rgba(255, 107, 0, 0.2); box-shadow: 0 0 15px rgba(255, 107, 0, 0.2); }
+    50% { background-color: rgba(255, 107, 0, 0.4); box-shadow: 0 0 25px rgba(255, 107, 0, 0.4); }
+}
+
+.incoming-strip-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.incoming-strip-content i {
+    color: #ff6b00;
+    font-size: 1.2rem;
+}
+
+.btn-strip-view {
+    background: var(--primary-orange, #ff6b00);
+    color: #ffffff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* ==========================================================================
+   DISPATCH DRIVER BUTTON & SPECIAL INSTRUCTIONS
+   ========================================================================== */
+.btn-dispatch {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+    border: 1px solid rgba(56, 189, 248, 0.4) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35) !important;
+    font-weight: 700 !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-dispatch:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #075985 100%) !important;
+    box-shadow: 0 6px 18px rgba(2, 132, 199, 0.5) !important;
+    transform: translateY(-1px);
+}
+
+.order-status-dispatched-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(14, 165, 233, 0.35);
+    color: #38bdf8;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.staff-item-notes {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 4px 8px;
+    background: rgba(245, 158, 11, 0.12);
+    border-left: 2px solid #f59e0b;
+    border-radius: 4px;
+    color: #fbbf24;
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.3;
+}
+
+.staff-item-notes i {
+    font-size: 0.75rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* Concurrency & Disabled Button States */
+.btn-touch:disabled,
+.btn-touch.is-disabled {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    transform: none !important;
+    box-shadow: none !important;
+}

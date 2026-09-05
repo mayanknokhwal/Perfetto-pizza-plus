@@ -211,13 +211,106 @@ async function handleWalletConfigRequest(req, res) {
     }
 }
 
+/**
+ * Default Store Notice Configuration
+ */
+const DEFAULT_STORE_NOTICE = {
+    key: 'store_notice',
+    enabled: true,
+    title: 'Store Notice',
+    text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
+    wordCount: 30,
+    updatedAt: null
+};
+
+if (!global.__perfettoStoreNotice) {
+    global.__perfettoStoreNotice = JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
+}
+
+/**
+ * Handles /api/notice, /api/settings/notice, /api/store-notice (GET, POST, PUT, PATCH)
+ * Document: settings/store_notice
+ */
+async function handleStoreNoticeRequest(req, res) {
+    try {
+        if (req.method === 'GET') {
+            let notice = global.__perfettoStoreNotice;
+            try {
+                const doc = await getFirestoreDoc('settings', 'store_notice');
+                if (doc) {
+                    notice = { ...global.__perfettoStoreNotice, ...doc };
+                    global.__perfettoStoreNotice = notice;
+                }
+            } catch (e) {
+                console.warn('Firestore store_notice fetch notice:', e.message);
+            }
+
+            return res.status(200).json({
+                success: true,
+                notice: notice || DEFAULT_STORE_NOTICE
+            });
+        }
+
+        if (req.method === 'PUT' || req.method === 'POST' || req.method === 'PATCH') {
+            let body = req.body;
+            if (typeof body === 'string') {
+                try { body = JSON.parse(body); } catch (e) { body = {}; }
+            }
+
+            const isEnabled = body.enabled !== undefined ? Boolean(body.enabled) : true;
+            const title = (body.title && typeof body.title === 'string' && body.title.trim())
+                ? body.title.trim().slice(0, 100)
+                : 'Store Notice';
+            const text = typeof body.text === 'string' ? body.text.trim() : '';
+
+            // Word count validation
+            const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
+            if (wordCount > 500) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Notice content exceeds maximum 500 words limit'
+                });
+            }
+
+            const updatedNotice = {
+                key: 'store_notice',
+                enabled: isEnabled,
+                title,
+                text,
+                wordCount,
+                updatedAt: new Date().toISOString()
+            };
+
+            global.__perfettoStoreNotice = updatedNotice;
+            await setFirestoreDoc('settings', 'store_notice', updatedNotice);
+
+            return res.status(200).json({
+                success: true,
+                message: 'Store notice saved successfully to Firebase Firestore',
+                notice: updatedNotice
+            });
+        }
+
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    } catch (error) {
+        console.error('Error in handleStoreNoticeRequest:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Internal Server Error'
+        });
+    }
+}
+
 module.exports = {
     handleSettingsRequest,
     handleBannersRequest,
     handleWalletConfigRequest,
+    handleStoreNoticeRequest,
     DEFAULT_SETTINGS,
     DEFAULT_DAILY_BANNERS,
     DEFAULT_FALLBACK_BANNER_LOGO,
-    DEFAULT_WALLET_CONFIG
+    DEFAULT_WALLET_CONFIG,
+    DEFAULT_STORE_NOTICE
 };
+
 

@@ -20,10 +20,150 @@ const cartContainer = document.getElementById('cart-items-container');
 const toast = document.getElementById('toast');
 const toastMessage = document.getElementById('toast-message');
 
-// Price Formatter Helper: Whole numbers only (e.g. ₹299)
+// Price Formatter Helper: Whole numbers only (e.g. ₹299), with strict zero-NaN & non-negative guards
 function formatPrice(amount) {
-    return `₹${Math.round(amount)}`;
+    const num = Number(amount);
+    if (isNaN(num) || !isFinite(num)) {
+        return '₹0';
+    }
+    return `₹${Math.max(0, Math.round(num))}`;
 }
+window.formatPrice = formatPrice;
+
+// Global HTML / Attribute Sanitizer Helper
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
+// Robust In-Memory Backed Storage Helpers (Private Browsing & Storage Quota Resilience)
+const memoryStorageFallback = {};
+const memorySessionFallback = {};
+
+const safeStorage = {
+    getItem: (key) => {
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                const val = window.localStorage.getItem(key);
+                if (val !== null && val !== undefined) return val;
+            }
+        } catch (e) { }
+        return memoryStorageFallback[key] !== undefined ? memoryStorageFallback[key] : null;
+    },
+    setItem: (key, val) => {
+        const strVal = String(val);
+        memoryStorageFallback[key] = strVal;
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem(key, strVal);
+            }
+        } catch (e) { }
+    },
+    removeItem: (key) => {
+        delete memoryStorageFallback[key];
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.removeItem(key);
+            }
+        } catch (e) { }
+    },
+    getJSON: (key, fallback = null) => {
+        try {
+            const raw = safeStorage.getItem(key);
+            if (!raw) return fallback;
+            const parsed = JSON.parse(raw);
+            return (parsed !== null && parsed !== undefined) ? parsed : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    },
+    setJSON: (key, val) => {
+        try {
+            const str = JSON.stringify(val);
+            safeStorage.setItem(key, str);
+        } catch (e) { }
+    }
+};
+window.safeStorage = safeStorage;
+
+const safeSessionStorage = {
+    getItem: (key) => {
+        try {
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                const val = window.sessionStorage.getItem(key);
+                if (val !== null && val !== undefined) return val;
+            }
+        } catch (e) { }
+        return memorySessionFallback[key] !== undefined ? memorySessionFallback[key] : null;
+    },
+    setItem: (key, val) => {
+        const strVal = String(val);
+        memorySessionFallback[key] = strVal;
+        try {
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.setItem(key, strVal);
+            }
+        } catch (e) { }
+    },
+    removeItem: (key) => {
+        delete memorySessionFallback[key];
+        try {
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.removeItem(key);
+            }
+        } catch (e) { }
+    }
+};
+window.safeSessionStorage = safeSessionStorage;
+
+// Storage Prototype Hardening for Private Browsing & QuotaExceeded Protection
+(function hardenStoragePrototypes() {
+    try {
+        if (typeof window === 'undefined' || typeof window.Storage === 'undefined' || !window.Storage.prototype) return;
+        const origSetItem = window.Storage.prototype.setItem;
+        const origGetItem = window.Storage.prototype.getItem;
+        const origRemoveItem = window.Storage.prototype.removeItem;
+
+        window.Storage.prototype.setItem = function (key, value) {
+            const isSession = (typeof window.sessionStorage !== 'undefined' && this === window.sessionStorage);
+            const str = String(value);
+            try {
+                origSetItem.call(this, key, str);
+            } catch (err) {
+                if (isSession) memorySessionFallback[key] = str;
+                else memoryStorageFallback[key] = str;
+            }
+        };
+
+        window.Storage.prototype.getItem = function (key) {
+            const isSession = (typeof window.sessionStorage !== 'undefined' && this === window.sessionStorage);
+            try {
+                const val = origGetItem.call(this, key);
+                if (val !== null && val !== undefined) return val;
+            } catch (err) { }
+            return isSession
+                ? (memorySessionFallback[key] !== undefined ? memorySessionFallback[key] : null)
+                : (memoryStorageFallback[key] !== undefined ? memoryStorageFallback[key] : null);
+        };
+
+        window.Storage.prototype.removeItem = function (key) {
+            const isSession = (typeof window.sessionStorage !== 'undefined' && this === window.sessionStorage);
+            if (isSession) delete memorySessionFallback[key];
+            else delete memoryStorageFallback[key];
+            try {
+                origRemoveItem.call(this, key);
+            } catch (err) { }
+        };
+    } catch (e) {
+        // Storage prototype modifications restricted by host environment; safeStorage remains active
+    }
+})();
 
 // Centralized Localization Helper Bridge
 function t(key, params) {
@@ -422,30 +562,24 @@ window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
 function getStoredVerifiedPhone() {
     try {
         // 1. Check direct verified phone key
-        const direct = localStorage.getItem(VERIFIED_PHONE_STORAGE_KEY) || sessionStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
+        const direct = safeStorage.getItem(VERIFIED_PHONE_STORAGE_KEY) || safeSessionStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
         if (direct && typeof direct === 'string') {
             const clean = direct.replace(/[^0-9]/g, '').slice(-10);
             if (clean.length === 10) return clean;
         }
 
         // 2. Check structured verified phone state object
-        const rawState = localStorage.getItem(VERIFIED_PHONE_STATE_KEY);
-        if (rawState) {
-            const parsed = JSON.parse(rawState);
-            if (parsed && parsed.isVerified && parsed.phone) {
-                const clean = String(parsed.phone).replace(/[^0-9]/g, '').slice(-10);
-                if (clean.length === 10) return clean;
-            }
+        const parsedState = safeStorage.getJSON(VERIFIED_PHONE_STATE_KEY, null);
+        if (parsedState && parsedState.isVerified && parsedState.phone) {
+            const clean = String(parsedState.phone).replace(/[^0-9]/g, '').slice(-10);
+            if (clean.length === 10) return clean;
         }
 
         // 3. Check delivery profile if marked isVerified
-        const rawProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
-        if (rawProfile) {
-            const parsed = JSON.parse(rawProfile);
-            if (parsed && parsed.isVerified && parsed.phone) {
-                const clean = String(parsed.phone).replace(/[^0-9]/g, '').slice(-10);
-                if (clean.length === 10) return clean;
-            }
+        const parsedProfile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
+        if (parsedProfile && parsedProfile.isVerified && parsedProfile.phone) {
+            const clean = String(parsedProfile.phone).replace(/[^0-9]/g, '').slice(-10);
+            if (clean.length === 10) return clean;
         }
     } catch (e) {
         console.warn('Error reading stored verified phone:', e);
@@ -460,23 +594,20 @@ function setStoredPhoneVerified(phone, isVerified = true) {
 
     try {
         if (isVerified) {
-            localStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
-            sessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
-            localStorage.setItem(VERIFIED_PHONE_STATE_KEY, JSON.stringify({
+            safeStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
+            safeSessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
+            safeStorage.setJSON(VERIFIED_PHONE_STATE_KEY, {
                 phone: cleanPhone,
                 isVerified: true,
                 verifiedAt: new Date().toISOString()
-            }));
+            });
 
             // Sync with existing delivery profile if present
-            const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
-            if (stored) {
-                const profile = JSON.parse(stored);
-                if (profile && typeof profile === 'object') {
-                    profile.phone = cleanPhone;
-                    profile.isVerified = true;
-                    localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
-                }
+            const profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
+            if (profile && typeof profile === 'object') {
+                profile.phone = cleanPhone;
+                profile.isVerified = true;
+                safeStorage.setJSON(DELIVERY_PROFILE_KEY, profile);
             }
 
             // Immediately restore permanent wallet balance & order history for verified phone
@@ -486,17 +617,14 @@ function setStoredPhoneVerified(phone, isVerified = true) {
                 }
             }, 50);
         } else {
-            localStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
-            sessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
-            localStorage.removeItem(VERIFIED_PHONE_STATE_KEY);
+            safeStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
+            safeSessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
+            safeStorage.removeItem(VERIFIED_PHONE_STATE_KEY);
 
-            const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
-            if (stored) {
-                const profile = JSON.parse(stored);
-                if (profile && typeof profile === 'object') {
-                    profile.isVerified = false;
-                    localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
-                }
+            const profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
+            if (profile && typeof profile === 'object') {
+                profile.isVerified = false;
+                safeStorage.setJSON(DELIVERY_PROFILE_KEY, profile);
             }
         }
     } catch (e) {
@@ -632,26 +760,12 @@ function getAppOrigin() {
 }
 
 function loadCartFromStorage() {
-    try {
-        const stored = localStorage.getItem(CART_STORAGE_KEY);
-        if (stored !== null) {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed)) {
-                return parsed;
-            }
-        }
-    } catch (e) {
-        console.warn('Failed to load cart from localStorage:', e);
-    }
-    return [];
+    const parsed = safeStorage.getJSON(CART_STORAGE_KEY, []);
+    return Array.isArray(parsed) ? parsed : [];
 }
 
 function saveCartToStorage() {
-    try {
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-    } catch (e) {
-        console.warn('Failed to save cart to localStorage:', e);
-    }
+    safeStorage.setJSON(CART_STORAGE_KEY, Array.isArray(cart) ? cart : []);
 }
 
 let cart = loadCartFromStorage();
@@ -5036,12 +5150,12 @@ window.addEventListener('storage', (e) => {
     if (!e.key || e.key === 'perfetto_wallet_config' || e.key === 'perfetto_customer_wallet' || e.key === 'perfetto_wallet_balance') {
         try {
             if (e.key === 'perfetto_wallet_config') {
-                customerWalletConfig = JSON.parse(localStorage.getItem('perfetto_wallet_config') || '{}');
+                customerWalletConfig = safeStorage.getJSON('perfetto_wallet_config', {});
                 const days = getClampedCashbackExpiryDays(customerWalletConfig);
                 customerWalletConfig.cashbackExpiryDays = days;
                 customerWalletConfig.expiryDays = days;
             }
-            if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = JSON.parse(localStorage.getItem('perfetto_customer_wallet') || '{}');
+            if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = safeStorage.getJSON('perfetto_customer_wallet', {});
         } catch (err) {}
         updateCartUI();
         updateProfileWalletUI();
@@ -5052,7 +5166,7 @@ window.addEventListener('storage', (e) => {
     }
     if (!e.key || e.key === 'perfetto_store_notice') {
         try {
-            customerStoreNotice = JSON.parse(localStorage.getItem('perfetto_store_notice') || '{}');
+            customerStoreNotice = safeStorage.getJSON('perfetto_store_notice', {});
         } catch (err) {}
         updateStoreNoticeUI();
     }
@@ -5311,24 +5425,21 @@ function updateFloatingCartBar() {
 
 function getSavedDeliveryProfile() {
     try {
-        const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
-        if (stored) {
-            const profile = JSON.parse(stored);
-            if (profile && typeof profile === 'object') {
-                const fullName = (profile.fullName || '').trim();
-                const email = (profile.email || '').trim();
-                const phone = (profile.phone || '').replace(/[^0-9]/g, '').slice(0, 10);
-                const colonyName = (profile.colonyName || '').trim();
-                const nearBy = (profile.nearBy || '').trim();
-                const streetName = (profile.streetName || '').trim();
-                const wardNo = (profile.wardNo || '').trim();
-                const isVerified = profile.isVerified === true;
-                const gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
-                const gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
+        const profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
+        if (profile && typeof profile === 'object') {
+            const fullName = (profile.fullName || '').trim();
+            const email = (profile.email || '').trim();
+            const phone = (profile.phone || '').replace(/[^0-9]/g, '').slice(0, 10);
+            const colonyName = (profile.colonyName || '').trim();
+            const nearBy = (profile.nearBy || '').trim();
+            const streetName = (profile.streetName || '').trim();
+            const wardNo = (profile.wardNo || '').trim();
+            const isVerified = profile.isVerified === true;
+            const gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
+            const gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
 
-                if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null) {
-                    return { fullName, email, phone, colonyName, nearBy, streetName, wardNo, isVerified, gpsLat, gpsLng };
-                }
+            if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null) {
+                return { fullName, email, phone, colonyName, nearBy, streetName, wardNo, isVerified, gpsLat, gpsLng };
             }
         }
     } catch (e) {
@@ -5730,24 +5841,16 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     // Note: Cashback scratch card reward is unlocked immediately upon order placement, with an immutable per-transaction expiry deadline!
     // (Wallet crediting occurs when the customer scratches & claims the card in the Scratch Card Modal)
 
-    // 1. Save order to LocalStorage (Immediate Offline Resilience)
-    let ordersList = [];
-    try {
-        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
-        if (storedOrders) {
-            ordersList = JSON.parse(storedOrders) || [];
-        }
-        // Check if order already exists in list (e.g. updating status)
-        const existingIndex = ordersList.findIndex(o => (o.id || o.orderId) === orderId);
-        if (existingIndex >= 0) {
-            ordersList[existingIndex] = newOrder;
-        } else {
-            ordersList.unshift(newOrder);
-        }
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
-    } catch (e) {
-        console.error('Error saving order to localStorage:', e);
+    // 1. Save order to LocalStorage via SafeStorage (Immediate Offline Resilience)
+    let ordersList = safeStorage.getJSON('perfettoCustomerOrders', []);
+    if (!Array.isArray(ordersList)) ordersList = [];
+    const existingIndex = ordersList.findIndex(o => o && (o.id || o.orderId) === orderId);
+    if (existingIndex >= 0) {
+        ordersList[existingIndex] = newOrder;
+    } else {
+        ordersList.unshift(newOrder);
     }
+    safeStorage.setJSON('perfettoCustomerOrders', ordersList);
 
     // 2. Asynchronously save order to Firebase Firestore via Backend API
     saveOrderToBackendAPI(newOrder);
@@ -7526,7 +7629,16 @@ function launchCustomerMapModal(initialLat, initialLng) {
 
     setTimeout(() => {
         initCustomerLeafletMap(initialLat, initialLng);
+        if (customerLeafletMap) {
+            customerLeafletMap.invalidateSize();
+        }
     }, 150);
+
+    setTimeout(() => {
+        if (customerLeafletMap) {
+            customerLeafletMap.invalidateSize();
+        }
+    }, 350);
 }
 
 function closeCustomerMapModal() {
@@ -8517,7 +8629,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             } else if (Array.isArray(u.transactions) && u.transactions.length > 0) {
                 currentCustomerWallet.transactions = u.transactions;
             }
-            localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+            safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
 
             // Restore complete order history bound to this phone number
             const targetPhone = cleanPhone || restoredProfile.phone;
@@ -8544,10 +8656,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                     }
 
                     if (remoteOrders.length > 0) {
-                        let existingLocal = [];
-                        try {
-                            existingLocal = JSON.parse(localStorage.getItem('perfettoCustomerOrders') || '[]');
-                        } catch (e) {}
+                        const existingLocal = safeStorage.getJSON('perfettoCustomerOrders', []);
 
                         const map = new Map();
                         // Remote orders take precedence
@@ -8561,7 +8670,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                             const timeB = new Date(b.createdAt || 0).getTime();
                             return timeB - timeA;
                         });
-                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(merged));
+                        safeStorage.setJSON('perfettoCustomerOrders', merged);
                         if (typeof listenToCustomerActiveOrders === 'function') {
                             listenToCustomerActiveOrders();
                         }
@@ -8913,46 +9022,42 @@ function renderOrderHistoryDetails() {
     if (!listEl) return;
 
     try {
-        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
-        if (storedOrders) {
-            const orders = JSON.parse(storedOrders);
-            if (Array.isArray(orders) && orders.length > 0) {
-                if (clearBtn) clearBtn.style.display = 'inline-flex';
-                listEl.innerHTML = orders.map(o => {
-                    const otpCode = o.deliveryOtp || o.otp || '';
-                    const isDelivered = o.status === 'completed' || o.status === 'delivered';
-                    const isCancelled = o.status === 'rejected' || o.status === 'cancelled';
-                    const itemsText = (o.items || []).map(i => escapeHtml(i.name)).join(', ');
-                    const orderCashback = Number(o.wonCashback || o.earnedCashback || (o.scratchCard && (o.scratchCard.wonAmount || o.scratchCard.amount)) || 0);
-                    let isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
-                    const isCardExpired = isScratchCardExpired(o);
-                    const expiryCountdown = getScratchExpiryCountdownText(o);
-                    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-                    const orderDays = (o && (o.scratchExpiryDays || o.cashbackExpiryDays || (o.scratchCard && (o.scratchCard.expiryDays || o.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
-                    if (isCardExpired && !o.scratchExpired) {
-                        permanentlyInvalidateScratchCard(o);
-                    }
+        const orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (Array.isArray(orders) && orders.length > 0) {
+            if (clearBtn) clearBtn.style.display = 'inline-flex';
+            listEl.innerHTML = orders.map(o => {
+                const otpCode = o.deliveryOtp || o.otp || '';
+                const isDelivered = o.status === 'completed' || o.status === 'delivered';
+                const isCancelled = o.status === 'rejected' || o.status === 'cancelled';
+                const itemsText = (o.items || []).map(i => escapeHtml(i.name)).join(', ');
+                const orderCashback = Number(o.wonCashback || o.earnedCashback || (o.scratchCard && (o.scratchCard.wonAmount || o.scratchCard.amount)) || 0);
+                let isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
+                const isCardExpired = isScratchCardExpired(o);
+                const expiryCountdown = getScratchExpiryCountdownText(o);
+                const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+                const orderDays = (o && (o.scratchExpiryDays || o.cashbackExpiryDays || (o.scratchCard && (o.scratchCard.expiryDays || o.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
+                if (isCardExpired && !o.scratchExpired) {
+                    permanentlyInvalidateScratchCard(o);
+                }
 
-                    const isScratchRevealed = Boolean(o.scratchRevealed || (o.scratchCard && o.scratchCard.revealed));
+                const isScratchRevealed = Boolean(o.scratchRevealed || (o.scratchCard && o.scratchCard.revealed));
 
-                    // Auto-credit pending delivery cashback only if order was delivered AND card was already revealed
-                    if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired) {
-                        if (orderCashback > 0) {
-                            o.scratchClaimed = true;
-                            o.rewardStatus = 'active_credited';
-                            if (o.scratchCard) {
-                                o.scratchCard.claimed = true;
-                                o.scratchCard.status = 'active_credited';
-                                o.scratchCard.claimedAt = new Date().toISOString();
-                            }
-                            const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
-                            creditCustomerWallet(phone, orderCashback, o.id || o.orderId);
-                            isScratchClaimed = true;
-                            try {
-                                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
-                            } catch (e) {}
+                // Auto-credit pending delivery cashback only if order was delivered AND card was already revealed
+                if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired) {
+                    if (orderCashback > 0) {
+                        o.scratchClaimed = true;
+                        o.rewardStatus = 'active_credited';
+                        if (o.scratchCard) {
+                            o.scratchCard.claimed = true;
+                            o.scratchCard.status = 'active_credited';
+                            o.scratchCard.claimedAt = new Date().toISOString();
                         }
+                        const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
+                        creditCustomerWallet(phone, orderCashback, o.id || o.orderId);
+                        isScratchClaimed = true;
+                        safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
+                }
 
                     return `
                     <div style="background: var(--bg-surface); padding: 14px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border-color);">
@@ -9029,7 +9134,6 @@ function renderOrderHistoryDetails() {
                 `}).join('');
                 return;
             }
-        }
     } catch (e) { }
 
     if (clearBtn) clearBtn.style.display = 'none';
@@ -9863,7 +9967,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
         pizzasGrid.innerHTML = matchingPizzas.map(({ item }) => {
             const isAvailable = item.available !== false;
             const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-            const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+            const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${typeof t === 'function' ? t('product_not_available') : 'This time product is not available'}</div>`;
 
             const ingredients = item.desc ? item.desc.split(/[,&]/).map(s => s.trim()).filter(Boolean) : [];
             const hasMoreThanFive = ingredients.length > 5;
@@ -9871,21 +9975,21 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
             let descMarkup = '';
             if (hasMoreThanFive) {
                 const shortText = ingredients.slice(0, 5).join(', ') + '...';
-                const escFull = item.desc.replace(/"/g, '&quot;');
-                const escShort = shortText.replace(/"/g, '&quot;');
+                const escFull = escapeHtml(item.desc);
+                const escShort = escapeHtml(shortText);
                 descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
                     <span class="desc-text truncated" data-full="${escFull}" data-short="${escShort}">${shortText}</span>
                     <button class="more-btn" onclick="toggleIngredients('${item.id}', event)">More</button>
                    </p>`;
             } else {
                 descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
-                    <span class="desc-text">${item.desc || ''}</span>
+                    <span class="desc-text">${escapeHtml(item.desc || '')}</span>
                    </p>`;
             }
 
             const addBtnMarkup = isAvailable
-                ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
+                ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
             const prices = item.prices || { S: 199, M: 299, L: 399 };
             const selectedSize = 'M';
@@ -9896,15 +10000,15 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
 
             const addonsMarkup = isAvailable ? `
                 <div class="burger-addon-selector pizza-addon-selector">
-                    <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                    <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
                     <div class="burger-addon-options">
-                        <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
+                        <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                             🧀
                         </button>
-                        <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
+                        <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="${typeof tAddon === 'function' ? tAddon('Extra Spicy') : 'Extra Spicy'} (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : (typeof t === 'function' ? t('addon_free') : 'Free')})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
                             🌶️
                         </button>
-                        <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="Extra Mayo (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
+                        <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="${typeof tAddon === 'function' ? tAddon('Extra Mayo') : 'Extra Mayo'} (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
                             🍥
                         </button>
                     </div>
@@ -9915,14 +10019,14 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
             <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}">
                 ${outOfStockBadge}
                 <div class="pizza-card-image-wrapper">
-                    <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
+                    <img src="${item.img}" alt="${escapeHtml(item.name)}" class="pizza-card-img" loading="lazy">
                 </div>
                 <div class="pizza-card-body">
-                    <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                    <h4 class="pizza-card-title" title="${escapeHtml(item.name)}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                     ${descMarkup}
                     
                     <div class="pizza-size-selector">
-                        <span class="size-label">Size:</span>
+                        <span class="size-label">${typeof t === 'function' ? t('size_label') : 'Size:'}</span>
                         <div class="size-options">
                             <button class="size-btn" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${prices.S}, event)">S</button>
                             <button class="size-btn selected" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${prices.M}, event)">M</button>
@@ -9933,7 +10037,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                     ${addonsMarkup}
                     
                     <div class="pizza-price-row">
-                        <span class="price-prefix">Price:</span>
+                        <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                         <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
                     </div>
                 </div>
@@ -9952,24 +10056,24 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
         productsGrid.innerHTML = matchingOtherProducts.map(({ item }) => {
             const isAvailable = item.available !== false;
             const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-            const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
+            const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${typeof t === 'function' ? t('product_not_available') : 'This time product is not available'}</div>`;
 
             const addBtnMarkup = isAvailable
-                ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 199}, '${item.img}')"><i class="fa-solid fa-plus"></i> Add</button>`
-                : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> Out of Stock</button>`;
+                ? `<button class="add-subitem-btn" onclick="addToCart('${escapeHtml(item.name)}', ${item.price || 199}, '${item.img}')"><i class="fa-solid fa-plus"></i> ${typeof t === 'function' ? t('add_to_cart') : 'Add'}</button>`
+                : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'Out of Stock'}</button>`;
 
             return `
             <div class="sub-item-card ${outOfStockClass}">
                 ${outOfStockBadge}
                 <div class="sub-item-img-wrapper">
-                    <img src="${item.img}" alt="${item.name}" class="sub-item-img" loading="lazy">
+                    <img src="${item.img}" alt="${escapeHtml(item.name)}" class="sub-item-img" loading="lazy">
                 </div>
                 <div class="sub-item-details">
                     <div class="sub-item-top-row">
                         <span class="sub-item-name">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span>
-                        ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
+                        ${item.tag ? `<span class="sub-item-tag">${escapeHtml(item.tag)}</span>` : ''}
                     </div>
-                    <p class="sub-item-desc">${item.desc || ''}</p>
+                    <p class="sub-item-desc">${escapeHtml(item.desc || '')}</p>
                     <div class="sub-item-bottom-row">
                         <span class="sub-item-price">${formatPrice(item.price || 199)}</span>
                         ${addBtnMarkup}
@@ -10542,10 +10646,53 @@ async function checkPaymentReturnParams() {
     }
 }
 
+function setupGlobalCustomerModalDismissals() {
+    const modalDismissMap = [
+        { id: 'customer-map-modal', dismiss: () => { if (typeof closeCustomerMapModal === 'function') closeCustomerMapModal(); } },
+        { id: 'scratch-card-modal', dismiss: () => { if (typeof closeScratchCardModal === 'function') closeScratchCardModal(); } },
+        { id: 'store-notice-modal', dismiss: () => { if (typeof closeStoreNoticeModal === 'function') closeStoreNoticeModal(); } },
+        { id: 'checkout-modal', dismiss: () => { if (typeof closeCheckoutModal === 'function') closeCheckoutModal(); } },
+        { id: 'profile-edit-modal', dismiss: () => { if (typeof closeEditProfileModal === 'function') closeEditProfileModal(); } },
+        { id: 'order-otp-success-modal', dismiss: () => { if (typeof closeOrderOtpSuccessModal === 'function') closeOrderOtpSuccessModal(); } },
+        { id: 'clear-history-confirm-modal', dismiss: () => { if (typeof closeClearHistoryModal === 'function') closeClearHistoryModal(); } },
+        { id: 'logo-modal', dismiss: () => { if (typeof window.closeLogoModal === 'function') window.closeLogoModal(); } },
+        { id: 'customer-care-modal', dismiss: () => { if (typeof window.closeCustomerCareModal === 'function') window.closeCustomerCareModal(); } }
+    ];
+
+    modalDismissMap.forEach(({ id, dismiss }) => {
+        const modal = document.getElementById(id);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    dismiss();
+                }
+            });
+        }
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            for (const { id, dismiss } of modalDismissMap) {
+                const modal = document.getElementById(id);
+                if (modal) {
+                    const isVisible = (modal.style.display && modal.style.display !== 'none') || modal.classList.contains('active') || modal.getAttribute('aria-hidden') === 'false';
+                    if (isVisible) {
+                        dismiss();
+                        return;
+                    }
+                }
+            }
+        }
+    });
+}
+
 // --------------------------------------------------------------------------
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+    // Setup universal backdrop and Escape key modal dismissals
+    setupGlobalCustomerModalDismissals();
+
     // Initialize customer GPS coords from saved profile if available
     const savedProfile = getSavedDeliveryProfile();
     if (savedProfile && savedProfile.gpsLat !== null && savedProfile.gpsLng !== null) {

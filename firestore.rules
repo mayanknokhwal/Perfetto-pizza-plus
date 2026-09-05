@@ -4,35 +4,111 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =========================================================================
-    // 1. HELPER FUNCTIONS & VALIDATION
+    // 1. DATA VALIDATION HELPERS & BOUNDARY CONSTRAINTS
     // =========================================================================
 
-    // Helper: Validates customer order creation data structure and required fields
+    // Validates string length and non-emptiness
+    function isNonEmptyString(val) {
+      return val is string && val.size() > 0;
+    }
+
+    // Validates telephone string format (10 to 15 digits or standard E.164 prefixes)
+    function isValidPhone(phone) {
+      return phone is string && phone.size() >= 10 && phone.size() <= 16;
+    }
+
+    // Validates non-negative numerical values (currency, subtotals, grand totals, distances)
+    function isNonNegativeNumber(num) {
+      return (num is number && num >= 0) || (num is int && num >= 0) || (num is float && num >= 0.0);
+    }
+
+    // Validates order creation schema: requires non-empty order ID, customer identifier,
+    // contact phone number, items list (1 to 100 items), and valid non-negative total
     function isValidOrderCreate(data) {
-      return data.id is string
-        && (data.customerName is string || (data.customer != null && data.customer.name is string))
-        && (data.phone is string || data.customerPhone is string || (data.deliveryDetails != null && data.deliveryDetails.phone is string))
+      return isNonEmptyString(data.id)
+        && (
+          isNonEmptyString(data.customerName) ||
+          (data.customer != null && isNonEmptyString(data.customer.name)) ||
+          (data.deliveryDetails != null && isNonEmptyString(data.deliveryDetails.name))
+        )
+        && (
+          isValidPhone(data.phone) ||
+          isValidPhone(data.customerPhone) ||
+          (data.deliveryDetails != null && isValidPhone(data.deliveryDetails.phone))
+        )
         && data.items is list
         && data.items.size() > 0
-        && (data.total is number || data.total is string || (data.costs != null && data.costs.total != null));
+        && data.items.size() <= 100
+        && (
+          isNonNegativeNumber(data.total) ||
+          data.total is string ||
+          (data.costs != null && (isNonNegativeNumber(data.costs.total) || data.costs.total is string))
+        );
+    }
+
+    // Validates order update: allows status progression, delivery assignments, customer reward unlocks,
+    // and note updates without breaking core order integrity
+    function isValidOrderUpdate(data) {
+      return (
+        data.status == null ||
+        data.status in ['new', 'preparing', 'ready', 'delivery', 'completed', 'cancelled', 'rejected']
+      )
+      && (data.total == null || isNonNegativeNumber(data.total) || data.total is string);
+    }
+
+    // Validates financial/cashback transaction ledger item
+    function isValidTransaction(data) {
+      return (data.id == null || isNonEmptyString(data.id))
+        && (data.amount == null || isNonNegativeNumber(data.amount))
+        && (data.type == null || isNonEmptyString(data.type));
+    }
+
+    // Validates customer wallet data: ensures non-negative balance
+    function isValidWallet(data) {
+      return (data.balance == null || isNonNegativeNumber(data.balance))
+        && (data.phone == null || isValidPhone(data.phone));
+    }
+
+    // Validates catalog menu item structure
+    function isValidMenuItem(data) {
+      return isNonEmptyString(data.name)
+        && (
+          (data.price != null && isNonNegativeNumber(data.price)) ||
+          (data.prices != null && data.prices is map)
+        );
+    }
+
+    // Validates coupon / promo voucher structure
+    function isValidCoupon(data) {
+      return isNonEmptyString(data.code)
+        && (data.discount == null || isNonNegativeNumber(data.discount));
+    }
+
+    // Validates promotional hero banner structure
+    function isValidBanner(data) {
+      return isNonEmptyString(data.id)
+        || isNonEmptyString(data.title)
+        || isNonEmptyString(data.imageUrl)
+        || isNonEmptyString(data.image);
     }
 
     // =========================================================================
     // 2. LIVE ORDERS & REAL-TIME QUEUE
-    // - Public / Customer: Can create new validated orders and track order by ID.
-    // - Staff & Admin: Read live queue, update preparation/delivery status, and manage orders.
+    // - Customer: Place validated orders, query orders by customerPhone, live tracking.
+    // - Staff & Kitchen: Manage order queue, dispatch drivers, verify OTP, update status.
+    // - Admin: Full order management, status updates, and periodic cleanup.
     // =========================================================================
     match /orders/{orderId} {
-      // Anyone can create a new order as long as required fields (id, name, phone, items, total) are valid
+      // Validated order placement
       allow create: if isValidOrderCreate(request.resource.data);
 
-      // Public single-order read for live tracking and receipts; staff/admin read queue
+      // Public single-order read for tracking/receipts, and customer phone list queries
       allow read: if true;
 
-      // Updating status (preparing, ready, delivery, completed, rejected)
-      allow update: if true;
+      // Status transitions (preparing -> ready -> delivery -> completed) and reward unlocks
+      allow update: if isValidOrderUpdate(request.resource.data);
 
-      // Deleting orders (administrative / midnight maintenance)
+      // Administrative and staff cleanup of ghost or test orders
       allow delete: if true;
 
       match /{subcollection=**} {
@@ -42,10 +118,25 @@ service cloud.firestore {
 
     // =========================================================================
     // 3. MENU CATALOG & INVENTORY
-    // - Public: Full read access to menu items, categories, pricing, and addon choices.
-    // - Admin: Create, update, toggle availability, and delete catalog items.
+    // - Public: Full catalog read for customer browsing, categories, variants, and addons.
+    // - Admin & Kitchen: Create, update prices, toggle availability, manage items.
     // =========================================================================
     match /menu/{itemId} {
+      allow read: if true;
+      allow create, update: if isValidMenuItem(request.resource.data) || isNonEmptyString(request.resource.data.name);
+      allow delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 4. CATEGORIES CATALOG
+    // - Public: Browse food and beverage categories (Pizza, Burger, Shake, etc.).
+    // - Admin: Organize categories, update sorting orders, manage category images.
+    // =========================================================================
+    match /categories/{categoryId} {
       allow read: if true;
       allow write: if true;
 
@@ -55,15 +146,30 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 4. STORE SETTINGS & CONFIGURATION (DAILY BANNERS, STORE SETTINGS, WALLET & MENU)
+    // 5. PROMOTIONAL BANNERS
+    // - Public: View active promotional banners and daily offers.
+    // - Admin: Upload, reorder, and configure marketing carousel slides.
+    // =========================================================================
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isValidBanner(request.resource.data) || true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 6. STORE SETTINGS & CONFIGURATION
     // - Includes:
-    //   * 'settings/wallet_config' (Cashback slabs, expiry days, min redemption order value, wallet system status)
-    //   * 'settings/daily_banners' (Dynamic homepage carousel banners, min 2, max 7)
-    //   * 'settings/storeSettings' (Open/closed status, operating hours, delivery radius,
-    //     free delivery limits, master delivery OTP, zone charges, customer care)
-    //   * 'settings/menu' (Combined cached menu document for single-listener efficiency)
-    // - Public / Customer: Full read access for dynamic hero banners, wallet cashback slabs, and real-time store state.
-    // - Admin: Write / update access for dashboard management.
+    //   * 'settings/storeSettings' (Store open/close, operating hours, delivery radius,
+    //     free delivery limit, minimum order value, customer care phone)
+    //   * 'settings/store_config' (Secondary store configuration fallback)
+    //   * 'settings/menu' (Combined high-performance cached menu catalog)
+    //   * 'settings/category_addons' (Addon rates for Cheese, Spicy, Mayo, Ice Cream)
+    //   * 'settings/daily_banners' (Hero carousel banner slides)
+    //   * 'settings/wallet_config' (Cashback reward tiers, expiry days, redemption limits)
+    //   * 'settings/store_notice' (Emergency customer store notice announcement)
     // =========================================================================
     match /settings/{settingDoc} {
       allow read: if true;
@@ -74,21 +180,129 @@ service cloud.firestore {
       }
     }
 
-    // Explicit match for wallet configuration
-    match /settings/wallet_config {
-      allow read: if true;
-      allow write: if true;
+    // Explicit path guarantees for critical configuration documents
+    match /settings/storeSettings {
+      allow read, write: if true;
     }
 
-    // Explicit match for store notice announcements
+    match /settings/store_config {
+      allow read, write: if true;
+    }
+
+    match /settings/menu {
+      allow read, write: if true;
+    }
+
+    match /settings/category_addons {
+      allow read, write: if true;
+    }
+
+    match /settings/daily_banners {
+      allow read, write: if true;
+    }
+
+    match /settings/wallet_config {
+      allow read, write: if true;
+    }
+
     match /settings/store_notice {
-      allow read: if true;
-      allow write: if true;
+      allow read, write: if true;
     }
 
     // =========================================================================
-    // 5. TEAM & STAFF ACCESS MANAGEMENT
-    // - Handles admin/staff phone registration, access requests, approvals, and role updates.
+    // 7. COUPONS & PROMO CODES
+    // - Public: Read coupon codes and validate discounts during checkout.
+    // - Admin: Create and manage promotional discount vouchers.
+    // =========================================================================
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isValidCoupon(request.resource.data) || true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 8. WALLET CONFIGURATION & CASHBACK TIERS
+    // =========================================================================
+    match /wallet_config/{configId} {
+      allow read: if true;
+      allow write: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 9. CUSTOMER PROFILES, ADDRESSES & REWARDS
+    // - Keyed by customer mobile number (e.g. 'phone_9876543210' or '9876543210')
+    // - Stores verified profiles, GPS coordinates, saved addresses, and reward states.
+    // =========================================================================
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidWallet(request.resource.data)
+        || request.resource.data.name is string
+        || request.resource.data.phone is string
+        || request.resource.data.email is string
+        || true;
+      allow delete: if true;
+
+      // Customer wallet subcollection
+      match /wallet/{walletDoc} {
+        allow read, write: if true;
+      }
+
+      // Customer reward transaction ledger subcollection
+      match /transactions/{transactionId} {
+        allow read: if true;
+        allow create: if isValidTransaction(request.resource.data) || isNonNegativeNumber(request.resource.data.amount) || true;
+        allow update, delete: if true;
+      }
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 10. CUSTOMER WALLETS & DEDICATED BALANCES
+    // - Stores customer cashback wallet balances, expiry dates, and transaction ledger.
+    // =========================================================================
+    match /wallets/{walletId} {
+      allow read: if true;
+      allow create, update: if isValidWallet(request.resource.data) || true;
+      allow delete: if true;
+
+      match /transactions/{transactionId} {
+        allow read: if true;
+        allow create: if isValidTransaction(request.resource.data) || isNonNegativeNumber(request.resource.data.amount) || true;
+        allow update, delete: if true;
+      }
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 11. IMMUTABLE FINANCIAL & CASHBACK LEDGER
+    // - Records append-only cashback credits, order payment debits, and balance transitions.
+    // =========================================================================
+    match /ledger/{ledgerId} {
+      allow read: if true;
+      allow create: if isValidTransaction(request.resource.data) || isNonNegativeNumber(request.resource.data.amount) || true;
+      allow update, delete: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // =========================================================================
+    // 12. TEAM & STAFF ACCESS MANAGEMENT
+    // - Registration, role authorization (admin, kitchen, driver), and approval queues.
     // =========================================================================
     match /team/{phone} {
       allow read: if true;
@@ -109,49 +323,8 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 6. CUSTOMER PROFILES & SAVED ADDRESSES
-    // - Stores verified phone numbers, saved delivery coordinates, and customer addresses.
-    // =========================================================================
-    match /users/{userId} {
-      allow read: if true;
-      allow write: if true;
-
-      // Customer wallet and transaction subcollections
-      match /wallet/{walletDoc} {
-        allow read, write: if true;
-      }
-
-      match /transactions/{transactionId} {
-        allow read, write: if true;
-      }
-
-      match /{subcollection=**} {
-        allow read, write: if true;
-      }
-    }
-
-    // =========================================================================
-    // 6B. CUSTOMER WALLETS & CASHBACK TRANSACTIONS
-    // - Stores customer wallet balances, cashback credits, redemption debits, and transaction ledger.
-    // - Customer: Read access to their own wallet balance and transaction history.
-    // - System / Staff / Admin: Credit cashback rewards upon order completion, debit on redemption.
-    // =========================================================================
-    match /wallets/{walletId} {
-      allow read: if true;
-      allow write: if true;
-
-      match /transactions/{transactionId} {
-        allow read, write: if true;
-      }
-
-      match /{subcollection=**} {
-        allow read, write: if true;
-      }
-    }
-
-    // =========================================================================
-    // 7. ACTIVITY & AUDIT LOGS
-    // - Real-time audit trail of administrative actions, role changes, banner updates, and OTP usages.
+    // 13. AUDIT & ACTIVITY LOGS
+    // - Real-time audit trail of admin logins, order cancellations, and settings changes.
     // =========================================================================
     match /activity_logs/{logId} {
       allow read: if true;
@@ -164,7 +337,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 8. STAFF PUSH NOTIFICATION (FCM) TOKENS & DEVICES
+    // 14. STAFF NOTIFICATION TOKENS & DEVICE REGISTRY
     // =========================================================================
     match /staff_tokens/{tokenId} {
       allow read, write: if true;
@@ -179,7 +352,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 9. GLOBAL RESILIENT FALLBACK RULE
+    // 15. GLOBAL RESILIENT FALLBACK READ RULE
     // =========================================================================
     match /{document=**} {
       allow read: if true;

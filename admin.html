@@ -3309,13 +3309,20 @@
                     </div>
                 </div> <!-- STORE SETTINGS & SUPPORT CONFIGURATION CARD -->
                 <div class="store-settings-card">
-                    <div class="store-settings-header">
-                        <h3>
-                            <i class="fa-solid fa-sliders" style="color: var(--primary-orange);"></i> Store Settings &
-                            Support Configuration
-                        </h3>
-                        <p>Configure minimum order requirements, free delivery threshold, customer care call support,
-                            restaurant coordinates, and operational delivery radius.</p>
+                    <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
+                        <div>
+                            <h3>
+                                <i class="fa-solid fa-sliders" style="color: var(--primary-orange);"></i> Store Settings &
+                                Support Configuration
+                            </h3>
+                            <p>Configure minimum order requirements, free delivery threshold, customer care call support,
+                                restaurant coordinates, and operational delivery radius.</p>
+                        </div>
+                        <div class="wallet-header-actions">
+                            <button type="button" class="btn-save-wallet-settings" id="btn-save-store-settings" onclick="saveOrderSettings(true)">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Store Settings
+                            </button>
+                        </div>
                     </div>
 
                     <div class="store-settings-grid">
@@ -3647,6 +3654,11 @@
                             </h3>
                             <p>Configure strictly 4 persistent banner slots for the customer homepage carousel. Toggle slots active or hidden (at least 1 banner must remain active).</p>
                         </div>
+                        <div class="wallet-header-actions">
+                            <button type="button" class="btn-save-wallet-settings" id="btn-save-daily-banners" onclick="handleSaveDailyBannersClick()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Banners
+                            </button>
+                        </div>
                     </div>
 
                     <!-- BANNERS LIST CONTAINER (FIXED 4 SLOTS) -->
@@ -3672,6 +3684,11 @@
                                 <span class="wallet-status-badge" id="admin-wallet-status-badge" style="font-size: 0.72rem; padding: 3px 9px; border-radius: 20px; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">System Active</span>
                             </h3>
                             <p>Configure automatic cashback rewards by order value slabs, cashback validity / expiry days, and wallet redemption rules.</p>
+                        </div>
+                        <div class="wallet-header-actions">
+                            <button type="button" class="btn-save-wallet-settings" id="btn-save-wallet-settings" onclick="handleSaveWalletSettingsClick()">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Wallet Settings
+                            </button>
                         </div>
                     </div>
 
@@ -4669,7 +4686,7 @@
             }
 
             // Update addons bar draft badge
-            if (activeCategory && (activeCategory === 'Burger' || activeCategory === 'Wrap')) {
+            if (activeCategory) {
                 const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${activeCategory}`]);
                 const draftBadge = document.getElementById('addons-draft-badge');
                 if (draftBadge) {
@@ -4940,6 +4957,7 @@
         // 2. STEP 1: RENDER CATEGORY GRID (18 FAST FOOD CATEGORIES ONLY)
         function renderCategoryGrid() {
             const grid = document.getElementById('category-grid');
+            if (!grid) return;
             grid.innerHTML = '';
 
             // Group menu items into category buckets based on CATEGORY_META
@@ -5009,13 +5027,17 @@
             const searchResults = document.getElementById('search-results-container');
             if (searchResults) searchResults.style.display = 'none';
 
-            document.getElementById('step-1-category-container').style.display = 'none';
-            document.getElementById('step-2-item-container').style.display = 'block';
+            const step1 = document.getElementById('step-1-category-container');
+            const step2 = document.getElementById('step-2-item-container');
+            if (step1) step1.style.display = 'none';
+            if (step2) step2.style.display = 'block';
 
             const catMeta = CATEGORY_META[categoryName] || { name: categoryName, img: 'https://i.ibb.co/21fs0TqL/pizza.png' };
 
-            document.getElementById('subview-cat-title').textContent = `${catMeta.name} Menu`;
-            document.getElementById('subview-cat-img').src = catMeta.img;
+            const titleEl = document.getElementById('subview-cat-title');
+            const imgEl = document.getElementById('subview-cat-img');
+            if (titleEl) titleEl.textContent = `${catMeta.name} Menu`;
+            if (imgEl) imgEl.src = catMeta.img;
 
             // Handle Category Add-ons Pricing Bar (Burger, Wrap, Bread, Sandwich, Momos, Pasta, Shake, Chinese Food, Noodles & Spring Rolls)
             const addonsBar = document.getElementById('category-addons-bar');
@@ -5243,8 +5265,10 @@
             const searchResults = document.getElementById('search-results-container');
             if (searchResults) searchResults.style.display = 'none';
 
-            document.getElementById('step-2-item-container').style.display = 'none';
-            document.getElementById('step-1-category-container').style.display = 'block';
+            const step1 = document.getElementById('step-1-category-container');
+            const step2 = document.getElementById('step-2-item-container');
+            if (step2) step2.style.display = 'none';
+            if (step1) step1.style.display = 'block';
             renderCategoryGrid();
 
             if (!isPopState && history.state && history.state.page === 'category-detail') {
@@ -5384,26 +5408,30 @@
 
             const trimmed = query.toLowerCase().trim();
 
+            const searchResults = document.getElementById('search-results-container');
+            const step1 = document.getElementById('step-1-category-container');
+            const step2 = document.getElementById('step-2-item-container');
+
             if (trimmed === '') {
                 // Clear Search: Hide search results view and restore pre-search state
-                document.getElementById('search-results-container').style.display = 'none';
+                if (searchResults) searchResults.style.display = 'none';
 
                 if (activeCategory) {
-                    document.getElementById('step-1-category-container').style.display = 'none';
-                    document.getElementById('step-2-item-container').style.display = 'block';
+                    if (step1) step1.style.display = 'none';
+                    if (step2) step2.style.display = 'block';
                     renderCategoryItemsTable();
                 } else {
-                    document.getElementById('step-2-item-container').style.display = 'none';
-                    document.getElementById('step-1-category-container').style.display = 'block';
+                    if (step2) step2.style.display = 'none';
+                    if (step1) step1.style.display = 'block';
                     renderCategoryGrid();
                 }
                 return;
             }
 
             // Hide Step 1 & Step 2, Show Search Results View
-            document.getElementById('step-1-category-container').style.display = 'none';
-            document.getElementById('step-2-item-container').style.display = 'none';
-            document.getElementById('search-results-container').style.display = 'block';
+            if (step1) step1.style.display = 'none';
+            if (step2) step2.style.display = 'none';
+            if (searchResults) searchResults.style.display = 'block';
 
             renderGlobalSearchResults(trimmed, query);
         }
@@ -5425,8 +5453,8 @@
             const emptyState = document.getElementById('search-empty-state');
             const summaryEl = document.getElementById('search-results-summary');
 
-            categoryGrid.innerHTML = '';
-            tbody.innerHTML = '';
+            if (categoryGrid) categoryGrid.innerHTML = '';
+            if (tbody) tbody.innerHTML = '';
 
             // 1. MATCHING CATEGORY FOLDERS (RANKED BY RELEVANCE SCORE)
             const matchingCategories = [];
@@ -5587,11 +5615,13 @@
             if (!activeCategory) return;
 
             const tbody = document.getElementById('items-table-body');
+            if (!tbody) return;
             tbody.innerHTML = '';
 
             const categoryItems = menuItems.filter(item => item.category === activeCategory);
 
-            document.getElementById('subview-cat-count').textContent = `${categoryItems.length} Items`;
+            const countEl = document.getElementById('subview-cat-count');
+            if (countEl) countEl.textContent = `${categoryItems.length} Items`;
 
             if (categoryItems.length === 0) {
                 tbody.innerHTML = `
@@ -5870,7 +5900,12 @@
 
                 // 2. Atomically validate and persist Store Settings
                 if (typeof saveOrderSettings === 'function') {
-                    saveOrderSettings(false);
+                    const settingsSuccess = saveOrderSettings(false);
+                    if (settingsSuccess === false) {
+                        if (saveBtn) saveBtn.disabled = false;
+                        if (saveBtnText) saveBtnText.innerHTML = origText;
+                        return;
+                    }
                 }
 
                 // 3. Atomically validate and persist Wallet & Cashback 5-Slab Configuration
@@ -5884,6 +5919,15 @@
                         await saveAdminDailyBanners(adminDailyBannersList);
                     } catch (bannerErr) {
                         console.warn('Notice saving daily banners in saveAllChanges:', bannerErr);
+                    }
+                }
+
+                // 5. Atomically persist Store Notice in Save All Changes workflow
+                if (typeof saveStoreNotice === 'function') {
+                    try {
+                        await saveStoreNotice(false);
+                    } catch (noticeErr) {
+                        console.warn('Notice saving store notice in saveAllChanges:', noticeErr);
                     }
                 }
 
@@ -6090,41 +6134,54 @@
             updateRevenueStats();
         }
 
-        async function updateRevenueStats() {
-            let orders = [];
-            try {
-                const storedOrders = localStorage.getItem('perfettoCustomerOrders');
-                if (storedOrders) {
-                    const parsed = JSON.parse(storedOrders);
-                    if (Array.isArray(parsed)) orders = parsed;
-                }
-            } catch (e) { }
+        // 7B. LIVE REVENUE STATS ENGINE (DEDUPLICATED & UNIFIED)
+        async function updateRevenueStats(ordersData) {
+            let ordersList = [];
+            if (Array.isArray(ordersData)) {
+                ordersList = ordersData;
+            } else {
+                try {
+                    const stored = localStorage.getItem('perfettoCustomerOrders');
+                    if (stored) {
+                        ordersList = JSON.parse(stored) || [];
+                    }
+                } catch (e) { }
+            }
 
-            function applyRevenueUI(orderList) {
-                if (!Array.isArray(orderList) || orderList.length === 0) return;
-                const totalRevenue = orderList.reduce((sum, o) => sum + (parseFloat(o.total) || 0), 0);
-                const revenueEl = document.getElementById('stat-total-revenue') || document.querySelector('.stat-value');
-                if (revenueEl && totalRevenue > 0) {
-                    revenueEl.textContent = `₹${totalRevenue.toLocaleString('en-IN')}`;
+            function applyRevenueUI(list) {
+                const revEl = document.getElementById('stat-total-revenue') || document.querySelector('.stat-value');
+                if (revEl) {
+                    if (Array.isArray(list) && list.length > 0) {
+                        const totalRev = list.reduce((sum, o) => {
+                            const amount = Number(o.total || (o.costs && o.costs.total) || 0);
+                            return sum + (isNaN(amount) ? 0 : amount);
+                        }, 0);
+                        revEl.textContent = `₹${totalRev.toLocaleString('en-IN')}`;
+                    } else {
+                        revEl.textContent = '₹0';
+                    }
                 }
             }
 
-            applyRevenueUI(orders);
+            applyRevenueUI(ordersList);
 
-            // Fetch live orders from Firebase Firestore backend
-            try {
-                const res = await fetch(resolveApiUrl('/api/orders'));
-                const data = await res.json();
-                if (data && data.success && Array.isArray(data.orders)) {
-                    applyRevenueUI(data.orders);
-                    try {
-                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(data.orders));
-                    } catch (e) { }
+            // If called without arguments or local list is empty, fetch fresh orders from API
+            if (!ordersData) {
+                try {
+                    const res = await fetch(resolveApiUrl('/api/orders'));
+                    const data = await res.json();
+                    if (data && data.success && Array.isArray(data.orders)) {
+                        applyRevenueUI(data.orders);
+                        try {
+                            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(data.orders));
+                        } catch (e) { }
+                    }
+                } catch (err) {
+                    console.warn('Admin revenue Firestore sync notice (local resilience active):', err.message);
                 }
-            } catch (err) {
-                console.warn('Admin revenue Firestore sync notice (local resilience active):', err.message);
             }
         }
+        window.updateRevenueStats = updateRevenueStats;
 
         // 8. TAB NAVIGATION CONTROLLER
         function switchTab(tabName) {
@@ -7197,34 +7254,7 @@
             }
         });
 
-        // 13. LIVE REVENUE STATS & 5-SECOND BACKEND POLLING
-        function updateRevenueStats(ordersData) {
-            let ordersList = [];
-            if (Array.isArray(ordersData)) {
-                ordersList = ordersData;
-            } else {
-                try {
-                    const stored = localStorage.getItem('perfettoCustomerOrders');
-                    if (stored) {
-                        ordersList = JSON.parse(stored) || [];
-                    }
-                } catch (e) { }
-            }
-
-            const revEl = document.getElementById('stat-total-revenue');
-            if (revEl) {
-                if (ordersList.length > 0) {
-                    const totalRev = ordersList.reduce((sum, o) => {
-                        const amount = Number(o.total || (o.costs && o.costs.total) || 0);
-                        return sum + (isNaN(amount) ? 0 : amount);
-                    }, 0);
-                    revEl.textContent = `₹${totalRev.toLocaleString('en-IN')}`;
-                } else {
-                    revEl.textContent = '₹0';
-                }
-            }
-        }
-
+        // 13. LIVE ORDERS FETCH & 5-SECOND BACKEND POLLING
         async function fetchAdminOrdersFromBackend() {
             try {
                 const res = await fetch(resolveApiUrl('/api/orders'));
@@ -7369,7 +7399,7 @@
                 }
             }
             try {
-                const res = await fetch('/api/banners');
+                const res = await fetch(resolveApiUrl('/api/banners'));
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
@@ -7418,7 +7448,7 @@
             }
 
             try {
-                await fetch('/api/banners', {
+                await fetch(resolveApiUrl('/api/banners'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(docPayload)
@@ -7430,6 +7460,31 @@
             return { success: true, banners: slots };
         }
         window.saveAdminDailyBanners = saveAdminDailyBanners;
+
+        async function handleSaveDailyBannersClick() {
+            try {
+                const btn = document.getElementById('btn-save-daily-banners');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+                }
+                await saveAdminDailyBanners(adminDailyBannersList);
+                showToast('✅ Daily Banners saved and published to Firestore (settings/daily_banners)!');
+                if (typeof logAdminActivity === 'function') {
+                    logAdminActivity('Updated Daily Promotional Banners configuration');
+                }
+            } catch (err) {
+                console.error('Failed to save daily banners:', err);
+                showToast('❌ Failed to save banners: ' + (err.message || 'Unknown error'));
+            } finally {
+                const btn = document.getElementById('btn-save-daily-banners');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save Banners';
+                }
+            }
+        }
+        window.handleSaveDailyBannersClick = handleSaveDailyBannersClick;
 
         function updateAdminBannerCountBadge() {
             const badge = document.getElementById('admin-banner-count-badge');
@@ -7798,8 +7853,8 @@
             for (let i = 1; i <= TOTAL_WALLET_SLABS; i++) {
                 const minEl = document.getElementById(`input-slab${i}-min`);
                 const cbEl = document.getElementById(`input-slab${i}-cashback`);
-                if (minEl) minEl.value = slabs[i - 1].minOrder;
-                if (cbEl) cbEl.value = slabs[i - 1].cashback;
+                if (minEl && document.activeElement !== minEl) minEl.value = slabs[i - 1].minOrder;
+                if (cbEl && document.activeElement !== cbEl) cbEl.value = slabs[i - 1].cashback;
                 updateSlabSummary(i);
             }
 
@@ -7844,7 +7899,7 @@
             }
 
             const expiryEl = document.getElementById('input-cashback-expiry-days');
-            if (expiryEl) {
+            if (expiryEl && document.activeElement !== expiryEl) {
                 expiryEl.value = adminWalletConfig.expiryDays;
             }
 
@@ -7852,12 +7907,19 @@
                 const s = adminWalletConfig.slabs[i - 1] || DEFAULT_WALLET_CONFIG.slabs[i - 1];
                 const minEl = document.getElementById(`input-slab${i}-min`);
                 const cbEl = document.getElementById(`input-slab${i}-cashback`);
-                if (minEl) minEl.value = s.minOrder;
-                if (cbEl) cbEl.value = s.cashback;
+                if (minEl && document.activeElement !== minEl) minEl.value = s.minOrder;
+                if (cbEl && document.activeElement !== cbEl) cbEl.value = s.cashback;
                 updateSlabSummary(i);
             }
 
-            validateAndEnforceAllSlabsIntegrity();
+            const isUserTypingWallet = [expiryEl, ...Array.from({ length: TOTAL_WALLET_SLABS }, (_, i) => [
+                document.getElementById(`input-slab${i + 1}-min`),
+                document.getElementById(`input-slab${i + 1}-cashback`)
+            ]).flat()].some(el => el && document.activeElement === el);
+
+            if (!isUserTypingWallet) {
+                validateAndEnforceAllSlabsIntegrity();
+            }
             bindSlabValidationEventListeners();
         }
         window.applyAdminWalletConfig = applyAdminWalletConfig;
@@ -7969,6 +8031,18 @@
                 } catch (e) {
                     console.warn('Firestore wallet_config fetch notice:', e.message);
                 }
+            }
+            try {
+                const res = await fetch(resolveApiUrl('/api/wallet/config'));
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.config) {
+                        applyAdminWalletConfig(data.config);
+                        return data.config;
+                    }
+                }
+            } catch (e) {
+                console.warn('Backend wallet_config fetch notice:', e.message);
             }
             applyAdminWalletConfig(DEFAULT_WALLET_CONFIG);
             return DEFAULT_WALLET_CONFIG;
@@ -8116,18 +8190,19 @@
             if (!data) return;
             adminStoreNotice = { ...DEFAULT_STORE_NOTICE, ...data };
 
+            const activeEl = document.activeElement;
             const toggleEl = document.getElementById('toggle-store-notice-enabled');
             const titleEl = document.getElementById('input-store-notice-title');
             const textEl = document.getElementById('input-store-notice-text');
 
-            if (toggleEl) {
+            if (toggleEl && activeEl !== toggleEl) {
                 toggleEl.checked = adminStoreNotice.enabled !== false;
                 updateStoreNoticeToggleLabel(toggleEl.checked);
             }
-            if (titleEl) {
+            if (titleEl && activeEl !== titleEl) {
                 titleEl.value = adminStoreNotice.title || 'Store Notice';
             }
-            if (textEl) {
+            if (textEl && activeEl !== textEl) {
                 textEl.value = adminStoreNotice.text || '';
                 onStoreNoticeTextInput();
             }
@@ -8140,12 +8215,23 @@
                     const snap = await adminFirestore.collection('settings').doc('store_notice').get();
                     if (snap.exists && snap.data()) {
                         applyAdminStoreNotice(snap.data());
-                        return;
+                        return snap.data();
                     }
                 } catch (e) {
                     console.warn('Direct Firestore store notice fetch notice:', e.message);
                 }
             }
+
+            try {
+                const res = await fetch(resolveApiUrl('/api/settings/notice'));
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.notice) {
+                        applyAdminStoreNotice(data.notice);
+                        return data.notice;
+                    }
+                }
+            } catch (e) { }
 
             try {
                 const stored = localStorage.getItem('perfetto_store_notice');
@@ -8156,7 +8242,7 @@
         }
         window.fetchAdminStoreNotice = fetchAdminStoreNotice;
 
-        async function handleSaveStoreNoticeClick() {
+        async function saveStoreNotice(showToastMsg = true) {
             const saveBtns = [
                 document.getElementById('btn-save-store-notice'),
                 document.getElementById('btn-save-store-notice-bottom')
@@ -8179,8 +8265,8 @@
 
                 const words = countWords(text);
                 if (words > 500) {
-                    showToast('⚠️ Notice exceeds 500 words! Please shorten the text.');
-                    return;
+                    if (showToastMsg) showToast('⚠️ Notice exceeds 500 words! Please shorten the text.');
+                    return false;
                 }
 
                 const payload = {
@@ -8195,25 +8281,50 @@
                 };
 
                 if (typeof adminFirestore !== 'undefined' && adminFirestore) {
-                    await adminFirestore.collection('settings').doc('store_notice').set(payload, { merge: true });
+                    try {
+                        await adminFirestore.collection('settings').doc('store_notice').set(payload, { merge: true });
+                    } catch (fsErr) {
+                        console.warn('Firestore store_notice write notice:', fsErr);
+                    }
+                }
+
+                // Sync to backend API
+                try {
+                    await fetch(resolveApiUrl('/api/settings/notice'), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (apiErr) {
+                    console.warn('Backend store notice sync notice:', apiErr);
                 }
 
                 localStorage.setItem('perfetto_store_notice', JSON.stringify({ ...payload, updatedAt: new Date().toISOString() }));
                 adminStoreNotice = payload;
-                showToast('✅ Store Notice saved successfully and published to app!');
+
+                if (showToastMsg) {
+                    showToast('✅ Store Notice saved successfully and published to app!');
+                }
 
                 if (typeof logAdminActivity === 'function') {
                     logAdminActivity(`Updated Store Notice ("${title}", ${words} words, ${isEnabled ? 'Visible' : 'Hidden'})`);
                 }
+                return true;
             } catch (err) {
                 console.error('Error saving store notice:', err);
-                showToast('❌ Failed to save store notice: ' + err.message);
+                if (showToastMsg) showToast('❌ Failed to save store notice: ' + err.message);
+                return false;
             } finally {
                 saveBtns.forEach((btn, idx) => {
                     btn.disabled = false;
                     btn.innerHTML = origHtmls[idx] || '<i class="fa-solid fa-floppy-disk"></i> Save Notice';
                 });
             }
+        }
+        window.saveStoreNotice = saveStoreNotice;
+
+        async function handleSaveStoreNoticeClick() {
+            return saveStoreNotice(true);
         }
         window.handleSaveStoreNoticeClick = handleSaveStoreNoticeClick;
 
@@ -9184,18 +9295,7 @@
                     localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
                     localStorage.removeItem(ADMIN_VERIFIED_PHONE_KEY);
                 } catch (e) { }
-                if (adminOrdersUnsubscribe) {
-                    try { adminOrdersUnsubscribe(); } catch (e) { }
-                    adminOrdersUnsubscribe = null;
-                }
-                if (activeAdminSessionListener) {
-                    try { activeAdminSessionListener(); } catch (e) { }
-                    activeAdminSessionListener = null;
-                }
-                if (activeAdminSessionPoller) {
-                    clearInterval(activeAdminSessionPoller);
-                    activeAdminSessionPoller = null;
-                }
+                cleanupAllAdminListeners();
                 lockAdminDashboard();
                 showToast('🔒 Admin Portal locked successfully.');
             }
@@ -10756,6 +10856,9 @@
         }
 
         // INITIALIZE ON LOAD, HISTORY STATE & CROSS-TAB STORAGE SYNCHRONIZATION
+        let adminOrdersPollerInterval = null;
+        let adminAutoScheduleInterval = null;
+
         window.addEventListener('DOMContentLoaded', () => {
             checkAdminAuthSession();
             initMenuData();
@@ -10767,10 +10870,12 @@
             cleanupOldActivityLogs();
 
             // Set lightweight polling interval to refresh revenue and orders every 5 seconds
-            setInterval(fetchAdminOrdersFromBackend, 5000);
+            if (adminOrdersPollerInterval) clearInterval(adminOrdersPollerInterval);
+            adminOrdersPollerInterval = setInterval(fetchAdminOrdersFromBackend, 5000);
 
             // Periodically evaluate Auto-Schedule & Shop Status every 10 seconds
-            setInterval(() => {
+            if (adminAutoScheduleInterval) clearInterval(adminAutoScheduleInterval);
+            adminAutoScheduleInterval = setInterval(() => {
                 evaluateAndSyncShopStatus(true);
             }, 10000);
 
@@ -10818,6 +10923,14 @@
         // --------------------------------------------------------------------------
         function cleanupAllAdminListeners() {
             try {
+                if (adminOrdersPollerInterval) {
+                    clearInterval(adminOrdersPollerInterval);
+                    adminOrdersPollerInterval = null;
+                }
+                if (adminAutoScheduleInterval) {
+                    clearInterval(adminAutoScheduleInterval);
+                    adminAutoScheduleInterval = null;
+                }
                 if (typeof activeAdminPendingApprovalListener === 'function') {
                     activeAdminPendingApprovalListener();
                     activeAdminPendingApprovalListener = null;
@@ -10845,6 +10958,18 @@
                 if (typeof adminSettingsUnsubscribe === 'function') {
                     adminSettingsUnsubscribe();
                     adminSettingsUnsubscribe = null;
+                }
+                if (typeof adminBannersUnsubscribe === 'function') {
+                    adminBannersUnsubscribe();
+                    adminBannersUnsubscribe = null;
+                }
+                if (typeof adminWalletUnsubscribe === 'function') {
+                    adminWalletUnsubscribe();
+                    adminWalletUnsubscribe = null;
+                }
+                if (typeof adminStoreNoticeUnsubscribe === 'function') {
+                    adminStoreNoticeUnsubscribe();
+                    adminStoreNoticeUnsubscribe = null;
                 }
                 if (typeof adminTeamUnsubscribe === 'function') {
                     adminTeamUnsubscribe();
