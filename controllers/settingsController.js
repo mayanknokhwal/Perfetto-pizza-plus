@@ -158,15 +158,25 @@ async function handleWalletConfigRequest(req, res) {
             }
 
             const isEnabled = body.enabled !== undefined ? Boolean(body.enabled) : true;
-            const expiryDays = body.expiryDays !== undefined ? Math.max(1, parseInt(body.expiryDays, 10) || 7) : 7;
+            const expiryDays = body.expiryDays !== undefined ? Math.min(30, Math.max(1, parseInt(body.expiryDays, 10) || 7)) : 7;
             const minRedemptionOrder = body.minRedemptionOrder !== undefined ? Math.max(0, parseFloat(body.minRedemptionOrder) || 200) : 200;
 
-            const slabs = Array.isArray(body.slabs) && body.slabs.length >= 4
-                ? body.slabs.map((s, i) => ({
-                    minOrder: Math.max(0, parseFloat(s.minOrder) || DEFAULT_WALLET_CONFIG.slabs[i].minOrder),
-                    cashback: Math.max(0, parseFloat(s.cashback) || DEFAULT_WALLET_CONFIG.slabs[i].cashback)
-                }))
-                : DEFAULT_WALLET_CONFIG.slabs;
+            let rawSlabs = Array.isArray(body.slabs) ? [...body.slabs] : [];
+            if (rawSlabs.length < 5) {
+                for (let i = rawSlabs.length; i < 5; i++) {
+                    const prevMin = i > 0 ? (rawSlabs[i - 1].minOrder || 0) : 0;
+                    const prevCb = i > 0 ? (rawSlabs[i - 1].cashback || 0) : 0;
+                    const def = DEFAULT_WALLET_CONFIG.slabs[i] || { minOrder: 3000, cashback: 300 };
+                    rawSlabs.push({
+                        minOrder: Math.max(def.minOrder, prevMin + 1000),
+                        cashback: Math.max(def.cashback, prevCb + 100)
+                    });
+                }
+            }
+            const slabs = rawSlabs.slice(0, 5).map((s, i) => ({
+                minOrder: Math.max(0, parseFloat(s.minOrder) || (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].minOrder : 3000)),
+                cashback: Math.max(0, parseFloat(s.cashback) || (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].cashback : 300))
+            }));
 
             const updatedConfig = {
                 key: 'wallet_config',

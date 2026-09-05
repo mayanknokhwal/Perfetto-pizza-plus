@@ -12,7 +12,8 @@ export const DEFAULT_WALLET_CONFIG = {
         { minOrder: 200, cashback: 20 },
         { minOrder: 500, cashback: 50 },
         { minOrder: 1000, cashback: 100 },
-        { minOrder: 2000, cashback: 200 }
+        { minOrder: 2000, cashback: 200 },
+        { minOrder: 3000, cashback: 300 }
     ]
 };
 
@@ -27,15 +28,26 @@ export function normalizeWalletConfig(raw) {
     }
 
     const enabled = raw.enabled !== false;
-    const expiryDays = Math.max(1, parseInt(raw.expiryDays, 10) || DEFAULT_WALLET_CONFIG.expiryDays);
+    const expiryDays = Math.min(30, Math.max(1, parseInt(raw.expiryDays, 10) || DEFAULT_WALLET_CONFIG.expiryDays));
     const minRedemptionOrder = Math.max(0, parseFloat(raw.minRedemptionOrder) || DEFAULT_WALLET_CONFIG.minRedemptionOrder);
 
-    const slabs = Array.isArray(raw.slabs) && raw.slabs.length >= 4
-        ? raw.slabs.map((s, idx) => ({
-            minOrder: Math.max(0, parseFloat(s.minOrder) || DEFAULT_WALLET_CONFIG.slabs[idx].minOrder),
-            cashback: Math.max(0, parseFloat(s.cashback) || DEFAULT_WALLET_CONFIG.slabs[idx].cashback)
-        }))
-        : DEFAULT_WALLET_CONFIG.slabs;
+    let slabs = Array.isArray(raw.slabs) ? [...raw.slabs] : [];
+    if (slabs.length < 5) {
+        for (let i = slabs.length; i < 5; i++) {
+            const prevMin = i > 0 ? (slabs[i - 1].minOrder || 0) : 0;
+            const prevCb = i > 0 ? (slabs[i - 1].cashback || 0) : 0;
+            const def = DEFAULT_WALLET_CONFIG.slabs[i];
+            slabs.push({
+                minOrder: Math.max(def.minOrder, prevMin + 1000),
+                cashback: Math.max(def.cashback, prevCb + 100)
+            });
+        }
+    }
+
+    slabs = slabs.slice(0, 5).map((s, idx) => ({
+        minOrder: Math.max(0, parseFloat(s.minOrder) || DEFAULT_WALLET_CONFIG.slabs[idx].minOrder),
+        cashback: Math.max(0, parseFloat(s.cashback) || DEFAULT_WALLET_CONFIG.slabs[idx].cashback)
+    }));
 
     return {
         key: 'wallet_config',
