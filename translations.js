@@ -131,10 +131,12 @@
             scratch_card_unlocked_otp: "🎁 Mystery Scratch Card Unlocked! (Win up to ₹{max})",
             scratch_card_otp_sub: "Tap below to scratch & claim your cashback now!",
             scratch_unclaimed_card_title: "स्क्रैच कार्ड उपलब्ध (Unclaimed Scratch Card)",
-            scratch_expires_7_days: "7 दिनों में समाप्त",
-            scratch_card_expired_notice: "⚠️ स्क्रैच कार्ड समाप्त (Expired after 7 days)",
+            expires_in_days: "Expires in {days} days",
+            scratch_expires_in_days: "Expires in {days} days",
+            scratch_expires_7_days: "Expires in 7 days",
+            scratch_card_expired_notice: "⚠️ Scratch Card Expired ({days} days elapsed)",
             scratch_card_expired_title: "Scratch Card Expired / स्क्रैच कार्ड समाप्त",
-            scratch_card_expired_desc: "7 दिनों की वैधता समाप्त हो चुकी है (Expired after 7 days)",
+            scratch_card_expired_desc: "{days}-day validity period has expired",
 
             // Toasts & Messages
             toast_item_added: "added to cart!",
@@ -267,10 +269,12 @@
             scratch_card_unlocked_otp: "🎁 मिस्ट्री स्क्रैच कार्ड अनलॉक! (₹{max} तक जीतें)",
             scratch_card_otp_sub: "अभी स्क्रैच करने और कैशबैक क्लेम करने के लिए नीचे टैप करें!",
             scratch_unclaimed_card_title: "स्क्रैच कार्ड उपलब्ध (Unclaimed Scratch Card)",
+            expires_in_days: "{days} दिनों में समाप्त",
+            scratch_expires_in_days: "{days} दिनों में समाप्त",
             scratch_expires_7_days: "7 दिनों में समाप्त",
-            scratch_card_expired_notice: "⚠️ स्क्रैच कार्ड समाप्त (Expired after 7 days)",
+            scratch_card_expired_notice: "⚠️ स्क्रैच कार्ड समाप्त ({days} दिन समाप्त)",
             scratch_card_expired_title: "Scratch Card Expired / स्क्रैच कार्ड समाप्त",
-            scratch_card_expired_desc: "7 दिनों की वैधता समाप्त हो चुकी है (Expired after 7 days)",
+            scratch_card_expired_desc: "{days} दिनों की वैधता समाप्त हो चुकी है",
 
             // Toasts & Messages
             toast_item_added: "कार्ट में जोड़ दिया गया!",

@@ -7860,9 +7860,14 @@
                 }
             }
 
+            const rawExpiry = config.cashbackExpiryDays !== undefined ? config.cashbackExpiryDays : config.expiryDays;
+            const parsedExpiry = rawExpiry !== undefined ? parseInt(rawExpiry, 10) : DEFAULT_WALLET_CONFIG.expiryDays;
+            const clampedExpiry = Math.min(30, Math.max(1, isNaN(parsedExpiry) ? 7 : parsedExpiry));
+
             adminWalletConfig = {
                 enabled: config.enabled !== false,
-                expiryDays: config.expiryDays !== undefined ? parseInt(config.expiryDays, 10) : DEFAULT_WALLET_CONFIG.expiryDays,
+                expiryDays: clampedExpiry,
+                cashbackExpiryDays: clampedExpiry,
                 minRedemptionOrder: config.minRedemptionOrder !== undefined ? parseFloat(config.minRedemptionOrder) : 0,
                 minOrderToRedeem: 0,
                 slabs: rawSlabs.slice(0, TOTAL_WALLET_SLABS)
@@ -8029,6 +8034,7 @@
                     key: 'wallet_config',
                     enabled: isEnabled,
                     expiryDays: expiryDays,
+                    cashbackExpiryDays: expiryDays,
                     minRedemptionOrder: 0,
                     minOrderToRedeem: 0,
                     slabs: slabs,

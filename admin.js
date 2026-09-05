@@ -7,6 +7,7 @@ export const DEFAULT_WALLET_CONFIG = {
     key: 'wallet_config',
     enabled: true,
     expiryDays: 7,
+    cashbackExpiryDays: 7,
     minRedemptionOrder: 0,
     minOrderToRedeem: 0,
     slabs: [
@@ -29,7 +30,8 @@ export function normalizeWalletConfig(raw) {
     }
 
     const enabled = raw.enabled !== false;
-    const expiryDays = Math.min(30, Math.max(1, parseInt(raw.expiryDays, 10) || DEFAULT_WALLET_CONFIG.expiryDays));
+    const rawExpiry = raw.cashbackExpiryDays !== undefined ? raw.cashbackExpiryDays : raw.expiryDays;
+    const expiryDays = Math.min(30, Math.max(1, parseInt(rawExpiry, 10) || DEFAULT_WALLET_CONFIG.expiryDays));
     const minRedemptionOrder = 0;
     const minOrderToRedeem = 0;
 
@@ -55,6 +57,7 @@ export function normalizeWalletConfig(raw) {
         key: 'wallet_config',
         enabled,
         expiryDays,
+        cashbackExpiryDays: expiryDays,
         minRedemptionOrder,
         minOrderToRedeem,
         slabs

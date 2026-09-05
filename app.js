@@ -4111,6 +4111,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
 const DEFAULT_WALLET_CONFIG = {
     enabled: true,
     expiryDays: 7,
+    cashbackExpiryDays: 7,
     minRedemptionOrder: 0,
     minOrderToRedeem: 0,
     slabs: [
@@ -4122,10 +4123,35 @@ const DEFAULT_WALLET_CONFIG = {
     ]
 };
 
+function getClampedCashbackExpiryDays(config) {
+    const raw = config ? (config.cashbackExpiryDays !== undefined ? config.cashbackExpiryDays : config.expiryDays) : undefined;
+    const parsed = parseInt(raw, 10);
+    if (isNaN(parsed) || parsed < 1) return DEFAULT_WALLET_CONFIG.expiryDays || 7;
+    return Math.min(30, Math.max(1, parsed));
+}
+window.getClampedCashbackExpiryDays = getClampedCashbackExpiryDays;
+
+function formatExpiryDaysLabel(days, isHindi) {
+    const d = Math.max(1, parseInt(days, 10) || 1);
+    if (isHindi) {
+        return `${d} दिनों में समाप्त`;
+    }
+    return d === 1 ? 'Expires in 1 day' : `Expires in ${d} days`;
+}
+window.formatExpiryDaysLabel = formatExpiryDaysLabel;
+
 let customerWalletConfig = (function() {
     try {
         const stored = localStorage.getItem('perfetto_wallet_config');
-        if (stored) return JSON.parse(stored);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed && typeof parsed === 'object') {
+                const days = getClampedCashbackExpiryDays(parsed);
+                parsed.expiryDays = days;
+                parsed.cashbackExpiryDays = days;
+                return parsed;
+            }
+        }
     } catch (e) {}
     return JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG));
 })();
@@ -4153,6 +4179,25 @@ let currentCustomerWallet = (function() {
 })();
 
 function getEffectiveWalletBalance() {
+    if (currentCustomerWallet && currentCustomerWallet.expiresAt) {
+        const expMs = typeof currentCustomerWallet.expiresAt === 'number'
+            ? currentCustomerWallet.expiresAt
+            : new Date(currentCustomerWallet.expiresAt).getTime();
+        if (!isNaN(expMs) && expMs > 0) {
+            const remainingDays = Math.ceil((expMs - Date.now()) / (24 * 60 * 60 * 1000));
+            if (remainingDays <= 0) {
+                // Expire balance atomically
+                currentCustomerWallet.balance = 0;
+                currentCustomerWallet.nonExpiredBalance = 0;
+                currentCustomerWallet.expired = true;
+                try {
+                    localStorage.setItem('perfetto_wallet_balance', 0);
+                    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                } catch (e) {}
+                return 0;
+            }
+        }
+    }
     const directStored = localStorage.getItem('perfetto_wallet_balance');
     if (directStored !== null && !isNaN(Number(directStored))) {
         return Math.max(0, Number(directStored));
@@ -4603,17 +4648,35 @@ async function creditCustomerWallet(phone, amount, orderId) {
     const updatedWalletBalance = currentWalletBalance + earnedCashback;
     localStorage.setItem('perfetto_wallet_balance', updatedWalletBalance);
 
-    const expiryDays = (customerWalletConfig && typeof customerWalletConfig.expiryDays === 'number')
-        ? customerWalletConfig.expiryDays
-        : 7;
+    let activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+    let expiresAt = null;
+
+    // Honor per-transaction immutable deadline if crediting from an existing order
+    if (activeScratchOrder && (String(activeScratchOrder.id || activeScratchOrder.orderId) === String(orderId))) {
+        if (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays) {
+            activeDays = activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays;
+        }
+        if (activeScratchOrder.scratchExpiresAt) {
+            const expMs = typeof activeScratchOrder.scratchExpiresAt === 'number'
+                ? activeScratchOrder.scratchExpiresAt
+                : new Date(activeScratchOrder.scratchExpiresAt).getTime();
+            if (!isNaN(expMs) && expMs > 0) {
+                expiresAt = new Date(expMs).toISOString();
+            }
+        }
+    }
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+    if (!expiresAt) {
+        expiresAt = new Date(now.getTime() + activeDays * 24 * 60 * 60 * 1000).toISOString();
+    }
 
     if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
     currentCustomerWallet.balance = updatedWalletBalance;
     currentCustomerWallet.nonExpiredBalance = updatedWalletBalance;
     currentCustomerWallet.expiresAt = expiresAt;
+    currentCustomerWallet.expiryDays = activeDays;
+    currentCustomerWallet.cashbackExpiryDays = activeDays;
     currentCustomerWallet.lastCreditedAt = now.toISOString();
 
     const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
@@ -4624,7 +4687,8 @@ async function creditCustomerWallet(phone, amount, orderId) {
         description: `credited +₹${earnedCashback} for Order #${orderId}`,
         createdAt: now.toISOString(),
         expiresAt: expiresAt,
-        expiryDays: expiryDays,
+        expiryDays: activeDays,
+        cashbackExpiryDays: activeDays,
         status: 'active'
     });
     currentCustomerWallet.transactions = existingTx.slice(0, 30);
@@ -4641,6 +4705,8 @@ async function creditCustomerWallet(phone, amount, orderId) {
                 phone: cleanPhone,
                 balance: updatedWalletBalance,
                 expiresAt: expiresAt,
+                expiryDays: activeDays,
+                cashbackExpiryDays: activeDays,
                 lastCreditedAt: now.toISOString(),
                 updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                     ? firebase.firestore.FieldValue.serverTimestamp()
@@ -4656,7 +4722,8 @@ async function creditCustomerWallet(phone, amount, orderId) {
                     ? firebase.firestore.FieldValue.serverTimestamp()
                     : now.toISOString(),
                 expiresAt: expiresAt,
-                expiryDays: expiryDays,
+                expiryDays: activeDays,
+                cashbackExpiryDays: activeDays,
                 status: 'active'
             });
         }
@@ -4675,6 +4742,7 @@ function updateProfileWalletUI() {
     if (!valEl) return;
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     // Read updated cumulative balance dynamically
     const balance = getEffectiveWalletBalance();
@@ -4687,21 +4755,35 @@ function updateProfileWalletUI() {
             : (typeof t === 'function' ? t('wallet_paused') : 'Wallet rewards system is currently paused.');
     }
 
-    if (balance > 0 && currentCustomerWallet.expiresAt) {
-        const expDate = new Date(currentCustomerWallet.expiresAt);
-        if (!isNaN(expDate.getTime())) {
-            const diffMs = expDate.getTime() - Date.now();
-            const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-            if (diffDays > 0) {
+    if (balance > 0 && currentCustomerWallet && currentCustomerWallet.expiresAt) {
+        const expMs = typeof currentCustomerWallet.expiresAt === 'number'
+            ? currentCustomerWallet.expiresAt
+            : new Date(currentCustomerWallet.expiresAt).getTime();
+        if (!isNaN(expMs) && expMs > 0) {
+            const remainingDays = Math.ceil((expMs - Date.now()) / (24 * 60 * 60 * 1000));
+            if (remainingDays > 0) {
                 if (expiryTag && expiryText) {
                     expiryTag.style.display = 'flex';
-                    expiryText.textContent = diffDays === 1 
-                        ? (typeof t === 'function' ? t('wallet_expires_in_one_day') : 'Expires in 1 day') 
-                        : (typeof t === 'function' ? t('wallet_expires_in_days', { days: diffDays }) : `Expires in ${diffDays} days`);
+                    expiryText.textContent = formatExpiryDaysLabel(remainingDays, isHindi);
                 }
-            } else if (expiryTag) {
-                expiryTag.style.display = 'none';
+            } else {
+                // Mark balance as expired atomically
+                currentCustomerWallet.balance = 0;
+                currentCustomerWallet.nonExpiredBalance = 0;
+                currentCustomerWallet.expired = true;
+                try {
+                    localStorage.setItem('perfetto_wallet_balance', 0);
+                    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                } catch (e) {}
+                valEl.textContent = '0';
+                if (expiryTag) expiryTag.style.display = 'none';
             }
+        }
+    } else if (balance > 0) {
+        const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+        if (expiryTag && expiryText) {
+            expiryTag.style.display = 'flex';
+            expiryText.textContent = formatExpiryDaysLabel(activeDays, isHindi);
         }
     } else if (expiryTag) {
         expiryTag.style.display = 'none';
@@ -4915,12 +4997,20 @@ window.addEventListener('storage', (e) => {
     }
     if (!e.key || e.key === 'perfetto_wallet_config' || e.key === 'perfetto_customer_wallet' || e.key === 'perfetto_wallet_balance') {
         try {
-            if (e.key === 'perfetto_wallet_config') customerWalletConfig = JSON.parse(localStorage.getItem('perfetto_wallet_config') || '{}');
+            if (e.key === 'perfetto_wallet_config') {
+                customerWalletConfig = JSON.parse(localStorage.getItem('perfetto_wallet_config') || '{}');
+                const days = getClampedCashbackExpiryDays(customerWalletConfig);
+                customerWalletConfig.cashbackExpiryDays = days;
+                customerWalletConfig.expiryDays = days;
+            }
             if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = JSON.parse(localStorage.getItem('perfetto_customer_wallet') || '{}');
         } catch (err) {}
         updateCartUI();
         updateProfileWalletUI();
         updateCheckoutWalletUI();
+        if (typeof renderOrderHistoryDetails === 'function') {
+            renderOrderHistoryDetails();
+        }
     }
     if (!e.key || e.key === 'perfetto_store_notice') {
         try {
@@ -5510,15 +5600,26 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         earnedCashback: Math.round(earnedCashback),
         scratchClaimed: false,
         scratchExpired: false,
-        scratchExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-        scratchCard: {
-            amount: Math.round(earnedCashback),
-            claimed: false,
-            claimedAt: null,
-            createdAt: now.toISOString(),
-            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
-            expiresAtISO: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        },
+        scratchExpiresAt: (function() {
+            const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+            return Date.now() + activeDays * 24 * 60 * 60 * 1000;
+        })(),
+        scratchExpiryDays: getClampedCashbackExpiryDays(customerWalletConfig),
+        cashbackExpiryDays: getClampedCashbackExpiryDays(customerWalletConfig),
+        scratchCard: (function() {
+            const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+            const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
+            return {
+                amount: Math.round(earnedCashback),
+                claimed: false,
+                claimedAt: null,
+                createdAt: now.toISOString(),
+                expiresAt: expMs,
+                expiresAtISO: new Date(expMs).toISOString(),
+                expiryDays: activeDays,
+                cashbackExpiryDays: activeDays
+            };
+        })(),
         total: Math.round(grandTotal),
         paymentMethod: resolvedPaymentMethod,
         paymentStatus: resolvedPaymentStatus,
@@ -5535,7 +5636,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         appliedWalletDiscountAmount = 0;
     }
 
-    // Note: Cashback scratch card reward is unlocked immediately upon order placement, with a strict 7-day fallback expiry!
+    // Note: Cashback scratch card reward is unlocked immediately upon order placement, with an immutable per-transaction expiry deadline!
     // (Wallet crediting occurs when the customer scratches & claims the card in the Scratch Card Modal)
 
     // 1. Save order to LocalStorage (Immediate Offline Resilience)
@@ -5574,7 +5675,8 @@ async function saveOrderToBackendAPI(order) {
     const finalOrderId = String(order.orderId || order.id || Date.now());
     const cleanCustomerPhone = String(order.customerPhone || (order.customer && order.customer.phone) || order.phone || '').replace(/[^0-9]/g, '').slice(-10);
 
-    const scratchExpiryTimestamp = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const activeOrderDays = order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)) || getClampedCashbackExpiryDays(customerWalletConfig);
+    const scratchExpiryTimestamp = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeOrderDays * 24 * 60 * 60 * 1000);
     const firestoreOrderPayload = {
         ...order,
         id: finalOrderId,
@@ -5586,13 +5688,17 @@ async function saveOrderToBackendAPI(order) {
         scratchClaimed: order.scratchClaimed !== undefined ? order.scratchClaimed : false,
         scratchExpired: order.scratchExpired !== undefined ? order.scratchExpired : false,
         scratchExpiresAt: scratchExpiryTimestamp,
+        scratchExpiryDays: activeOrderDays,
+        cashbackExpiryDays: activeOrderDays,
         scratchCard: order.scratchCard || {
             amount: Math.round(Number(order.earnedCashback || 0)),
             claimed: false,
             claimedAt: null,
             createdAt: order.createdAt || new Date().toISOString(),
             expiresAt: scratchExpiryTimestamp,
-            expiresAtISO: new Date(scratchExpiryTimestamp).toISOString()
+            expiresAtISO: new Date(scratchExpiryTimestamp).toISOString(),
+            expiryDays: activeOrderDays,
+            cashbackExpiryDays: activeOrderDays
         },
         serverTimestamp: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) 
             ? firebase.firestore.FieldValue.serverTimestamp() 
@@ -5858,7 +5964,8 @@ function openOrderOtpSuccessModal(order) {
     const cashbackText = document.getElementById('otp-modal-cashback-text');
     const cashbackExpiry = document.getElementById('otp-modal-cashback-expiry');
     const earnedCashback = (order && order.earnedCashback) ? Number(order.earnedCashback) : 0;
-    const expiryDays = (customerWalletConfig && typeof customerWalletConfig.expiryDays === 'number') ? customerWalletConfig.expiryDays : 7;
+    const activeOrderDays = (order && (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
+    const expiryLabel = formatExpiryDaysLabel(activeOrderDays, isHindiModal);
 
     if (cashbackCard) {
         if (earnedCashback > 0) {
@@ -5869,7 +5976,9 @@ function openOrderOtpSuccessModal(order) {
                 cashbackText.textContent = `🎁 Scratch & Win Cashback! (Win up to ₹${maxCap})`;
             }
             if (cashbackExpiry) {
-                cashbackExpiry.textContent = `अपनी उंगली से स्क्रैच करें और कैशबैक जीतें! Tap to scratch now ✨`;
+                cashbackExpiry.textContent = isHindiModal 
+                    ? `अपनी उंगली से स्क्रैच करें • ${expiryLabel} ✨` 
+                    : `Tap to scratch now • ${expiryLabel} ✨`;
             }
             showToast(`🎁 Scratch & Win Cashback unlocked! Win up to ₹${maxCap}!`, 5000);
         } else {
@@ -6381,10 +6490,11 @@ async function handleClaimScratchReward() {
         return;
     }
 
-    // 7-Day Expiry Permanent Invalidation Check:
+    // Per-transaction Expiry Permanent Invalidation Check:
     if (isScratchCardExpired(activeScratchOrder)) {
         permanentlyInvalidateScratchCard(activeScratchOrder);
-        showToast(isHindi ? 'यह स्क्रैच कार्ड 7 दिनों के बाद समाप्त हो चुका है और क्लेम नहीं किया जा सकता।' : 'This scratch card has expired after 7 days and cannot be claimed.');
+        const orderDays = (activeScratchOrder && (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.expiryDays || activeScratchOrder.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
+        showToast(isHindi ? `यह स्क्रैच कार्ड ${orderDays} दिनों के बाद समाप्त हो चुका है और क्लेम नहीं किया जा सकता।` : `This scratch card has expired after ${orderDays} days and cannot be claimed.`);
         if (claimBtn) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim expired-btn';
@@ -6544,39 +6654,46 @@ function isScratchCardExpired(order) {
     if (!expiresAt) {
         const createdMs = order.createdAt ? new Date(order.createdAt).getTime() : 0;
         if (createdMs > 0) {
-            expiresAt = createdMs + 7 * 24 * 60 * 60 * 1000;
+            const activeDays = (order && (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
+            expiresAt = createdMs + activeDays * 24 * 60 * 60 * 1000;
         }
     }
     if (!expiresAt) return false;
 
     const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : new Date(expiresAt).getTime();
     if (isNaN(expiresAtMs) || expiresAtMs <= 0) return false;
-    return Date.now() > expiresAtMs;
+
+    const remainingDays = Math.ceil((expiresAtMs - Date.now()) / (24 * 60 * 60 * 1000));
+    if (remainingDays <= 0) {
+        permanentlyInvalidateScratchCard(order);
+        return true;
+    }
+    return false;
 }
 
 function getScratchExpiryCountdownText(order) {
-    if (!order) return '7 दिनों में समाप्त';
-    const expiresAt = order.scratchExpiresAt || (order.scratchCard && (order.scratchCard.expiresAt || order.scratchCard.expiresAtISO));
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+    const activeOrderDays = (order && (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
+    if (!order) return formatExpiryDaysLabel(activeOrderDays, isHindi);
+    let expiresAt = order.scratchExpiresAt || (order.scratchCard && (order.scratchCard.expiresAt || order.scratchCard.expiresAtISO));
     if (!expiresAt) {
-        return '7 दिनों में समाप्त';
+        const createdMs = order.createdAt ? new Date(order.createdAt).getTime() : 0;
+        if (createdMs > 0) {
+            expiresAt = createdMs + activeOrderDays * 24 * 60 * 60 * 1000;
+        } else {
+            return formatExpiryDaysLabel(activeOrderDays, isHindi);
+        }
     }
     const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : new Date(expiresAt).getTime();
     if (isNaN(expiresAtMs) || expiresAtMs <= 0) {
-        return '7 दिनों में समाप्त';
+        return formatExpiryDaysLabel(activeOrderDays, isHindi);
     }
-    const diffMs = expiresAtMs - Date.now();
-    if (diffMs <= 0) {
-        return 'समाप्त (Expired)';
+    const remainingDays = Math.ceil((expiresAtMs - Date.now()) / (24 * 60 * 60 * 1000));
+    if (remainingDays <= 0) {
+        permanentlyInvalidateScratchCard(order);
+        return isHindi ? 'समाप्त (Expired)' : 'Expired';
     }
-    const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-    if (diffDays >= 1) {
-        return `${diffDays} दिनों में समाप्त`;
-    }
-    const diffHours = Math.ceil(diffMs / (60 * 60 * 1000));
-    if (diffHours >= 1) {
-        return `${diffHours} घंटों में समाप्त`;
-    }
-    return 'जल्द समाप्त होगा';
+    return formatExpiryDaysLabel(remainingDays, isHindi);
 }
 
 function permanentlyInvalidateScratchCard(order) {
@@ -6688,13 +6805,11 @@ function openScratchCardModal(order, demoAmount) {
     if (orderIdEl) orderIdEl.textContent = `#${orderDisplayId}`;
     if (amountEl) amountEl.textContent = `₹${activeScratchRewardAmount}`;
 
-    const expiryDays = (customerWalletConfig && typeof customerWalletConfig.expiryDays === 'number')
-        ? customerWalletConfig.expiryDays
-        : 7;
+    const activeOrderDays = (activeScratchOrder && (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.expiryDays || activeScratchOrder.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
     if (validityEl) {
         validityEl.textContent = isHindi 
-            ? `आपके वॉलेट में ${expiryDays} दिनों के लिए मान्य` 
-            : `Valid for ${expiryDays} days in your wallet`;
+            ? `आपके वॉलेट में ${activeOrderDays} दिनों के लिए मान्य` 
+            : `Valid for ${activeOrderDays} days in your wallet`;
     }
 
     modal.style.display = 'flex';
@@ -6716,7 +6831,7 @@ function openScratchCardModal(order, demoAmount) {
             titleEl.textContent = isHindi ? 'स्क्रैच कार्ड समाप्त' : 'Scratch Card Expired';
         }
         if (subtitleEl) {
-            subtitleEl.textContent = isHindi ? '7 दिनों की वैधता समाप्त हो चुकी है' : '7-day validity period has expired';
+            subtitleEl.textContent = isHindi ? `${activeOrderDays} दिनों की वैधता समाप्त हो चुकी है` : `${activeOrderDays}-day validity period has expired`;
         }
         if (claimBtn) {
             claimBtn.disabled = true;
@@ -6725,11 +6840,11 @@ function openScratchCardModal(order, demoAmount) {
         }
         if (hintText) {
             hintText.textContent = isHindi 
-                ? 'यह स्क्रैच कार्ड 7 दिनों की समय सीमा समाप्त होने के कारण अमान्य हो गया है।' 
-                : 'This scratch card expired after 7 days and can no longer be revealed or claimed.';
+                ? `यह स्क्रैच कार्ड ${activeOrderDays} दिनों की समय सीमा समाप्त होने के कारण अमान्य हो गया है।` 
+                : `This scratch card expired after ${activeOrderDays} days and can no longer be revealed or claimed.`;
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-clock-rotate-left';
-        showToast(isHindi ? 'यह स्क्रैच कार्ड 7 दिनों के बाद समाप्त हो चुका है।' : 'This scratch card has expired after 7 days.');
+        showToast(isHindi ? `यह स्क्रैच कार्ड ${activeOrderDays} दिनों के बाद समाप्त हो चुका है।` : `This scratch card has expired after ${activeOrderDays} days.`);
         renderOrderHistoryDetails();
         return;
     } else if (isAlreadyClaimed) {
@@ -8201,6 +8316,8 @@ function renderOrderHistoryDetails() {
                     const isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
                     const isCardExpired = isScratchCardExpired(o);
                     const expiryCountdown = getScratchExpiryCountdownText(o);
+                    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+                    const orderDays = (o && (o.scratchExpiryDays || o.cashbackExpiryDays || (o.scratchCard && (o.scratchCard.expiryDays || o.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
                     if (isCardExpired && !o.scratchExpired) {
                         permanentlyInvalidateScratchCard(o);
                     }
@@ -8258,7 +8375,7 @@ function renderOrderHistoryDetails() {
                                 ` : `
                                     <div class="order-history-scratch-expired">
                                         <i class="fa-solid fa-clock-rotate-left"></i>
-                                        <span>⚠️ स्क्रैच कार्ड समाप्त (Expired after 7 days)</span>
+                                        <span>⚠️ ${isHindi ? `स्क्रैच कार्ड समाप्त (${orderDays} दिन समाप्त)` : `Scratch Card Expired (${orderDays} days elapsed)`}</span>
                                     </div>
                                 `}
                             ` : `
@@ -9455,17 +9572,25 @@ function listenToRealtimeMenuAndRates() {
         }
     }
 
-            if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
+    if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
         try {
             walletConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('wallet_config').onSnapshot((doc) => {
                 if (doc.exists && doc.data()) {
+                    const rawData = doc.data();
+                    const clampedDays = getClampedCashbackExpiryDays(rawData);
                     customerWalletConfig = {
                         ...DEFAULT_WALLET_CONFIG,
-                        ...doc.data()
+                        ...rawData,
+                        cashbackExpiryDays: clampedDays,
+                        expiryDays: clampedDays
                     };
                     localStorage.setItem('perfetto_wallet_config', JSON.stringify(customerWalletConfig));
                     updateCartUI();
                     updateCheckoutWalletUI();
+                    updateProfileWalletUI();
+                    if (typeof renderOrderHistoryDetails === 'function') {
+                        renderOrderHistoryDetails();
+                    }
                 }
             }, (err) => {
                 console.warn('Firestore wallet_config real-time notice:', err.message);

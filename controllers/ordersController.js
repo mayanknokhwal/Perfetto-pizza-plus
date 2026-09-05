@@ -209,14 +209,18 @@ async function handleOrdersRequest(req, res) {
                 earnedCashback: Number(body.earnedCashback || 0),
                 scratchClaimed: Boolean(body.scratchClaimed),
                 scratchExpired: Boolean(body.scratchExpired),
-                scratchExpiresAt: body.scratchExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000),
+                scratchExpiresAt: body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000),
+                scratchExpiryDays: Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7),
+                cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7),
                 scratchCard: body.scratchCard || {
                     amount: Number(body.earnedCashback || 0),
                     claimed: Boolean(body.scratchClaimed),
                     claimedAt: body.scratchCard?.claimedAt || null,
                     createdAt: body.createdAt || new Date().toISOString(),
-                    expiresAt: body.scratchExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000),
-                    expiresAtISO: new Date(body.scratchExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000)).toISOString()
+                    expiresAt: body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000),
+                    expiresAtISO: new Date(body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000)).toISOString(),
+                    expiryDays: Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7),
+                    cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7)
                 },
             };
 
