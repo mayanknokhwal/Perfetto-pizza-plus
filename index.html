@@ -1144,14 +1144,17 @@
                     </div>
 
                     <!-- CASHBACK REWARD CELEBRATION CARD -->
-                    <div class="otp-cashback-reward-card" id="otp-modal-cashback-card" style="display: none;">
+                    <div class="otp-cashback-reward-card" id="otp-modal-cashback-card" style="display: none; cursor: pointer;" onclick="handleOpenScratchFromOtpModal()" title="Tap to scratch your card now!">
                         <div class="otp-cashback-icon-wrap">
-                            <i class="fa-solid fa-gift"></i>
+                            <i class="fa-solid fa-gift fa-bounce"></i>
                         </div>
                         <div class="otp-cashback-info">
-                            <div class="otp-cashback-title" id="otp-modal-cashback-text">🎉 ₹20 Cashback credited to your wallet!</div>
-                            <div class="otp-cashback-subtitle" id="otp-modal-cashback-expiry">Valid for 7 days. Use on your next order!</div>
+                            <div class="otp-cashback-title" id="otp-modal-cashback-text">🎁 Scratch &amp; Win Cashback Now!</div>
+                            <div class="otp-cashback-subtitle" id="otp-modal-cashback-expiry">अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!</div>
                         </div>
+                        <span class="otp-scratch-cta-pill">
+                            <i class="fa-solid fa-sparkles"></i> Scratch ✨
+                        </span>
                     </div>
 
                     <!-- ACTION BUTTONS -->
@@ -1185,9 +1188,9 @@
                         <i class="fa-solid fa-gift"></i>
                     </div>
                     <div>
-                        <h3 class="scratch-modal-title" id="scratch-modal-title" data-i18n="scratch_card_title">Cashback Scratch Card 🎁</h3>
-                        <p class="scratch-modal-subtitle" id="scratch-modal-subtitle">
-                            Order <span id="scratch-modal-order-id" class="scratch-modal-order-tag">#--</span> • Scratch to reveal your reward!
+                        <h3 class="scratch-modal-title" id="scratch-modal-title" data-i18n="scratch_card_title">Scratch &amp; Win Cashback</h3>
+                        <p class="scratch-modal-subtitle" id="scratch-modal-subtitle" data-i18n="scratch_card_subtitle">
+                            अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!
                         </p>
                     </div>
                 </div>
@@ -1219,7 +1222,7 @@
                     <!-- INSTRUCTION & STATUS HINT -->
                     <div class="scratch-instruction-hint" id="scratch-instruction-hint">
                         <i class="fa-solid fa-hand-pointer fa-bounce" id="scratch-hint-icon"></i>
-                        <span id="scratch-instruction-text" data-i18n="scratch_instruction">Scratch the card using your finger or mouse!</span>
+                        <span id="scratch-instruction-text" data-i18n="scratch_instruction">Scratch the card using your finger or mouse! (45% required)</span>
                     </div>
                 </div>
 
@@ -1227,7 +1230,7 @@
                 <div class="scratch-modal-actions">
                     <button type="button" class="btn-scratch-claim" id="btn-scratch-claim" onclick="handleClaimScratchReward()" disabled>
                         <i class="fa-solid fa-wallet"></i>
-                        <span id="scratch-claim-btn-text" data-i18n="scratch_claim_btn">Claim to Wallet</span>
+                        <span id="scratch-claim-btn-text" data-i18n="scratch_claim_btn">कन्फर्म करें और वॉलेट में जोड़ें / Claim to Wallet</span>
                     </button>
                 </div>
 

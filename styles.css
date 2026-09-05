@@ -6899,6 +6899,32 @@ html[lang="hi"] .nav-label {
     font-weight: 600;
 }
 
+.otp-scratch-cta-pill {
+    margin-left: auto;
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    color: #ffffff;
+    font-size: 0.76rem;
+    font-weight: 800;
+    padding: 6px 12px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    box-shadow: 0 3px 10px rgba(245, 158, 11, 0.4);
+    animation: otpPillPulse 1.8s infinite ease-in-out;
+    flex-shrink: 0;
+}
+
+@keyframes otpPillPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.06);
+    }
+}
+
 /* --------------------------------------------------------------------------
    STORE NOTICE SYSTEM (STATIC HOME CHIP, PROFILE ROW & POPUP MODAL)
    -------------------------------------------------------------------------- */
@@ -7608,11 +7634,63 @@ html[lang="hi"] .nav-label {
     font-size: 0.82rem;
     font-weight: 800;
     color: #ffffff;
+    line-height: 1.3;
 }
 
 .scratch-promo-sub {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.75);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+}
+
+/* Glowing Unclaimed Scratch Card Button */
+.order-history-scratch-promo.unclaimed-glowing {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.24), rgba(255, 107, 0, 0.14));
+    border: 1.5px solid rgba(245, 158, 11, 0.75);
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+    cursor: pointer;
+    animation: scratchCardGlowPulse 2.4s infinite ease-in-out;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.order-history-scratch-promo.unclaimed-glowing:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.6);
+}
+
+@keyframes scratchCardGlowPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+        border-color: rgba(245, 158, 11, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 22px rgba(245, 158, 11, 0.7);
+        border-color: #f59e0b;
+    }
+}
+
+.scratch-countdown-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(239, 68, 68, 0.22);
+    border: 1px solid rgba(239, 68, 68, 0.55);
+    color: #fca5a5;
+    font-weight: 800;
     font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.65);
+    padding: 2px 7px;
+    border-radius: 6px;
+    letter-spacing: 0.2px;
+}
+
+.scratch-card-amount-hint {
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: 0.72rem;
 }
 
 .btn-open-scratch-card {
@@ -7647,6 +7725,20 @@ html[lang="hi"] .nav-label {
     margin: 8px 0;
 }
 
+.order-history-scratch-expired {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #9ca3af;
+    background: rgba(156, 163, 175, 0.1);
+    border: 1px dashed rgba(156, 163, 175, 0.35);
+    border-radius: 8px;
+    padding: 7px 11px;
+    margin: 8px 0;
+}
+
 .order-history-scratch-locked {
     display: flex;
     align-items: center;
@@ -7659,6 +7751,14 @@ html[lang="hi"] .nav-label {
     border-radius: 8px;
     padding: 6px 10px;
     margin: 8px 0;
+}
+
+.btn-scratch-claim.expired-btn {
+    background: #4b5563 !important;
+    color: #9ca3af !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+    border-color: #6b7280 !important;
 }
 
 /* RESPONSIVE TUNING */

@@ -204,8 +204,20 @@ async function handleOrdersRequest(req, res) {
                 paymentStatus: body.paymentStatus || 'Cash on Delivery',
                 paymentDetails: body.paymentDetails || {},
                 status: body.status || 'new',
-                createdAt: new Date().toISOString(),
+                createdAt: body.createdAt || new Date().toISOString(),
                 timeAgo: body.timeAgo || 'Just now',
+                earnedCashback: Number(body.earnedCashback || 0),
+                scratchClaimed: Boolean(body.scratchClaimed),
+                scratchExpired: Boolean(body.scratchExpired),
+                scratchExpiresAt: body.scratchExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000),
+                scratchCard: body.scratchCard || {
+                    amount: Number(body.earnedCashback || 0),
+                    claimed: Boolean(body.scratchClaimed),
+                    claimedAt: body.scratchCard?.claimedAt || null,
+                    createdAt: body.createdAt || new Date().toISOString(),
+                    expiresAt: body.scratchExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000),
+                    expiresAtISO: new Date(body.scratchExpiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000)).toISOString()
+                },
             };
 
             // Update in-memory
@@ -246,7 +258,7 @@ async function handleOrdersRequest(req, res) {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
             const effectiveId = body?.orderId || body?.id || req.query?.orderId || req.query?.id;
-            const { status, paymentStatus, paymentDetails, deliveryOtp, completedAt, completedDurationSec } = body || {};
+            const { status, paymentStatus, paymentDetails, deliveryOtp, completedAt, completedDurationSec, scratchClaimed, scratchCard, scratchExpired, scratchExpiresAt } = body || {};
 
             if (!effectiveId) {
                 return res.status(400).json({ success: false, message: 'orderId is required' });
@@ -265,6 +277,10 @@ async function handleOrdersRequest(req, res) {
             if (deliveryOtp) targetOrder.deliveryOtp = deliveryOtp;
             if (completedAt) targetOrder.completedAt = completedAt;
             if (completedDurationSec !== undefined) targetOrder.completedDurationSec = completedDurationSec;
+            if (scratchClaimed !== undefined) targetOrder.scratchClaimed = Boolean(scratchClaimed);
+            if (scratchCard !== undefined) targetOrder.scratchCard = scratchCard;
+            if (scratchExpired !== undefined) targetOrder.scratchExpired = Boolean(scratchExpired);
+            if (scratchExpiresAt !== undefined) targetOrder.scratchExpiresAt = scratchExpiresAt;
             targetOrder.updatedAt = new Date().toISOString();
 
             // Update in-memory orders list

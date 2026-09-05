@@ -4488,8 +4488,8 @@ function updateCheckoutCashbackTeaser(subtotal) {
         }
         if (teaserSub) {
             teaserSub.textContent = isHindi
-                ? 'ऑर्डर डिलीवर होते ही आपके वॉलेट में स्क्रैच कार्ड क्रेडिट हो जाएगा'
-                : 'Scratch card will be credited directly to your wallet upon delivery';
+                ? 'ऑर्डर करते ही तुरंत स्क्रैच करें और अपने वॉलेट में जोड़ें!'
+                : 'Scratch immediately after placing order and claim to your wallet!';
         }
     } else if (boundaries.nextSlab) {
         const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
@@ -5509,10 +5509,15 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         usedWalletCash: Math.round(walletDiscountToApply),
         earnedCashback: Math.round(earnedCashback),
         scratchClaimed: false,
+        scratchExpired: false,
+        scratchExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
         scratchCard: {
             amount: Math.round(earnedCashback),
             claimed: false,
-            claimedAt: null
+            claimedAt: null,
+            createdAt: now.toISOString(),
+            expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            expiresAtISO: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
         },
         total: Math.round(grandTotal),
         paymentMethod: resolvedPaymentMethod,
@@ -5530,7 +5535,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         appliedWalletDiscountAmount = 0;
     }
 
-    // Note: Cashback scratch card reward will be unlocked and claimed by the customer once the order is delivered!
+    // Note: Cashback scratch card reward is unlocked immediately upon order placement, with a strict 7-day fallback expiry!
     // (Wallet crediting occurs when the customer scratches & claims the card in the Scratch Card Modal)
 
     // 1. Save order to LocalStorage (Immediate Offline Resilience)
@@ -5569,6 +5574,7 @@ async function saveOrderToBackendAPI(order) {
     const finalOrderId = String(order.orderId || order.id || Date.now());
     const cleanCustomerPhone = String(order.customerPhone || (order.customer && order.customer.phone) || order.phone || '').replace(/[^0-9]/g, '').slice(-10);
 
+    const scratchExpiryTimestamp = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + 7 * 24 * 60 * 60 * 1000);
     const firestoreOrderPayload = {
         ...order,
         id: finalOrderId,
@@ -5577,6 +5583,17 @@ async function saveOrderToBackendAPI(order) {
         phone: cleanCustomerPhone,
         status: order.status || 'pending',
         createdAt: order.createdAt || new Date().toISOString(),
+        scratchClaimed: order.scratchClaimed !== undefined ? order.scratchClaimed : false,
+        scratchExpired: order.scratchExpired !== undefined ? order.scratchExpired : false,
+        scratchExpiresAt: scratchExpiryTimestamp,
+        scratchCard: order.scratchCard || {
+            amount: Math.round(Number(order.earnedCashback || 0)),
+            claimed: false,
+            claimedAt: null,
+            createdAt: order.createdAt || new Date().toISOString(),
+            expiresAt: scratchExpiryTimestamp,
+            expiresAtISO: new Date(scratchExpiryTimestamp).toISOString()
+        },
         serverTimestamp: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) 
             ? firebase.firestore.FieldValue.serverTimestamp() 
             : new Date().toISOString()
@@ -5801,9 +5818,13 @@ function triggerOrderSuccessCelebration() {
     renderConfetti();
 }
 
+let activeOrderForScratch = null;
+
 function openOrderOtpSuccessModal(order) {
     const modal = document.getElementById('order-otp-success-modal');
     if (!modal) return;
+
+    activeOrderForScratch = order;
 
     const orderId = order.orderId || order.id || '--';
     const otp = String(order.deliveryOtp || order.otp || '0000');
@@ -5845,16 +5866,12 @@ function openOrderOtpSuccessModal(order) {
             const maxCap = boundaries.max || earnedCashback;
             cashbackCard.style.display = 'flex';
             if (cashbackText) {
-                cashbackText.textContent = typeof t === 'function'
-                    ? t('scratch_card_unlocked_otp', { max: maxCap })
-                    : `🎁 Mystery Scratch Card Unlocked! (Win up to ₹${maxCap})`;
+                cashbackText.textContent = `🎁 Scratch & Win Cashback! (Win up to ₹${maxCap})`;
             }
             if (cashbackExpiry) {
-                cashbackExpiry.textContent = typeof t === 'function'
-                    ? t('scratch_card_otp_sub')
-                    : `Scratch & claim your reward in Order History once delivered!`;
+                cashbackExpiry.textContent = `अपनी उंगली से स्क्रैच करें और कैशबैक जीतें! Tap to scratch now ✨`;
             }
-            showToast(`🎁 Mystery Scratch Card Unlocked! Win up to ₹${maxCap} on delivery.`, 5000);
+            showToast(`🎁 Scratch & Win Cashback unlocked! Win up to ₹${maxCap}!`, 5000);
         } else {
             cashbackCard.style.display = 'none';
         }
@@ -5882,6 +5899,24 @@ function openOrderOtpSuccessModal(order) {
     } catch (e) { }
 }
 
+function handleOpenScratchFromOtpModal() {
+    const modal = document.getElementById('order-otp-success-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('modal-open');
+
+    if (activeOrderForScratch && Number(activeOrderForScratch.earnedCashback) > 0) {
+        const target = activeOrderForScratch;
+        activeOrderForScratch = null;
+        openScratchCardModal(target);
+    } else {
+        openFirstUnclaimedScratchCard();
+    }
+}
+window.handleOpenScratchFromOtpModal = handleOpenScratchFromOtpModal;
+
 function closeOrderOtpSuccessModal() {
     const modal = document.getElementById('order-otp-success-modal');
     if (modal) {
@@ -5889,6 +5924,17 @@ function closeOrderOtpSuccessModal() {
         modal.setAttribute('aria-hidden', 'true');
     }
     document.body.classList.remove('modal-open');
+
+    // High-priority interactive Scratch Card modal triggered as soon as user taps "Got It & Continue / ठीक है, आगे बढ़ें"
+    if (activeOrderForScratch && Number(activeOrderForScratch.earnedCashback) > 0 && !activeOrderForScratch.scratchClaimed) {
+        const targetOrder = activeOrderForScratch;
+        activeOrderForScratch = null;
+        setTimeout(() => {
+            openScratchCardModal(targetOrder);
+        }, 160);
+        return;
+    }
+
     switchTab('home', true);
 }
 
@@ -6150,15 +6196,15 @@ function setupScratchCanvas(order, rewardAmount) {
 
     ctx.font = 'bold 14px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#fffdf0';
-    ctx.fillText('✨ ' + (isHindi ? 'स्क्रैच करें' : 'SCRATCH HERE') + ' ✨', width / 2, badgeY + 20);
+    ctx.fillText('✨ SCRATCH & WIN ✨', width / 2, badgeY + 20);
 
     ctx.font = '800 17px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#fffae0';
     ctx.fillText(isHindi ? `₹${maxBound} तक जीतें 🎁` : `Win Up To ₹${maxBound} 🎁`, width / 2, badgeY + 42);
 
     ctx.font = '500 11px "Outfit", "Inter", sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.fillText(isHindi ? 'उंगली या माउस से कार्ड स्क्रैच करें' : 'Swipe with finger or mouse', width / 2, badgeY + 61);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+    ctx.fillText('अपनी उंगली से स्क्रैच करें (45%)', width / 2, badgeY + 61);
 }
 
 function initScratchCardCanvasEvents() {
@@ -6256,7 +6302,8 @@ function checkScratchCompletion() {
         }
 
         const percentage = total > 0 ? (transparent / total) * 100 : 0;
-        if (percentage >= 38) {
+        // Require customer to scratch at least 45% of the card area
+        if (percentage >= 45) {
             revealScratchCardReward();
         }
     } catch (e) {
@@ -6292,7 +6339,7 @@ function revealScratchCardReward() {
 
     if (hintText) {
         hintText.textContent = isHindi
-            ? `🎉 बधाई हो! ₹${activeScratchRewardAmount} अनलॉक हुआ! नीचे टैप करके वॉलेट में क्लेम करें।`
+            ? `🎉 बधाई हो! ₹${activeScratchRewardAmount} अनलॉक हुआ! नीचे दिए गए बटन पर टैप करें।`
             : `🎉 Congratulations! ₹${activeScratchRewardAmount} unlocked! Tap below to claim to wallet.`;
     }
     if (hintIcon) {
@@ -6304,9 +6351,7 @@ function revealScratchCardReward() {
         claimBtn.className = 'btn-scratch-claim btn-ready-to-claim';
         const claimText = document.getElementById('scratch-claim-btn-text');
         if (claimText) {
-            claimText.textContent = isHindi
-                ? `₹${activeScratchRewardAmount} वॉलेट में क्लेम करें`
-                : `Claim ₹${activeScratchRewardAmount} to Wallet`;
+            claimText.textContent = 'कन्फर्म करें और वॉलेट में जोड़ें / Claim to Wallet';
         }
     }
 }
@@ -6332,6 +6377,18 @@ async function handleClaimScratchReward() {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim claimed-success';
             if (claimText) claimText.textContent = isHindi ? 'पहले ही क्लेम हो चुका है' : 'Already Claimed';
+        }
+        return;
+    }
+
+    // 7-Day Expiry Permanent Invalidation Check:
+    if (isScratchCardExpired(activeScratchOrder)) {
+        permanentlyInvalidateScratchCard(activeScratchOrder);
+        showToast(isHindi ? 'यह स्क्रैच कार्ड 7 दिनों के बाद समाप्त हो चुका है और क्लेम नहीं किया जा सकता।' : 'This scratch card has expired after 7 days and cannot be claimed.');
+        if (claimBtn) {
+            claimBtn.disabled = true;
+            claimBtn.className = 'btn-scratch-claim expired-btn';
+            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> ${isHindi ? 'कार्ड समाप्त (Expired)' : 'Card Expired'}`;
         }
         return;
     }
@@ -6468,7 +6525,7 @@ function openScratchCardForOrder(orderId) {
 }
 
 function openFirstUnclaimedScratchCard() {
-    const order = getFirstUnclaimedDeliveredOrder();
+    const order = getFirstUnclaimedOrder();
     if (order) {
         openScratchCardModal(order);
     } else {
@@ -6478,23 +6535,111 @@ function openFirstUnclaimedScratchCard() {
     }
 }
 
-function getFirstUnclaimedDeliveredOrder() {
+// Expiration and Invalidation Helpers for Scratch Cards
+function isScratchCardExpired(order) {
+    if (!order) return false;
+    if (order.scratchExpired || (order.scratchCard && order.scratchCard.expired)) return true;
+
+    let expiresAt = order.scratchExpiresAt || (order.scratchCard && (order.scratchCard.expiresAt || order.scratchCard.expiresAtISO));
+    if (!expiresAt) {
+        const createdMs = order.createdAt ? new Date(order.createdAt).getTime() : 0;
+        if (createdMs > 0) {
+            expiresAt = createdMs + 7 * 24 * 60 * 60 * 1000;
+        }
+    }
+    if (!expiresAt) return false;
+
+    const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : new Date(expiresAt).getTime();
+    if (isNaN(expiresAtMs) || expiresAtMs <= 0) return false;
+    return Date.now() > expiresAtMs;
+}
+
+function getScratchExpiryCountdownText(order) {
+    if (!order) return '7 दिनों में समाप्त';
+    const expiresAt = order.scratchExpiresAt || (order.scratchCard && (order.scratchCard.expiresAt || order.scratchCard.expiresAtISO));
+    if (!expiresAt) {
+        return '7 दिनों में समाप्त';
+    }
+    const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : new Date(expiresAt).getTime();
+    if (isNaN(expiresAtMs) || expiresAtMs <= 0) {
+        return '7 दिनों में समाप्त';
+    }
+    const diffMs = expiresAtMs - Date.now();
+    if (diffMs <= 0) {
+        return 'समाप्त (Expired)';
+    }
+    const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+    if (diffDays >= 1) {
+        return `${diffDays} दिनों में समाप्त`;
+    }
+    const diffHours = Math.ceil(diffMs / (60 * 60 * 1000));
+    if (diffHours >= 1) {
+        return `${diffHours} घंटों में समाप्त`;
+    }
+    return 'जल्द समाप्त होगा';
+}
+
+function permanentlyInvalidateScratchCard(order) {
+    if (!order) return;
+    const orderId = String(order.id || order.orderId || '');
+    order.scratchExpired = true;
+    if (order.scratchCard) {
+        order.scratchCard.expired = true;
+    }
+
+    // 1. Invalidate locally in localStorage
+    try {
+        const stored = localStorage.getItem('perfettoCustomerOrders');
+        if (stored) {
+            const orders = JSON.parse(stored);
+            if (Array.isArray(orders)) {
+                const targetIdx = orders.findIndex(o => String(o.id || o.orderId) === orderId);
+                if (targetIdx >= 0) {
+                    orders[targetIdx].scratchExpired = true;
+                    if (orders[targetIdx].scratchCard) {
+                        orders[targetIdx].scratchCard.expired = true;
+                    }
+                    localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Error invalidating scratch card in localStorage:', e);
+    }
+
+    // 2. Persist invalidation to Firestore
+    try {
+        if (customerFirestore && orderId && orderId !== '--') {
+            customerFirestore.collection('orders').doc(orderId).set({
+                scratchExpired: true,
+                'scratchCard.expired': true,
+                scratchExpiredAt: new Date().toISOString()
+            }, { merge: true }).catch(() => {});
+        }
+    } catch (fsErr) {
+        console.warn('Error persisting scratch invalidation to Firestore:', fsErr);
+    }
+}
+
+function getFirstUnclaimedOrder() {
     try {
         const stored = localStorage.getItem('perfettoCustomerOrders');
         if (stored) {
             const orders = JSON.parse(stored);
             if (Array.isArray(orders)) {
                 return orders.find(o => {
-                    const isDelivered = o.status === 'completed' || o.status === 'delivered';
+                    const isCancelled = o.status === 'rejected' || o.status === 'cancelled';
                     const amount = Number(o.earnedCashback || (o.scratchCard && o.scratchCard.amount) || 0);
                     const isClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
-                    return isDelivered && amount > 0 && !isClaimed;
+                    const isExpired = isScratchCardExpired(o);
+                    return !isCancelled && amount > 0 && !isClaimed && !isExpired;
                 });
             }
         }
     } catch (e) { }
     return null;
 }
+const getFirstUnclaimedDeliveredOrder = getFirstUnclaimedOrder;
 
 function openScratchCardModal(order, demoAmount) {
     const modal = document.getElementById('scratch-card-modal');
@@ -6504,7 +6649,7 @@ function openScratchCardModal(order, demoAmount) {
         id: 'DEMO-' + Math.floor(1000 + Math.random() * 9000),
         orderId: 'DEMO-' + Math.floor(1000 + Math.random() * 9000),
         subtotal: 500,
-        status: 'completed',
+        status: 'new',
         earnedCashback: demoAmount || 50
     };
 
@@ -6519,8 +6664,11 @@ function openScratchCardModal(order, demoAmount) {
 
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const isAlreadyClaimed = !!(activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed));
+    const isCardExpired = isScratchCardExpired(activeScratchOrder);
 
-    // Update Modal DOM elements
+    // Update Modal DOM elements & Exact Requested Headers
+    const titleEl = document.getElementById('scratch-modal-title');
+    const subtitleEl = document.getElementById('scratch-modal-subtitle');
     const orderIdEl = document.getElementById('scratch-modal-order-id');
     const amountEl = document.getElementById('scratch-reveal-amount');
     const validityEl = document.getElementById('scratch-reveal-validity');
@@ -6528,6 +6676,13 @@ function openScratchCardModal(order, demoAmount) {
     const hintIcon = document.getElementById('scratch-hint-icon');
     const claimBtn = document.getElementById('btn-scratch-claim');
     const claimText = document.getElementById('scratch-claim-btn-text');
+
+    if (titleEl) {
+        titleEl.textContent = 'Scratch & Win Cashback';
+    }
+    if (subtitleEl) {
+        subtitleEl.textContent = 'अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!';
+    }
 
     const orderDisplayId = activeScratchOrder.id || activeScratchOrder.orderId || '--';
     if (orderIdEl) orderIdEl.textContent = `#${orderDisplayId}`;
@@ -6548,7 +6703,36 @@ function openScratchCardModal(order, demoAmount) {
 
     initScratchCardCanvasEvents();
 
-    if (isAlreadyClaimed) {
+    if (isCardExpired) {
+        // Permanently invalidate so it cannot be revealed or credited
+        permanentlyInvalidateScratchCard(activeScratchOrder);
+        isScratchCardRevealed = true;
+        const canvas = document.getElementById('scratch-interactive-canvas');
+        if (canvas) {
+            canvas.style.opacity = '0';
+            canvas.style.pointerEvents = 'none';
+        }
+        if (titleEl) {
+            titleEl.textContent = isHindi ? 'स्क्रैच कार्ड समाप्त' : 'Scratch Card Expired';
+        }
+        if (subtitleEl) {
+            subtitleEl.textContent = isHindi ? '7 दिनों की वैधता समाप्त हो चुकी है' : '7-day validity period has expired';
+        }
+        if (claimBtn) {
+            claimBtn.disabled = true;
+            claimBtn.className = 'btn-scratch-claim expired-btn';
+            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> ${isHindi ? 'कार्ड समाप्त (Expired)' : 'Card Expired'}`;
+        }
+        if (hintText) {
+            hintText.textContent = isHindi 
+                ? 'यह स्क्रैच कार्ड 7 दिनों की समय सीमा समाप्त होने के कारण अमान्य हो गया है।' 
+                : 'This scratch card expired after 7 days and can no longer be revealed or claimed.';
+        }
+        if (hintIcon) hintIcon.className = 'fa-solid fa-clock-rotate-left';
+        showToast(isHindi ? 'यह स्क्रैच कार्ड 7 दिनों के बाद समाप्त हो चुका है।' : 'This scratch card has expired after 7 days.');
+        renderOrderHistoryDetails();
+        return;
+    } else if (isAlreadyClaimed) {
         // Render already-claimed state
         isScratchCardRevealed = true;
         const canvas = document.getElementById('scratch-interactive-canvas');
@@ -6576,13 +6760,13 @@ function openScratchCardModal(order, demoAmount) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim';
             if (claimText) {
-                claimText.innerHTML = `<i class="fa-solid fa-wallet"></i> ${isHindi ? 'वॉलेट में क्लेम करें' : 'Claim to Wallet'}`;
+                claimText.textContent = 'कन्फर्म करें और वॉलेट में जोड़ें / Claim to Wallet';
             }
         }
         if (hintText) {
             hintText.textContent = isHindi 
-                ? 'कार्ड को उंगली या माउस से स्क्रैच करें!' 
-                : 'Scratch the card using your finger or mouse!';
+                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 45%)' 
+                : 'Scratch the card using your finger or mouse! (45% required)';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-hand-pointer fa-bounce';
 
@@ -8015,6 +8199,11 @@ function renderOrderHistoryDetails() {
                     const itemsText = (o.items || []).map(i => escapeHtml(i.name)).join(', ');
                     const orderCashback = Number(o.earnedCashback || (o.scratchCard && o.scratchCard.amount) || 0);
                     const isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
+                    const isCardExpired = isScratchCardExpired(o);
+                    const expiryCountdown = getScratchExpiryCountdownText(o);
+                    if (isCardExpired && !o.scratchExpired) {
+                        permanentlyInvalidateScratchCard(o);
+                    }
 
                     return `
                     <div style="background: var(--bg-surface); padding: 14px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border-color);">
@@ -8045,32 +8234,37 @@ function renderOrderHistoryDetails() {
                         ` : ''}
 
                         ${orderCashback > 0 && !isCancelled ? `
-                            ${isDelivered ? `
-                                ${!isScratchClaimed ? `
-                                    <div class="order-history-scratch-promo">
+                            ${!isScratchClaimed ? `
+                                ${!isCardExpired ? `
+                                    <div class="order-history-scratch-promo unclaimed-glowing" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
                                         <div class="scratch-promo-left">
                                             <div class="scratch-promo-icon-wrap">
                                                 <i class="fa-solid fa-gift fa-bounce"></i>
                                             </div>
                                             <div>
-                                                <div class="scratch-promo-title">🎁 You have an Unclaimed Scratch Card!</div>
-                                                <div class="scratch-promo-sub">Scratch now to win up to ₹${orderCashback} cashback</div>
+                                                <div class="scratch-promo-title">🎁 स्क्रैच कार्ड उपलब्ध (Unclaimed Scratch Card)</div>
+                                                <div class="scratch-promo-sub">
+                                                    <span class="scratch-countdown-pill">
+                                                        <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
+                                                    </span>
+                                                    <span class="scratch-card-amount-hint">Win up to ₹${orderCashback}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <button type="button" class="btn-open-scratch-card" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
+                                        <button type="button" class="btn-open-scratch-card" onclick="event.stopPropagation(); openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
                                             Scratch Now ✨
                                         </button>
                                     </div>
                                 ` : `
-                                    <div class="order-history-scratch-claimed">
-                                        <i class="fa-solid fa-circle-check"></i>
-                                        <span>Scratch Card Claimed (+₹${orderCashback} in wallet)</span>
+                                    <div class="order-history-scratch-expired">
+                                        <i class="fa-solid fa-clock-rotate-left"></i>
+                                        <span>⚠️ स्क्रैच कार्ड समाप्त (Expired after 7 days)</span>
                                     </div>
                                 `}
                             ` : `
-                                <div class="order-history-scratch-locked">
-                                    <i class="fa-solid fa-lock"></i>
-                                    <span>🎁 Scratch Card Locked (Unlocks upon delivery • Win up to ₹${orderCashback})</span>
+                                <div class="order-history-scratch-claimed">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>Scratch Card Claimed (+₹${orderCashback} in wallet)</span>
                                 </div>
                             `}
                         ` : ''}
