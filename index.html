@@ -56,12 +56,7 @@
                 </div>
 
                 <div class="header-actions">
-                    <!-- Language Toggle Switch (EN | हिं) -->
-                    <div class="lang-switch-toggle" id="lang-switch-header" role="group" aria-label="Language Selector">
-                        <button type="button" class="lang-btn active" data-lang="en" onclick="setAppLanguage('en')">EN</button>
-                        <span class="lang-divider">|</span>
-                        <button type="button" class="lang-btn" data-lang="hi" onclick="setAppLanguage('hi')">हिं</button>
-                    </div>
+
 
                     <!-- Theme Toggle Button (Now on the left of search) -->
                     <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Light and Dark Mode">
@@ -118,11 +113,7 @@
                     </div>
                 </div>
                 <div class="category-hero-actions">
-                    <div class="lang-switch-toggle hero-lang-switch" id="lang-switch-hero" role="group" aria-label="Language Selector">
-                        <button type="button" class="lang-btn active" data-lang="en" onclick="setAppLanguage('en')">EN</button>
-                        <span class="lang-divider">|</span>
-                        <button type="button" class="lang-btn" data-lang="hi" onclick="setAppLanguage('hi')">हिं</button>
-                    </div>
+
                     <button class="theme-toggle-btn hero-theme-toggle" id="category-theme-toggle"
                         aria-label="Toggle Light and Dark Mode">
                         <div class="toggle-icon-wrapper">
@@ -418,6 +409,19 @@
                         </div>
                     </div>
 
+                    <div class="menu-item-row profile-lang-row" id="menu-profile-lang-row">
+                        <div class="menu-item-icon icon-profile-lang" style="background: rgba(255, 107, 0, 0.12); color: var(--primary-orange, #ff6b00);">
+                            <i class="fa-solid fa-language"></i>
+                        </div>
+                        <div class="menu-item-text">
+                            <span class="item-title" data-i18n="change_language">Language / भाषा</span>
+                        </div>
+                        <div class="profile-lang-pills" role="group" aria-label="Language Selector">
+                            <button type="button" class="profile-lang-pill active" id="profile-pill-en" data-lang="en" onclick="setAppLanguage('en')">English</button>
+                            <button type="button" class="profile-lang-pill" id="profile-pill-hi" data-lang="hi" onclick="setAppLanguage('hi')">हिंदी</button>
+                        </div>
+                    </div>
+
                     <div class="menu-item-row" id="menu-legal-info" onclick="toggleLegalInfoView()">
                         <div class="menu-item-icon icon-legal-info">
                             <i class="fa-solid fa-circle-info"></i>
@@ -646,6 +650,53 @@
 
 
 
+
+        <!-- FIRST-VISIT / APP-WIDE LANGUAGE SELECTION MODAL (BOTTOM-SHEET) -->
+        <div class="lang-modal-overlay" id="first-visit-lang-modal" aria-hidden="true" style="display: none;">
+            <div class="lang-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="lang-modal-heading">
+                <div class="lang-modal-handle"></div>
+                <div class="lang-modal-content">
+                    <div class="lang-modal-badge">
+                        <i class="fa-solid fa-language"></i>
+                    </div>
+                    <h2 class="lang-modal-heading" id="lang-modal-heading">Choose your language / अपनी भाषा चुनें</h2>
+                    <p class="lang-modal-desc">
+                        Select your preferred language for ordering.<br>
+                        <span class="lang-modal-desc-hi">ऑर्डर करने के लिए अपनी पसंदीदा भाषा चुनें।</span>
+                    </p>
+
+                    <div class="lang-options-grid">
+                        <!-- English Option Card -->
+                        <button type="button" class="lang-card-option" id="lang-opt-en" onclick="selectFirstVisitLanguage('en')" aria-label="Select English">
+                            <div class="lang-card-indicator">
+                                <span class="lang-card-letter">EN</span>
+                            </div>
+                            <div class="lang-card-info">
+                                <span class="lang-card-primary">English</span>
+                                <span class="lang-card-secondary">Default • English</span>
+                            </div>
+                            <div class="lang-card-check">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                        </button>
+
+                        <!-- Hindi Option Card -->
+                        <button type="button" class="lang-card-option" id="lang-opt-hi" onclick="selectFirstVisitLanguage('hi')" aria-label="Select Hindi">
+                            <div class="lang-card-indicator hi">
+                                <span class="lang-card-letter">हिं</span>
+                            </div>
+                            <div class="lang-card-info">
+                                <span class="lang-card-primary">हिंदी</span>
+                                <span class="lang-card-secondary">Hindi • देवनागरी</span>
+                            </div>
+                            <div class="lang-card-check">
+                                <i class="fa-solid fa-circle-check"></i>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- WHATSAPP DP STYLE LOGO POPUP MODAL -->
         <div class="logo-modal-overlay" id="logo-modal" aria-hidden="true">

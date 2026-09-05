@@ -82,6 +82,25 @@ window.onAppLanguageChanged = function (newLang) {
     if (typeof updateFloatingCartBar === 'function') {
         updateFloatingCartBar();
     }
+    // 7. Update Profile Language Pills & Subtitle
+    const pillEn = document.getElementById('profile-pill-en');
+    if (pillEn) pillEn.classList.toggle('active', newLang === 'en');
+    const pillHi = document.getElementById('profile-pill-hi');
+    if (pillHi) pillHi.classList.toggle('active', newLang === 'hi');
+    const profSub = document.getElementById('profile-lang-subtitle');
+    if (profSub) {
+        profSub.textContent = newLang === 'hi' ? 'हिंदी (सक्रिय)' : 'English (Active)';
+    }
+    // 8. Update Notice preview chip if using default
+    const noticePreview = document.getElementById('home-notice-chip-preview');
+    if (noticePreview) {
+        const rawSaved = localStorage.getItem('perfetto_store_notice');
+        if (!rawSaved || !rawSaved.trim()) {
+            noticePreview.textContent = newLang === 'hi'
+                ? 'स्टोर घोषणाएं और जानकारी देखने के लिए क्लिक करें'
+                : 'Click to view store announcements & info';
+        }
+    }
 };
 
 // Cart State & Persistence
@@ -8680,6 +8699,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initPhoneInputRestrictions();
     updateStoreNoticeUI();
     initStoreNoticeModal();
+    if (typeof initFirstVisitLanguageModal === 'function') {
+        initFirstVisitLanguageModal();
+    }
     // 1. Initial live menu & settings fetch
     fetchLiveMenuFromBackend();
     fetchLiveSettingsFromBackend();

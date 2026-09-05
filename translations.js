@@ -17,6 +17,9 @@
             search_placeholder: "Search pizza, burger, pasta...",
             customer_care: "Customer Care Support",
             shop_closed_banner: "This time shop is closed. We are not accepting orders right now.",
+            daily_offer: "DAILY OFFER",
+            change_language: "Language / भाषा",
+            choose_language_header: "Choose your language / अपनी भाषा चुनें",
 
             // Cards & Controls
             varieties_options: "Varieties & Options",
@@ -124,6 +127,9 @@
             search_placeholder: "पिज़्ज़ा, बर्गर, पास्ता खोजें...",
             customer_care: "कस्टमर केयर सपोर्ट",
             shop_closed_banner: "इस समय रेस्टोरेंट बंद है। अभी ऑर्डर स्वीकार नहीं किए जा रहे हैं।",
+            daily_offer: "दैनिक ऑफ़र",
+            change_language: "भाषा / Language",
+            choose_language_header: "अपनी भाषा चुनें / Choose your language",
 
             // Cards & Controls
             varieties_options: "वैरायटी और विकल्प",
@@ -543,9 +549,9 @@
         // Update html lang attribute
         document.documentElement.setAttribute('lang', lang);
 
-        // Update language toggle buttons in header
-        document.querySelectorAll('.lang-btn').forEach(btn => {
-            if (btn.getAttribute('data-lang') === lang || btn.id === `lang-btn-${lang}`) {
+        // Update language toggle buttons & profile inline pills
+        document.querySelectorAll('.lang-btn, .profile-lang-pill').forEach(btn => {
+            if (btn.getAttribute('data-lang') === lang || btn.id === `profile-pill-${lang}` || btn.id === `lang-btn-${lang}`) {
                 btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
@@ -605,6 +611,74 @@
         }
     }
 
+    /**
+     * Check local storage on application startup for a saved language preference key.
+     * If no language key is found (first visit or fresh device session),
+     * trigger initial selection modal before user interacts with the app.
+     */
+    function initFirstVisitLanguageModal() {
+        let savedLang = null;
+        try {
+            savedLang = localStorage.getItem(STORAGE_KEY);
+        } catch (e) { }
+
+        if (!savedLang || (savedLang !== 'en' && savedLang !== 'hi')) {
+            showFirstVisitLanguageModal();
+        }
+    }
+
+    function showFirstVisitLanguageModal() {
+        const modal = document.getElementById('first-visit-lang-modal');
+        if (!modal) return;
+
+        // Highlight current option if any
+        const optEn = document.getElementById('lang-opt-en');
+        const optHi = document.getElementById('lang-opt-hi');
+        if (optEn) optEn.classList.toggle('selected', currentLanguage === 'en');
+        if (optHi) optHi.classList.toggle('selected', currentLanguage === 'hi');
+
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('lang-modal-open');
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                modal.classList.add('active');
+            });
+        });
+    }
+
+    function selectFirstVisitLanguage(lang) {
+        if (lang !== 'en' && lang !== 'hi') lang = 'en';
+
+        // 1. Highlight clicked card visually
+        const optEn = document.getElementById('lang-opt-en');
+        const optHi = document.getElementById('lang-opt-hi');
+        if (optEn) optEn.classList.toggle('selected', lang === 'en');
+        if (optHi) optHi.classList.toggle('selected', lang === 'hi');
+
+        // 2. Save chosen value to local storage (permanent for this device)
+        try {
+            localStorage.setItem(STORAGE_KEY, lang);
+        } catch (e) {
+            console.warn('Unable to write language to localStorage:', e);
+        }
+
+        // 3. Apply selected language translations immediately across active screen
+        setAppLanguage(lang);
+
+        // 4. Dismiss modal with smooth exit animation
+        const modal = document.getElementById('first-visit-lang-modal');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.classList.remove('lang-modal-open');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                modal.setAttribute('aria-hidden', 'true');
+            }, 320);
+        }
+    }
+
     // Expose API globally
     window.TRANSLATIONS = TRANSLATIONS;
     window.CATEGORY_TRANSLATIONS = CATEGORY_TRANSLATIONS;
@@ -621,11 +695,19 @@
     window.perfettoTranslateCategory = tCategory;
     window.perfettoTranslateAddon = tAddon;
     window.applyAppLanguage = applyAppLanguage;
+    window.initFirstVisitLanguageModal = initFirstVisitLanguageModal;
+    window.showFirstVisitLanguageModal = showFirstVisitLanguageModal;
+    window.openLanguageSelectionModal = showFirstVisitLanguageModal;
+    window.selectFirstVisitLanguage = selectFirstVisitLanguage;
 
     // Auto initialize on DOMContentLoaded
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => applyAppLanguage(currentLanguage));
+        document.addEventListener('DOMContentLoaded', () => {
+            applyAppLanguage(currentLanguage);
+            initFirstVisitLanguageModal();
+        });
     } else {
         applyAppLanguage(currentLanguage);
+        initFirstVisitLanguageModal();
     }
 })();
