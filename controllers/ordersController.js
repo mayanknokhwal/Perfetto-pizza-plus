@@ -21,9 +21,14 @@ function isValidOrder(order) {
     return true;
 }
 
-async function fetchOrdersFromFirestore() {
+async function fetchOrdersFromFirestore(forceFresh = false) {
+    const now = Date.now();
+    if (!forceFresh && global.__perfettoOrdersList && global.__perfettoOrdersList.length > 0 && (now - (global.__lastOrdersFetchTime || 0) < 15000)) {
+        return global.__perfettoOrdersList.filter(isValidOrder);
+    }
+
     try {
-        const liveDocs = await listFirestoreCollection('orders', 100);
+        const liveDocs = await listFirestoreCollection('orders', 100, forceFresh);
         if (Array.isArray(liveDocs) && liveDocs.length > 0) {
             // Merge live docs with in-memory store
             const mergedMap = new Map();
@@ -58,6 +63,7 @@ async function fetchOrdersFromFirestore() {
                 const tb = new Date(b.createdAt || 0).getTime();
                 return tb - ta;
             });
+            global.__lastOrdersFetchTime = Date.now();
         }
     } catch (e) {
         console.warn('Firestore orders read note:', e.message);
@@ -250,6 +256,7 @@ async function handleOrdersRequest(req, res) {
             // Persist to Firestore
             try {
                 await setFirestoreDoc('orders', String(finalOrderId), orderDoc);
+                global.__lastOrdersFetchTime = 0;
             } catch (err) {
                 console.error('CRITICAL: Firestore order create sync error:', err.message);
             }
@@ -487,6 +494,7 @@ async function handleOrdersRequest(req, res) {
             // Persist to Firestore
             try {
                 await setFirestoreDoc('orders', targetId, targetOrder);
+                global.__lastOrdersFetchTime = 0;
             } catch (fsErr) {
                 console.warn('Firestore PATCH status update notice:', fsErr.message);
             }
@@ -564,6 +572,7 @@ async function handleOrdersRequest(req, res) {
             // Remove from Firestore
             try {
                 await deleteFirestoreDoc('orders', targetId);
+                global.__lastOrdersFetchTime = 0;
             } catch (delErr) {
                 console.warn('Firestore order deletion warning:', delErr.message);
             }

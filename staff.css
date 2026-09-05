@@ -81,7 +81,7 @@ body {
    ========================================================================== */
 .staff-app {
     width: 100%;
-    max-width: 1080px;
+    max-width: 1920px;
     margin: 0 auto;
     background-color: var(--bg-body);
     min-height: 100vh;
@@ -517,15 +517,32 @@ body {
 .orders-cards-container {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 14px;
     width: 100%;
     align-items: stretch;
 }
 
-@media (min-width: 680px) {
+/* Tablet / Compact Kitchen Screens */
+@media (min-width: 768px) {
     .orders-cards-container {
         grid-template-columns: repeat(2, 1fr);
         gap: 18px;
+    }
+}
+
+/* Desktop / Standard Kitchen Display Screens (KDS) */
+@media (min-width: 1200px) {
+    .orders-cards-container {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+}
+
+/* Ultra-wide / Large Kitchen Monitors (1600px+) */
+@media (min-width: 1600px) {
+    .orders-cards-container {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 24px;
     }
 }
 
@@ -542,6 +559,38 @@ body {
     display: flex;
     flex-direction: column;
     height: 100%;
+}
+
+/* HIGH-VISIBILITY KITCHEN STATUS ALERTS */
+.order-card[data-status="new"] {
+    border: 1.5px solid var(--primary-orange);
+    box-shadow: 0 0 18px rgba(255, 107, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.5);
+    animation: orderNewPulse 2s infinite ease-in-out;
+}
+
+@keyframes orderNewPulse {
+    0%, 100% {
+        border-color: rgba(255, 107, 0, 0.45);
+        box-shadow: 0 0 12px rgba(255, 107, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    50% {
+        border-color: rgba(255, 107, 0, 0.95);
+        box-shadow: 0 0 24px rgba(255, 107, 0, 0.45), 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+}
+
+.order-card[data-status="preparing"] {
+    border: 1.5px solid rgba(56, 189, 248, 0.45);
+}
+
+.order-card[data-status="ready"],
+.order-card[data-status="delivery"] {
+    border: 1.5px solid rgba(34, 197, 94, 0.45);
+}
+
+.order-card[data-status="rejected"] {
+    border: 1.5px solid rgba(239, 68, 68, 0.35);
+    opacity: 0.75;
 }
 
 .order-card:active {
@@ -1034,6 +1083,17 @@ body {
     gap: 8px;
     align-items: stretch;
     width: 100%;
+}
+
+@media (max-width: 380px) {
+    .staff-otp-input-group {
+        flex-direction: column;
+        gap: 8px;
+    }
+    .btn-verify-delivery {
+        width: 100%;
+        min-height: 48px;
+    }
 }
 
 .staff-otp-input {
@@ -1618,6 +1678,50 @@ body {
 }
 
 
+/* KITCHEN AUDIO TOGGLE & HEADER ACTIONS */
+.header-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-staff-audio-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #22c55e;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.btn-staff-audio-toggle:hover {
+    background: rgba(34, 197, 94, 0.24);
+    border-color: #22c55e;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+}
+
+.btn-staff-audio-toggle.is-muted {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+
+.btn-staff-audio-toggle.is-muted:hover {
+    background: rgba(239, 68, 68, 0.24);
+    border-color: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
 .btn-staff-lock {
     display: inline-flex;
     align-items: center;
@@ -1637,6 +1741,37 @@ body {
     background: rgba(239, 68, 68, 0.25);
     border-color: #ef4444;
     color: #ffffff;
+}
+
+/* DESKTOP / TABLET KITCHEN DISPLAY PADDING SCALING */
+@media (min-width: 768px) {
+    .staff-main {
+        padding: 20px 24px;
+    }
+    .header-top {
+        padding: 14px 24px;
+    }
+    .role-bar {
+        padding: 10px 24px;
+    }
+    .staff-tabs-nav {
+        padding: 8px 24px 12px 24px;
+    }
+}
+
+@media (min-width: 1200px) {
+    .staff-main {
+        padding: 24px 36px;
+    }
+    .header-top {
+        padding: 16px 36px;
+    }
+    .role-bar {
+        padding: 10px 36px;
+    }
+    .staff-tabs-nav {
+        padding: 10px 36px 14px 36px;
+    }
 }
 
 .invalid-field {

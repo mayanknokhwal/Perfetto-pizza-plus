@@ -344,6 +344,17 @@ function getPizzaSizeAddonRates(size = 'M') {
     return defaults[size] || { extraCheese: 50, extraSpicy: 0, extraMayo: 30 };
 }
 
+function getAddonLabelText() {
+    if (typeof t === 'function') {
+        const val = t('addons_label_html');
+        if (val) return val;
+    }
+    if (typeof getLanguage === 'function' && getLanguage() === 'hi') {
+        return 'ऐड-<br>ऑन्स:';
+    }
+    return 'ADD-<br>ONS:';
+}
+
 // --------------------------------------------------------------------------
 // INLINE CARD ADD-ON EMOJI SELECTORS (S/M/L BADGE STYLE) & DYNAMIC PRICING
 // --------------------------------------------------------------------------
@@ -609,13 +620,6 @@ function setStoredPhoneVerified(phone, isVerified = true) {
                 profile.isVerified = true;
                 safeStorage.setJSON(DELIVERY_PROFILE_KEY, profile);
             }
-
-            // Immediately restore permanent wallet balance & order history for verified phone
-            setTimeout(() => {
-                if (typeof restoreUserProfileFromFirestore === 'function') {
-                    restoreUserProfileFromFirestore(cleanPhone, { silent: true });
-                }
-            }, 50);
         } else {
             safeStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             safeSessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
@@ -1825,7 +1829,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const addonsMarkup = isAvailable ? `
                         <div class="burger-addon-selector pizza-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="burger-addon-options">
                                 <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                                     🧀
@@ -1893,7 +1897,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="burger-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="burger-addon-options">
                                 <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                     🧀
@@ -1951,7 +1955,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="bread-addon-selector burger-addon-selector">
-                            <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label bread-addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="bread-addon-options burger-addon-options">
                                 <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
                                     🧀
@@ -2009,7 +2013,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="sandwich-addon-selector burger-addon-selector">
-                            <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label sandwich-addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="sandwich-addon-options burger-addon-options">
                                 <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
                                     🧀
@@ -2067,7 +2071,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="momos-addon-selector burger-addon-selector">
-                            <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label momos-addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="momos-addon-options burger-addon-options">
                                 <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
                                     🧀
@@ -2125,7 +2129,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="pasta-addon-selector burger-addon-selector">
-                            <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label pasta-addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="pasta-addon-options burger-addon-options">
                                 <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
                                     🧀
@@ -2183,7 +2187,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="chinese-addon-selector burger-addon-selector">
-                            <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label chinese-addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="chinese-addon-options burger-addon-options">
                                 <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
                                     🧀
@@ -2236,7 +2240,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="shake-addon-selector burger-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="shake-addon-options">
                                 <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
                                     🍨 With Ice Cream
@@ -2346,7 +2350,7 @@ function refreshActiveCustomerView(freshItems) {
 
                     const boxesMarkup = isAvailable ? `
                         <div class="noodles-addon-selector burger-addon-selector">
-                            <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>ONS:</div>
+                            <div class="addon-label noodles-addon-label burger-addon-label">${getAddonLabelText()}</div>
                             <div class="noodles-addon-options burger-addon-options">
                                 <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
                                     🧀
@@ -2700,22 +2704,10 @@ async function fetchLiveSettingsFromBackend() {
 }
 
 async function fetchLiveBannersFromBackend() {
-    if (typeof customerFirestore !== 'undefined' && customerFirestore) {
-        try {
-            const doc = await customerFirestore.collection('settings').doc('daily_banners').get();
-            if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                const normalized = doc.data().banners.slice(0, 4).map((b, i) => ({
-                    id: b.id || `b${i + 1}`,
-                    url: resolveBannerUrl(b.url),
-                    enabled: b.enabled !== false
-                }));
-                localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
-                renderDynamicOfferSlider(normalized);
-                return;
-            }
-        } catch (e) {
-            console.warn('Direct Firestore daily banners fetch notice:', e.message);
-        }
+    // If real-time snapshot listener is already active, banners are pushed live automatically.
+    // Skip redundant direct Firestore read to avoid read amplification.
+    if (typeof bannersRealtimeUnsubscribe === 'function' && bannersRealtimeUnsubscribe) {
+        return;
     }
 
     try {
@@ -2966,7 +2958,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const addonsMarkup = isAvailable ? `
                     <div class="burger-addon-selector pizza-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="burger-addon-options">
                             <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                                 🧀
@@ -3034,7 +3026,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="burger-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="burger-addon-options">
                             <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
                                 🧀
@@ -3092,7 +3084,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="bread-addon-selector burger-addon-selector">
-                        <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label bread-addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="bread-addon-options burger-addon-options">
                             <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
                                 🧀
@@ -3150,7 +3142,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="sandwich-addon-selector burger-addon-selector">
-                        <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label sandwich-addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="sandwich-addon-options burger-addon-options">
                             <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
                                 🧀
@@ -3208,7 +3200,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="momos-addon-selector burger-addon-selector">
-                        <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label momos-addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="momos-addon-options burger-addon-options">
                             <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
                                 🧀
@@ -3266,7 +3258,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="pasta-addon-selector burger-addon-selector">
-                        <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label pasta-addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="pasta-addon-options burger-addon-options">
                             <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
                                 🧀
@@ -3324,7 +3316,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="chinese-addon-selector burger-addon-selector">
-                        <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label chinese-addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="chinese-addon-options burger-addon-options">
                             <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
                                 🧀
@@ -3377,7 +3369,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="shake-addon-selector burger-addon-selector">
-                        <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="shake-addon-options">
                             <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="${typeof tAddon === 'function' ? tAddon('With Ice Cream') : 'With Ice Cream'} (+₹${iceCreamPrice})">
                                 🍨 ${typeof tAddon === 'function' ? tAddon('With Ice Cream') : 'With Ice Cream'}
@@ -3487,7 +3479,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
                 const boxesMarkup = isAvailable ? `
                     <div class="noodles-addon-selector burger-addon-selector">
-                        <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                        <div class="addon-label noodles-addon-label burger-addon-label">${getAddonLabelText()}</div>
                         <div class="noodles-addon-options burger-addon-options">
                             <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
                                 🧀
@@ -8536,12 +8528,36 @@ async function syncProfileToFirestoreBackend(profile) {
     }
 }
 
+// Re-entrancy mutex and per-identifier throttle cache to prevent infinite loops and runaway reads
+let isRestoringUserProfile = false;
+const lastProfileRestoreTimestamps = new Map();
+const PROFILE_RESTORE_MIN_INTERVAL_MS = 25000;
+
 // Cross-Device Profile, Address, Wallet Balance & Order History Automatic Retrieval
 async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
     if (!emailOrPhone) return null;
     const identifier = String(emailOrPhone).trim();
     const isEmail = identifier.includes('@');
     const cleanPhone = isEmail ? '' : identifier.replace(/[^0-9]/g, '').slice(-10);
+    if (!isEmail && cleanPhone.length !== 10) return null;
+
+    const cacheKey = isEmail ? identifier.toLowerCase() : cleanPhone;
+    const now = Date.now();
+    const lastRestore = lastProfileRestoreTimestamps.get(cacheKey) || 0;
+
+    // Throttle guard: Skip if restored within last 25s unless explicitly forced
+    if (!options.force && (now - lastRestore < PROFILE_RESTORE_MIN_INTERVAL_MS)) {
+        return null;
+    }
+
+    // Re-entrancy guard: Skip if already running to prevent recursive ping-pong loops
+    if (isRestoringUserProfile) {
+        return null;
+    }
+
+    isRestoringUserProfile = true;
+    lastProfileRestoreTimestamps.set(cacheKey, now);
+
     const param = isEmail ? `email=${encodeURIComponent(identifier.toLowerCase())}` : `phone=${encodeURIComponent(cleanPhone)}`;
 
     try {
@@ -8601,7 +8617,10 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             try {
                 localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(restoredProfile));
                 if (isVerified && restoredProfile.phone) {
-                    setStoredPhoneVerified(restoredProfile.phone, true);
+                    const currentStored = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : '';
+                    if (currentStored !== restoredProfile.phone) {
+                        setStoredPhoneVerified(restoredProfile.phone, true);
+                    }
                 }
             } catch (e) { }
 
@@ -8700,6 +8719,8 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
         }
     } catch (err) {
         console.warn('Cross-device profile lookup notice:', err.message);
+    } finally {
+        isRestoringUserProfile = false;
     }
     return null;
 }
@@ -10000,7 +10021,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
 
             const addonsMarkup = isAvailable ? `
                 <div class="burger-addon-selector pizza-addon-selector">
-                    <div class="addon-label burger-addon-label">ADD-<br>${typeof t === 'function' ? t('addons_label').replace(/^.*?-/, '') : 'ONS:'}</div>
+                    <div class="addon-label burger-addon-label">${getAddonLabelText()}</div>
                     <div class="burger-addon-options">
                         <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="${typeof tAddon === 'function' ? tAddon('Extra Cheese') : 'Extra Cheese'} (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
                             🧀
@@ -10764,9 +10785,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
     window.restoreCustomerFullProfileAndWallet = restoreUserProfileFromFirestore;
 
-    // 2. Real-Time Background Polling (Every 3.5s for instant multi-device synchronization)
-    const menuIntervalId = setInterval(fetchLiveMenuFromBackend, 3500);
-    const settingsIntervalId = setInterval(fetchLiveSettingsFromBackend, 5000);
+    // 2. Real-Time Background Polling Fallback (Every 60s as backup to real-time snapshot listeners)
+    if (customerMenuPollerInterval) clearInterval(customerMenuPollerInterval);
+    customerMenuPollerInterval = setInterval(fetchLiveMenuFromBackend, 60000);
+
+    if (customerSettingsPollerInterval) clearInterval(customerSettingsPollerInterval);
+    customerSettingsPollerInterval = setInterval(fetchLiveSettingsFromBackend, 60000);
 
     // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
     document.addEventListener('visibilitychange', () => {
@@ -10781,11 +10805,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+let customerMenuPollerInterval = null;
+let customerSettingsPollerInterval = null;
+
 // --------------------------------------------------------------------------
 // 12. CLEANUP & MEMORY LEAK PREVENTION (PAGE UNMOUNT / REFRESH)
 // --------------------------------------------------------------------------
 function cleanupAllCustomerListeners() {
     try {
+        if (customerMenuPollerInterval) {
+            clearInterval(customerMenuPollerInterval);
+            customerMenuPollerInterval = null;
+        }
+        if (customerSettingsPollerInterval) {
+            clearInterval(customerSettingsPollerInterval);
+            customerSettingsPollerInterval = null;
+        }
         if (typeof menuRealtimeUnsubscribe === 'function') {
             menuRealtimeUnsubscribe();
             menuRealtimeUnsubscribe = null;
@@ -10798,9 +10833,21 @@ function cleanupAllCustomerListeners() {
             settingsRealtimeUnsubscribe();
             settingsRealtimeUnsubscribe = null;
         }
+        if (typeof bannersRealtimeUnsubscribe === 'function') {
+            bannersRealtimeUnsubscribe();
+            bannersRealtimeUnsubscribe = null;
+        }
+        if (typeof walletConfigRealtimeUnsubscribe === 'function') {
+            walletConfigRealtimeUnsubscribe();
+            walletConfigRealtimeUnsubscribe = null;
+        }
         if (typeof storeNoticeRealtimeUnsubscribe === 'function') {
             storeNoticeRealtimeUnsubscribe();
             storeNoticeRealtimeUnsubscribe = null;
+        }
+        if (typeof customerWalletRealtimeUnsubscribe === 'function') {
+            customerWalletRealtimeUnsubscribe();
+            customerWalletRealtimeUnsubscribe = null;
         }
         if (customerOrdersUnsubscribeMap && customerOrdersUnsubscribeMap.size > 0) {
             customerOrdersUnsubscribeMap.forEach((unsub) => {

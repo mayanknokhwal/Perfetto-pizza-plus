@@ -134,7 +134,7 @@
             color: var(--text-main);
             display: flex;
             min-height: 100vh;
-            min-width: 1200px;
+            min-width: 1024px;
             overflow-x: auto;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -285,6 +285,105 @@
 
         .sidebar-menu a.nav-link.active i {
             color: #ffffff;
+        }
+
+        /* DOCKED SIDEBAR BOTTOM STATUS WIDGET */
+        .sidebar-dock-bottom {
+            padding: 16px;
+            margin-top: auto;
+            border-top: 1px solid var(--border-color);
+            background: rgba(10, 15, 29, 0.75);
+            backdrop-filter: blur(12px);
+        }
+
+        .sidebar-dock-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+            transition: var(--transition-smooth);
+        }
+
+        .sidebar-dock-card:hover {
+            background: rgba(255, 255, 255, 0.045);
+            border-color: rgba(255, 107, 0, 0.25);
+        }
+
+        .dock-sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .dock-pulse-beacon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+            display: inline-block;
+            animation: dockPulseBeacon 2s infinite ease-in-out;
+        }
+
+        @keyframes dockPulseBeacon {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+                box-shadow: 0 0 8px #10b981;
+            }
+            50% {
+                transform: scale(1.3);
+                opacity: 0.7;
+                box-shadow: 0 0 16px #10b981;
+            }
+        }
+
+        .dock-store-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 6px;
+            background: rgba(16, 185, 129, 0.12);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            width: fit-content;
+            transition: var(--transition-smooth);
+        }
+
+        .dock-store-chip.status-closed {
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+
+        .dock-meta-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.68rem;
+            color: var(--text-subtle);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .dock-meta-info .dock-security {
+            color: #3b82f6;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .admin-wrapper {
@@ -1062,21 +1161,52 @@
             width: 100%;
             border-collapse: collapse;
             text-align: left;
+            table-layout: fixed;
         }
 
         .data-table th {
-            background-color: rgba(10, 15, 29, 0.7);
+            background-color: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(12px);
             color: var(--text-muted);
             font-size: 0.78rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-weight: 800;
-            padding: 16px 24px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .data-table th:nth-child(1),
+        .data-table td:nth-child(1) {
+            width: 78px;
+            text-align: center;
+            padding: 14px 12px;
+        }
+
+        .data-table th:nth-child(2),
+        .data-table td:nth-child(2) {
+            width: 38%;
+            padding: 14px 18px;
+        }
+
+        .data-table th:nth-child(3),
+        .data-table td:nth-child(3) {
+            width: 42%;
+            padding: 14px 18px;
+        }
+
+        .data-table th:nth-child(4),
+        .data-table td:nth-child(4) {
+            width: 16%;
+            text-align: center;
+            padding: 14px 16px;
         }
 
         .data-table td {
-            padding: 18px 24px;
+            padding: 16px 20px;
             border-bottom: 1px solid var(--border-color);
             vertical-align: middle;
             font-size: 0.92rem;
@@ -1087,7 +1217,7 @@
         }
 
         .data-table tbody tr:hover {
-            background-color: rgba(255, 255, 255, 0.025);
+            background-color: rgba(255, 255, 255, 0.035);
         }
 
         .item-thumb {
@@ -1683,11 +1813,11 @@
         .banner-row-item {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 12px;
             background: rgba(255, 255, 255, 0.025);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: var(--radius-lg);
-            padding: 12px 18px;
+            padding: 10px 14px;
             transition: all 0.22s ease;
         }
 
@@ -1712,19 +1842,19 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 5px;
-            min-width: 60px;
+            gap: 4px;
+            min-width: 52px;
         }
 
         .banner-toggle-switch {
-            width: 44px;
-            height: 24px;
+            width: 42px;
+            height: 22px;
             margin: 0;
         }
 
         .banner-toggle-switch .slider:before {
-            height: 18px;
-            width: 18px;
+            height: 16px;
+            width: 16px;
             left: 3px;
             bottom: 3px;
         }
@@ -1753,22 +1883,22 @@
         }
 
         .banner-num-pill {
-            font-size: 0.8rem;
+            font-size: 0.76rem;
             font-weight: 800;
             color: var(--primary-orange);
             background: rgba(255, 107, 0, 0.1);
             border: 1px solid rgba(255, 107, 0, 0.2);
-            padding: 4px 10px;
+            padding: 4px 8px;
             border-radius: 6px;
-            min-width: 65px;
+            min-width: 56px;
             text-align: center;
             display: inline-block;
         }
 
         .banner-thumbnail-box {
-            width: 100px;
-            height: 56px;
-            min-width: 100px;
+            width: 88px;
+            height: 50px;
+            min-width: 88px;
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1793,7 +1923,7 @@
 
         .banner-input-wrapper {
             flex: 1;
-            min-width: 220px;
+            min-width: 160px;
         }
 
         .banner-input-wrapper .search-box {
@@ -2921,12 +3051,71 @@
         }
 
         /* --------------------------------------------------------------------------
-           15. HIGH-DENSITY RESPONSIVE WIDESCREEN ARCHITECTURE (1280px to 4K)
+           15. HIGH-DENSITY RESPONSIVE WIDESCREEN ARCHITECTURE (1024px to 4K)
            -------------------------------------------------------------------------- */
-        @media (min-width: 1400px) {
+        .dashboard-widescreen-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .team-widescreen-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        @media (min-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+            .category-grid {
+                grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            }
+        }
+
+        @media (min-width: 1200px) {
             .stats-grid {
                 grid-template-columns: repeat(4, 1fr);
+                gap: 22px;
             }
+
+            .dashboard-widescreen-grid {
+                display: grid;
+                grid-template-columns: minmax(0, 1.14fr) minmax(0, 0.86fr);
+                gap: 28px;
+                align-items: start;
+            }
+
+            .dashboard-col-left,
+            .dashboard-col-right {
+                display: flex;
+                flex-direction: column;
+                gap: 28px;
+                min-width: 0;
+            }
+
+            .dashboard-col-left .store-settings-card,
+            .dashboard-col-right .store-settings-card {
+                margin-top: 0 !important;
+            }
+
+            .team-widescreen-grid {
+                display: grid;
+                grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+                gap: 28px;
+                align-items: start;
+            }
+
+            .team-col-main,
+            .team-col-side {
+                display: flex;
+                flex-direction: column;
+                gap: 28px;
+                min-width: 0;
+            }
+
             .category-grid {
                 grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
             }
@@ -2934,7 +3123,32 @@
                 grid-template-columns: repeat(6, 1fr);
             }
             .store-settings-grid {
-                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            }
+        }
+
+        @media (min-width: 1600px) {
+            .content-area {
+                padding: 36px 48px;
+                max-width: 2560px;
+            }
+
+            .dashboard-widescreen-grid {
+                grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+                gap: 32px;
+            }
+
+            .category-grid {
+                grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+                gap: 24px;
+            }
+
+            .stat-card {
+                padding: 24px 28px;
+            }
+
+            .stat-info .stat-value {
+                font-size: 2.1rem;
             }
         }
 
@@ -2942,15 +3156,18 @@
             .content-area {
                 padding: 40px 56px;
             }
+            .dashboard-widescreen-grid {
+                gap: 36px;
+            }
             .category-grid {
-                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
                 gap: 28px;
             }
             .stat-card {
                 padding: 26px 30px;
             }
             .stat-info .stat-value {
-                font-size: 2.15rem;
+                font-size: 2.25rem;
             }
             .store-settings-card {
                 padding: 34px 40px;
@@ -3214,6 +3431,24 @@
                 </a>
             </li>
         </ul>
+
+        <!-- DOCKED SIDEBAR BOTTOM STATUS WIDGET -->
+        <div class="sidebar-dock-bottom">
+            <div class="sidebar-dock-card">
+                <div class="dock-sync-status">
+                    <span class="dock-pulse-beacon"></span>
+                    <span class="dock-sync-text">Cloud Sync: Active</span>
+                </div>
+                <div class="dock-store-chip" id="sidebar-dock-store-status">
+                    <i class="fa-solid fa-signal"></i>
+                    <span id="sidebar-dock-store-text">Store Online</span>
+                </div>
+                <div class="dock-meta-info">
+                    <span class="dock-version">v2.4.0 • Enterprise</span>
+                    <span class="dock-security"><i class="fa-solid fa-shield-halved"></i> Secured</span>
+                </div>
+            </div>
+        </div>
     </aside>
 
     <!-- 2. MAIN LAYOUT & HEADER -->
@@ -3307,8 +3542,13 @@
                             <i class="fa-solid fa-circle-xmark"></i>
                         </div>
                     </div>
-                </div> <!-- STORE SETTINGS & SUPPORT CONFIGURATION CARD -->
-                <div class="store-settings-card">
+                </div>
+
+                <!-- WIDESCREEN MULTI-COLUMN DASHBOARD GRID -->
+                <div class="dashboard-widescreen-grid">
+                    <div class="dashboard-col-left">
+                        <!-- STORE SETTINGS & SUPPORT CONFIGURATION CARD -->
+                        <div class="store-settings-card" id="admin-main-store-card">
                     <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
                         <div>
                             <h3>
@@ -3643,7 +3883,9 @@
                         </div>
                     </div>
                 </div>
+            </div> <!-- END DASHBOARD-COL-LEFT -->
 
+            <div class="dashboard-col-right">
                 <!-- DAILY BANNERS MANAGEMENT CARD (FIXED 4 SLOTS) -->
                 <div class="store-settings-card daily-banners-management-card" id="admin-daily-banners-card">
                     <div class="store-settings-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px;">
@@ -3972,7 +4214,9 @@
                         </button>
                     </div>
                 </div>
-            </section>
+            </div> <!-- END DASHBOARD-COL-RIGHT -->
+        </div> <!-- END DASHBOARD-WIDESCREEN-GRID -->
+    </section>
 
             <!-- TAB 2: MENU MANAGEMENT -->
             <section class="view-panel active" id="panel-menu">
@@ -4239,87 +4483,73 @@
 
             <!-- TAB 4: TEAM & ROLE MANAGEMENT SCREEN -->
             <section class="view-panel" id="panel-team">
-                <div style="display: flex; flex-direction: column; gap: 28px;">
-
-                    <!-- SECTION 1: PENDING ACCESS REQUESTS -->
-                    <div
-                        style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
-                            <div>
-                                <h3
-                                    style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
-                                    <i class="fa-solid fa-user-clock" style="color: #f59e0b; margin-right: 10px;"></i>
-                                    Pending Access Requests
-                                    <span id="team-pending-badge" class="badge-counter"
-                                        style="background: #f59e0b;">0</span>
-                                </h3>
-                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Review staff
-                                    sign-in requests, assign authorized roles, and grant admin access.</p>
+                <div class="team-widescreen-grid">
+                    <div class="team-col-main">
+                        <!-- SECTION 2: ACTIVE TEAM MEMBERS -->
+                        <div style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color); height: 100%;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                                <div>
+                                    <h3 style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
+                                        <i class="fa-solid fa-users-gear" style="color: var(--primary-orange); margin-right: 10px;"></i>
+                                        Active Team Members
+                                        <span id="team-active-badge" class="badge-counter" style="background: var(--accent-green);">0</span>
+                                    </h3>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Staff and management members currently approved with dashboard access.</p>
+                                </div>
                             </div>
-                        </div>
 
-                        <div id="pending-requests-container" class="table-container">
-                            <div class="empty-team-state">
-                                <i class="fa-solid fa-circle-check"></i>
-                                <p>No pending access requests at the moment.</p>
+                            <div id="active-members-container" class="table-container">
+                                <div class="empty-team-state">
+                                    <i class="fa-solid fa-users"></i>
+                                    <p>Loading active team members...</p>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- SECTION 2: ACTIVE TEAM MEMBERS -->
-                    <div
-                        style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
-                            <div>
-                                <h3
-                                    style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
-                                    <i class="fa-solid fa-users-gear"
-                                        style="color: var(--primary-orange); margin-right: 10px;"></i>
-                                    Active Team Members
-                                    <span id="team-active-badge" class="badge-counter"
-                                        style="background: var(--accent-green);">0</span>
-                                </h3>
-                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Staff and
-                                    management members currently approved with dashboard access.</p>
+                    <div class="team-col-side">
+                        <!-- SECTION 1: PENDING ACCESS REQUESTS -->
+                        <div style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                                <div>
+                                    <h3 style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
+                                        <i class="fa-solid fa-user-clock" style="color: #f59e0b; margin-right: 10px;"></i>
+                                        Pending Access Requests
+                                        <span id="team-pending-badge" class="badge-counter" style="background: #f59e0b;">0</span>
+                                    </h3>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Review staff sign-in requests, assign authorized roles, and grant admin access.</p>
+                                </div>
+                            </div>
+
+                            <div id="pending-requests-container" class="table-container">
+                                <div class="empty-team-state">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <p>No pending access requests at the moment.</p>
+                                </div>
                             </div>
                         </div>
 
-                        <div id="active-members-container" class="table-container">
-                            <div class="empty-team-state">
-                                <i class="fa-solid fa-users"></i>
-                                <p>Loading active team members...</p>
+                        <!-- SECTION 3: BLOCKED NUMBERS -->
+                        <div style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                                <div>
+                                    <h3 style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
+                                        <i class="fa-solid fa-ban" style="color: #ef4444; margin-right: 10px;"></i>
+                                        Blocked Numbers
+                                        <span id="team-blocked-badge" class="badge-counter" style="background: #ef4444;">0</span>
+                                    </h3>
+                                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Users permanently barred from accessing the Admin or Staff panels. Unblocking purges their record and allows new access requests.</p>
+                                </div>
                             </div>
-                        </div>
-                    </div>
 
-                    <!-- SECTION 3: BLOCKED NUMBERS -->
-                    <div
-                        style="background-color: var(--bg-card); padding: 26px 30px; border-radius: var(--radius-lg); border: 1px solid var(--border-color);">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
-                            <div>
-                                <h3
-                                    style="font-family: var(--font-heading); font-size: 1.2rem; display: flex; align-items: center;">
-                                    <i class="fa-solid fa-ban"
-                                        style="color: #ef4444; margin-right: 10px;"></i>
-                                    Blocked Numbers
-                                    <span id="team-blocked-badge" class="badge-counter"
-                                        style="background: #ef4444;">0</span>
-                                </h3>
-                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Users permanently barred from accessing the Admin or Staff panels. Unblocking purges their record and allows new access requests.</p>
-                            </div>
-                        </div>
-
-                        <div id="blocked-numbers-container" class="table-container">
-                            <div class="empty-team-state">
-                                <i class="fa-solid fa-shield-check" style="color: var(--accent-green);"></i>
-                                <p>No blocked phone numbers.</p>
+                            <div id="blocked-numbers-container" class="table-container">
+                                <div class="empty-team-state">
+                                    <i class="fa-solid fa-shield-check" style="color: var(--accent-green);"></i>
+                                    <p>No blocked phone numbers.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-
                 </div>
             </section>
 
@@ -6266,6 +6496,19 @@
                 btn.className = 'btn-shop-status status-open';
                 textEl.textContent = 'Shop Status: OPEN';
                 iconEl.className = 'fa-solid fa-store';
+            }
+
+            // Synchronize Sidebar Dock Live Status Widget
+            const dockText = document.getElementById('sidebar-dock-store-text');
+            const dockChip = document.getElementById('sidebar-dock-store-status');
+            if (dockText && dockChip) {
+                if (status === 'closed') {
+                    dockText.textContent = 'Store Offline';
+                    dockChip.className = 'dock-store-chip status-closed';
+                } else {
+                    dockText.textContent = 'Store Online';
+                    dockChip.className = 'dock-store-chip status-open';
+                }
             }
         }
 
@@ -9340,7 +9583,7 @@
                 }
             }
 
-            // 2. High-frequency polling backup (every 3 seconds) for instant cross-tab / offline response
+            // 2. Background polling fallback (every 60s) for offline recovery
             activeAdminSessionPoller = setInterval(async () => {
                 try {
                     const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
@@ -9349,7 +9592,7 @@
                         handleInstantBlockedLockdown(data.user?.fullName || 'User', clean);
                     }
                 } catch (e) { }
-            }, 3000);
+            }, 60000);
         }
 
         function handleInstantBlockedLockdown(userName, userPhone) {
@@ -9646,8 +9889,8 @@
             // 1. Start real-time Firestore listener immediately for instant reactive updates
             listenToAdminTeamRealtime();
 
-            // 2. Direct Firestore Fetch for instant initial display (Guarantees 0ms latency & zero 404s)
-            if (adminFirestore) {
+            // 2. Direct Firestore Fetch only if real-time listener is not available
+            if (adminFirestore && !adminTeamUnsubscribe) {
                 try {
                     const snapshot = await adminFirestore.collection('team').get();
                     if (!snapshot.empty) {
@@ -10869,9 +11112,9 @@
             fetchAdminOrdersFromBackend();
             cleanupOldActivityLogs();
 
-            // Set lightweight polling interval to refresh revenue and orders every 5 seconds
+            // Set background fallback polling interval to refresh revenue and orders (30 seconds)
             if (adminOrdersPollerInterval) clearInterval(adminOrdersPollerInterval);
-            adminOrdersPollerInterval = setInterval(fetchAdminOrdersFromBackend, 5000);
+            adminOrdersPollerInterval = setInterval(fetchAdminOrdersFromBackend, 30000);
 
             // Periodically evaluate Auto-Schedule & Shop Status every 10 seconds
             if (adminAutoScheduleInterval) clearInterval(adminAutoScheduleInterval);

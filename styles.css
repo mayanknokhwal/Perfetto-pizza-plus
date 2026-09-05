@@ -41,7 +41,8 @@
     --border-color: #e2e8f0;
     --border-hover: #cbd5e1;
 
-    --card-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+    --card-hover-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.14), 0 4px 10px -2px rgba(15, 23, 42, 0.06);
     --img-shadow: 0 10px 20px rgba(0, 0, 0, 0.06);
     --header-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     --bottom-nav-shadow: 0 -4px 25px rgba(0, 0, 0, 0.08);
@@ -65,10 +66,11 @@
     --text-muted: #94a3b8;
     --text-inverse: #0f172a;
 
-    --border-color: #273146;
-    --border-hover: #3b4966;
+    --border-color: rgba(255, 255, 255, 0.09);
+    --border-hover: rgba(255, 255, 255, 0.18);
 
-    --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    --card-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --card-hover-shadow: 0 14px 34px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.1);
     --img-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
     --header-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     --bottom-nav-shadow: 0 -6px 30px rgba(0, 0, 0, 0.6);
@@ -87,6 +89,8 @@
 html,
 body {
     width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
     min-height: 100vh;
     background-color: var(--bg-page);
     color: var(--text-main);
@@ -97,6 +101,8 @@ body {
     -webkit-font-smoothing: antialiased;
     /* Smooth theme transition */
     transition: background-color 0.35s ease, color 0.35s ease;
+    touch-action: pan-y pinch-zoom;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* Force Bold Fonts on Headings, Inputs, and Buttons */
@@ -960,7 +966,7 @@ body.shop-closed .checkout-btn {
     flex: 1;
     width: 100%;
     padding: 16px 16px;
-    padding-bottom: max(148px, calc(136px + env(safe-area-inset-bottom, 12px)));
+    padding-bottom: max(156px, calc(142px + env(safe-area-inset-bottom, 16px)));
     /* Safe clearance so bottom row product buttons rest smoothly above fixed bottom nav and floating cart bar */
     overflow: visible;
     box-sizing: border-box;
@@ -1029,9 +1035,10 @@ body.shop-closed .checkout-btn {
 /* Responsive CSS Grid: 2 Columns for Mobile View */
 .fast-food-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 /* Full-Bleed Taller Landscape Style Category Card (3:2 Aspect Ratio) */
@@ -1368,6 +1375,16 @@ body.shop-closed .checkout-btn {
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
     touch-action: manipulation;
     user-select: none;
+    position: relative;
+}
+
+.qty-btn::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    bottom: -6px;
+    left: -6px;
+    right: -6px;
 }
 
 .qty-btn:hover {
@@ -2053,14 +2070,23 @@ html[lang="hi"] .nav-label {
    -------------------------------------------------------------------------- */
 .sub-items-grid.pizza-grid-container {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
     align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 @media (max-width: 360px) {
     .sub-items-grid.pizza-grid-container {
         gap: 8px;
+    }
+}
+
+@media (max-width: 340px) {
+    .sub-items-grid.pizza-grid-container {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
 }
 
@@ -2228,6 +2254,7 @@ html[lang="hi"] .nav-label {
 }
 
 .size-btn {
+    position: relative;
     width: 26px;
     height: 26px;
     border-radius: 7px;
@@ -2243,6 +2270,15 @@ html[lang="hi"] .nav-label {
     justify-content: center;
     cursor: pointer;
     touch-action: manipulation;
+}
+
+.size-btn::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    left: -5px;
+    right: -5px;
 }
 
 .size-btn:hover {
@@ -2882,14 +2918,15 @@ html[lang="hi"] .nav-label {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.2px;
-    line-height: 1.05;
+    line-height: 1.1;
     white-space: normal;
     text-align: left;
     flex-shrink: 0;
     margin: 0;
     padding: 0;
     width: auto;
-    max-width: 34px;
+    max-width: 40px;
+    word-break: normal;
 }
 
 .burger-addon-options,
@@ -2920,6 +2957,7 @@ html[lang="hi"] .nav-label {
 .noodles-addon-box,
 .spring-rolls-addon-box,
 .pizza-addon-selector .burger-addon-box {
+    position: relative;
     width: 26px;
     height: 26px;
     min-width: 26px;
@@ -2942,6 +2980,23 @@ html[lang="hi"] .nav-label {
     line-height: 1;
     user-select: none;
     flex-shrink: 0;
+}
+
+.burger-addon-box::before,
+.wrap-addon-box::before,
+.sandwich-addon-box::before,
+.bread-addon-box::before,
+.momos-addon-box::before,
+.pasta-addon-box::before,
+.chinese-addon-box::before,
+.noodles-addon-box::before,
+.spring-rolls-addon-box::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    left: -5px;
+    right: -5px;
 }
 
 /* --------------------------------------------------------------------------
@@ -5178,6 +5233,71 @@ html[lang="hi"] .nav-label {
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@media (max-width: 768px) {
+    .checkout-modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .checkout-modal-overlay:has(.confirm-dialog-card) {
+        align-items: center;
+        padding: 16px;
+    }
+
+    .checkout-modal-card,
+    .profile-modal-card,
+    .order-otp-modal-card {
+        max-width: 100%;
+        width: 100%;
+        max-height: 92vh;
+        border-radius: 26px 26px 0 0;
+        border-bottom: none;
+        border-left: none;
+        border-right: none;
+        margin: 0;
+        box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+        animation: mobileSheetUp 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+    }
+
+    .checkout-modal-header,
+    .order-otp-modal-header {
+        position: relative;
+        padding-top: 24px;
+    }
+
+    .checkout-modal-header::before,
+    .order-otp-modal-header::before {
+        content: '';
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 44px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--border-color);
+        opacity: 0.85;
+    }
+
+    .confirm-dialog-card {
+        margin: auto;
+        border-radius: 24px;
+        max-width: calc(100% - 24px);
+    }
+}
+
+@keyframes mobileSheetUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0.8;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
 .profile-modal-overlay {
     z-index: 99998;
 }
@@ -5334,17 +5454,28 @@ html[lang="hi"] .nav-label {
 }
 
 .checkout-modal-close-btn {
+    position: relative;
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
     color: var(--text-muted);
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    touch-action: manipulation;
+}
+
+.checkout-modal-close-btn::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    bottom: -8px;
+    left: -8px;
+    right: -8px;
 }
 
 .checkout-modal-close-btn:hover {
@@ -7552,15 +7683,20 @@ html[lang="hi"] .nav-label {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(234, 88, 12, 0.12));
-    border: 1.5px solid rgba(245, 158, 11, 0.45);
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1.5px solid #f59e0b;
     border-radius: 14px;
     padding: 11px 13px;
     margin-top: 12px;
     cursor: pointer;
     transition: all 0.25s ease;
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
     gap: 8px;
+}
+
+[data-theme="dark"] .profile-scratch-unclaimed-banner {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(234, 88, 12, 0.12));
+    border-color: rgba(245, 158, 11, 0.45);
 }
 
 .profile-scratch-unclaimed-banner:hover {
@@ -7598,13 +7734,21 @@ html[lang="hi"] .nav-label {
 
 .scratch-unclaimed-text strong {
     font-size: 0.84rem;
-    color: #ffffff;
+    color: #78350f;
     font-weight: 800;
 }
 
 .scratch-unclaimed-text span {
     font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: #92400e;
+}
+
+[data-theme="dark"] .scratch-unclaimed-text strong {
+    color: #ffffff;
+}
+
+[data-theme="dark"] .scratch-unclaimed-text span {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .btn-scratch-banner-action {
@@ -7827,5 +7971,299 @@ html[lang="hi"] .nav-label {
     .btn-scratch-banner-action {
         width: 100%;
         text-align: center;
+    }
+}
+
+/* ==========================================================================
+   26. MOBILE-FIRST RESPONSIVENESS & UI REFINEMENT (320px - 480px)
+   ========================================================================== */
+
+/* Universal Mobile Overflow Protection */
+@media (max-width: 480px) {
+    html,
+    body,
+    .app-frame,
+    .main-content-container,
+    .tab-view,
+    .sub-items-section,
+    .fast-food-section,
+    .sub-items-grid,
+    .fast-food-grid {
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Snug, balanced edge padding */
+    .main-content-container {
+        padding: 14px 12px;
+        padding-bottom: max(156px, calc(142px + env(safe-area-inset-bottom, 16px)));
+    }
+
+    /* Header Compact Touch Layout */
+    .header-content {
+        padding: 8px 14px;
+        height: 60px;
+    }
+
+    .brand-wrapper {
+        gap: 10px;
+    }
+
+    .brand-logo-container {
+        width: 40px;
+        height: 40px;
+    }
+
+    .header-call-btn,
+    .theme-toggle-btn,
+    .search-toggle-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .header-center-title {
+        font-size: 0.96rem;
+        letter-spacing: -0.01em;
+    }
+
+    /* Section Titles Hierarchy */
+    .section-title-bold {
+        font-size: 1.08rem;
+        margin-bottom: 10px;
+        letter-spacing: 0.01em;
+    }
+
+    /* 2-Column Food & Pizza Cards Refining */
+    .fast-food-grid {
+        gap: 10px;
+    }
+
+    .sub-items-grid.pizza-grid-container {
+        gap: 10px;
+    }
+
+    .pizza-card {
+        border-radius: 18px;
+    }
+
+    .pizza-card-image-wrapper {
+        border-radius: 18px 18px 0 0;
+        max-height: 135px;
+        min-height: 105px;
+    }
+
+    .pizza-card-img {
+        border-radius: 18px 18px 0 0;
+    }
+
+    .pizza-card-body,
+    .product-card-body {
+        padding: 7px 7px 3px 7px;
+        gap: 2px;
+    }
+
+    .pizza-card-title,
+    .product-card-title {
+        font-size: 0.82rem;
+        line-height: 1.2;
+    }
+
+    .pizza-card-desc,
+    .product-card-desc {
+        font-size: 0.68rem;
+        line-height: 1.2;
+        min-height: 2.2em;
+    }
+
+    .pizza-size-selector,
+    .size-row {
+        padding: 2px 5px;
+        margin-bottom: 3px;
+        border-radius: 9px;
+    }
+
+    .size-label {
+        font-size: 0.65rem;
+    }
+
+    .size-options {
+        gap: 3px;
+    }
+
+    .pizza-price-row,
+    .price-row {
+        margin-top: 1px;
+        padding-top: 1px;
+        padding-bottom: 1px;
+    }
+
+    .pizza-card-price,
+    .product-price {
+        font-size: 1.05rem;
+    }
+
+    .pizza-add-cart-btn,
+    .add-cart-btn {
+        border-radius: 0 0 16px 16px;
+        min-height: 35px;
+        font-size: 0.78rem;
+        padding: 7px 6px;
+    }
+
+    /* Cart Pill Floating Bar */
+    .floating-cart-pill-bar {
+        width: calc(100% - 20px);
+        height: 54px;
+        padding: 0 16px;
+        border-radius: 27px;
+    }
+
+    .floating-cart-price {
+        font-size: 1.05rem;
+    }
+
+    .floating-cart-count-badge {
+        font-size: 0.68rem;
+        padding: 3px 8px;
+    }
+
+    .floating-cart-cta-text {
+        font-size: 0.90rem;
+    }
+
+    /* Bottom Navigation Item Tap Feel */
+    .nav-container {
+        height: 66px;
+        padding: 0 12px;
+    }
+
+    .nav-item {
+        padding: 4px 0;
+    }
+
+    .nav-label {
+        font-size: 0.72rem;
+    }
+
+    .center-btn-outer {
+        width: 54px;
+        height: 54px;
+    }
+
+    .center-btn-inner {
+        font-size: 1.25rem;
+    }
+
+    /* Cart Summary Card in Cart Tab */
+    .cart-summary-card {
+        padding: 16px;
+        border-radius: 18px;
+    }
+
+    .checkout-btn {
+        min-height: 48px;
+        font-size: 0.98rem;
+        padding: 12px 16px;
+        border-radius: 14px;
+    }
+
+    /* Profile Header Card */
+    .profile-header-card {
+        padding: 18px 14px;
+        border-radius: 18px;
+    }
+
+    .profile-icon-circle {
+        width: 66px;
+        height: 66px;
+        font-size: 1.8rem;
+    }
+
+    .profile-name {
+        font-size: 1.1rem;
+    }
+
+    .profile-email {
+        font-size: 0.82rem;
+    }
+}
+
+/* Micro-Screens Tuning (320px to 359px: e.g. iPhone SE 1st Gen, Fold Cover) */
+@media (max-width: 359px) {
+    .main-content-container {
+        padding: 10px 8px;
+    }
+
+    .header-content {
+        padding: 6px 10px;
+        height: 54px;
+    }
+
+    .header-center-title {
+        font-size: 0.84rem;
+    }
+
+    .brand-logo-container,
+    .header-call-btn,
+    .theme-toggle-btn,
+    .search-toggle-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 0.90rem;
+    }
+
+    .fast-food-grid {
+        gap: 8px;
+    }
+
+    .sub-items-grid.pizza-grid-container {
+        gap: 6px;
+    }
+
+    .size-label {
+        display: none !important;
+    }
+
+    .size-options {
+        width: 100%;
+        justify-content: space-around;
+    }
+
+    .size-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 0.70rem;
+    }
+
+    .burger-addon-box,
+    .pizza-addon-selector .burger-addon-box {
+        width: 23px;
+        height: 23px;
+        min-width: 23px;
+        min-height: 23px;
+        font-size: 0.78rem;
+    }
+
+    .addon-label,
+    .burger-addon-label {
+        font-size: 0.58rem;
+        max-width: 34px;
+    }
+
+    .pizza-card-title,
+    .product-card-title {
+        font-size: 0.76rem;
+    }
+
+    .pizza-card-price,
+    .product-price {
+        font-size: 0.95rem;
+    }
+
+    .floating-cart-pill-bar {
+        width: calc(100% - 12px);
+        height: 50px;
+        padding: 0 12px;
     }
 }

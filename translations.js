@@ -26,6 +26,7 @@
             size_label: "Size:",
             price_label: "Price:",
             addons_label: "ADD-ONS:",
+            addons_label_html: "ADD-<br>ONS:",
             add_to_cart: "ADD TO CART",
             added_to_cart: "ADDED! ✓",
             out_of_stock: "OUT OF STOCK",
@@ -164,6 +165,7 @@
             size_label: "साइज़:",
             price_label: "कीमत:",
             addons_label: "ऐड-ऑन्स:",
+            addons_label_html: "ऐड-<br>ऑन्स:",
             add_to_cart: "कार्ट में जोड़ें",
             added_to_cart: "कार्ट में जोड़ा गया! ✓",
             out_of_stock: "अभी उपलब्ध नहीं",
@@ -800,6 +802,14 @@
                 el.title = translation;
                 el.setAttribute('aria-label', translation);
             }
+        });
+
+        // Update all add-on badges dynamically across all cards
+        document.querySelectorAll('.addon-label.burger-addon-label').forEach(el => {
+            el.innerHTML = lang === 'hi' ? 'ऐड-<br>ऑन्स:' : 'ADD-<br>ONS:';
+        });
+        document.querySelectorAll('.spring-rolls-addon-label').forEach(el => {
+            el.textContent = lang === 'hi' ? 'ऐड-ऑन्स:' : 'ADD-ONS:';
         });
 
         // Call global application re-render hook if app.js is ready

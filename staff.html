@@ -264,11 +264,17 @@
                             <div class="brand-tag">Staff Portal</div>
                         </div>
                     </div>
-                    <!-- Lock / Sign Out Button -->
-                    <button type="button" class="btn-staff-lock" id="btn-staff-logout" onclick="handleStaffLogout()" title="Lock Staff Portal">
-                        <i class="fa-solid fa-lock"></i>
-                        <span>Lock</span>
-                    </button>
+                    <div class="header-top-actions">
+                        <button type="button" class="btn-staff-audio-toggle active" id="btn-staff-audio-toggle" onclick="toggleOrUnlockStaffAudio()" title="Kitchen Audio Alerts - Tap to Mute or Test Chimes" aria-label="Toggle Kitchen Sound Chimes">
+                            <i class="fa-solid fa-volume-high" id="staff-audio-icon"></i>
+                            <span id="staff-audio-text">Sound ON</span>
+                        </button>
+                        <!-- Lock / Sign Out Button -->
+                        <button type="button" class="btn-staff-lock" id="btn-staff-logout" onclick="handleStaffLogout()" title="Lock Staff Portal">
+                            <i class="fa-solid fa-lock"></i>
+                            <span>Lock</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- ROLE & USER INFO (STAFF PORTAL DISPLAY) -->
