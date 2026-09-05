@@ -478,6 +478,13 @@ function setStoredPhoneVerified(phone, isVerified = true) {
                     localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
                 }
             }
+
+            // Immediately restore permanent wallet balance & order history for verified phone
+            setTimeout(() => {
+                if (typeof restoreUserProfileFromFirestore === 'function') {
+                    restoreUserProfileFromFirestore(cleanPhone, { silent: true });
+                }
+            }, 50);
         } else {
             localStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             sessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
@@ -4700,20 +4707,7 @@ async function creditCustomerWallet(phone, amount, orderId) {
 
     try {
         if (customerFirestore && cleanPhone) {
-            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
-            await walletRef.set({
-                phone: cleanPhone,
-                balance: updatedWalletBalance,
-                expiresAt: expiresAt,
-                expiryDays: activeDays,
-                cashbackExpiryDays: activeDays,
-                lastCreditedAt: now.toISOString(),
-                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                    ? firebase.firestore.FieldValue.serverTimestamp()
-                    : now.toISOString()
-            }, { merge: true });
-
-            await walletRef.collection('transactions').add({
+            const txData = {
                 type: 'credit',
                 amount: earnedCashback,
                 orderId: String(orderId),
@@ -4725,7 +4719,43 @@ async function creditCustomerWallet(phone, amount, orderId) {
                 expiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
                 status: 'active'
-            });
+            };
+
+            // 1. Permanently bind to users/{phone} and users/phone_{phone}
+            const userDocRef = customerFirestore.collection('users').doc(`phone_${cleanPhone}`);
+            const userDocRefRaw = customerFirestore.collection('users').doc(cleanPhone);
+            const userUpdatePayload = {
+                walletBalance: updatedWalletBalance,
+                balance: updatedWalletBalance,
+                walletExpiresAt: expiresAt,
+                walletExpiryDays: activeDays,
+                cashbackExpiryDays: activeDays,
+                lastCreditedAt: now.toISOString(),
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : now.toISOString()
+            };
+
+            await userDocRef.set(userUpdatePayload, { merge: true }).catch(() => {});
+            await userDocRefRaw.set(userUpdatePayload, { merge: true }).catch(() => {});
+            userDocRef.collection('transactions').add(txData).catch(() => {});
+            userDocRefRaw.collection('transactions').add(txData).catch(() => {});
+
+            // 2. Backward compatibility: sync to /wallets/{cleanPhone}
+            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
+            await walletRef.set({
+                phone: cleanPhone,
+                balance: updatedWalletBalance,
+                expiresAt: expiresAt,
+                expiryDays: activeDays,
+                cashbackExpiryDays: activeDays,
+                lastCreditedAt: now.toISOString(),
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : now.toISOString()
+            }, { merge: true }).catch(() => {});
+
+            walletRef.collection('transactions').add(txData).catch(() => {});
         }
     } catch (err) {
         console.warn('Error crediting customer wallet in Firestore:', err);
@@ -5598,6 +5628,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         walletDiscount: Math.round(walletDiscountToApply),
         usedWalletCash: Math.round(walletDiscountToApply),
         earnedCashback: Math.round(earnedCashback),
+        wonCashback: Math.round(earnedCashback),
+        rewardStatus: 'unscratched',
+        scratchRevealed: false,
         scratchClaimed: false,
         scratchExpired: false,
         scratchExpiresAt: (function() {
@@ -5611,7 +5644,10 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
             const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
             return {
                 amount: Math.round(earnedCashback),
+                wonAmount: Math.round(earnedCashback),
+                revealed: false,
                 claimed: false,
+                status: 'unscratched',
                 claimedAt: null,
                 createdAt: now.toISOString(),
                 expiresAt: expMs,
@@ -5685,6 +5721,9 @@ async function saveOrderToBackendAPI(order) {
         phone: cleanCustomerPhone,
         status: order.status || 'pending',
         createdAt: order.createdAt || new Date().toISOString(),
+        rewardStatus: order.rewardStatus || 'pending_delivery',
+        wonCashback: order.wonCashback !== undefined ? order.wonCashback : Math.round(Number(order.earnedCashback || 0)),
+        scratchRevealed: order.scratchRevealed !== undefined ? order.scratchRevealed : false,
         scratchClaimed: order.scratchClaimed !== undefined ? order.scratchClaimed : false,
         scratchExpired: order.scratchExpired !== undefined ? order.scratchExpired : false,
         scratchExpiresAt: scratchExpiryTimestamp,
@@ -5692,7 +5731,10 @@ async function saveOrderToBackendAPI(order) {
         cashbackExpiryDays: activeOrderDays,
         scratchCard: order.scratchCard || {
             amount: Math.round(Number(order.earnedCashback || 0)),
+            wonAmount: Math.round(Number(order.wonCashback || order.earnedCashback || 0)),
+            revealed: order.scratchRevealed !== undefined ? order.scratchRevealed : false,
             claimed: false,
+            status: order.rewardStatus || 'pending_delivery',
             claimedAt: null,
             createdAt: order.createdAt || new Date().toISOString(),
             expiresAt: scratchExpiryTimestamp,
@@ -6420,6 +6462,88 @@ function checkScratchCompletion() {
     }
 }
 
+async function markScratchRewardPendingDelivery(order, wonAmount) {
+    if (!order) return;
+    const orderId = String(order.id || order.orderId || '');
+    const amount = Math.max(1, Math.round(Number(wonAmount || order.wonCashback || order.earnedCashback || 0)));
+    const activeDays = (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays))) || getClampedCashbackExpiryDays(customerWalletConfig);
+    const expiresAt = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeDays * 24 * 60 * 60 * 1000);
+
+    order.rewardStatus = 'pending_delivery';
+    order.wonCashback = amount;
+    order.earnedCashback = amount;
+    order.scratchRevealed = true;
+    order.scratchClaimed = false;
+    order.scratchCard = {
+        ...(order.scratchCard || {}),
+        amount: amount,
+        wonAmount: amount,
+        revealed: true,
+        claimed: false,
+        status: 'pending_delivery',
+        revealedAt: new Date().toISOString(),
+        expiresAt: expiresAt,
+        expiresAtISO: new Date(expiresAt).toISOString(),
+        expiryDays: activeDays,
+        cashbackExpiryDays: activeDays
+    };
+
+    // 1. Update localStorage
+    try {
+        const stored = localStorage.getItem('perfettoCustomerOrders');
+        if (stored) {
+            const orders = JSON.parse(stored);
+            if (Array.isArray(orders)) {
+                const targetIdx = orders.findIndex(o => String(o.id || o.orderId) === orderId);
+                if (targetIdx >= 0) {
+                    orders[targetIdx].rewardStatus = 'pending_delivery';
+                    orders[targetIdx].wonCashback = amount;
+                    orders[targetIdx].earnedCashback = amount;
+                    orders[targetIdx].scratchRevealed = true;
+                    orders[targetIdx].scratchClaimed = false;
+                    orders[targetIdx].scratchCard = order.scratchCard;
+                    localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('LocalStorage pending_delivery scratch update error:', e);
+    }
+
+    // 2. Persist to Firestore under user's order document
+    try {
+        if (customerFirestore && orderId && orderId !== '--') {
+            await customerFirestore.collection('orders').doc(orderId).set({
+                rewardStatus: 'pending_delivery',
+                wonCashback: amount,
+                earnedCashback: amount,
+                scratchRevealed: true,
+                scratchClaimed: false,
+                scratchExpiresAt: expiresAt,
+                scratchExpiryDays: activeDays,
+                cashbackExpiryDays: activeDays,
+                'scratchCard.amount': amount,
+                'scratchCard.wonAmount': amount,
+                'scratchCard.revealed': true,
+                'scratchCard.claimed': false,
+                'scratchCard.status': 'pending_delivery',
+                'scratchCard.revealedAt': new Date().toISOString(),
+                'scratchCard.expiresAt': expiresAt,
+                'scratchCard.expiresAtISO': new Date(expiresAt).toISOString(),
+                'scratchCard.expiryDays': activeDays,
+                'scratchCard.cashbackExpiryDays': activeDays
+            }, { merge: true });
+        }
+    } catch (fsErr) {
+        console.warn('Firestore pending_delivery scratch reward update notice:', fsErr);
+    }
+
+    if (typeof renderOrderHistoryDetails === 'function') {
+        renderOrderHistoryDetails();
+    }
+}
+window.markScratchRewardPendingDelivery = markScratchRewardPendingDelivery;
+
 function revealScratchCardReward() {
     if (isScratchCardRevealed) return;
     isScratchCardRevealed = true;
@@ -6446,21 +6570,139 @@ function revealScratchCardReward() {
         if (navigator.vibrate) navigator.vibrate([70, 40, 70]);
     } catch (e) { }
 
-    if (hintText) {
-        hintText.textContent = isHindi
-            ? `🎉 बधाई हो! ₹${activeScratchRewardAmount} अनलॉक हुआ! नीचे दिए गए बटन पर टैप करें।`
-            : `🎉 Congratulations! ₹${activeScratchRewardAmount} unlocked! Tap below to claim to wallet.`;
-    }
-    if (hintIcon) {
-        hintIcon.className = 'fa-solid fa-gift fa-bounce';
-    }
+    const isDelivered = activeScratchOrder && (activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered');
+    const isRejected = activeScratchOrder && (activeScratchOrder.status === 'rejected' || activeScratchOrder.status === 'cancelled');
 
-    if (claimBtn) {
-        claimBtn.disabled = false;
-        claimBtn.className = 'btn-scratch-claim btn-ready-to-claim';
-        const claimText = document.getElementById('scratch-claim-btn-text');
-        if (claimText) {
-            claimText.textContent = 'कन्फर्म करें और वॉलेट में जोड़ें / Claim to Wallet';
+    if (isDelivered) {
+        // Order was ALREADY delivered by staff: Scratching it immediately transfers the balance to the active wallet!
+        const customerPhone = (activeScratchOrder.customerPhone || activeScratchOrder.phone) 
+            || ((currentUserProfile && currentUserProfile.phone) || '');
+        const orderId = activeScratchOrder.id || activeScratchOrder.orderId || 'ORDER';
+
+        creditCustomerWallet(customerPhone, activeScratchRewardAmount, orderId);
+
+        activeScratchOrder.scratchRevealed = true;
+        activeScratchOrder.scratchClaimed = true;
+        activeScratchOrder.rewardStatus = 'active_credited';
+        if (!activeScratchOrder.scratchCard) activeScratchOrder.scratchCard = {};
+        activeScratchOrder.scratchCard.status = 'active_credited';
+        activeScratchOrder.scratchCard.revealed = true;
+        activeScratchOrder.scratchCard.claimed = true;
+        activeScratchOrder.scratchCard.claimedAt = new Date().toISOString();
+
+        // Persist to localStorage
+        try {
+            const stored = localStorage.getItem('perfettoCustomerOrders');
+            if (stored) {
+                const orders = JSON.parse(stored);
+                if (Array.isArray(orders)) {
+                    const idx = orders.findIndex(o => String(o.id || o.orderId) === String(orderId));
+                    if (idx >= 0) {
+                        orders[idx].scratchRevealed = true;
+                        orders[idx].scratchClaimed = true;
+                        orders[idx].rewardStatus = 'active_credited';
+                        orders[idx].scratchCard = activeScratchOrder.scratchCard;
+                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
+                    }
+                }
+            }
+        } catch (e) {}
+
+        // Persist to Firestore & Backend API
+        try {
+            if (customerFirestore && orderId && orderId !== '--') {
+                customerFirestore.collection('orders').doc(orderId).set({
+                    scratchRevealed: true,
+                    scratchClaimed: true,
+                    rewardStatus: 'active_credited',
+                    'scratchCard.status': 'active_credited',
+                    'scratchCard.revealed': true,
+                    'scratchCard.claimed': true,
+                    'scratchCard.claimedAt': new Date().toISOString()
+                }, { merge: true }).catch(() => {});
+            }
+            fetch(resolveApiUrl('/api/orders'), {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orderId: orderId,
+                    scratchRevealed: true,
+                    scratchClaimed: true,
+                    rewardStatus: 'active_credited'
+                })
+            }).catch(() => {});
+        } catch (e) {}
+
+        if (hintText) {
+            hintText.textContent = isHindi
+                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक आपके वॉलेट में जोड़ दिया गया है!`
+                : `Congratulations! You won ₹${activeScratchRewardAmount}. Cashback credited to your active wallet!`;
+        }
+        if (hintIcon) {
+            hintIcon.className = 'fa-solid fa-circle-check';
+        }
+        if (claimBtn) {
+            claimBtn.disabled = false;
+            claimBtn.className = 'btn-scratch-claim claimed-success';
+            const claimText = document.getElementById('scratch-claim-btn-text');
+            if (claimText) {
+                claimText.innerHTML = isHindi
+                    ? `<i class="fa-solid fa-circle-check"></i> वॉलेट में जुड़ गया (कन्फर्म)`
+                    : `<i class="fa-solid fa-circle-check"></i> Credited to Wallet`;
+            }
+        }
+        updateProfileWalletUI();
+        renderOrderHistoryDetails();
+    } else if (isRejected) {
+        // Order was rejected: mark it voided
+        activeScratchOrder.scratchRevealed = true;
+        activeScratchOrder.rewardStatus = 'voided';
+        activeScratchOrder.wonCashback = 0;
+        activeScratchOrder.earnedCashback = 0;
+        if (!activeScratchOrder.scratchCard) activeScratchOrder.scratchCard = {};
+        activeScratchOrder.scratchCard.status = 'voided';
+        activeScratchOrder.scratchCard.voided = true;
+        activeScratchOrder.scratchCard.wonAmount = 0;
+
+        if (hintText) {
+            hintText.textContent = isHindi
+                ? 'यह ऑर्डर रद्द/अस्वीकार कर दिया गया है। स्क्रैच कार्ड अमान्य (Voided) है।'
+                : 'This order was cancelled or rejected. Scratch card is voided.';
+        }
+        if (hintIcon) hintIcon.className = 'fa-solid fa-ban';
+        if (claimBtn) {
+            claimBtn.disabled = true;
+            claimBtn.className = 'btn-scratch-claim expired-btn';
+            const claimText = document.getElementById('scratch-claim-btn-text');
+            if (claimText) claimText.innerHTML = '<i class="fa-solid fa-ban"></i> Voided / अमान्य';
+        }
+        renderOrderHistoryDetails();
+    } else {
+        // Order is still pending delivery:
+        // Render explicit deferred status message
+        if (hintText) {
+            hintText.textContent = isHindi
+                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
+                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is delivered.`;
+        }
+        if (hintIcon) {
+            hintIcon.className = 'fa-solid fa-truck-fast fa-bounce';
+        }
+
+        // Set reward status in Firestore under user order as "pending_delivery"
+        if (activeScratchOrder) {
+            markScratchRewardPendingDelivery(activeScratchOrder, activeScratchRewardAmount);
+        }
+
+        if (claimBtn) {
+            claimBtn.disabled = false;
+            claimBtn.className = 'btn-scratch-claim btn-pending-delivery';
+            const claimText = document.getElementById('scratch-claim-btn-text');
+            if (claimText) {
+                claimText.innerHTML = isHindi 
+                    ? `<i class="fa-solid fa-circle-check"></i> ठीक है, समझ गया (डिलीवरी पर जुड़ेगा)` 
+                    : `<i class="fa-solid fa-circle-check"></i> Got It (Credited on Delivery)`;
+            }
         }
     }
 }
@@ -6471,22 +6713,14 @@ async function handleClaimScratchReward() {
         return;
     }
 
-    const claimBtn = document.getElementById('btn-scratch-claim');
-    const claimText = document.getElementById('scratch-claim-btn-text');
-    const hintText = document.getElementById('scratch-instruction-text');
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-
-    const orderId = activeScratchOrder.id || activeScratchOrder.orderId || 'ORDER';
     const amount = Number(activeScratchRewardAmount) || Number(activeScratchOrder.earnedCashback) || 0;
+    const isDelivered = activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered';
 
     // Anti-Abuse Double Claim Prevention Check:
     if (activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed)) {
         showToast(isHindi ? 'यह स्क्रैच कार्ड पहले ही क्लेम किया जा चुका है!' : 'This scratch card has already been claimed!');
-        if (claimBtn) {
-            claimBtn.disabled = true;
-            claimBtn.className = 'btn-scratch-claim claimed-success';
-            if (claimText) claimText.textContent = isHindi ? 'पहले ही क्लेम हो चुका है' : 'Already Claimed';
-        }
+        closeScratchCardModal();
         return;
     }
 
@@ -6495,118 +6729,40 @@ async function handleClaimScratchReward() {
         permanentlyInvalidateScratchCard(activeScratchOrder);
         const orderDays = (activeScratchOrder && (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.expiryDays || activeScratchOrder.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
         showToast(isHindi ? `यह स्क्रैच कार्ड ${orderDays} दिनों के बाद समाप्त हो चुका है और क्लेम नहीं किया जा सकता।` : `This scratch card has expired after ${orderDays} days and cannot be claimed.`);
-        if (claimBtn) {
-            claimBtn.disabled = true;
-            claimBtn.className = 'btn-scratch-claim expired-btn';
-            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> ${isHindi ? 'कार्ड समाप्त (Expired)' : 'Card Expired'}`;
-        }
-        return;
-    }
-
-    if (amount <= 0) {
-        showToast(isHindi ? 'कोई कैशबैक राशि नहीं मिली।' : 'No cashback reward amount found.');
         closeScratchCardModal();
         return;
     }
 
-    // Set loading state
-    if (claimBtn) {
-        claimBtn.disabled = true;
-        if (claimText) {
-            claimText.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${isHindi ? 'वॉलेट में जोड़ा जा रहा है...' : 'Claiming to Wallet...'}`;
-        }
+    if (amount <= 0) {
+        closeScratchCardModal();
+        return;
     }
 
-    try {
+    // If order is delivered, credit wallet now:
+    if (isDelivered) {
         const customerPhone = (activeScratchOrder.customerPhone || activeScratchOrder.phone) 
             || ((currentUserProfile && currentUserProfile.phone) || '');
-
-        // 1. Credit wallet in LocalStorage and Firestore
+        const orderId = activeScratchOrder.id || activeScratchOrder.orderId || 'ORDER';
         await creditCustomerWallet(customerPhone, amount, orderId);
-
-        // 2. Mark order as redeemed locally
         activeScratchOrder.scratchClaimed = true;
-        activeScratchOrder.scratchCard = {
-            amount: amount,
-            claimed: true,
-            claimedAt: new Date().toISOString()
-        };
-
-        // Update stored orders list in localStorage
-        try {
-            const stored = localStorage.getItem('perfettoCustomerOrders');
-            if (stored) {
-                const orders = JSON.parse(stored);
-                if (Array.isArray(orders)) {
-                    const targetIdx = orders.findIndex(o => String(o.id || o.orderId) === String(orderId));
-                    if (targetIdx >= 0) {
-                        orders[targetIdx].scratchClaimed = true;
-                        orders[targetIdx].scratchCard = activeScratchOrder.scratchCard;
-                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('Error saving claimed scratch card in localStorage:', e);
+        activeScratchOrder.rewardStatus = 'credited';
+        if (activeScratchOrder.scratchCard) {
+            activeScratchOrder.scratchCard.claimed = true;
+            activeScratchOrder.scratchCard.status = 'credited';
+            activeScratchOrder.scratchCard.claimedAt = new Date().toISOString();
         }
-
-        // 3. Update Firestore order document to persist redeemed status
-        try {
-            if (customerFirestore && orderId && orderId !== '--') {
-                await customerFirestore.collection('orders').doc(String(orderId)).set({
-                    scratchClaimed: true,
-                    scratchCard: {
-                        claimed: true,
-                        amount: amount,
-                        claimedAt: new Date().toISOString()
-                    }
-                }, { merge: true });
-            }
-        } catch (fsErr) {
-            console.warn('Firestore order scratch redemption update notice:', fsErr);
-        }
-
-        // 4. Celebratory blast & Success UI
-        triggerScratchCelebrationConfetti();
-        try {
-            if (navigator.vibrate) navigator.vibrate([100, 50, 150]);
-        } catch (e) { }
-
-        if (claimBtn) {
-            claimBtn.disabled = true;
-            claimBtn.className = 'btn-scratch-claim claimed-success';
-            if (claimText) {
-                claimText.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${isHindi ? `₹${amount} वॉलेट में जुड़ गया! ✓` : `₹${amount} Credited to Wallet! ✓`}`;
-            }
-        }
-
-        if (hintText) {
-            hintText.textContent = isHindi
-                ? `शानदार! ₹${amount} आपके वॉलेट में जुड़ गए हैं। अगले ऑर्डर पर 100% इस्तेमाल करें!`
-                : `Awesome! ₹${amount} is added to your wallet. You can use 100% on any order!`;
-        }
-
-        showToast(isHindi 
-            ? `🎉 बधाई! ₹${amount} कैशबैक आपके वॉलेट बैलेंस में जोड़ दिया गया!` 
-            : `🎉 Congratulations! ₹${amount} Cashback successfully credited to your wallet!`, 5000);
-
-        // Re-render UI components
-        renderOrderHistoryDetails();
+        showToast(isHindi ? `🎉 ₹${amount} कैशबैक आपके वॉलेट में जोड़ दिया गया!` : `🎉 ₹${amount} Cashback credited to your wallet!`);
         updateProfileWalletUI();
-
-        // Close modal after 2.6s
-        setTimeout(() => {
-            closeScratchCardModal();
-        }, 2600);
-
-    } catch (err) {
-        console.error('Error claiming scratch reward:', err);
-        showToast(isHindi ? 'रिवॉर्ड क्लेम करने में त्रुटि हुई। पुनः प्रयास करें।' : 'Error claiming reward. Please try again.');
-        if (claimBtn) {
-            claimBtn.disabled = false;
-            if (claimText) claimText.textContent = isHindi ? 'पुनः प्रयास करें' : 'Try Again';
-        }
+        renderOrderHistoryDetails();
+        closeScratchCardModal();
+        return;
     }
+
+    // If order is not yet delivered, remind customer and close:
+    showToast(isHindi 
+        ? `🎁 बधाई! ₹${amount} कैशबैक ऑर्डर डिलीवर होने पर आपके वॉलेट में जुड़ जाएगा।` 
+        : `🎁 Congratulations! ₹${amount} cashback will be credited to your wallet once delivered.`, 4500);
+    closeScratchCardModal();
 }
 
 function openScratchCardForOrder(orderId) {
@@ -6866,6 +7022,48 @@ function openScratchCardModal(order, demoAmount) {
                 : 'This scratch card reward was already credited to your wallet.';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-circle-check';
+    } else if (activeScratchOrder.status === 'rejected' || activeScratchOrder.status === 'cancelled' || activeScratchOrder.rewardStatus === 'voided') {
+        // Render voided state
+        isScratchCardRevealed = true;
+        const canvas = document.getElementById('scratch-interactive-canvas');
+        if (canvas) {
+            canvas.style.opacity = '0';
+            canvas.style.pointerEvents = 'none';
+        }
+        if (claimBtn) {
+            claimBtn.disabled = true;
+            claimBtn.className = 'btn-scratch-claim expired-btn';
+            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-ban"></i> ${isHindi ? 'ऑर्डर रद्द (Voided)' : 'Order Cancelled (Voided)'}`;
+        }
+        if (hintText) {
+            hintText.textContent = isHindi 
+                ? 'यह ऑर्डर रद्द होने के कारण स्क्रैच कार्ड अमान्य (Voided) कर दिया गया है।' 
+                : 'This order was cancelled or rejected. The scratch reward has been voided.';
+        }
+        if (hintIcon) hintIcon.className = 'fa-solid fa-ban';
+    } else if (activeScratchOrder.scratchRevealed && (activeScratchOrder.status !== 'completed' && activeScratchOrder.status !== 'delivered')) {
+        // Render already revealed but pending delivery state
+        isScratchCardRevealed = true;
+        const canvas = document.getElementById('scratch-interactive-canvas');
+        if (canvas) {
+            canvas.style.opacity = '0';
+            canvas.style.pointerEvents = 'none';
+        }
+        if (claimBtn) {
+            claimBtn.disabled = false;
+            claimBtn.className = 'btn-scratch-claim btn-pending-delivery';
+            if (claimText) {
+                claimText.innerHTML = isHindi 
+                    ? `<i class="fa-solid fa-circle-check"></i> ठीक है, समझ गया (डिलीवरी पर जुड़ेगा)` 
+                    : `<i class="fa-solid fa-circle-check"></i> Got It (Credited on Delivery)`;
+            }
+        }
+        if (hintText) {
+            hintText.textContent = isHindi
+                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
+                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is delivered.`;
+        }
+        if (hintIcon) hintIcon.className = 'fa-solid fa-truck-fast';
     } else {
         // Reset to unscratched state
         isScratchCardRevealed = false;
@@ -6892,6 +7090,94 @@ function openScratchCardModal(order, demoAmount) {
     }
 }
 
+function saveUnscratchedCardFallback(order) {
+    if (!order) return;
+    const orderId = String(order.id || order.orderId || '');
+    if (!orderId || orderId === '--') return;
+
+    const activeDays = (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays))) || getClampedCashbackExpiryDays(customerWalletConfig);
+    const expiresAt = order.scratchExpiresAt || (order.scratchCard && (order.scratchCard.expiresAt || order.scratchCard.expiresAtISO)) || (Date.now() + activeDays * 86400000);
+    const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : new Date(expiresAt).getTime();
+    const amount = Math.max(1, Math.round(Number(order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)) || activeScratchRewardAmount || 0)));
+
+    order.scratchRevealed = false;
+    order.scratchClaimed = false;
+    order.scratchExpiresAt = expiresAtMs;
+    order.scratchExpiryDays = activeDays;
+    order.cashbackExpiryDays = activeDays;
+    order.rewardStatus = 'unscratched';
+    order.scratchCard = {
+        ...(order.scratchCard || {}),
+        amount: amount,
+        wonAmount: amount,
+        revealed: false,
+        claimed: false,
+        status: 'unscratched',
+        expiresAt: expiresAtMs,
+        expiresAtISO: new Date(expiresAtMs).toISOString(),
+        expiryDays: activeDays,
+        cashbackExpiryDays: activeDays
+    };
+
+    // 1. Update in-memory and localStorage
+    try {
+        const stored = localStorage.getItem('perfettoCustomerOrders');
+        if (stored) {
+            const orders = JSON.parse(stored);
+            if (Array.isArray(orders)) {
+                const idx = orders.findIndex(o => String(o.id || o.orderId) === orderId);
+                if (idx >= 0) {
+                    orders[idx].scratchRevealed = false;
+                    orders[idx].scratchClaimed = false;
+                    orders[idx].scratchExpiresAt = expiresAtMs;
+                    orders[idx].rewardStatus = 'unscratched';
+                    orders[idx].scratchCard = order.scratchCard;
+                    localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
+                }
+            }
+        }
+    } catch (e) {}
+
+    // 2. Persist to Firestore order document
+    try {
+        if (customerFirestore && orderId && orderId !== '--') {
+            customerFirestore.collection('orders').doc(orderId).set({
+                scratchRevealed: false,
+                scratchClaimed: false,
+                rewardStatus: 'unscratched',
+                scratchExpiresAt: expiresAtMs,
+                scratchExpiryDays: activeDays,
+                cashbackExpiryDays: activeDays,
+                'scratchCard.status': 'unscratched',
+                'scratchCard.revealed': false,
+                'scratchCard.claimed': false,
+                'scratchCard.expiresAt': expiresAtMs,
+                'scratchCard.expiresAtISO': new Date(expiresAtMs).toISOString()
+            }, { merge: true }).catch(() => {});
+        }
+    } catch (fsErr) {}
+
+    // 3. Persist to backend API
+    try {
+        fetch(resolveApiUrl('/api/orders'), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                orderId: orderId,
+                scratchRevealed: false,
+                scratchClaimed: false,
+                rewardStatus: 'unscratched',
+                scratchExpiresAt: expiresAtMs
+            })
+        }).catch(() => {});
+    } catch (e) {}
+
+    if (typeof renderOrderHistoryDetails === 'function') {
+        renderOrderHistoryDetails();
+    }
+}
+window.saveUnscratchedCardFallback = saveUnscratchedCardFallback;
+
 function closeScratchCardModal() {
     const modal = document.getElementById('scratch-card-modal');
     if (modal) {
@@ -6903,7 +7189,21 @@ function closeScratchCardModal() {
         cancelAnimationFrame(scratchConfettiAnimId);
         scratchConfettiAnimId = null;
     }
+
+    // Fallback for unrevealed scratch cards:
+    // If user exits or reloads before scratching the card, save the card state as "unscratched" under their order document
+    // with an immutable expiration timestamp (expiresAt = Date.now() + activeExpiryDays * 86400000).
+    if (activeScratchOrder && !isScratchCardRevealed && !activeScratchOrder.scratchClaimed && !activeScratchOrder.scratchExpired) {
+        saveUnscratchedCardFallback(activeScratchOrder);
+    }
 }
+
+window.addEventListener('beforeunload', () => {
+    const modal = document.getElementById('scratch-card-modal');
+    if (modal && modal.style.display === 'flex' && activeScratchOrder && !isScratchCardRevealed) {
+        saveUnscratchedCardFallback(activeScratchOrder);
+    }
+});
 
 function initScratchCardModal() {
     const modal = document.getElementById('scratch-card-modal');
@@ -7872,6 +8172,15 @@ async function syncProfileToFirestoreBackend(profile) {
     const latVal = profile.gpsLat !== null && profile.gpsLat !== undefined ? parseFloat(profile.gpsLat) : null;
     const lngVal = profile.gpsLng !== null && profile.gpsLng !== undefined ? parseFloat(profile.gpsLng) : null;
 
+    const currentWalletBal = Number(localStorage.getItem('perfetto_wallet_balance') || 0);
+    const existingOrders = [];
+    try {
+        const stored = localStorage.getItem('perfettoCustomerOrders');
+        if (stored) {
+            (JSON.parse(stored) || []).forEach(o => existingOrders.push(String(o.id || o.orderId)));
+        }
+    } catch (e) {}
+
     const userPayload = {
         firebaseUid: (currentUserProfile && currentUserProfile.firebaseUid) || '',
         email: cleanEmail,
@@ -7891,10 +8200,14 @@ async function syncProfileToFirestoreBackend(profile) {
             lng: lngVal
         },
         isPhoneVerified: true,
+        walletBalance: currentWalletBal,
+        balance: currentWalletBal,
+        walletTransactions: (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [],
+        orders: existingOrders,
         cartState: cart || []
     };
 
-    // 1. Instantly write to Firestore client SDK if available
+    // 1. Instantly write to Firestore client SDK if available under both phone keys
     if (customerFirestore) {
         try {
             if (cleanEmail) {
@@ -7902,6 +8215,7 @@ async function syncProfileToFirestoreBackend(profile) {
             }
             if (cleanPhone) {
                 customerFirestore.collection('users').doc(`phone_${cleanPhone}`).set(userPayload, { merge: true }).catch(() => { });
+                customerFirestore.collection('users').doc(cleanPhone).set(userPayload, { merge: true }).catch(() => { });
             }
         } catch (e) { }
     }
@@ -7921,22 +8235,46 @@ async function syncProfileToFirestoreBackend(profile) {
     }
 }
 
-// Cross-Device Profile & Address Automatic Retrieval
-async function restoreUserProfileFromFirestore(emailOrPhone) {
+// Cross-Device Profile, Address, Wallet Balance & Order History Automatic Retrieval
+async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
     if (!emailOrPhone) return null;
     const identifier = String(emailOrPhone).trim();
     const isEmail = identifier.includes('@');
-    const param = isEmail ? `email=${encodeURIComponent(identifier.toLowerCase())}` : `phone=${encodeURIComponent(identifier.replace(/[^0-9]/g, '').slice(-10))}`;
+    const cleanPhone = isEmail ? '' : identifier.replace(/[^0-9]/g, '').slice(-10);
+    const param = isEmail ? `email=${encodeURIComponent(identifier.toLowerCase())}` : `phone=${encodeURIComponent(cleanPhone)}`;
 
     try {
-        const response = await apiCall(`/users?${param}`);
-        if (!response.ok) {
-            return null;
-        }
-        const data = await response.json();
+        let u = null;
 
-        if (data && data.success && data.user) {
-            const u = data.user;
+        // 1. Fetch from Backend Users API
+        try {
+            const response = await apiCall(`/users?${param}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data && data.success && data.user) {
+                    u = data.user;
+                }
+            }
+        } catch (apiErr) {
+            console.warn('User lookup API notice:', apiErr.message);
+        }
+
+        // 2. Client SDK Fallback if API returned null
+        if (!u && customerFirestore && cleanPhone) {
+            try {
+                let snap = await customerFirestore.collection('users').doc(`phone_${cleanPhone}`).get();
+                if (!snap.exists) {
+                    snap = await customerFirestore.collection('users').doc(cleanPhone).get();
+                }
+                if (snap.exists && snap.data()) {
+                    u = snap.data();
+                }
+            } catch (fsErr) {
+                console.warn('Firestore direct user lookup notice:', fsErr.message);
+            }
+        }
+
+        if (u) {
             const isVerified = u.isPhoneVerified !== false;
 
             const lat = (u.gps && u.gps.lat !== undefined && u.gps.lat !== null) ? parseFloat(u.gps.lat) : ((u.gpsLat !== undefined && u.gpsLat !== null) ? parseFloat(u.gpsLat) : null);
@@ -7949,7 +8287,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone) {
             const restoredProfile = {
                 fullName: u.fullName || '',
                 email: u.email || '',
-                phone: u.phone || '',
+                phone: u.phone || cleanPhone,
                 colonyName: u.address?.colonyName || '',
                 nearBy: u.address?.nearBy || '',
                 streetName: u.address?.streetName || '',
@@ -7971,11 +8309,95 @@ async function restoreUserProfileFromFirestore(emailOrPhone) {
                 currentCustomerGps = { lat: restoredProfile.gpsLat, lng: restoredProfile.gpsLng };
             }
 
+            // Restore Wallet Balance permanently bound to this mobile number
+            const restoredBalance = Number(u.walletBalance !== undefined ? u.walletBalance : (u.balance !== undefined ? u.balance : 0));
+            localStorage.setItem('perfetto_wallet_balance', restoredBalance);
+
+            let activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+            if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+            currentCustomerWallet.phone = cleanPhone || restoredProfile.phone;
+            currentCustomerWallet.balance = restoredBalance;
+            currentCustomerWallet.nonExpiredBalance = restoredBalance;
+            currentCustomerWallet.expiresAt = u.walletExpiresAt || u.expiresAt || null;
+            currentCustomerWallet.expiryDays = u.walletExpiryDays || u.expiryDays || activeDays;
+            currentCustomerWallet.cashbackExpiryDays = u.cashbackExpiryDays || activeDays;
+            currentCustomerWallet.lastCreditedAt = u.lastCreditedAt || null;
+
+            if (Array.isArray(u.walletTransactions) && u.walletTransactions.length > 0) {
+                currentCustomerWallet.transactions = u.walletTransactions;
+            } else if (Array.isArray(u.transactions) && u.transactions.length > 0) {
+                currentCustomerWallet.transactions = u.transactions;
+            }
+            localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+
+            // Restore complete order history bound to this phone number
+            const targetPhone = cleanPhone || restoredProfile.phone;
+            if (targetPhone) {
+                try {
+                    let remoteOrders = [];
+                    const ordersRes = await apiCall(`/orders?phone=${encodeURIComponent(targetPhone)}`);
+                    if (ordersRes.ok) {
+                        const ordersData = await ordersRes.json();
+                        if (ordersData && Array.isArray(ordersData.orders)) {
+                            remoteOrders = ordersData.orders;
+                        }
+                    }
+
+                    if (remoteOrders.length === 0 && customerFirestore) {
+                        try {
+                            const snap = await customerFirestore.collection('orders').where('customerPhone', '==', targetPhone).get();
+                            if (!snap.empty) {
+                                snap.forEach(doc => {
+                                    remoteOrders.push({ id: doc.id, orderId: doc.id, ...doc.data() });
+                                });
+                            }
+                        } catch (e) {}
+                    }
+
+                    if (remoteOrders.length > 0) {
+                        let existingLocal = [];
+                        try {
+                            existingLocal = JSON.parse(localStorage.getItem('perfettoCustomerOrders') || '[]');
+                        } catch (e) {}
+
+                        const map = new Map();
+                        // Remote orders take precedence
+                        remoteOrders.forEach(o => map.set(String(o.id || o.orderId), o));
+                        existingLocal.forEach(o => {
+                            const id = String(o.id || o.orderId);
+                            if (!map.has(id)) map.set(id, o);
+                        });
+                        const merged = Array.from(map.values()).sort((a, b) => {
+                            const timeA = new Date(a.createdAt || 0).getTime();
+                            const timeB = new Date(b.createdAt || 0).getTime();
+                            return timeB - timeA;
+                        });
+                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(merged));
+                        if (typeof listenToCustomerActiveOrders === 'function') {
+                            listenToCustomerActiveOrders();
+                        }
+                    }
+                } catch (ordErr) {
+                    console.warn('Notice restoring customer orders:', ordErr.message);
+                }
+            }
+
             renderProfileHeaderAndInputs(restoredProfile);
             updateProfileTotalsUI();
+            updateProfileWalletUI();
+            renderProfileWalletTxList();
+            renderOrderHistoryDetails();
+            updateCheckoutWalletUI();
             updateCartUI();
 
-            console.log('✅ User profile successfully restored across devices from Firebase Firestore:', restoredProfile.fullName);
+            if (!options.silent) {
+                const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+                showToast(isHindi
+                    ? `🎉 स्वागत है! आपका वॉलेट (₹${restoredBalance}) और ऑर्डर इतिहास रीस्टोर हो गए हैं।`
+                    : `🎉 Welcome back! Wallet (₹${restoredBalance}) and order history restored.`);
+            }
+
+            console.log('✅ User profile, wallet (₹' + restoredBalance + ') & orders successfully restored from Firestore:', restoredProfile.fullName);
             return restoredProfile;
         }
     } catch (err) {
@@ -8312,14 +8734,35 @@ function renderOrderHistoryDetails() {
                     const isDelivered = o.status === 'completed' || o.status === 'delivered';
                     const isCancelled = o.status === 'rejected' || o.status === 'cancelled';
                     const itemsText = (o.items || []).map(i => escapeHtml(i.name)).join(', ');
-                    const orderCashback = Number(o.earnedCashback || (o.scratchCard && o.scratchCard.amount) || 0);
-                    const isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
+                    const orderCashback = Number(o.wonCashback || o.earnedCashback || (o.scratchCard && (o.scratchCard.wonAmount || o.scratchCard.amount)) || 0);
+                    let isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
                     const isCardExpired = isScratchCardExpired(o);
                     const expiryCountdown = getScratchExpiryCountdownText(o);
                     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
                     const orderDays = (o && (o.scratchExpiryDays || o.cashbackExpiryDays || (o.scratchCard && (o.scratchCard.expiryDays || o.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
                     if (isCardExpired && !o.scratchExpired) {
                         permanentlyInvalidateScratchCard(o);
+                    }
+
+                    const isScratchRevealed = Boolean(o.scratchRevealed || (o.scratchCard && o.scratchCard.revealed));
+
+                    // Auto-credit pending delivery cashback only if order was delivered AND card was already revealed
+                    if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired) {
+                        if (orderCashback > 0) {
+                            o.scratchClaimed = true;
+                            o.rewardStatus = 'active_credited';
+                            if (o.scratchCard) {
+                                o.scratchCard.claimed = true;
+                                o.scratchCard.status = 'active_credited';
+                                o.scratchCard.claimedAt = new Date().toISOString();
+                            }
+                            const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
+                            creditCustomerWallet(phone, orderCashback, o.id || o.orderId);
+                            isScratchClaimed = true;
+                            try {
+                                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
+                            } catch (e) {}
+                        }
                     }
 
                     return `
@@ -8351,37 +8794,40 @@ function renderOrderHistoryDetails() {
                         ` : ''}
 
                         ${orderCashback > 0 && !isCancelled ? `
-                            ${!isScratchClaimed ? `
-                                ${!isCardExpired ? `
-                                    <div class="order-history-scratch-promo unclaimed-glowing" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
-                                        <div class="scratch-promo-left">
-                                            <div class="scratch-promo-icon-wrap">
-                                                <i class="fa-solid fa-gift fa-bounce"></i>
-                                            </div>
-                                            <div>
-                                                <div class="scratch-promo-title">🎁 स्क्रैच कार्ड उपलब्ध (Unclaimed Scratch Card)</div>
-                                                <div class="scratch-promo-sub">
-                                                    <span class="scratch-countdown-pill">
-                                                        <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
-                                                    </span>
-                                                    <span class="scratch-card-amount-hint">Win up to ₹${orderCashback}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <button type="button" class="btn-open-scratch-card" onclick="event.stopPropagation(); openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
-                                            Scratch Now ✨
-                                        </button>
-                                    </div>
-                                ` : `
-                                    <div class="order-history-scratch-expired">
-                                        <i class="fa-solid fa-clock-rotate-left"></i>
-                                        <span>⚠️ ${isHindi ? `स्क्रैच कार्ड समाप्त (${orderDays} दिन समाप्त)` : `Scratch Card Expired (${orderDays} days elapsed)`}</span>
-                                    </div>
-                                `}
-                            ` : `
+                            ${isCardExpired ? `
+                                <div class="order-history-scratch-expired">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                    <span>⚠️ ${isHindi ? `स्क्रैच कार्ड समाप्त (${orderDays} दिन समाप्त)` : `Scratch Card Expired (${orderDays} days elapsed)`}</span>
+                                </div>
+                            ` : isScratchClaimed ? `
                                 <div class="order-history-scratch-claimed">
                                     <i class="fa-solid fa-circle-check"></i>
-                                    <span>Scratch Card Claimed (+₹${orderCashback} in wallet)</span>
+                                    <span>${isHindi ? `स्क्रैच कार्ड क्लेम किया गया (+₹${orderCashback} वॉलेट में)` : `Scratch Card Claimed (+₹${orderCashback} in wallet)`}</span>
+                                </div>
+                            ` : !isScratchRevealed ? `
+                                <div class="order-history-scratch-promo unclaimed-glowing" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
+                                    <div class="scratch-promo-left">
+                                        <div class="scratch-promo-icon-wrap">
+                                            <i class="fa-solid fa-gift fa-bounce"></i>
+                                        </div>
+                                        <div>
+                                            <div class="scratch-promo-title">🎁 Scratch Card Available / स्क्रैच कार्ड उपलब्ध</div>
+                                            <div class="scratch-promo-sub">
+                                                <span class="scratch-countdown-pill">
+                                                    <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
+                                                </span>
+                                                <span class="scratch-card-amount-hint">Win up to ₹${orderCashback}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn-open-scratch-card" onclick="event.stopPropagation(); openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
+                                        Scratch Now ✨
+                                    </button>
+                                </div>
+                            ` : `
+                                <div class="order-history-scratch-pending" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
+                                    <i class="fa-solid fa-truck-fast"></i>
+                                    <span>${isHindi ? `🎁 ₹${orderCashback} कैशबैक जीता • ऑर्डर डिलीवर होने पर वॉलेट में जुड़ेगा` : `🎁 ₹${orderCashback} Cashback Won • Credited once order is delivered`}</span>
                                 </div>
                             `}
                         ` : ''}
@@ -9686,6 +10132,48 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 target.paymentStatus = freshOrderData.paymentStatus;
                 updated = true;
             }
+            if (freshOrderData.rewardStatus && freshOrderData.rewardStatus !== target.rewardStatus) {
+                target.rewardStatus = freshOrderData.rewardStatus;
+                updated = true;
+            }
+            if (freshOrderData.wonCashback && freshOrderData.wonCashback !== target.wonCashback) {
+                target.wonCashback = freshOrderData.wonCashback;
+                updated = true;
+            }
+            if (freshOrderData.scratchRevealed !== undefined && freshOrderData.scratchRevealed !== target.scratchRevealed) {
+                target.scratchRevealed = freshOrderData.scratchRevealed;
+                updated = true;
+            }
+            if (freshOrderData.scratchClaimed !== undefined && freshOrderData.scratchClaimed !== target.scratchClaimed) {
+                target.scratchClaimed = freshOrderData.scratchClaimed;
+                updated = true;
+            }
+
+            // Auto-credit pending delivery cashback if order transitioned to completed/delivered
+            const isNowDelivered = (freshOrderData.status === 'completed' || freshOrderData.status === 'delivered');
+            if (isNowDelivered) {
+                const orderCashback = Number(target.wonCashback || target.earnedCashback || (target.scratchCard && (target.scratchCard.wonAmount || target.scratchCard.amount)) || 0);
+                const isScratchClaimed = !!(target.scratchClaimed || (target.scratchCard && target.scratchCard.claimed));
+                const isCardExpired = typeof isScratchCardExpired === 'function' ? isScratchCardExpired(target) : false;
+                const isPendingDelivery = (target.rewardStatus === 'pending_delivery' || (target.scratchCard && target.scratchCard.status === 'pending_delivery') || target.scratchRevealed);
+
+                if (isPendingDelivery && !isScratchClaimed && !isCardExpired && orderCashback > 0) {
+                    target.scratchClaimed = true;
+                    target.rewardStatus = 'credited';
+                    if (target.scratchCard) {
+                        target.scratchCard.claimed = true;
+                        target.scratchCard.status = 'credited';
+                        target.scratchCard.claimedAt = new Date().toISOString();
+                    }
+                    const phone = target.customerPhone || target.phone || ((currentUserProfile && currentUserProfile.phone) || '');
+                    creditCustomerWallet(phone, orderCashback, target.id || target.orderId);
+                    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+                    showToast(isHindi 
+                        ? `🎉 बधाई हो! ऑर्डर #${orderId} डिलीवर हो गया - ₹${orderCashback} कैशबैक आपके वॉलेट में जोड़ दिया गया है!` 
+                        : `🎉 Order #${orderId} Delivered! ₹${orderCashback} Cashback has been credited to your wallet!`);
+                    updated = true;
+                }
+            }
         } else {
             storedOrders.unshift({
                 ...freshOrderData,
@@ -9699,6 +10187,7 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
             localStorage.setItem('perfettoCustomerOrders', JSON.stringify(storedOrders));
             renderOrderHistoryDetails();
             updateProfileTotalsUI();
+            updateProfileWalletUI();
 
             // Status notification toast if status changed
             if (oldStatus && freshOrderData.status && oldStatus !== freshOrderData.status) {
@@ -9859,13 +10348,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const phoneInput = document.getElementById('customer-phone');
     if (phoneInput) {
-        phoneInput.addEventListener('blur', (e) => {
-            const val = e.target.value.replace(/[^0-9]/g, '');
-            if (val.length === 10) {
+        let lastRestoredPhone = '';
+        const handlePhoneLookup = (e) => {
+            const val = String(e.target.value || '').replace(/[^0-9]/g, '').slice(-10);
+            if (val.length === 10 && val !== lastRestoredPhone) {
+                lastRestoredPhone = val;
                 restoreUserProfileFromFirestore(val);
             }
-        });
+        };
+        phoneInput.addEventListener('blur', handlePhoneLookup);
+        phoneInput.addEventListener('input', handlePhoneLookup);
     }
+
+    const checkoutPhoneInput = document.getElementById('checkout-phone');
+    if (checkoutPhoneInput) {
+        let lastRestoredCheckoutPhone = '';
+        const handleCheckoutPhoneLookup = (e) => {
+            const val = String(e.target.value || '').replace(/[^0-9]/g, '').slice(-10);
+            if (val.length === 10 && val !== lastRestoredCheckoutPhone) {
+                lastRestoredCheckoutPhone = val;
+                restoreUserProfileFromFirestore(val);
+            }
+        };
+        checkoutPhoneInput.addEventListener('blur', handleCheckoutPhoneLookup);
+        checkoutPhoneInput.addEventListener('input', handleCheckoutPhoneLookup);
+    }
+
+    window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
+    window.restoreCustomerFullProfileAndWallet = restoreUserProfileFromFirestore;
 
     // 2. Real-Time Background Polling (Every 3.5s for instant multi-device synchronization)
     const menuIntervalId = setInterval(fetchLiveMenuFromBackend, 3500);

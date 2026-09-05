@@ -2563,7 +2563,38 @@ function updateOrderStatus(orderId, newStatus, triggerBtn) {
         }
         const createdMs = getOrderCreationTimeMs(order);
         const endMs = new Date(order.completedAt).getTime();
-        order.completedDurationSec = Math.max(0, Math.floor((endMs - createdMs) / 1000));
+        const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
+        if (isCardScratched) {
+            order.rewardStatus = 'active_credited';
+            order.scratchRevealed = true;
+            order.scratchClaimed = true;
+            if (!order.scratchCard) order.scratchCard = {};
+            order.scratchCard.status = 'active_credited';
+            order.scratchCard.revealed = true;
+            order.scratchCard.claimed = true;
+            order.scratchCard.claimedAt = nowIso;
+        } else {
+            // Unrevealed fallback: card awaits user scratching in Order History
+            order.rewardStatus = 'unscratched';
+            order.scratchRevealed = false;
+            order.scratchClaimed = false;
+            if (!order.scratchCard) order.scratchCard = {};
+            order.scratchCard.status = 'unscratched';
+            order.scratchCard.revealed = false;
+            order.scratchCard.claimed = false;
+        }
+    }
+
+    if (newStatus === 'rejected') {
+        order.rewardStatus = 'voided';
+        order.wonCashback = 0;
+        order.earnedCashback = 0;
+        if (order.scratchCard) {
+            order.scratchCard.status = 'voided';
+            order.scratchCard.wonAmount = 0;
+            order.scratchCard.amount = 0;
+            order.scratchCard.voided = true;
+        }
     }
 
     // 1. Save updated staffOrders to localStorage
@@ -2683,15 +2714,68 @@ async function handleAdminDeleteOrder(orderId) {
 window.handleAdminDeleteOrder = handleAdminDeleteOrder;
 
 async function syncOrderStatusToBackend(orderId, newStatus) {
+    const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
+    const isDelivered = (newStatus === 'completed');
+    const isRejected = (newStatus === 'rejected');
+
+    const patchPayload = {
+        orderId: String(orderId),
+        id: String(orderId),
+        status: newStatus
+    };
+
+    if (isDelivered) {
+        patchPayload.rewardStatus = 'active_credited';
+        patchPayload.scratchClaimed = true;
+    } else if (isRejected) {
+        patchPayload.rewardStatus = 'voided';
+        patchPayload.wonCashback = 0;
+    }
+
     // 1. Instantly update in Firestore for real-time customer and admin notification
     let firestoreSucceeded = false;
     if (staffFirestore) {
         try {
-            await staffFirestore.collection('orders').doc(String(orderId)).set({
+            const fsUpdate = {
                 status: newStatus,
                 updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
-            }, { merge: true });
+            };
+            if (isDelivered) {
+                fsUpdate.rewardStatus = 'active_credited';
+                fsUpdate.scratchClaimed = true;
+            } else if (isRejected) {
+                fsUpdate.rewardStatus = 'voided';
+                fsUpdate.wonCashback = 0;
+            }
+            await staffFirestore.collection('orders').doc(String(orderId)).set(fsUpdate, { merge: true });
             firestoreSucceeded = true;
+
+            // Direct client increment on users/{phone} if delivered with cashback
+            if (isDelivered && order) {
+                const wonAmt = Number(order.wonCashback || order.earnedCashback || order.scratchCard?.wonAmount || order.scratchCard?.amount || 0);
+                const rawPhone = order.customerPhone || order.phone || (order.customer && order.customer.phone) || '';
+                const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+                if (wonAmt > 0 && cleanPhone) {
+                    const userDocRef = staffFirestore.collection('users').doc(`phone_${cleanPhone}`);
+                    const userDocRefRaw = staffFirestore.collection('users').doc(cleanPhone);
+                    const txItem = {
+                        type: 'credit',
+                        amount: wonAmt,
+                        orderId: String(orderId),
+                        description: `Cashback unlocked upon delivery of Order #${orderId}`,
+                        createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+                        status: 'active'
+                    };
+                    const incObj = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                        ? { walletBalance: firebase.firestore.FieldValue.increment(wonAmt), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }
+                        : { walletBalance: wonAmt, updatedAt: new Date().toISOString() };
+
+                    userDocRef.set(incObj, { merge: true }).catch(() => {});
+                    userDocRefRaw.set(incObj, { merge: true }).catch(() => {});
+                    userDocRef.collection('transactions').add(txItem).catch(() => {});
+                    userDocRefRaw.collection('transactions').add(txItem).catch(() => {});
+                }
+            }
         } catch (e) {
             console.warn('Firestore live order update notice:', e.message);
         }
@@ -2701,11 +2785,7 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
     try {
         const response = await apiCall('/orders', {
             method: 'PATCH',
-            body: JSON.stringify({
-                orderId: String(orderId),
-                id: String(orderId),
-                status: newStatus
-            })
+            body: JSON.stringify(patchPayload)
         });
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));

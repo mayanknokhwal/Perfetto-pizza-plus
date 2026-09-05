@@ -7507,6 +7507,30 @@ html[lang="hi"] .nav-label {
     animation: none;
 }
 
+.btn-scratch-claim.btn-pending-delivery {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(2, 132, 199, 0.45);
+    cursor: pointer;
+    animation: pendingDeliveryPulse 2s infinite;
+}
+
+.btn-scratch-claim.btn-pending-delivery:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(2, 132, 199, 0.6);
+}
+
+@keyframes pendingDeliveryPulse {
+    0%, 100% {
+        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 10px 32px rgba(2, 132, 199, 0.7);
+        transform: scale(1.015);
+    }
+}
+
 @keyframes claimPulseGlow {
     0%, 100% {
         box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4);
@@ -7734,6 +7758,20 @@ html[lang="hi"] .nav-label {
     color: #9ca3af;
     background: rgba(156, 163, 175, 0.1);
     border: 1px dashed rgba(156, 163, 175, 0.35);
+    border-radius: 8px;
+    padding: 7px 11px;
+    margin: 8px 0;
+}
+
+.order-history-scratch-pending {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(2, 132, 199, 0.12);
+    border: 1px solid rgba(2, 132, 199, 0.3);
     border-radius: 8px;
     padding: 7px 11px;
     margin: 8px 0;

@@ -30,6 +30,15 @@ async function fetchOrdersFromFirestore() {
             for (const d of liveDocs) {
                 const oid = String(d.orderId || d.id || d.__id || '').trim();
                 if (isValidOrder(d)) {
+                    const localExisting = global.__perfettoOrdersList.find(o => String(o.orderId || o.id) === oid);
+                    if (localExisting && localExisting.updatedAt && d.updatedAt) {
+                        const localTime = new Date(localExisting.updatedAt).getTime();
+                        const remoteTime = new Date(d.updatedAt).getTime();
+                        if (localTime >= remoteTime) {
+                            mergedMap.set(oid, localExisting);
+                            continue;
+                        }
+                    }
                     mergedMap.set(oid, d);
                 } else if (oid) {
                     // Auto-purge corrupted / ghost undefined document from Firestore
@@ -206,14 +215,20 @@ async function handleOrdersRequest(req, res) {
                 status: body.status || 'new',
                 createdAt: body.createdAt || new Date().toISOString(),
                 timeAgo: body.timeAgo || 'Just now',
-                earnedCashback: Number(body.earnedCashback || 0),
+                rewardStatus: body.rewardStatus || 'pending_delivery',
+                wonCashback: Number(body.wonCashback || body.earnedCashback || 0),
+                earnedCashback: Number(body.earnedCashback || body.wonCashback || 0),
+                scratchRevealed: Boolean(body.scratchRevealed),
                 scratchClaimed: Boolean(body.scratchClaimed),
                 scratchExpired: Boolean(body.scratchExpired),
                 scratchExpiresAt: body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000),
                 scratchExpiryDays: Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7),
                 cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7),
                 scratchCard: body.scratchCard || {
-                    amount: Number(body.earnedCashback || 0),
+                    amount: Number(body.earnedCashback || body.wonCashback || 0),
+                    wonAmount: Number(body.wonCashback || body.earnedCashback || 0),
+                    status: body.rewardStatus || 'pending_delivery',
+                    revealed: Boolean(body.scratchRevealed),
                     claimed: Boolean(body.scratchClaimed),
                     claimedAt: body.scratchCard?.claimedAt || null,
                     createdAt: body.createdAt || new Date().toISOString(),
@@ -239,6 +254,44 @@ async function handleOrdersRequest(req, res) {
                 console.error('CRITICAL: Firestore order create sync error:', err.message);
             }
 
+            // Bind order & scratch card to customer's permanent mobile profile in users/{phone}
+            const newOrderCleanPhone = String(orderDoc.customerPhone || orderDoc.phone || '').replace(/[^0-9]/g, '').slice(-10);
+            if (newOrderCleanPhone) {
+                try {
+                    let userDoc = await getFirestoreDoc('users', `phone_${newOrderCleanPhone}`) || await getFirestoreDoc('users', newOrderCleanPhone);
+                    if (!userDoc) {
+                        userDoc = global.__perfettoUsersList.find(u => u.phone === newOrderCleanPhone) || {
+                            phone: newOrderCleanPhone,
+                            fullName: orderDoc.customerName || 'Customer',
+                            address: orderDoc.address || '',
+                            isPhoneVerified: true,
+                        };
+                    }
+                    userDoc.orders = Array.isArray(userDoc.orders) ? userDoc.orders : [];
+                    if (!userDoc.orders.includes(String(finalOrderId))) {
+                        userDoc.orders.unshift(String(finalOrderId));
+                        if (userDoc.orders.length > 50) userDoc.orders.length = 50;
+                    }
+                    if (orderDoc.wonCashback > 0 || orderDoc.scratchCard) {
+                        userDoc.scratchCards = Array.isArray(userDoc.scratchCards) ? userDoc.scratchCards : [];
+                        userDoc.scratchCards.unshift({
+                            orderId: String(finalOrderId),
+                            wonCashback: orderDoc.wonCashback,
+                            rewardStatus: orderDoc.rewardStatus || 'pending_delivery',
+                            createdAt: orderDoc.createdAt
+                        });
+                        if (userDoc.scratchCards.length > 50) userDoc.scratchCards.length = 50;
+                    }
+                    userDoc.lastOrderAt = orderDoc.createdAt;
+                    userDoc.updatedAt = new Date().toISOString();
+
+                    await setFirestoreDoc('users', `phone_${newOrderCleanPhone}`, userDoc);
+                    await setFirestoreDoc('users', newOrderCleanPhone, userDoc);
+                } catch (uErr) {
+                    console.warn('Notice binding order to user profile in Firestore:', uErr.message);
+                }
+            }
+
             // Trigger FCM Push Notification to Staff Devices
             try {
                 sendOrderNotificationToStaff(orderDoc).catch(e => {
@@ -262,7 +315,7 @@ async function handleOrdersRequest(req, res) {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
             const effectiveId = body?.orderId || body?.id || req.query?.orderId || req.query?.id;
-            const { status, paymentStatus, paymentDetails, deliveryOtp, completedAt, completedDurationSec, scratchClaimed, scratchCard, scratchExpired, scratchExpiresAt } = body || {};
+            const { status, paymentStatus, paymentDetails, deliveryOtp, completedAt, completedDurationSec, scratchClaimed, scratchCard, scratchExpired, scratchExpiresAt, rewardStatus, wonCashback, scratchRevealed } = body || {};
 
             if (!effectiveId) {
                 return res.status(400).json({ success: false, message: 'orderId is required' });
@@ -281,11 +334,126 @@ async function handleOrdersRequest(req, res) {
             if (deliveryOtp) targetOrder.deliveryOtp = deliveryOtp;
             if (completedAt) targetOrder.completedAt = completedAt;
             if (completedDurationSec !== undefined) targetOrder.completedDurationSec = completedDurationSec;
+            if (rewardStatus !== undefined) targetOrder.rewardStatus = rewardStatus;
+            if (wonCashback !== undefined) targetOrder.wonCashback = Number(wonCashback);
+            if (scratchRevealed !== undefined) targetOrder.scratchRevealed = Boolean(scratchRevealed);
             if (scratchClaimed !== undefined) targetOrder.scratchClaimed = Boolean(scratchClaimed);
             if (scratchCard !== undefined) targetOrder.scratchCard = scratchCard;
             if (scratchExpired !== undefined) targetOrder.scratchExpired = Boolean(scratchExpired);
             if (scratchExpiresAt !== undefined) targetOrder.scratchExpiresAt = scratchExpiresAt;
             targetOrder.updatedAt = new Date().toISOString();
+
+            const isDelivered = (targetOrder.status === 'completed' || targetOrder.status === 'delivered');
+            const isRejected = (targetOrder.status === 'rejected' || targetOrder.status === 'cancelled');
+
+            // 1. DELIVERY CONFIRMATION OR POST-DELIVERY SCRATCH REVEAL
+            if (isDelivered) {
+                const wonAmt = Number(targetOrder.wonCashback || targetOrder.earnedCashback || targetOrder.scratchCard?.wonAmount || targetOrder.scratchCard?.amount || 0);
+                const isCardScratched = Boolean(targetOrder.scratchRevealed || targetOrder.scratchCard?.revealed);
+
+                if (isCardScratched && wonAmt > 0) {
+                    // Card was scratched (either before delivery or post-delivery in Order History) -> Credit wallet now
+                    const wasAlreadyCredited = (targetOrder.rewardStatus === 'active_credited' && targetOrder.scratchClaimed && targetOrder.scratchCard?.claimed);
+
+                    targetOrder.rewardStatus = 'active_credited';
+                    targetOrder.scratchRevealed = true;
+                    targetOrder.scratchClaimed = true;
+                    if (!targetOrder.scratchCard) {
+                        targetOrder.scratchCard = {};
+                    }
+                    targetOrder.scratchCard.status = 'active_credited';
+                    targetOrder.scratchCard.revealed = true;
+                    targetOrder.scratchCard.claimed = true;
+                    if (!targetOrder.scratchCard.claimedAt) {
+                        targetOrder.scratchCard.claimedAt = new Date().toISOString();
+                    }
+
+                    const rawPhone = targetOrder.customerPhone || targetOrder.phone || targetOrder.customer?.phone || '';
+                    const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+
+                    if (!wasAlreadyCredited && cleanPhone) {
+                        try {
+                            let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`);
+                            if (!userDoc) {
+                                userDoc = await getFirestoreDoc('users', cleanPhone);
+                            }
+                            if (!userDoc) {
+                                userDoc = global.__perfettoUsersList.find(u => u.phone === cleanPhone) || {
+                                    phone: cleanPhone,
+                                    fullName: targetOrder.customerName || 'Customer',
+                                    isPhoneVerified: true
+                                };
+                            }
+
+                            const oldBal = Number(userDoc.walletBalance || userDoc.balance || 0);
+                            const newBal = oldBal + wonAmt;
+                            userDoc.walletBalance = newBal;
+                            userDoc.balance = newBal;
+                            userDoc.updatedAt = new Date().toISOString();
+
+                            // Record immutable ledger transaction
+                            const txEntry = {
+                                id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                                type: 'credit',
+                                amount: wonAmt,
+                                orderId: targetId,
+                                description: `Cashback unlocked & credited for Order #${targetId}`,
+                                createdAt: new Date().toISOString(),
+                                status: 'active'
+                            };
+                            userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
+                            userDoc.walletTransactions.unshift(txEntry);
+                            if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;
+
+                            // Update in-memory users cache
+                            const uIdx = global.__perfettoUsersList.findIndex(u => u.phone === cleanPhone);
+                            if (uIdx >= 0) {
+                                global.__perfettoUsersList[uIdx] = { ...global.__perfettoUsersList[uIdx], ...userDoc };
+                            } else {
+                                global.__perfettoUsersList.push(userDoc);
+                            }
+
+                            // Atomically persist to Firestore users/{phone} under both keys
+                            await setFirestoreDoc('users', `phone_${cleanPhone}`, userDoc);
+                            await setFirestoreDoc('users', cleanPhone, userDoc);
+
+                            // Sync to /wallets/{cleanPhone}
+                            await setFirestoreDoc('wallets', cleanPhone, {
+                                phone: cleanPhone,
+                                balance: newBal,
+                                lastCreditedAt: new Date().toISOString(),
+                                updatedAt: new Date().toISOString()
+                            });
+                        } catch (walletErr) {
+                            console.warn('Error incrementing customer wallet in users collection:', walletErr.message);
+                        }
+                    }
+                } else if (!isCardScratched && wonAmt > 0) {
+                    // Fallback for unrevealed scratch cards:
+                    // Order is delivered, but customer exited before scratching.
+                    // Keep card state as "unscratched" under order doc with immutable expiration timestamp
+                    targetOrder.rewardStatus = 'unscratched';
+                    targetOrder.scratchRevealed = false;
+                    targetOrder.scratchClaimed = false;
+                    if (!targetOrder.scratchCard) {
+                        targetOrder.scratchCard = {};
+                    }
+                    targetOrder.scratchCard.status = 'unscratched';
+                    targetOrder.scratchCard.revealed = false;
+                    targetOrder.scratchCard.claimed = false;
+                }
+            } else if (isRejected) {
+                // 2. REJECTION / CANCELLATION: Atomically update reward status to "voided" with ₹0 credited
+                targetOrder.rewardStatus = 'voided';
+                targetOrder.wonCashback = 0;
+                targetOrder.earnedCashback = 0;
+                if (targetOrder.scratchCard) {
+                    targetOrder.scratchCard.status = 'voided';
+                    targetOrder.scratchCard.wonAmount = 0;
+                    targetOrder.scratchCard.amount = 0;
+                    targetOrder.scratchCard.voided = true;
+                }
+            }
 
             // Update in-memory orders list
             const existingIdx = global.__perfettoOrdersList.findIndex(o => String(o.orderId || o.id) === targetId);
