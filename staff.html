@@ -264,11 +264,19 @@
                             <div class="brand-tag">Staff Portal</div>
                         </div>
                     </div>
-                    <!-- Lock / Sign Out Button -->
-                    <button type="button" class="btn-staff-lock" id="btn-staff-logout" onclick="handleStaffLogout()" title="Lock Staff Portal">
-                        <i class="fa-solid fa-lock"></i>
-                        <span>Lock</span>
-                    </button>
+                    <div class="header-actions">
+                        <!-- Dedicated Sound ON/OFF Header Toggle -->
+                        <button type="button" class="btn-staff-sound-toggle sound-off" id="btn-staff-sound-toggle" onclick="toggleStaffSoundState()" title="Tap to Toggle Kitchen Audio Alerts" aria-pressed="false">
+                            <span class="sound-toggle-dot"></span>
+                            <i class="fa-solid fa-volume-xmark" id="staff-sound-icon"></i>
+                            <span id="staff-sound-label">🔕 Audio Muted (Tap to Enable Sound)</span>
+                        </button>
+                        <!-- Lock / Sign Out Button -->
+                        <button type="button" class="btn-staff-lock" id="btn-staff-logout" onclick="handleStaffLogout()" title="Lock Staff Portal">
+                            <i class="fa-solid fa-lock"></i>
+                            <span>Lock</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- ROLE & USER INFO (STAFF PORTAL DISPLAY) -->
@@ -299,7 +307,7 @@
             </header>
 
             <!-- AUDIO AUTOPLAY RESTRICTION / LIVE CHIME UNLOCK BANNER -->
-            <div id="staff-audio-banner" class="staff-audio-banner" style="display: none;" onclick="unlockStaffAudioAlerts(false)" role="alert" aria-live="assertive">
+            <div id="staff-audio-banner" class="staff-audio-banner" style="display: none;" onclick="toggleStaffSoundState()" role="alert" aria-live="assertive">
                 <div class="audio-banner-content">
                     <i class="fa-solid fa-volume-xmark audio-banner-icon"></i>
                     <span id="staff-audio-banner-text">Audio alerts restricted by browser. <strong>Tap here to enable sound chimes!</strong></span>

@@ -1376,6 +1376,10 @@ async function handleStaffLogout() {
 
     if (confirmed) {
         stopOrderAlertAudio();
+        stopStaffAudioKeepAlive();
+        releaseStaffWakeLock();
+        isStaffSoundEnabled = false;
+        updateStaffSoundToggleUI();
         cleanupAllStaffListeners();
 
         try {
@@ -1608,9 +1612,195 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     renderOrders();
 }
 
+let isStaffSoundEnabled = false; // Persistent sound switch: ALWAYS resets to OFF (false) on every page reload/refresh
 let isStaffAudioUnlocked = false;
 let isAudioAutoplayBlocked = false;
 let pendingOrderAlertData = null;
+let staffAudioKeepAliveInterval = null;
+let staffScreenWakeLock = null;
+let synthesizedBeepInterval = null;
+
+/**
+ * Updates the Sound ON/OFF Header Toggle button appearance
+ * OFF: "🔕 Audio Muted (Tap to Enable Sound)" with amber/red attention glow
+ * ON: "🔔 Sound Active" with stable green indicator
+ */
+function updateStaffSoundToggleUI() {
+    const btn = document.getElementById('btn-staff-sound-toggle');
+    const icon = document.getElementById('staff-sound-icon');
+    const label = document.getElementById('staff-sound-label');
+    if (!btn) return;
+
+    if (isStaffSoundEnabled) {
+        btn.className = 'btn-staff-sound-toggle sound-on';
+        btn.setAttribute('aria-pressed', 'true');
+        btn.title = 'Sound Active (Tap to Mute Kitchen Alerts)';
+        if (icon) icon.className = 'fa-solid fa-bell';
+        if (label) label.textContent = '🔔 Sound Active';
+        dismissStaffAudioBanner();
+    } else {
+        btn.className = 'btn-staff-sound-toggle sound-off';
+        btn.setAttribute('aria-pressed', 'false');
+        btn.title = 'Audio Muted (Tap to Enable Kitchen Alerts)';
+        if (icon) icon.className = 'fa-solid fa-volume-xmark';
+        if (label) label.textContent = '🔕 Audio Muted (Tap to Enable Sound)';
+    }
+}
+window.updateStaffSoundToggleUI = updateStaffSoundToggleUI;
+
+/**
+ * Plays a brief 0.3-second confirmation test chime/beep upon user clicking Sound ON
+ */
+function playSoundActivationChime() {
+    try {
+        const ctx = getStaffAudioContext();
+        if (!ctx) return;
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+            ctx.resume().catch(() => {});
+        }
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now); // D5
+        osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.12); // A5
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.30);
+    } catch (e) {
+        console.warn('Activation chime notice:', e.message);
+    }
+}
+
+/**
+ * Requests Screen Wake Lock (navigator.wakeLock) to keep kitchen tablet/screen awake while staff is on duty
+ */
+async function requestStaffWakeLock() {
+    if ('wakeLock' in navigator && navigator.wakeLock) {
+        try {
+            if (staffScreenWakeLock && !staffScreenWakeLock.released) return;
+            staffScreenWakeLock = await navigator.wakeLock.request('screen');
+            staffScreenWakeLock.addEventListener('release', () => {
+                console.log('📱 [Staff Portal] Screen Wake Lock released.');
+            });
+            console.log('📱 [Staff Portal] Screen Wake Lock active (display sleep prevented).');
+        } catch (err) {
+            console.warn('Screen wakeLock notice:', err.message);
+        }
+    }
+}
+
+/**
+ * Releases Screen Wake Lock
+ */
+async function releaseStaffWakeLock() {
+    if (staffScreenWakeLock) {
+        try {
+            await staffScreenWakeLock.release();
+        } catch (e) {}
+        staffScreenWakeLock = null;
+    }
+}
+
+/**
+ * Starts the silent keep-alive heartbeat interval (every 25s) to prevent browser tab/audio sleep
+ */
+function startStaffAudioKeepAlive() {
+    stopStaffAudioKeepAlive();
+
+    const playSilentHeartbeat = () => {
+        if (!isStaffSoundEnabled) return;
+        try {
+            const ctx = getStaffAudioContext();
+            if (!ctx) return;
+            if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+                ctx.resume().catch(() => {});
+            }
+            // 1 sample silent buffer with zero gain
+            const silentBuffer = ctx.createBuffer(1, 1, 22050);
+            const source = ctx.createBufferSource();
+            source.buffer = silentBuffer;
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            source.connect(gain);
+            gain.connect(ctx.destination);
+            source.start(0);
+        } catch (err) {
+            console.warn('Audio keep-alive notice:', err.message);
+        }
+    };
+
+    playSilentHeartbeat();
+    staffAudioKeepAliveInterval = setInterval(playSilentHeartbeat, 25000);
+    console.log('💓 [Staff Audio] Silent keep-alive heartbeat started (every 25s).');
+}
+
+/**
+ * Stops the silent keep-alive heartbeat interval
+ */
+function stopStaffAudioKeepAlive() {
+    if (staffAudioKeepAliveInterval) {
+        clearInterval(staffAudioKeepAliveInterval);
+        staffAudioKeepAliveInterval = null;
+        console.log('🛑 [Staff Audio] Silent keep-alive heartbeat stopped.');
+    }
+}
+
+/**
+ * Toggles the staff sound switch ON/OFF
+ */
+async function toggleStaffSoundState() {
+    if (isStaffSoundEnabled) {
+        // Switch OFF: Mute alerts, stop keep-alive, release wake lock, update UI
+        console.log('🔕 [Staff Audio] Sound toggled OFF by staff.');
+        isStaffSoundEnabled = false;
+        stopOrderAlertAudio();
+        stopStaffAudioKeepAlive();
+        releaseStaffWakeLock();
+        updateStaffSoundToggleUI();
+        showStaffToast('🔕 Audio Muted. Kitchen alerts silenced.');
+    } else {
+        // Switch ON: Unlock AudioContext, play 0.3s confirmation chime, request Screen Wake Lock, start keep-alive
+        console.log('🔔 [Staff Audio] Sound toggled ON by staff.');
+        isStaffSoundEnabled = true;
+
+        // 1. Immediately unlock and initialize browser AudioContext
+        const ctx = getStaffAudioContext();
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            try {
+                await ctx.resume();
+            } catch (e) {}
+        }
+        unlockStaffAudioAlerts(false);
+
+        // 2. Play 0.3-second confirmation test chime
+        playSoundActivationChime();
+
+        // 3. Request Screen Wake Lock
+        requestStaffWakeLock();
+
+        // 4. Start keep-alive audio heartbeat (every 25s)
+        startStaffAudioKeepAlive();
+
+        // 5. Update UI badge
+        updateStaffSoundToggleUI();
+        showStaffToast('🔔 Sound Active! Kitchen audio alerts & keep-alive enabled.');
+
+        // 6. Check for unhandled incoming new orders to alert immediately
+        const activeNewOrder = staffOrders.find(o => o.status === 'new');
+        if (activeNewOrder) {
+            const orderId = String(activeNewOrder.orderId || activeNewOrder.id);
+            const customerName = activeNewOrder.customerName || activeNewOrder.customer?.name || 'Customer';
+            const total = activeNewOrder.total || activeNewOrder.costs?.total || '';
+            const summary = total ? `${customerName} • ₹${total}` : customerName;
+            startOrderAlertAudio(orderId, summary);
+        }
+    }
+}
+window.toggleStaffSoundState = toggleStaffSoundState;
 
 function unlockStaffAudioAlerts(silent = true) {
     // 1. Resume Web Audio Context if suspended
@@ -1638,7 +1828,7 @@ function unlockStaffAudioAlerts(silent = true) {
                     isAudioAutoplayBlocked = false;
                     dismissStaffAudioBanner();
                     console.log('🔓 [Staff Audio] Audio element primed for notifications.');
-                    if (pendingOrderAlertData && isOrderAlertAudioPlaying) {
+                    if (pendingOrderAlertData && isOrderAlertAudioPlaying && isStaffSoundEnabled) {
                         const { orderId, details } = pendingOrderAlertData;
                         pendingOrderAlertData = null;
                         startOrderAlertAudio(orderId, details);
@@ -1667,6 +1857,10 @@ window.dismissStaffAudioBanner = dismissStaffAudioBanner;
 function checkAndShowStaffAudioBanner() {
     const banner = document.getElementById('staff-audio-banner');
     if (!banner) return;
+    if (isStaffSoundEnabled) {
+        banner.style.display = 'none';
+        return;
+    }
     const ctx = getStaffAudioContext();
     const needsUnlock = !isStaffAudioUnlocked || isAudioAutoplayBlocked || (ctx && ctx.state === 'suspended');
     if (needsUnlock) {
@@ -1865,6 +2059,10 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchStaffSettingsFromBackend();
     checkStaffAuthSession();
 
+    // Dedicated Sound Toggle ALWAYS resets to OFF state on page reload/refresh
+    isStaffSoundEnabled = false;
+    updateStaffSoundToggleUI();
+
     // Check and show audio alert banner if audio context is suspended
     checkAndShowStaffAudioBanner();
 
@@ -1966,6 +2164,17 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchOrdersFromBackend();
         }
     }, 60000);
+});
+
+// Re-acquire Screen Wake Lock and auto-resume audio context when kitchen tab returns to visibility
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && isStaffSoundEnabled) {
+        requestStaffWakeLock();
+        const ctx = getStaffAudioContext();
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            ctx.resume().catch(() => {});
+        }
+    }
 });
 
 function updateLiveTimers() {
@@ -3498,6 +3707,19 @@ function getOrderAlertAudio() {
  * Starts continuous looping order alert audio ('./order-alert.mp3' with audio.loop = true)
  * Plays the alert track in a continuous loop for new incoming orders until accepted, rejected, or silenced.
  */
+function startSynthesizedBeepLoop() {
+    if (synthesizedBeepInterval) return;
+    playSynthesizedAlertBeep();
+    synthesizedBeepInterval = setInterval(() => {
+        if (isOrderAlertAudioPlaying && isStaffSoundEnabled) {
+            playSynthesizedAlertBeep();
+        } else {
+            clearInterval(synthesizedBeepInterval);
+            synthesizedBeepInterval = null;
+        }
+    }, 2500);
+}
+
 function startOrderAlertAudio(orderId = '', details = '') {
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
         return; // Already playing for this order
@@ -3517,7 +3739,23 @@ function startOrderAlertAudio(orderId = '', details = '') {
         strip.style.display = 'block';
     }
 
-    // 1. Play HTML5 Audio with audio.loop = true (continuous loop)
+    // Always display incoming order popup modal
+    showIncomingOrderModal(orderId, details);
+
+    // Fail-safe check: Is sound toggle currently ON?
+    if (!isStaffSoundEnabled) {
+        console.log('🔕 [Staff Audio] Sound toggle is currently OFF. Audio suppressed for Order #' + currentAlertingOrderId);
+        return;
+    }
+
+    // Fail-safe auto-resume: check AudioContext state before alert playback
+    const ctx = getStaffAudioContext();
+    if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+        console.log(`⚡ [Staff Audio] AudioContext was ${ctx.state}. Executing auto-resume before alert playback...`);
+        ctx.resume().catch(err => console.warn('AudioContext auto-resume notice:', err.message));
+    }
+
+    // 1. Play HTML5 Audio continuous loop
     let playedHtml5 = false;
     try {
         const audio = getOrderAlertAudio();
@@ -3537,7 +3775,7 @@ function startOrderAlertAudio(orderId = '', details = '') {
                     isAudioAutoplayBlocked = true;
                     pendingOrderAlertData = { orderId, details };
                     checkAndShowStaffAudioBanner();
-                    playSynthesizedAlertBeep();
+                    startSynthesizedBeepLoop();
                 });
                 playedHtml5 = true;
             }
@@ -3547,11 +3785,8 @@ function startOrderAlertAudio(orderId = '', details = '') {
     }
 
     if (!playedHtml5) {
-        playSynthesizedAlertBeep();
+        startSynthesizedBeepLoop();
     }
-
-    // 2. Show Incoming New Order Popup Modal
-    showIncomingOrderModal(orderId, details);
 }
 
 /**
@@ -3563,6 +3798,11 @@ function stopOrderAlertAudio() {
     isOrderAlertAudioPlaying = false;
     currentAlertingOrderId = null;
     pendingOrderAlertData = null;
+
+    if (synthesizedBeepInterval) {
+        clearInterval(synthesizedBeepInterval);
+        synthesizedBeepInterval = null;
+    }
 
     // 1. Hide persistent visual alert strip
     const strip = document.getElementById('staff-incoming-alert-strip');
@@ -3748,6 +3988,10 @@ window.triggerStaffOrderAlertSound = startOrderAlertAudio;
 window.stopStaffOrderAlertSound = stopOrderAlertAudio;
 window.playSynthesizedAlertBeep = playSynthesizedAlertBeep;
 window.cleanupAllStaffListeners = cleanupAllStaffListeners;
+window.toggleStaffSoundState = toggleStaffSoundState;
+window.updateStaffSoundToggleUI = updateStaffSoundToggleUI;
+window.startStaffAudioKeepAlive = startStaffAudioKeepAlive;
+window.stopStaffAudioKeepAlive = stopStaffAudioKeepAlive;
 
 // Prime Audio on page load
 if (typeof document !== 'undefined') {

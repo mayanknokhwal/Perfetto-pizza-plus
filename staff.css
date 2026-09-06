@@ -1618,6 +1618,98 @@ body {
 }
 
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* STAFF SOUND ON/OFF HEADER TOGGLE */
+.btn-staff-sound-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    user-select: none;
+    touch-action: manipulation;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+/* OFF STATE: Amber/red attention glow with subtle pulse */
+.btn-staff-sound-toggle.sound-off {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+    animation: staffAudioPulseGlow 2.2s infinite ease-in-out;
+}
+
+.btn-staff-sound-toggle.sound-off:hover {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 0 16px rgba(239, 68, 68, 0.5);
+    transform: translateY(-1px);
+}
+
+.btn-staff-sound-toggle.sound-off .sound-toggle-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+    animation: staffDotBlink 1.4s infinite alternate;
+}
+
+/* ON STATE: Stable green indicator */
+.btn-staff-sound-toggle.sound-on {
+    background: rgba(34, 197, 94, 0.14);
+    border: 1px solid rgba(34, 197, 94, 0.45);
+    color: #4ade80;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
+}
+
+.btn-staff-sound-toggle.sound-on:hover {
+    background: rgba(34, 197, 94, 0.24);
+    border-color: #22c55e;
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.45);
+    transform: translateY(-1px);
+}
+
+.btn-staff-sound-toggle.sound-on .sound-toggle-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+}
+
+@keyframes staffAudioPulseGlow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.22);
+        border-color: rgba(239, 68, 68, 0.35);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(245, 158, 11, 0.48);
+        border-color: rgba(245, 158, 11, 0.65);
+    }
+}
+
+@keyframes staffDotBlink {
+    0% { opacity: 0.4; transform: scale(0.85); }
+    100% { opacity: 1; transform: scale(1.15); }
+}
+
 .btn-staff-lock {
     display: inline-flex;
     align-items: center;
@@ -2533,6 +2625,24 @@ body {
 
     .header-top {
         padding: 10px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .btn-staff-sound-toggle {
+        flex: 1;
+        justify-content: center;
+        padding: 7px 10px;
+        font-size: 0.72rem;
+    }
+
+    .btn-staff-lock {
+        flex-shrink: 0;
     }
 
     .role-bar {
