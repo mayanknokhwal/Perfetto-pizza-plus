@@ -208,40 +208,71 @@ function getMasterDeliveryOtp() {
     return '9999';
 }
 
+let staffOrdersReconnectTimeout = null;
+
 function listenToFirestoreStaffOrders() {
     const db = getStaffFirestore();
-    if (!db || staffOrdersUnsubscribe) return;
+    if (!db) {
+        if (!staffOrdersReconnectTimeout) {
+            staffOrdersReconnectTimeout = setTimeout(() => {
+                staffOrdersReconnectTimeout = null;
+                listenToFirestoreStaffOrders();
+            }, 1000);
+        }
+        return;
+    }
+    if (staffOrdersUnsubscribe) return;
+
+    function processOrdersSnapshot(snapshot) {
+        if (!snapshot) return;
+        const liveOrders = [];
+        snapshot.forEach((doc) => {
+            const data = doc.data() || {};
+            const docId = doc.id;
+            liveOrders.push({
+                ...data,
+                firestoreDocId: docId,
+                docId: docId,
+                id: data.id || data.orderId || docId,
+                orderId: data.orderId || data.id || docId
+            });
+        });
+        // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
+        mergeLiveOrdersIntoStaff(liveOrders);
+    }
+
     try {
+        // Centralized shared restaurant order pool across all staff devices
+        // Query does NOT filter by individual staff user ID or phone; all devices watch the identical restaurant order pool
         staffOrdersUnsubscribe = db.collection('orders')
-            .orderBy('createdAt', 'desc')
-            .limit(50)
+            .limit(150)
             .onSnapshot((snapshot) => {
-                const liveOrders = [];
-                snapshot.forEach((doc) => {
-                    const data = doc.data() || {};
-                    liveOrders.push({
-                        ...data,
-                        firestoreDocId: doc.id,
-                        docId: doc.id,
-                        id: data.id || data.orderId || doc.id,
-                        orderId: data.orderId || data.id || doc.id
-                    });
-                });
-                if (liveOrders.length > 0) {
-                    mergeLiveOrdersIntoStaff(liveOrders);
-                }
+                processOrdersSnapshot(snapshot);
             }, (err) => {
-                console.warn('Firestore staff orders real-time note:', err.message);
+                console.warn('Firestore staff orders listener note:', err.message);
                 if (typeof staffOrdersUnsubscribe === 'function') {
                     try { staffOrdersUnsubscribe(); } catch (e) { }
                 }
                 staffOrdersUnsubscribe = null;
-                showStaffToast('⚠️ Live sync interrupted. Switching to background polling...');
+
+                // Auto-reconnect resiliently after 3 seconds instead of dropping listener
+                if (!staffOrdersReconnectTimeout) {
+                    staffOrdersReconnectTimeout = setTimeout(() => {
+                        staffOrdersReconnectTimeout = null;
+                        listenToFirestoreStaffOrders();
+                    }, 3000);
+                }
                 fetchOrdersFromBackend();
             });
     } catch (e) {
         console.warn('Error attaching Firestore staff listener:', e);
         staffOrdersUnsubscribe = null;
+        if (!staffOrdersReconnectTimeout) {
+            staffOrdersReconnectTimeout = setTimeout(() => {
+                staffOrdersReconnectTimeout = null;
+                listenToFirestoreStaffOrders();
+            }, 3000);
+        }
         fetchOrdersFromBackend();
     }
 }
@@ -462,8 +493,9 @@ function unlockStaffDashboard(user) {
         startStaffSessionSecurityListener(user.phone);
     }
 
-    // Start loading store settings & orders
+    // Start loading store settings & orders with real-time shared listener
     fetchStaffSettingsFromBackend();
+    listenToFirestoreStaffOrders();
     loadCustomerOrders();
     renderOrders();
     scheduleClientMidnightCleanup();
@@ -1483,14 +1515,15 @@ function sortOrdersOldestFirst(orders) {
 
 function isValidStaffOrder(order) {
     if (!order || typeof order !== 'object') return false;
-    const id = String(order.id || order.orderId || '').trim();
+    const id = String(order.id || order.orderId || order.docId || order.firestoreDocId || '').trim();
     if (!id || id === 'undefined' || id === 'null' || id === 'NaN') return false;
 
-    // Items array check (support items, cart, orderItems)
+    // Support items, cart, orderItems, or orders with details/totals
     const items = order.items || order.cart || order.orderItems;
-    if (!Array.isArray(items) || items.length === 0) return false;
+    const hasItems = Array.isArray(items) && items.length > 0;
+    const hasDetails = Boolean(order.customerPhone || order.phone || order.customerName || order.total || order.costs || order.status);
 
-    return true;
+    return hasItems || hasDetails;
 }
 
 function loadCustomerOrders() {
@@ -1555,48 +1588,52 @@ async function fetchOrdersFromBackend(force = false) {
 let staffSeenOrderIds = new Set();
 let isInitialOrdersSyncDone = false;
 
+function getOrderMatchingKey(o) {
+    if (!o) return '';
+    const raw = o.orderId || o.id || o.firestoreDocId || o.docId || '';
+    return String(raw).replace(/^#/, '').trim();
+}
+
 function mergeLiveOrdersIntoStaff(serverOrders) {
-    if (!Array.isArray(serverOrders) || serverOrders.length === 0) return;
+    if (!Array.isArray(serverOrders)) return;
     const mergedMap = new Map();
 
-    // Server / Firestore orders first (ground truth)
+    // 1. Server / Firestore orders are the single source of truth across all devices
     serverOrders.forEach(o => {
         if (isValidStaffOrder(o)) {
-            const id = String(o.orderId || o.id).trim();
-            if (id) {
-                const existingLocal = staffOrders.find(lo => String(lo.orderId || lo.id) === id);
+            const key = getOrderMatchingKey(o);
+            if (key) {
+                const existingLocal = staffOrders.find(lo => 
+                    (lo.firestoreDocId && o.firestoreDocId && lo.firestoreDocId === o.firestoreDocId) ||
+                    getOrderMatchingKey(lo) === key
+                );
                 if (existingLocal && existingLocal.firestoreDocId && !o.firestoreDocId) {
                     o.firestoreDocId = existingLocal.firestoreDocId;
                 }
-                mergedMap.set(id, o);
-            }
-        } else {
-            const ghostId = String(o?.orderId || o?.id || '').trim();
-            if (ghostId && ghostId !== 'undefined' && staffFirestore) {
-                staffFirestore.collection('orders').doc(ghostId).delete().catch(() => {});
+                mergedMap.set(key, o);
             }
         }
     });
 
-    // Add any local pending orders (valid only)
-    staffOrders.forEach(o => {
-        if (isValidStaffOrder(o)) {
-            const id = String(o.orderId || o.id).trim();
-            if (id && !mergedMap.has(id)) {
-                mergedMap.set(id, o);
+    // 2. Only preserve local orders if they were created offline and have not yet synced to remote
+    staffOrders.forEach(lo => {
+        if (isValidStaffOrder(lo) && lo._isLocalOfflinePending) {
+            const key = getOrderMatchingKey(lo);
+            if (key && !mergedMap.has(key)) {
+                mergedMap.set(key, lo);
             }
         }
     });
 
-    // Reverse order sorting: Oldest/earliest orders at top, new incoming orders at bottom
+    // 3. Sort orders: Oldest/earliest orders at top, new incoming orders at bottom
     const mergedList = sortOrdersOldestFirst(Array.from(mergedMap.values()).filter(isValidStaffOrder));
     staffOrders = mergedList;
 
-    // Check for newly arrived incoming orders (status === 'new') while app is active
+    // Check for newly arrived incoming orders (status === 'new' or 'pending') while app is active
     if (isInitialOrdersSyncDone) {
         const newIncomingOrders = staffOrders.filter(o => {
-            const id = String(o.orderId || o.id);
-            return o.status === 'new' && !staffSeenOrderIds.has(id);
+            const id = getOrderMatchingKey(o);
+            return (o.status === 'new' || o.status === 'pending') && !staffSeenOrderIds.has(id);
         });
 
         if (newIncomingOrders.length > 0) {
@@ -1612,7 +1649,7 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     }
 
     // Populate seen order IDs
-    staffOrders.forEach(o => staffSeenOrderIds.add(String(o.orderId || o.id)));
+    staffOrders.forEach(o => staffSeenOrderIds.add(getOrderMatchingKey(o)));
     isInitialOrdersSyncDone = true;
 
     // Auto-accept any online payment orders
@@ -2185,13 +2222,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 60000);
 });
 
-// Re-acquire Screen Wake Lock and auto-resume audio context when kitchen tab returns to visibility
+// Re-acquire Screen Wake Lock, auto-resume audio context, and re-verify orders listener on visibility
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isStaffSoundEnabled) {
-        requestStaffWakeLock();
-        const ctx = getStaffAudioContext();
-        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-            ctx.resume().catch(() => {});
+    if (document.visibilityState === 'visible') {
+        if (isStaffSoundEnabled) {
+            requestStaffWakeLock();
+            const ctx = getStaffAudioContext();
+            if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+                ctx.resume().catch(() => {});
+            }
+        }
+        if (currentStaffUser && !staffOrdersUnsubscribe) {
+            listenToFirestoreStaffOrders();
         }
     }
 });

@@ -51,7 +51,7 @@ service cloud.firestore {
     function isValidOrderUpdate(data) {
       return (
         data.status == null ||
-        data.status in ['new', 'preparing', 'ready', 'delivery', 'delivered', 'completed', 'cancelled', 'rejected']
+        data.status in ['new', 'pending', 'accepted', 'preparing', 'ready', 'dispatched', 'delivery', 'out_for_delivery', 'delivered', 'completed', 'cancelled', 'rejected']
       )
       && (data.total == null || isNonNegativeNumber(data.total) || data.total is string);
     }
