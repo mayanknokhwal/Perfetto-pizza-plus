@@ -3947,17 +3947,15 @@
                     <div class="store-notice-textarea-container" style="margin-top: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <label class="setting-input-label" style="margin-bottom: 0;">
-                                <i class="fa-solid fa-file-pen" style="color: var(--primary-orange);"></i> Notice Content (Up to 500 words)
+                                <i class="fa-solid fa-file-pen" style="color: var(--primary-orange);"></i> Notice Content (Up to 1000 characters)
                             </label>
                             <div class="store-notice-counters" id="store-notice-counters" style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);">
-                                <span id="notice-word-count" style="color: var(--primary-orange); font-weight: 800;">0</span> / 500 words
-                                <span style="margin: 0 4px; opacity: 0.5;">•</span>
-                                <span id="notice-char-count">0</span> chars
+                                <span id="notice-char-count" style="color: var(--primary-orange); font-weight: 800;">0 / 1000 Characters</span>
                             </div>
                         </div>
-                        <textarea id="input-store-notice-text" class="store-notice-textarea" rows="7" placeholder="Enter store notice or announcement for customers (max 500 words)..." oninput="onStoreNoticeTextInput()" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); font-family: var(--font-body, inherit); font-size: 0.88rem; line-height: 1.6; resize: vertical; transition: border-color 0.2s ease;"></textarea>
+                        <textarea id="input-store-notice-text" class="store-notice-textarea" rows="7" placeholder="Enter store notice or announcement for customers (max 1000 characters)..." maxlength="1000" oninput="onStoreNoticeTextInput()" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); font-family: var(--font-body, inherit); font-size: 0.88rem; line-height: 1.6; resize: vertical; transition: border-color 0.2s ease;"></textarea>
                         <div id="notice-word-warning" style="display: none; margin-top: 6px; font-size: 0.76rem; color: var(--accent-red, #ef4444); font-weight: 700;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Notice exceeds the 500 words limit! Please shorten your text before saving.
+                            <i class="fa-solid fa-triangle-exclamation"></i> Notice exceeds the 1000 characters limit! Please shorten your text before saving.
                         </div>
                     </div>
 
@@ -3967,9 +3965,6 @@
                             <i class="fa-solid fa-cloud-arrow-up" style="color: #10b981;"></i>
                             <span>Synced instantly to Firestore document <code>settings/store_notice</code> and displayed in app.</span>
                         </div>
-                        <button type="button" class="btn-save-wallet-settings" id="btn-save-store-notice-bottom" onclick="handleSaveStoreNoticeClick()">
-                            <i class="fa-solid fa-floppy-disk"></i> Save Notice
-                        </button>
                     </div>
                 </div>
             </section>
@@ -8186,27 +8181,28 @@
         }
         window.countWords = countWords;
 
+        function countCharacters(str) {
+            if (!str || typeof str !== 'string') return 0;
+            return str.length;
+        }
+        window.countCharacters = countCharacters;
+
         function onStoreNoticeTextInput() {
             const textarea = document.getElementById('input-store-notice-text');
-            const wordCountEl = document.getElementById('notice-word-count');
             const charCountEl = document.getElementById('notice-char-count');
             const warningEl = document.getElementById('notice-word-warning');
 
             if (!textarea) return;
 
-            const text = textarea.value;
-            const words = countWords(text);
-            const chars = text.length;
+            const currentLength = textarea.value.length;
+            const counterText = `${currentLength} / 1000 Characters`;
 
-            if (wordCountEl) {
-                wordCountEl.textContent = words;
-                wordCountEl.style.color = words > 500 ? 'var(--accent-red, #ef4444)' : 'var(--primary-orange)';
-            }
             if (charCountEl) {
-                charCountEl.textContent = chars;
+                charCountEl.textContent = counterText;
+                charCountEl.style.color = currentLength >= 1000 ? 'var(--accent-red, #ef4444)' : 'var(--primary-orange)';
             }
             if (warningEl) {
-                warningEl.style.display = words > 500 ? 'block' : 'none';
+                warningEl.style.display = currentLength > 1000 ? 'block' : 'none';
             }
         }
         window.onStoreNoticeTextInput = onStoreNoticeTextInput;
@@ -8284,29 +8280,24 @@
         window.fetchAdminStoreNotice = fetchAdminStoreNotice;
 
         async function saveStoreNotice(showToastMsg = true) {
-            const saveBtns = [
-                document.getElementById('btn-save-store-notice'),
-                document.getElementById('btn-save-store-notice-bottom')
-            ].filter(Boolean);
-
-            const origHtmls = saveBtns.map(b => b.innerHTML);
-            saveBtns.forEach(btn => {
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-            });
+            const saveBtn = document.getElementById('btn-save-store-notice');
+            const origHtml = saveBtn ? saveBtn.innerHTML : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
 
             try {
                 const toggleEl = document.getElementById('toggle-store-notice-enabled');
                 const titleEl = document.getElementById('input-store-notice-title');
                 const textEl = document.getElementById('input-store-notice-text');
 
-                const isEnabled = toggleEl ? toggleEl.checked : true;
-                const title = titleEl && titleEl.value.trim() ? titleEl.value.trim() : 'Store Notice';
-                const text = textEl ? textEl.value.trim() : '';
+                const isEnabled = toggleEl ? Boolean(toggleEl.checked) : true;
+                const title = titleEl && titleEl.value.trim() ? titleEl.value.trim().slice(0, 100) : 'Store Notice';
+                const text = textEl ? textEl.value.slice(0, 1000) : '';
 
-                const words = countWords(text);
-                if (words > 500) {
-                    if (showToastMsg) showToast('⚠️ Notice exceeds 500 words! Please shorten the text.');
+                if (textEl && textEl.value.length > 1000) {
+                    if (showToastMsg) showToast('⚠️ Notice exceeds 1000 characters! Please shorten the text.');
                     return false;
                 }
 
@@ -8315,7 +8306,7 @@
                     enabled: isEnabled,
                     title: title,
                     text: text,
-                    wordCount: words,
+                    characterCount: text.length,
                     updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                         ? firebase.firestore.FieldValue.serverTimestamp()
                         : new Date().toISOString()
@@ -8348,7 +8339,7 @@
                 }
 
                 if (typeof logAdminActivity === 'function') {
-                    logAdminActivity(`Updated Store Notice ("${title}", ${words} words, ${isEnabled ? 'Visible' : 'Hidden'})`);
+                    logAdminActivity(`Updated Store Notice ("${title}", ${text.length} characters, ${isEnabled ? 'Visible' : 'Hidden'})`);
                 }
                 return true;
             } catch (err) {
@@ -8356,10 +8347,10 @@
                 if (showToastMsg) showToast('❌ Failed to save store notice: ' + err.message);
                 return false;
             } finally {
-                saveBtns.forEach((btn, idx) => {
-                    btn.disabled = false;
-                    btn.innerHTML = origHtmls[idx] || '<i class="fa-solid fa-floppy-disk"></i> Save Notice';
-                });
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = origHtml || '<i class="fa-solid fa-floppy-disk"></i> Save Notice';
+                }
             }
         }
         window.saveStoreNotice = saveStoreNotice;

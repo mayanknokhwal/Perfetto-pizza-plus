@@ -1014,6 +1014,9 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
     if (tabName === 'profile') {
         updateProfileTotalsUI();
     }
+    if (tabName === 'profile' || tabName === 'home') {
+        updateStoreNoticeUI();
+    }
 
     // Update Floating Cart Pill Bar visibility on tab switch
     updateFloatingCartBar();
@@ -2811,8 +2814,9 @@ async function fetchLiveSettingsFromBackend() {
         // Graceful offline fallback
     }
 
-    // Also fetch dynamic daily banners
+    // Also fetch dynamic daily banners & store notice
     fetchLiveBannersFromBackend();
+    fetchLiveNoticeFromBackend();
 }
 
 async function fetchLiveBannersFromBackend() {
@@ -5155,22 +5159,94 @@ let customerStoreNotice = (function() {
 let storeNoticeRealtimeUnsubscribe = null;
 
 function updateStoreNoticeUI() {
-    const chipWrapper = document.getElementById('home-store-notice-wrapper');
-    const chipPreview = document.getElementById('home-notice-chip-preview');
+    try {
+        const stored = localStorage.getItem('perfetto_store_notice');
+        if (stored) customerStoreNotice = JSON.parse(stored);
+    } catch (e) {}
+
+    const homeBadgeWrapper = document.getElementById('home-store-notice-wrapper');
+    const badgeLabel = document.getElementById('home-notice-badge-label');
+    const profileTopCard = document.getElementById('profile-store-notice-top');
+    const profileBottomCard = document.getElementById('profile-store-notice-bottom');
 
     const notice = customerStoreNotice || DEFAULT_STORE_NOTICE;
-    const isEnabled = notice.enabled !== false && notice.text && notice.text.trim().length > 0;
+    const isEnabled = Boolean(notice && notice.enabled !== false && notice.text && notice.text.trim().length > 0);
+    const hasNoticeContent = Boolean(notice && notice.text && notice.text.trim().length > 0);
 
-    if (chipWrapper) {
-        chipWrapper.style.display = isEnabled ? 'block' : 'none';
+    // 1. Homepage Shimmer Badge:
+    // Aligned directly opposite "DAILY OFFER". Strictly hidden when toggle is OFF or text is empty.
+    if (homeBadgeWrapper) {
+        homeBadgeWrapper.style.display = isEnabled ? 'inline-flex' : 'none';
+        if (badgeLabel && notice && notice.title) {
+            badgeLabel.textContent = notice.title.length > 18 ? notice.title.substring(0, 16) + '...' : notice.title;
+        }
     }
 
-    if (chipPreview && notice.text) {
-        const cleanText = notice.text.replace(/\s+/g, ' ').trim();
-        chipPreview.textContent = cleanText.length > 75 ? cleanText.substring(0, 75) + '...' : cleanText;
+    // 2. Profile Screen Adaptive Placements:
+    // When toggle is ON: Display prominently at the very top of Profile screen.
+    // When toggle is OFF: Keep completely hidden from Homepage, but render as muted disclaimer at bottom of Profile.
+    if (profileTopCard) {
+        if (isEnabled) {
+            profileTopCard.style.display = 'block';
+            const topTitle = document.getElementById('profile-notice-top-title');
+            const topText = document.getElementById('profile-notice-top-text');
+            const topTime = document.getElementById('profile-notice-top-time');
+
+            if (topTitle) topTitle.textContent = notice.title || 'Store Notice';
+            if (topText && notice.text) {
+                const cleanText = notice.text.replace(/\s+/g, ' ').trim();
+                topText.textContent = cleanText.length > 130 ? cleanText.substring(0, 130) + '...' : cleanText;
+            }
+            if (topTime) {
+                if (notice.updatedAt) {
+                    const d = notice.updatedAt.toDate ? notice.updatedAt.toDate() : new Date(notice.updatedAt);
+                    topTime.textContent = !isNaN(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Active';
+                } else {
+                    topTime.textContent = 'Active';
+                }
+            }
+        } else {
+            profileTopCard.style.display = 'none';
+        }
+    }
+
+    if (profileBottomCard) {
+        if (!isEnabled && hasNoticeContent) {
+            profileBottomCard.style.display = 'block';
+            const bottomTitle = document.getElementById('profile-notice-bottom-title');
+            const bottomText = document.getElementById('profile-notice-bottom-text');
+
+            if (bottomTitle) bottomTitle.textContent = notice.title || 'Store Notice & Disclaimer';
+            if (bottomText && notice.text) {
+                const cleanText = notice.text.replace(/\s+/g, ' ').trim();
+                bottomText.textContent = cleanText.length > 110 ? cleanText.substring(0, 110) + '...' : cleanText;
+            }
+        } else {
+            profileBottomCard.style.display = 'none';
+        }
     }
 }
 window.updateStoreNoticeUI = updateStoreNoticeUI;
+
+async function fetchLiveNoticeFromBackend() {
+    if (storeNoticeRealtimeUnsubscribe) {
+        return;
+    }
+    try {
+        const res = await fetch(resolveApiUrl ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice');
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.notice) {
+                customerStoreNotice = { ...DEFAULT_STORE_NOTICE, ...data.notice };
+                try {
+                    localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
+                } catch (e) {}
+                updateStoreNoticeUI();
+            }
+        }
+    } catch (e) {}
+}
+window.fetchLiveNoticeFromBackend = fetchLiveNoticeFromBackend;
 
 function openStoreNoticeModal() {
     const modal = document.getElementById('store-notice-modal');

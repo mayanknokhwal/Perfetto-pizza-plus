@@ -6926,91 +6926,340 @@ html[lang="hi"] .nav-label {
 }
 
 /* --------------------------------------------------------------------------
-   STORE NOTICE SYSTEM (STATIC HOME CHIP, PROFILE ROW & POPUP MODAL)
+   STORE NOTICE SYSTEM (HOMEPAGE SHIMMER BADGE, PROFILE PLACEMENTS & MODAL)
    -------------------------------------------------------------------------- */
-.home-store-notice-wrapper {
-    width: 100%;
-    margin: 10px 0 14px 0;
-    display: block;
-    box-sizing: border-box;
+.daily-offer-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 12px;
 }
 
-.home-notice-chip {
+.daily-offer-header-row .section-title-bold {
+    margin-bottom: 0;
+    line-height: 1.1;
+}
+
+.home-notice-badge-container {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Compact Glossy Golden / Amber Theme Shimmer Badge */
+.home-notice-shimmer-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 13px 6px 11px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #b45309 100%);
+    border: 1px solid rgba(254, 240, 138, 0.75);
+    color: #ffffff;
+    font-family: var(--font-heading, inherit);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 3px 12px rgba(217, 119, 6, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.home-notice-shimmer-badge:hover {
+    transform: translateY(-1px) scale(1.03);
+    box-shadow: 0 5px 16px rgba(217, 119, 6, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.7);
+    border-color: #fef08a;
+}
+
+.home-notice-shimmer-badge:active {
+    transform: translateY(0) scale(0.97);
+}
+
+/* Ongoing subtle shimmer animation (running light gradient effect) */
+.home-notice-shimmer-badge::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -75%;
+    width: 45%;
+    height: 200%;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.8) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: rotate(25deg);
+    animation: noticeBadgeShimmer 2.5s infinite cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+
+@keyframes noticeBadgeShimmer {
+    0% {
+        left: -75%;
+    }
+    38% {
+        left: 140%;
+    }
+    100% {
+        left: 140%;
+    }
+}
+
+.notice-badge-icon {
+    font-size: 0.80rem;
+    color: #fffbeb;
+    display: flex;
+    align-items: center;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+.notice-badge-label {
+    font-size: 0.74rem;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    line-height: 1;
+}
+
+.notice-badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 7px #ffffff;
+    animation: noticeBadgeDotPulse 1.8s infinite ease-in-out;
+}
+
+@keyframes noticeBadgeDotPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.35;
+        transform: scale(0.7);
+    }
+}
+
+/* --------------------------------------------------------------------------
+   PROFILE TOP PROMINENT STORE NOTICE CARD (When toggle is ON)
+   -------------------------------------------------------------------------- */
+.profile-store-notice-top-card {
+    width: 100%;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.09) 0%, rgba(245, 158, 11, 0.06) 100%);
+    border: 1.5px solid rgba(255, 107, 0, 0.35);
+    border-radius: 20px;
+    padding: 16px 18px;
+    cursor: pointer;
+    box-sizing: border-box;
+    box-shadow: 0 8px 24px rgba(255, 107, 0, 0.1);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .profile-store-notice-top-card {
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.16) 0%, rgba(245, 158, 11, 0.1) 100%);
+    border-color: rgba(255, 107, 0, 0.45);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+
+.profile-store-notice-top-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary-orange);
+    box-shadow: 0 12px 30px rgba(255, 107, 0, 0.18);
+}
+
+.profile-store-notice-top-card:active {
+    transform: translateY(0);
+}
+
+.notice-top-card-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.notice-top-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--primary-orange) 0%, #ea580c 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 14px rgba(255, 107, 0, 0.35);
+    flex-shrink: 0;
+}
+
+.notice-top-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notice-top-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    width: 100%;
-    background: linear-gradient(135deg, rgba(255, 107, 0, 0.08) 0%, rgba(245, 158, 11, 0.05) 100%);
-    border: 1px solid rgba(255, 107, 0, 0.28);
-    border-radius: 30px;
-    padding: 7px 14px;
-    cursor: pointer;
-    transition: all 0.22s ease;
-    box-sizing: border-box;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-}
-
-.home-notice-chip:hover {
-    background: linear-gradient(135deg, rgba(255, 107, 0, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
-    border-color: rgba(255, 107, 0, 0.45);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(255, 107, 0, 0.1);
-}
-
-[data-theme="dark"] .home-notice-chip {
-    background: linear-gradient(135deg, rgba(255, 107, 0, 0.12) 0%, rgba(245, 158, 11, 0.08) 100%);
-    border-color: rgba(255, 107, 0, 0.35);
-}
-
-[data-theme="dark"] .home-notice-chip:hover {
-    background: linear-gradient(135deg, rgba(255, 107, 0, 0.18) 0%, rgba(245, 158, 11, 0.12) 100%);
-    border-color: rgba(255, 107, 0, 0.55);
-}
-
-.notice-chip-left {
-    display: flex;
-    align-items: center;
     gap: 8px;
-    min-width: 0;
-    flex: 1;
+    margin-bottom: 4px;
 }
 
-.notice-chip-icon-wrap {
-    color: var(--primary-orange);
-    font-size: 0.95rem;
-    flex-shrink: 0;
-    display: flex;
+.notice-top-badge {
+    display: inline-flex;
     align-items: center;
+    gap: 5px;
+    font-size: 0.70rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--primary-orange);
+    background: rgba(255, 107, 0, 0.14);
+    border: 1px solid rgba(255, 107, 0, 0.25);
+    border-radius: 9999px;
+    padding: 2px 8px;
 }
 
-.notice-chip-title {
+.notice-top-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.notice-top-title {
+    font-family: var(--font-heading);
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 2px 0 4px 0;
+    line-height: 1.25;
+}
+
+.notice-top-text {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0 0 8px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notice-top-read-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 0.78rem;
     font-weight: 800;
     color: var(--primary-orange);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    flex-shrink: 0;
-}
-
-.notice-chip-preview {
-    font-size: 0.80rem;
-    font-weight: 600;
-    color: var(--text-main);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.notice-chip-action-arrow {
-    color: var(--primary-orange);
-    font-size: 0.82rem;
-    margin-left: 8px;
-    flex-shrink: 0;
     transition: transform 0.2s ease;
 }
 
-.home-notice-chip:hover .notice-chip-action-arrow {
-    transform: translateX(3px);
+.profile-store-notice-top-card:hover .notice-top-read-more i {
+    transform: translateX(4px);
+}
+
+/* --------------------------------------------------------------------------
+   PROFILE BOTTOM MUTED STORE NOTICE DISCLAIMER CARD (When toggle is OFF)
+   -------------------------------------------------------------------------- */
+.profile-store-notice-bottom-card {
+    width: 100%;
+    margin-top: 24px;
+    margin-bottom: 14px;
+    background: var(--bg-surface-elevated);
+    border: 1px dashed var(--border-color);
+    border-radius: 16px;
+    padding: 14px 16px;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    opacity: 0.85;
+}
+
+.profile-store-notice-bottom-card:hover {
+    opacity: 1;
+    border-color: var(--text-muted);
+    background: var(--bg-input);
+    transform: translateY(-1px);
+}
+
+.notice-bottom-card-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.notice-bottom-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(148, 163, 184, 0.15);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+}
+
+.notice-bottom-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.notice-bottom-header {
+    margin-bottom: 3px;
+}
+
+.notice-bottom-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
+.notice-bottom-title {
+    font-family: var(--font-heading);
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 2px 0;
+}
+
+.notice-bottom-text {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin: 0 0 6px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.notice-bottom-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
 }
 
 /* Profile List Icons */
@@ -7173,25 +7422,55 @@ html[lang="hi"] .nav-label {
 }
 
 .btn-notice-dismiss {
-    background: var(--primary-orange);
+    background: linear-gradient(135deg, var(--primary-orange) 0%, #ea580c 100%);
     color: #ffffff;
     border: none;
     border-radius: 12px;
-    padding: 10px 18px;
-    font-size: 0.85rem;
+    padding: 11px 22px;
+    font-size: 0.88rem;
     font-weight: 800;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(255, 107, 0, 0.25);
+    box-shadow: 0 4px 14px rgba(255, 107, 0, 0.35);
 }
 
 .btn-notice-dismiss:hover {
-    background: var(--primary-orange-hover);
+    background: linear-gradient(135deg, var(--primary-orange-hover) 0%, #c2410c 100%);
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(255, 107, 0, 0.35);
+    box-shadow: 0 6px 18px rgba(255, 107, 0, 0.45);
+}
+
+.btn-notice-dismiss:active {
+    transform: translateY(0);
+}
+
+@media (max-width: 600px) {
+    .store-notice-modal-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+    .store-notice-modal-card {
+        max-width: 100%;
+        max-height: 85vh;
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+    }
+    .store-notice-modal-footer {
+        padding: 12px 16px;
+    }
+    .btn-notice-dismiss {
+        width: 100%;
+        justify-content: center;
+        padding: 13px 20px;
+        font-size: 0.92rem;
+    }
 }
 
 /* ==========================================================================

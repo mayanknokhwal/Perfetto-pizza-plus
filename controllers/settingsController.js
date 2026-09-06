@@ -219,7 +219,7 @@ const DEFAULT_STORE_NOTICE = {
     enabled: true,
     title: 'Store Notice',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
-    wordCount: 30,
+    characterCount: 202,
     updatedAt: null
 };
 
@@ -261,23 +261,25 @@ async function handleStoreNoticeRequest(req, res) {
             const title = (body.title && typeof body.title === 'string' && body.title.trim())
                 ? body.title.trim().slice(0, 100)
                 : 'Store Notice';
-            const text = typeof body.text === 'string' ? body.text.trim() : '';
+            const rawText = typeof body.text === 'string' ? body.text : '';
 
-            // Word count validation
-            const wordCount = text ? text.split(/\s+/).filter(Boolean).length : 0;
-            if (wordCount > 500) {
+            // Character count validation (1000 characters limit)
+            if (rawText.length > 1000) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Notice content exceeds maximum 500 words limit'
+                    message: 'Notice content exceeds maximum 1000 characters limit'
                 });
             }
+
+            const text = rawText.slice(0, 1000);
+            const characterCount = text.length;
 
             const updatedNotice = {
                 key: 'store_notice',
                 enabled: isEnabled,
                 title,
                 text,
-                wordCount,
+                characterCount,
                 updatedAt: new Date().toISOString()
             };
 

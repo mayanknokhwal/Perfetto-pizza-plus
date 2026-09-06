@@ -156,7 +156,17 @@ export function countWords(text) {
 }
 
 /**
- * Validates and normalizes store notice object
+ * Counts characters in a string
+ * @param {string} text 
+ * @returns {number}
+ */
+export function countCharacters(text) {
+    if (!text || typeof text !== 'string') return 0;
+    return text.length;
+}
+
+/**
+ * Validates and normalizes store notice object (enforces 1000 character maximum)
  * @param {Object} raw 
  * @returns {Object}
  */
@@ -167,15 +177,17 @@ export function normalizeStoreNotice(raw) {
 
     const enabled = raw.enabled !== false;
     const title = (raw.title && typeof raw.title === 'string' && raw.title.trim())
-        ? raw.title.trim()
+        ? raw.title.trim().slice(0, 100)
         : DEFAULT_STORE_NOTICE.title;
-    const text = typeof raw.text === 'string' ? raw.text : (DEFAULT_STORE_NOTICE.text || '');
+    const rawText = typeof raw.text === 'string' ? raw.text : (DEFAULT_STORE_NOTICE.text || '');
+    const text = rawText.slice(0, 1000);
 
     return {
         key: 'store_notice',
         enabled,
         title,
         text,
+        characterCount: text.length,
         updatedAt: raw.updatedAt || null
     };
 }

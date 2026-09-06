@@ -131,23 +131,18 @@
             <!-- HOME TAB VIEW -->
             <section class="tab-view active-tab" id="view-home">
 
-                <!-- STATIC STORE NOTICE BANNER CHIP (Directly beneath search bar on Home) -->
-                <div class="home-store-notice-wrapper" id="home-store-notice-wrapper">
-                    <div class="home-notice-chip" id="home-notice-chip" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice">
-                        <div class="notice-chip-left">
-                            <span class="notice-chip-icon-wrap"><i class="fa-solid fa-circle-info"></i></span>
-                            <span class="notice-chip-title">Notice:</span>
-                            <span class="notice-chip-preview" id="home-notice-chip-preview">Click to view store announcements &amp; info</span>
-                        </div>
-                        <span class="notice-chip-action-arrow">
-                            <i class="fa-solid fa-arrow-right"></i>
-                        </span>
-                    </div>
-                </div>
-
                 <!-- 1. 'DAILY OFFER' SECTION -->
                 <section class="daily-offer-section">
-                    <h2 class="section-title-bold" data-i18n="daily_offer">DAILY OFFER</h2>
+                    <div class="daily-offer-header-row">
+                        <h2 class="section-title-bold" data-i18n="daily_offer">DAILY OFFER</h2>
+                        <div class="home-notice-badge-container" id="home-store-notice-wrapper" style="display: none;">
+                            <button type="button" class="home-notice-shimmer-badge" id="btn-home-notice-badge" onclick="openStoreNoticeModal()" aria-label="View Store Notice">
+                                <span class="notice-badge-icon"><i class="fa-solid fa-bullhorn"></i></span>
+                                <span class="notice-badge-label" id="home-notice-badge-label">Notice</span>
+                                <span class="notice-badge-dot"></span>
+                            </button>
+                        </div>
+                    </div>
                     <div class="offer-slider-wrapper" id="offer-slider-wrapper">
                         <div class="offer-slider-track" id="offer-slider-track">
                             <div class="offer-slide">
@@ -279,6 +274,27 @@
                                 address first.</h4>
                             <p class="notice-banner-subtext">To access your food cart and place orders, please enter
                                 your details and verify your GPS delivery location below.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROMINENT STORE NOTICE CARD AT TOP OF PROFILE (When toggle is ON) -->
+                <div class="profile-store-notice-top-card" id="profile-store-notice-top" style="display: none;" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice">
+                    <div class="notice-top-card-inner">
+                        <div class="notice-top-icon-wrap">
+                            <i class="fa-solid fa-bullhorn"></i>
+                        </div>
+                        <div class="notice-top-content">
+                            <div class="notice-top-header">
+                                <span class="notice-top-badge"><i class="fa-solid fa-bell"></i> Store Announcement</span>
+                                <span class="notice-top-time" id="profile-notice-top-time">Official</span>
+                            </div>
+                            <h4 class="notice-top-title" id="profile-notice-top-title">Store Notice</h4>
+                            <p class="notice-top-text" id="profile-notice-top-text">Click to read store announcements &amp; guidelines...</p>
+                            <div class="notice-top-read-more">
+                                <span>Read full announcement</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -520,6 +536,26 @@
                             <span class="item-subtitle" data-i18n="store_notice_sub">Announcements, holiday alerts &amp; store updates</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow" id="arrow-store-notice"></i>
+                    </div>
+                </div>
+
+                <!-- MUTED STORE NOTICE DISCLAIMER CARD AT BOTTOM OF PROFILE (When toggle is OFF) -->
+                <div class="profile-store-notice-bottom-card" id="profile-store-notice-bottom" style="display: none;" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice & Disclaimer">
+                    <div class="notice-bottom-card-inner">
+                        <div class="notice-bottom-icon">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div class="notice-bottom-content">
+                            <div class="notice-bottom-header">
+                                <span class="notice-bottom-badge">Store Policy &amp; Terms Reference</span>
+                            </div>
+                            <h5 class="notice-bottom-title" id="profile-notice-bottom-title">Store Notice &amp; Disclaimer</h5>
+                            <p class="notice-bottom-text" id="profile-notice-bottom-text">Store policies, holiday updates and service guidelines.</p>
+                            <div class="notice-bottom-link">
+                                <span>View archived notice &amp; guidelines</span>
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -1268,8 +1304,8 @@
 
                 <!-- MODAL FOOTER -->
                 <div class="store-notice-modal-footer">
-                    <button type="button" class="btn-notice-dismiss" onclick="closeStoreNoticeModal()">
-                        <i class="fa-solid fa-check"></i> Understood &amp; Close
+                    <button type="button" class="btn-notice-dismiss" id="btn-notice-dismiss" onclick="closeStoreNoticeModal()">
+                        <i class="fa-solid fa-circle-check"></i> Got It / Close
                     </button>
                 </div>
             </div>
