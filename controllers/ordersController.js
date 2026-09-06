@@ -175,6 +175,18 @@ async function handleOrdersRequest(req, res) {
             const deliveryFee = Number(body.deliveryFee || body.costs?.deliveryFee || 0);
             const total = Number(body.total || body.costs?.total || subtotal + deliveryFee);
 
+            const usedWallet = Number(body.walletDiscount || body.usedWalletCash || 0);
+            let verifiedCashback = Number(body.wonCashback !== undefined ? body.wonCashback : (body.earnedCashback !== undefined ? body.earnedCashback : (body.scratchCard?.wonAmount || body.scratchCard?.amount || 0)));
+            if (verifiedCashback <= 0 && usedWallet <= 0 && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false) {
+                const slabs = global.__perfettoWalletConfig?.slabs || [];
+                const sorted = [...slabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
+                let q = null;
+                for (const s of sorted) {
+                    if (subtotal >= (Number(s.minOrder) || 0)) q = s;
+                }
+                if (q) verifiedCashback = Number(q.cashback) || 0;
+            }
+
             const parsedLat = body.gpsLat ?? body.latitude ?? body.gps?.lat ?? body.customer?.gps?.lat ?? body.deliveryDetails?.gpsLat ?? null;
             const parsedLng = body.gpsLng ?? body.longitude ?? body.gps?.lng ?? body.customer?.gps?.lng ?? body.deliveryDetails?.gpsLng ?? null;
 
@@ -222,17 +234,21 @@ async function handleOrdersRequest(req, res) {
                 createdAt: body.createdAt || new Date().toISOString(),
                 timeAgo: body.timeAgo || 'Just now',
                 rewardStatus: body.rewardStatus || 'pending_delivery',
-                wonCashback: Number(body.wonCashback || body.earnedCashback || 0),
-                earnedCashback: Number(body.earnedCashback || body.wonCashback || 0),
+                wonCashback: verifiedCashback,
+                earnedCashback: verifiedCashback,
                 scratchRevealed: Boolean(body.scratchRevealed),
                 scratchClaimed: Boolean(body.scratchClaimed),
                 scratchExpired: Boolean(body.scratchExpired),
                 scratchExpiresAt: body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000),
                 scratchExpiryDays: Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7),
                 cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7),
-                scratchCard: body.scratchCard || {
-                    amount: Number(body.earnedCashback || body.wonCashback || 0),
-                    wonAmount: Number(body.wonCashback || body.earnedCashback || 0),
+                scratchCard: body.scratchCard ? {
+                    ...body.scratchCard,
+                    amount: verifiedCashback,
+                    wonAmount: verifiedCashback
+                } : {
+                    amount: verifiedCashback,
+                    wonAmount: verifiedCashback,
                     status: body.rewardStatus || 'pending_delivery',
                     revealed: Boolean(body.scratchRevealed),
                     claimed: Boolean(body.scratchClaimed),

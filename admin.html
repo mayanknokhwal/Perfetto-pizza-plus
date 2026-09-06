@@ -7682,8 +7682,8 @@
         // WALLET & CASHBACK SLABS CONFIGURATION CONTROLLER (5 SLABS SYSTEM)
         // --------------------------------------------------------------------------
         const TOTAL_WALLET_SLABS = 5;
-        const MIN_ORDER_GAP = 100;
-        const CASHBACK_GAP = 10;
+        const MIN_ORDER_GAP = 1;
+        const CASHBACK_GAP = 1;
 
         const DEFAULT_WALLET_CONFIG = {
             enabled: true,
@@ -8091,10 +8091,18 @@
         async function fetchAdminWalletConfig() {
             if (typeof adminFirestore !== 'undefined' && adminFirestore) {
                 try {
-                    const doc = await adminFirestore.collection('settings').doc('wallet_config').get();
-                    if (doc.exists && doc.data()) {
-                        applyAdminWalletConfig(doc.data());
-                        return doc.data();
+                    let doc = await adminFirestore.collection('settings').doc('wallet_config').get();
+                    if (!doc.exists || !doc.data()) {
+                        doc = await adminFirestore.collection('settings').doc('rewards').get();
+                    }
+                    if (!doc.exists || !doc.data()) {
+                        doc = await adminFirestore.collection('settings').doc('store_config').get();
+                    }
+                    if (doc && doc.exists && doc.data()) {
+                        const d = doc.data();
+                        const cfg = d.wallet_config || d;
+                        applyAdminWalletConfig(cfg);
+                        return cfg;
                     }
                 } catch (e) {
                     console.warn('Firestore wallet_config fetch notice:', e.message);
@@ -8149,6 +8157,25 @@
 
                 if (typeof adminFirestore !== 'undefined' && adminFirestore) {
                     await adminFirestore.collection('settings').doc('wallet_config').set(docPayload, { merge: true });
+                    // Universal Firestore alignment: mirror to settings/rewards and settings/store_config
+                    try {
+                        await adminFirestore.collection('settings').doc('rewards').set({
+                            key: 'rewards',
+                            slabs: slabs,
+                            rewardTiers: slabs,
+                            cashbackTiers: slabs,
+                            enabled: isEnabled,
+                            expiryDays: expiryDays,
+                            updatedAt: docPayload.updatedAt
+                        }, { merge: true });
+                    } catch (e) {}
+                    try {
+                        await adminFirestore.collection('settings').doc('store_config').set({
+                            wallet_config: docPayload,
+                            slabs: slabs,
+                            updatedAt: docPayload.updatedAt
+                        }, { merge: true });
+                    } catch (e) {}
                 }
 
                 // Sync to backend API if available

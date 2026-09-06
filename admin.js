@@ -49,8 +49,12 @@ export function normalizeWalletConfig(raw) {
     }
 
     slabs = slabs.slice(0, 5).map((s, idx) => ({
-        minOrder: Math.max(0, parseFloat(s.minOrder) || DEFAULT_WALLET_CONFIG.slabs[idx].minOrder),
-        cashback: Math.max(0, parseFloat(s.cashback) || DEFAULT_WALLET_CONFIG.slabs[idx].cashback)
+        minOrder: (s.minOrder !== undefined && !isNaN(parseFloat(s.minOrder)))
+            ? Math.max(0, parseFloat(s.minOrder))
+            : (DEFAULT_WALLET_CONFIG.slabs[idx] ? DEFAULT_WALLET_CONFIG.slabs[idx].minOrder : 0),
+        cashback: (s.cashback !== undefined && !isNaN(parseFloat(s.cashback)))
+            ? Math.max(0, parseFloat(s.cashback))
+            : (DEFAULT_WALLET_CONFIG.slabs[idx] ? DEFAULT_WALLET_CONFIG.slabs[idx].cashback : 0)
     }));
 
     return {
@@ -65,8 +69,8 @@ export function normalizeWalletConfig(raw) {
 }
 
 /**
- * Calculates eligible cashback reward or boundaries for a given order total based on active slabs.
- * Follows fair uniform distribution: [prevTierCashback + 1, currentTierCashback]
+ * Calculates exact eligible cashback reward for a given order total based on active slabs.
+ * Strictly matches dynamic configured slab values from Firestore without random ranges or static fallbacks.
  * @param {number} orderAmount 
  * @param {Object} walletConfig 
  * @param {boolean} [generateRandom=false] 
@@ -74,32 +78,24 @@ export function normalizeWalletConfig(raw) {
  */
 export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG, generateRandom = false) {
     if (!walletConfig || walletConfig.enabled === false || orderAmount <= 0) return 0;
-    const rawSlabs = walletConfig.slabs || DEFAULT_WALLET_CONFIG.slabs;
+    const rawSlabs = walletConfig.slabs || walletConfig.rewardTiers || walletConfig.cashbackTiers || walletConfig.rewards || DEFAULT_WALLET_CONFIG.slabs;
     
     // Sort slabs ascending by minOrder
-    const sorted = [...rawSlabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
+    const sorted = [...rawSlabs].map(s => ({
+        minOrder: Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0,
+        cashback: Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount))) || 0
+    })).sort((a, b) => a.minOrder - b.minOrder);
+
     let qualifiedIndex = -1;
     for (let i = 0; i < sorted.length; i++) {
-        if (orderAmount >= (Number(sorted[i].minOrder) || 0)) {
+        if (orderAmount >= sorted[i].minOrder) {
             qualifiedIndex = i;
         }
     }
     if (qualifiedIndex === -1) return 0;
 
     const currentSlab = sorted[qualifiedIndex];
-    const max = Number(currentSlab.cashback) || 0;
-    let min = 1;
-    if (qualifiedIndex > 0) {
-        min = (Number(sorted[qualifiedIndex - 1].cashback) || 0) + 1;
-    }
-    if (max < min) min = Math.max(1, Math.min(min, max));
-
-    if (generateRandom) {
-        if (min >= max) return max;
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    return max;
+    return Number(currentSlab.cashback) || 0;
 }
 
 /**

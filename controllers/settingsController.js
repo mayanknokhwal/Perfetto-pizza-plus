@@ -139,9 +139,15 @@ async function handleWalletConfigRequest(req, res) {
         if (req.method === 'GET') {
             let config = global.__perfettoWalletConfig;
             try {
-                const doc = await getFirestoreDoc('settings', 'wallet_config');
+                let doc = await getFirestoreDoc('settings', 'wallet_config');
+                if (!doc) {
+                    doc = await getFirestoreDoc('settings', 'rewards');
+                }
+                if (!doc) {
+                    doc = await getFirestoreDoc('settings', 'store_config');
+                }
                 if (doc) {
-                    config = { ...global.__perfettoWalletConfig, ...doc };
+                    config = { ...global.__perfettoWalletConfig, ...(doc.wallet_config || doc) };
                     global.__perfettoWalletConfig = config;
                 }
             } catch (e) {
@@ -177,8 +183,12 @@ async function handleWalletConfigRequest(req, res) {
                 }
             }
             const slabs = rawSlabs.slice(0, 5).map((s, i) => ({
-                minOrder: Math.max(0, parseFloat(s.minOrder) || (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].minOrder : 3000)),
-                cashback: Math.max(0, parseFloat(s.cashback) || (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].cashback : 300))
+                minOrder: (s.minOrder !== undefined && !isNaN(parseFloat(s.minOrder)))
+                    ? Math.max(0, parseFloat(s.minOrder))
+                    : (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].minOrder : 0),
+                cashback: (s.cashback !== undefined && !isNaN(parseFloat(s.cashback)))
+                    ? Math.max(0, parseFloat(s.cashback))
+                    : (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].cashback : 0)
             }));
 
             const updatedConfig = {
@@ -193,6 +203,17 @@ async function handleWalletConfigRequest(req, res) {
 
             global.__perfettoWalletConfig = updatedConfig;
             await setFirestoreDoc('settings', 'wallet_config', updatedConfig);
+            try {
+                await setFirestoreDoc('settings', 'rewards', {
+                    key: 'rewards',
+                    slabs,
+                    rewardTiers: slabs,
+                    cashbackTiers: slabs,
+                    enabled: isEnabled,
+                    expiryDays,
+                    updatedAt: updatedConfig.updatedAt
+                });
+            } catch (e) {}
 
             return res.status(200).json({
                 success: true,
