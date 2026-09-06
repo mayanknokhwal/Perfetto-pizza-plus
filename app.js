@@ -193,10 +193,10 @@ function tAddon(addon) {
 
 /**
  * Strips redundant category suffixes for display card titles in category grid view.
- * Applies strictly across the 6 selected categories: Noodles, Pasta, Salad, Shakes, Coffee, and Rice.
+ * Applies strictly across the 7 selected categories: Noodles, Pasta, Salad, Shakes, Coffee, Rice, and Momos.
  * E.g., render "Green" instead of "Green Salad", "Paneer" instead of "Paneer Noodles",
  * "Vanilla" instead of "Vanilla Shake", "Red" instead of "Red Pasta", "Haka" instead of "Haka Rice",
- * "Cold" instead of "Cold Coffee".
+ * "Cold" instead of "Cold Coffee", "Veg" instead of "Veg Momos".
  *
  * Preserves the complete item name for search matching, search results, cart, orders, and dispatch.
  */
@@ -219,8 +219,9 @@ function getCategoryDisplayTitle(itemOrName, category) {
     const isShake = normCat === 'shake' || normCat === 'shakes';
     const isCoffee = normCat.includes('coffee');
     const isRice = normCat === 'rice';
+    const isMomos = normCat === 'momos' || normCat === 'momo';
 
-    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice) {
+    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice && !isMomos) {
         return name;
     }
 
@@ -237,6 +238,8 @@ function getCategoryDisplayTitle(itemOrName, category) {
         title = title.replace(/\s+(coffee|कॉफ़ी|कॉफी)$/i, '');
     } else if (isRice) {
         title = title.replace(/\s+(rice|राइस)$/i, '');
+    } else if (isMomos) {
+        title = title.replace(/\s+(momos?|मोमोज़|मोमो)$/i, '');
     }
 
     return title || name;
@@ -1247,17 +1250,17 @@ const categorySubItems = {
         { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "" }
     ],
     "Momos": [
-        { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
-        { id: "mom-chilly-veg", name: "Chilly Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg", desc: "Golden fried veg momos coated in tangy chilli sauce" },
-        { id: "mom-crispy-paneer", name: "Crispy Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg", desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling" },
-        { id: "mom-crispy-veg", name: "Crispy Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg", desc: "Super crunchy fried momos stuffed with spiced minced veggies" },
-        { id: "mom-pan-fried-paneer", name: "Pan Fried Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg", desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning" },
-        { id: "mom-pan-fried-veg", name: "Pan Fried Veg Momo", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg", desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices" },
-        { id: "mom-paneer", name: "Paneer Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/B786z53/Paneer-Momos.jpg", desc: "Steamed soft momos stuffed with rich seasoned cottage cheese" },
-        { id: "mom-special-paneer", name: "Special Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg", desc: "Chef special recipe paneer momos with gourmet herb filling" },
-        { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
-        { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
-        { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
+        { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/TMypswPg/Chilly-Paneer-Momos.webp", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
+        { id: "mom-chilly-veg", name: "Chilly Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/vvXz0LVs/Chilly-Veg-Momos.webp", desc: "Golden fried veg momos coated in tangy chilli sauce" },
+        { id: "mom-crispy-paneer", name: "Crispy Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/BHbQkQXq/Crispy-Paneer-Momos.webp", desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling" },
+        { id: "mom-crispy-veg", name: "Crispy Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/gZng8mVg/Crispy-Veg-Momos.webp", desc: "Super crunchy fried momos stuffed with spiced minced veggies" },
+        { id: "mom-pan-fried-paneer", name: "Pan Fried Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/39jF4dYc/Pan-Fried-Paneer-Momos.webp", desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning" },
+        { id: "mom-pan-fried-veg", name: "Pan Fried Veg Momo", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/KxpDbcfP/Pan-Fried-Veg-Momo.webp", desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices" },
+        { id: "mom-paneer", name: "Paneer Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/0VXwH7GC/Paneer-Momos.webp", desc: "Steamed soft momos stuffed with rich seasoned cottage cheese" },
+        { id: "mom-special-paneer", name: "Special Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/8g89RKQX/Special-Paneer-Momos.webp", desc: "Chef special recipe paneer momos with gourmet herb filling" },
+        { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/N8SXKgt/Tandoori-Paneer-Momos.webp", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
+        { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/zVV1spps/Tandoori-Veg-Momos.webp", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
+        { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/mF26SpKc/Veg-Momos.webp", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
     ],
     "Shake": [
         { id: "shk-black-currant", name: "Black Currant Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/fdWVLBkM/Black-Currant-Shake.webp", desc: "Rich creamy shake blended with luscious black currant flavor" },
@@ -1392,17 +1395,17 @@ const NEW_COFFEE_MENU_ITEMS = [
 ];
 
 const NEW_MOMOS_MENU_ITEMS = [
-    { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
-    { id: "mom-chilly-veg", name: "Chilly Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg", desc: "Golden fried veg momos coated in tangy chilli sauce" },
-    { id: "mom-crispy-paneer", name: "Crispy Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg", desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling" },
-    { id: "mom-crispy-veg", name: "Crispy Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg", desc: "Super crunchy fried momos stuffed with spiced minced veggies" },
-    { id: "mom-pan-fried-paneer", name: "Pan Fried Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg", desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning" },
-    { id: "mom-pan-fried-veg", name: "Pan Fried Veg Momo", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg", desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices" },
-    { id: "mom-paneer", name: "Paneer Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/B786z53/Paneer-Momos.jpg", desc: "Steamed soft momos stuffed with rich seasoned cottage cheese" },
-    { id: "mom-special-paneer", name: "Special Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg", desc: "Chef special recipe paneer momos with gourmet herb filling" },
-    { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
-    { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
-    { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
+    { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/TMypswPg/Chilly-Paneer-Momos.webp", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
+    { id: "mom-chilly-veg", name: "Chilly Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/vvXz0LVs/Chilly-Veg-Momos.webp", desc: "Golden fried veg momos coated in tangy chilli sauce" },
+    { id: "mom-crispy-paneer", name: "Crispy Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/BHbQkQXq/Crispy-Paneer-Momos.webp", desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling" },
+    { id: "mom-crispy-veg", name: "Crispy Veg Momos", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/gZng8mVg/Crispy-Veg-Momos.webp", desc: "Super crunchy fried momos stuffed with spiced minced veggies" },
+    { id: "mom-pan-fried-paneer", name: "Pan Fried Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/39jF4dYc/Pan-Fried-Paneer-Momos.webp", desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning" },
+    { id: "mom-pan-fried-veg", name: "Pan Fried Veg Momo", category: "Momos", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/KxpDbcfP/Pan-Fried-Veg-Momo.webp", desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices" },
+    { id: "mom-paneer", name: "Paneer Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/0VXwH7GC/Paneer-Momos.webp", desc: "Steamed soft momos stuffed with rich seasoned cottage cheese" },
+    { id: "mom-special-paneer", name: "Special Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/8g89RKQX/Special-Paneer-Momos.webp", desc: "Chef special recipe paneer momos with gourmet herb filling" },
+    { id: "mom-tandoori-paneer", name: "Tandoori Paneer Momos", category: "Momos", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/N8SXKgt/Tandoori-Paneer-Momos.webp", desc: "Char-grilled paneer momos marinated in smoky tandoori spices" },
+    { id: "mom-tandoori-veg", name: "Tandoori Veg Momos", category: "Momos", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/zVV1spps/Tandoori-Veg-Momos.webp", desc: "Smoky tandoori marinated veg momos with oven-roasted aroma" },
+    { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/mF26SpKc/Veg-Momos.webp", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
 ];
 
 const NEW_SANDWICH_MENU_ITEMS = [
@@ -1550,17 +1553,17 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const MOMOS_IMAGE_MAP = {
-        "mom-chilly-paneer": "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg",
-        "mom-chilly-veg": "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg",
-        "mom-crispy-paneer": "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg",
-        "mom-crispy-veg": "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg",
-        "mom-pan-fried-paneer": "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg",
-        "mom-pan-fried-veg": "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg",
-        "mom-paneer": "https://i.ibb.co/B786z53/Paneer-Momos.jpg",
-        "mom-special-paneer": "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg",
-        "mom-tandoori-paneer": "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg",
-        "mom-tandoori-veg": "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg",
-        "mom-veg": "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg"
+        "mom-chilly-paneer": "https://i.ibb.co/TMypswPg/Chilly-Paneer-Momos.webp",
+        "mom-chilly-veg": "https://i.ibb.co/vvXz0LVs/Chilly-Veg-Momos.webp",
+        "mom-crispy-paneer": "https://i.ibb.co/BHbQkQXq/Crispy-Paneer-Momos.webp",
+        "mom-crispy-veg": "https://i.ibb.co/gZng8mVg/Crispy-Veg-Momos.webp",
+        "mom-pan-fried-paneer": "https://i.ibb.co/39jF4dYc/Pan-Fried-Paneer-Momos.webp",
+        "mom-pan-fried-veg": "https://i.ibb.co/KxpDbcfP/Pan-Fried-Veg-Momo.webp",
+        "mom-paneer": "https://i.ibb.co/0VXwH7GC/Paneer-Momos.webp",
+        "mom-special-paneer": "https://i.ibb.co/8g89RKQX/Special-Paneer-Momos.webp",
+        "mom-tandoori-paneer": "https://i.ibb.co/N8SXKgt/Tandoori-Paneer-Momos.webp",
+        "mom-tandoori-veg": "https://i.ibb.co/zVV1spps/Tandoori-Veg-Momos.webp",
+        "mom-veg": "https://i.ibb.co/mF26SpKc/Veg-Momos.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Momos' && item.id && MOMOS_IMAGE_MAP[item.id]) {
@@ -2239,7 +2242,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
                         </div>
                         <div class="momos-card-body">
-                            <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             ${boxesMarkup}
                             <div class="momos-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -3368,7 +3371,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
                     </div>
                     <div class="momos-card-body">
-                        <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         ${boxesMarkup}
                         <div class="momos-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>

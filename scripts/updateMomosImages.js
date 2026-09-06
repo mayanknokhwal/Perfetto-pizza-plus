@@ -14,7 +14,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/8npwRhND/Chilly-Paneer-Momos.jpg",
+        img: "https://i.ibb.co/TMypswPg/Chilly-Paneer-Momos.webp",
         desc: "Crispy paneer momos tossed in spicy chilli garlic sauce"
     },
     {
@@ -24,7 +24,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/C3fxBr0n/Chilly-Veg-Momos.jpg",
+        img: "https://i.ibb.co/vvXz0LVs/Chilly-Veg-Momos.webp",
         desc: "Golden fried veg momos coated in tangy chilli sauce"
     },
     {
@@ -34,7 +34,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/7dCpxDhH/Crispy-Paneer-Momos.jpg",
+        img: "https://i.ibb.co/BHbQkQXq/Crispy-Paneer-Momos.webp",
         desc: "Crunchy crumb-coated momos loaded with seasoned paneer filling"
     },
     {
@@ -44,7 +44,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/20ZqGQqs/Crispy-Veg-Momos.jpg",
+        img: "https://i.ibb.co/gZng8mVg/Crispy-Veg-Momos.webp",
         desc: "Super crunchy fried momos stuffed with spiced minced veggies"
     },
     {
@@ -54,7 +54,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/rKg6g0zf/Pan-Fried-Paneer-Momos.jpg",
+        img: "https://i.ibb.co/39jF4dYc/Pan-Fried-Paneer-Momos.webp",
         desc: "Pan-seared juicy paneer momos with crispy bottoms and savory seasoning"
     },
     {
@@ -64,7 +64,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/BH0S6hGj/Pan-Fried-Veg-Momo.jpg",
+        img: "https://i.ibb.co/KxpDbcfP/Pan-Fried-Veg-Momo.webp",
         desc: "Crispy pan-fried vegetable momos glazed with mild aromatic spices"
     },
     {
@@ -74,7 +74,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/B786z53/Paneer-Momos.jpg",
+        img: "https://i.ibb.co/0VXwH7GC/Paneer-Momos.webp",
         desc: "Steamed soft momos stuffed with rich seasoned cottage cheese"
     },
     {
@@ -84,7 +84,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/zVWhf66r/Special-Paneer-Momos.jpg",
+        img: "https://i.ibb.co/8g89RKQX/Special-Paneer-Momos.webp",
         desc: "Chef special recipe paneer momos with gourmet herb filling"
     },
     {
@@ -94,7 +94,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/chtDHFmG/Tandoori-Paneer-Momos.jpg",
+        img: "https://i.ibb.co/N8SXKgt/Tandoori-Paneer-Momos.webp",
         desc: "Char-grilled paneer momos marinated in smoky tandoori spices"
     },
     {
@@ -104,7 +104,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/yFSGcBsD/Tandoori-Veg-Momos.jpg",
+        img: "https://i.ibb.co/zVV1spps/Tandoori-Veg-Momos.webp",
         desc: "Smoky tandoori marinated veg momos with oven-roasted aroma"
     },
     {
@@ -114,7 +114,7 @@ const MOMOS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg",
+        img: "https://i.ibb.co/mF26SpKc/Veg-Momos.webp",
         desc: "Classic steamed dumplings packed with fresh garden vegetables"
     }
 ];
