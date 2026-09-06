@@ -191,6 +191,60 @@ function tAddon(addon) {
     return addon;
 }
 
+/**
+ * Strips redundant category suffixes for display card titles in category grid view.
+ * Applies strictly across the 6 selected categories: Noodles, Pasta, Salad, Shakes, Coffee, and Rice.
+ * E.g., render "Green" instead of "Green Salad", "Paneer" instead of "Paneer Noodles",
+ * "Vanilla" instead of "Vanilla Shake", "Red" instead of "Red Pasta", "Haka" instead of "Haka Rice",
+ * "Cold" instead of "Cold Coffee".
+ *
+ * Preserves the complete item name for search matching, search results, cart, orders, and dispatch.
+ */
+function getCategoryDisplayTitle(itemOrName, category) {
+    let name = '';
+    let cat = '';
+    if (itemOrName && typeof itemOrName === 'object') {
+        name = typeof tItem === 'function' ? tItem(itemOrName.name || '') : (itemOrName.name || '');
+        cat = category || itemOrName.category || '';
+    } else {
+        name = String(itemOrName || '');
+        cat = category || '';
+    }
+    if (!name) return '';
+    const normCat = String(cat || '').trim().toLowerCase();
+
+    const isNoodles = normCat === 'noodles';
+    const isPasta = normCat === 'pasta';
+    const isSalad = normCat === 'salad';
+    const isShake = normCat === 'shake' || normCat === 'shakes';
+    const isCoffee = normCat.includes('coffee');
+    const isRice = normCat === 'rice';
+
+    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice) {
+        return name;
+    }
+
+    let title = name.trim();
+    if (isNoodles) {
+        title = title.replace(/\s+(noodles|नूडल्स)$/i, '');
+    } else if (isPasta) {
+        title = title.replace(/\s+(pasta|पास्ता)$/i, '');
+    } else if (isSalad) {
+        title = title.replace(/\s+(salad|सलाद)$/i, '');
+    } else if (isShake) {
+        title = title.replace(/\s+(shakes?|शेक)$/i, '');
+    } else if (isCoffee) {
+        title = title.replace(/\s+(coffee|कॉफ़ी|कॉफी)$/i, '');
+    } else if (isRice) {
+        title = title.replace(/\s+(rice|राइस)$/i, '');
+    }
+
+    return title || name;
+}
+if (typeof window !== 'undefined') {
+    window.getCategoryDisplayTitle = getCategoryDisplayTitle;
+}
+
 // Global hook for instant reactive re-rendering across the app when language changes
 window.onAppLanguageChanged = function (newLang) {
     // 1. Re-render Category Detail if open
@@ -2213,7 +2267,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
                         </div>
                         <div class="pasta-card-body burger-card-body">
-                            <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             ${boxesMarkup}
                             <div class="pasta-price-row burger-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -2318,7 +2372,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
                         </div>
                         <div class="shake-card-body burger-card-body">
-                            <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             ${boxesMarkup}
                             <div class="shake-price-row burger-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -2348,7 +2402,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
                         </div>
                         <div class="rice-card-body burger-card-body">
-                            <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                                 <span class="price-prefix">Price:</span>
                                 <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
@@ -2377,7 +2431,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
                         </div>
                         <div class="coffee-card-body burger-card-body">
-                            <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                                 <span class="price-prefix">Price:</span>
                                 <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
@@ -2434,7 +2488,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
                         </div>
                         <div class="noodles-card-body burger-card-body">
-                            <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             ${boxesMarkup}
                             <div class="noodles-price-row burger-price-row">
                                 <span class="price-prefix">Price:</span>
@@ -2493,7 +2547,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="salad-card-img burger-card-img" loading="lazy">
                         </div>
                         <div class="salad-card-body burger-card-body">
-                            <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             <div class="salad-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                                 <span class="price-prefix">Price:</span>
                                 <span class="salad-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 69)}</span>
@@ -2668,7 +2722,7 @@ function refreshActiveCustomerView(freshItems) {
                         </div>
                         <div class="sub-item-details">
                             <div class="sub-item-top-row">
-                                <span class="sub-item-name">${item.name}</span>
+                                <span class="sub-item-name">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span>
                                 ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
                             </div>
                             <p class="sub-item-desc">${item.desc}</p>
@@ -3341,7 +3395,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="pasta-card-body burger-card-body">
-                        <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         ${boxesMarkup}
                         <div class="pasta-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
@@ -3446,7 +3500,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="shake-card-body burger-card-body">
-                        <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         ${boxesMarkup}
                         <div class="shake-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
@@ -3476,7 +3530,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="rice-card-body burger-card-body">
-                        <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
@@ -3505,7 +3559,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="coffee-card-body burger-card-body">
-                        <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
@@ -3562,7 +3616,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="noodles-card-body burger-card-body">
-                        <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         ${boxesMarkup}
                         <div class="noodles-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
@@ -3621,7 +3675,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="salad-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="salad-card-body burger-card-body">
-                        <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="salad-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
                             <span class="salad-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 69)}</span>
@@ -3796,7 +3850,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                     </div>
                     <div class="sub-item-details">
                         <div class="sub-item-top-row">
-                            <span class="sub-item-name">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span>
+                            <span class="sub-item-name">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span>
                             ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
                         </div>
                         <p class="sub-item-desc">${item.desc}</p>
