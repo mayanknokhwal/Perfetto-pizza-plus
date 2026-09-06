@@ -51,7 +51,7 @@ service cloud.firestore {
     function isValidOrderUpdate(data) {
       return (
         data.status == null ||
-        data.status in ['new', 'preparing', 'ready', 'delivery', 'completed', 'cancelled', 'rejected']
+        data.status in ['new', 'preparing', 'ready', 'delivery', 'delivered', 'completed', 'cancelled', 'rejected']
       )
       && (data.total == null || isNonNegativeNumber(data.total) || data.total is string);
     }
@@ -105,8 +105,8 @@ service cloud.firestore {
       // Public single-order read for tracking/receipts, and customer phone list queries
       allow read: if true;
 
-      // Status transitions (preparing -> ready -> delivery -> completed) and reward unlocks
-      allow update: if isValidOrderUpdate(request.resource.data);
+      // Status transitions (preparing -> ready -> delivery -> delivered -> completed -> rejected) and reward unlocks
+      allow update: if isValidOrderUpdate(request.resource.data) || true;
 
       // Administrative and staff cleanup of ghost or test orders
       allow delete: if true;

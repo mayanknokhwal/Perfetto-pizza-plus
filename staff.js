@@ -218,7 +218,14 @@ function listenToFirestoreStaffOrders() {
             .onSnapshot((snapshot) => {
                 const liveOrders = [];
                 snapshot.forEach((doc) => {
-                    liveOrders.push(doc.data());
+                    const data = doc.data() || {};
+                    liveOrders.push({
+                        ...data,
+                        firestoreDocId: doc.id,
+                        docId: doc.id,
+                        id: data.id || data.orderId || doc.id,
+                        orderId: data.orderId || data.id || doc.id
+                    });
                 });
                 if (liveOrders.length > 0) {
                     mergeLiveOrdersIntoStaff(liveOrders);
@@ -1556,7 +1563,13 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     serverOrders.forEach(o => {
         if (isValidStaffOrder(o)) {
             const id = String(o.orderId || o.id).trim();
-            if (id) mergedMap.set(id, o);
+            if (id) {
+                const existingLocal = staffOrders.find(lo => String(lo.orderId || lo.id) === id);
+                if (existingLocal && existingLocal.firestoreDocId && !o.firestoreDocId) {
+                    o.firestoreDocId = existingLocal.firestoreDocId;
+                }
+                mergedMap.set(id, o);
+            }
         } else {
             const ghostId = String(o?.orderId || o?.id || '').trim();
             if (ghostId && ghostId !== 'undefined' && staffFirestore) {
@@ -1944,9 +1957,15 @@ function getDynamicTimerColor(elapsedSec) {
     };
 }
 
+function isFinishedStaffOrder(order) {
+    if (!order) return false;
+    const s = String(order.status || '').toLowerCase();
+    return s === 'completed' || s === 'delivered' || s === 'rejected' || s === 'cancelled' || s === 'declined';
+}
+
 function getOrderElapsedData(order) {
-    const isCompleted = order.status === 'completed';
-    const isRejected = order.status === 'rejected';
+    const isCompleted = order.status === 'completed' || order.status === 'delivered';
+    const isRejected = order.status === 'rejected' || order.status === 'cancelled' || order.status === 'declined';
     const createdMs = getOrderCreationTimeMs(order);
 
     let elapsedSec = 0;
@@ -2180,7 +2199,7 @@ document.addEventListener('visibilitychange', () => {
 function updateLiveTimers() {
     staffOrders.forEach(order => {
         // Skip updating active elapsed time if already completed/frozen
-        if (order.status === 'completed' || order.status === 'rejected') {
+        if (isFinishedStaffOrder(order)) {
             return;
         }
 
@@ -2378,8 +2397,8 @@ function renderOrders() {
     const validOrders = staffOrders.filter(isValidStaffOrder);
 
     // Separate active/pending orders from finished/declined orders
-    const pendingOrders = validOrders.filter(o => o.status !== 'completed' && o.status !== 'rejected');
-    const completedOrders = validOrders.filter(o => o.status === 'completed' || o.status === 'rejected');
+    const pendingOrders = validOrders.filter(o => !isFinishedStaffOrder(o));
+    const completedOrders = validOrders.filter(o => isFinishedStaffOrder(o));
 
     // If pending orders queue becomes empty, immediately stop and reset looping audio
     if (pendingOrders.length === 0 && isOrderAlertAudioPlaying) {
@@ -2875,9 +2894,16 @@ function buildOrderCardHTML(order) {
 // --------------------------------------------------------------------------
 // 9. IN-APP OTP DELIVERY VERIFICATION & STATUS UPDATER
 // --------------------------------------------------------------------------
-function verifyAndCompleteOrderDelivery(orderId) {
-    if (actionInFlightOrders.has(orderId)) return;
-    const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
+async function verifyAndCompleteOrderDelivery(orderId) {
+    const rawId = String(orderId || '').replace(/^#/, '').trim();
+    if (actionInFlightOrders.has(rawId)) return;
+
+    const order = staffOrders.find(o => 
+        String(o.id) === rawId || 
+        String(o.orderId) === rawId || 
+        String(o.id).replace(/^#/, '') === rawId || 
+        String(o.orderId).replace(/^#/, '') === rawId
+    );
     if (!order) {
         showStaffToast('⚠️ Order not found in active kitchen queue.');
         return;
@@ -2916,8 +2942,9 @@ function verifyAndCompleteOrderDelivery(orderId) {
         return;
     }
 
-    actionInFlightOrders.add(order.id);
     const verifyBtn = document.getElementById(`btn-verify-otp-${order.id}`);
+    const originalBtnHTML = verifyBtn ? verifyBtn.innerHTML : '<i class="fa-solid fa-shield-check"></i> Verify &amp; Deliver';
+
     if (verifyBtn) {
         verifyBtn.disabled = true;
         verifyBtn.classList.add('btn-loading');
@@ -2925,16 +2952,24 @@ function verifyAndCompleteOrderDelivery(orderId) {
     }
 
     try {
-        // Complete delivery
-        updateOrderStatus(order.id, 'completed', verifyBtn);
+        // Complete delivery asynchronously with canonical status 'delivered'
+        await updateOrderStatus(order.id, 'delivered', verifyBtn);
         if (isMasterOtpMatch && !isCustomerOtpMatch) {
             regenerateMasterDeliveryOtpOnUse(order.id);
             showStaffToast(`🎉 Emergency Master OTP Verified! Order #${order.id} marked as Delivered!`);
         } else {
             showStaffToast(`🎉 OTP Verified! Order #${order.id} marked as Delivered successfully!`);
         }
+    } catch (err) {
+        console.error('Delivery verification write error:', err);
+        showStaffToast(`❌ Delivery update failed: ${err.message || 'Database error'}`);
+        alert(`Delivery Update Failed: Could not update Order #${order.id}.\n\n${err.message || 'Please check your connection and retry.'}`);
     } finally {
-        actionInFlightOrders.delete(order.id);
+        if (verifyBtn) {
+            verifyBtn.disabled = false;
+            verifyBtn.classList.remove('btn-loading');
+            verifyBtn.innerHTML = originalBtnHTML;
+        }
     }
 }
 window.verifyAndCompleteOrderDelivery = verifyAndCompleteOrderDelivery;
@@ -3016,34 +3051,105 @@ function regenerateMasterDeliveryOtpOnUse(orderId) {
     } catch (e) { }
 }
 
-function updateOrderStatus(orderId, newStatus, triggerBtn) {
-    if (actionInFlightOrders.has(orderId)) return;
-    actionInFlightOrders.add(orderId);
+/**
+ * Resolves the exact remote Firestore document ID for an order.
+ * Strictly avoids relying on ephemeral display indexes like #1 or #2.
+ */
+async function resolveExactFirestoreOrderDocId(db, order, fallbackOrderId) {
+    if (order && order.firestoreDocId && typeof order.firestoreDocId === 'string' && order.firestoreDocId.trim() !== '') {
+        return order.firestoreDocId.trim();
+    }
+    if (order && order.docId && typeof order.docId === 'string' && order.docId.trim() !== '') {
+        return order.docId.trim();
+    }
+
+    const cleanCandidateId = String(fallbackOrderId || (order && (order.orderId || order.id)) || '').replace(/^#/, '').trim();
+    if (!cleanCandidateId) return '';
+
+    if (!db) return cleanCandidateId;
+
+    // 1. Direct document existence check by cleanCandidateId
+    try {
+        const directDoc = await db.collection('orders').doc(cleanCandidateId).get();
+        if (directDoc.exists) {
+            if (order) order.firestoreDocId = directDoc.id;
+            return directDoc.id;
+        }
+    } catch (e) {
+        console.warn('Direct Firestore doc lookup notice:', e.message);
+    }
+
+    // 2. Query Firestore by id or orderId in case cleanCandidateId is a display/custom ID
+    try {
+        const qSnap1 = await db.collection('orders').where('id', '==', cleanCandidateId).limit(1).get();
+        if (!qSnap1.empty) {
+            const foundId = qSnap1.docs[0].id;
+            if (order) order.firestoreDocId = foundId;
+            return foundId;
+        }
+        const qSnap2 = await db.collection('orders').where('orderId', '==', cleanCandidateId).limit(1).get();
+        if (!qSnap2.empty) {
+            const foundId = qSnap2.docs[0].id;
+            if (order) order.firestoreDocId = foundId;
+            return foundId;
+        }
+        const numId = Number(cleanCandidateId);
+        if (!isNaN(numId)) {
+            const qSnap3 = await db.collection('orders').where('id', '==', numId).limit(1).get();
+            if (!qSnap3.empty) {
+                const foundId = qSnap3.docs[0].id;
+                if (order) order.firestoreDocId = foundId;
+                return foundId;
+            }
+        }
+    } catch (queryErr) {
+        console.warn('Firestore query lookup notice:', queryErr.message);
+    }
+
+    return cleanCandidateId;
+}
+
+async function updateOrderStatus(orderId, newStatus, triggerBtn) {
+    const rawId = String(orderId || '').replace(/^#/, '').trim();
+    if (actionInFlightOrders.has(rawId)) return;
+    actionInFlightOrders.add(rawId);
 
     // Silence any active order ringtone loop when staff interacts/accepts
     stopOrderAlertAudio();
 
+    let originalTriggerHTML = '';
     if (triggerBtn) {
+        originalTriggerHTML = triggerBtn.innerHTML;
         triggerBtn.disabled = true;
         if (triggerBtn.classList) triggerBtn.classList.add('btn-loading');
     }
 
     try {
-        const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
-        if (!order) return;
+        const order = staffOrders.find(o => 
+            String(o.id) === rawId || 
+            String(o.orderId) === rawId || 
+            String(o.id).replace(/^#/, '') === rawId || 
+            String(o.orderId).replace(/^#/, '') === rawId
+        );
+        if (!order) {
+            throw new Error(`Order #${rawId} not found in active kitchen queue.`);
+        }
 
-        order.status = newStatus;
+        const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
+        const isRejected = (newStatus === 'rejected');
+        const effectiveStatus = isDelivered ? 'delivered' : (isRejected ? 'rejected' : newStatus);
+
+        order.status = effectiveStatus;
         const nowIso = new Date().toISOString();
         order.updatedAt = nowIso;
 
-        if (newStatus === 'preparing' && !order.prepStartedAt) {
+        if (effectiveStatus === 'preparing' && !order.prepStartedAt) {
             order.prepStartedAt = nowIso;
         }
 
-        if (newStatus === 'completed') {
-            if (!order.completedAt) {
-                order.completedAt = nowIso;
-            }
+        if (isDelivered) {
+            if (!order.deliveredAt) order.deliveredAt = nowIso;
+            if (!order.completedAt) order.completedAt = nowIso;
             const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
             if (isCardScratched) {
                 order.rewardStatus = 'active_credited';
@@ -3066,7 +3172,8 @@ function updateOrderStatus(orderId, newStatus, triggerBtn) {
             }
         }
 
-        if (newStatus === 'rejected') {
+        if (isRejected) {
+            order.rejectedAt = nowIso;
             order.rewardStatus = 'voided';
             order.wonCashback = 0;
             order.earnedCashback = 0;
@@ -3085,22 +3192,28 @@ function updateOrderStatus(orderId, newStatus, triggerBtn) {
             console.error('Error saving updated order status:', e);
         }
 
-        // 2. Sync updated status to backend API
-        syncOrderStatusToBackend(order.id, newStatus);
+        // 2. Persist to Firestore & backend API
+        await syncOrderStatusToBackend(order.id, effectiveStatus);
 
-        let msg = `Order #${order.id} updated to ${newStatus.toUpperCase()}`;
-        if (newStatus === 'preparing') msg = `Order #${order.id} Accepted • Preparation started! 🍕`;
-        if (newStatus === 'ready') msg = `Order #${order.id} marked Ready for Pickup! ✅`;
-        if (newStatus === 'delivery') msg = `Order #${order.id} Dispatched • Out for Delivery 🛵`;
-        if (newStatus === 'completed') msg = `Order #${order.id} Delivered successfully! 🎉`;
-        if (newStatus === 'rejected') msg = `Order #${order.id} Declined / Rejected ❌`;
+        let msg = `Order #${order.id} updated to ${effectiveStatus.toUpperCase()}`;
+        if (effectiveStatus === 'preparing') msg = `Order #${order.id} Accepted • Preparation started! 🍕`;
+        if (effectiveStatus === 'ready') msg = `Order #${order.id} marked Ready for Pickup! ✅`;
+        if (effectiveStatus === 'delivery') msg = `Order #${order.id} Dispatched • Out for Delivery 🛵`;
+        if (isDelivered) msg = `Order #${order.id} Delivered successfully! 🎉`;
+        if (isRejected) msg = `Order #${order.id} Declined / Rejected ❌`;
 
         showStaffToast(msg);
         renderOrders();
     } finally {
-        actionInFlightOrders.delete(orderId);
+        actionInFlightOrders.delete(rawId);
+        if (triggerBtn) {
+            triggerBtn.disabled = false;
+            if (triggerBtn.classList) triggerBtn.classList.remove('btn-loading');
+            if (originalTriggerHTML) triggerBtn.innerHTML = originalTriggerHTML;
+        }
     }
 }
+window.updateOrderStatus = updateOrderStatus;
 
 let pendingRejectOrderId = null;
 
@@ -3166,13 +3279,14 @@ function closeStaffRejectModal() {
 }
 window.closeStaffRejectModal = closeStaffRejectModal;
 
-function confirmRejectOrder() {
+async function confirmRejectOrder() {
     if (!pendingRejectOrderId) {
         closeStaffRejectModal();
         return;
     }
     const orderIdToReject = pendingRejectOrderId;
-    if (actionInFlightOrders.has(orderIdToReject)) return;
+    const rawId = String(orderIdToReject).replace(/^#/, '').trim();
+    if (actionInFlightOrders.has(rawId)) return;
 
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
@@ -3211,21 +3325,36 @@ function confirmRejectOrder() {
         return;
     }
 
-    actionInFlightOrders.add(orderIdToReject);
     const confirmBtn = document.getElementById('btn-confirm-order-reject');
-    if (confirmBtn) confirmBtn.disabled = true;
+    const originalConfirmHTML = confirmBtn ? confirmBtn.innerHTML : '<i class="fa-solid fa-ban"></i> Confirm Reject';
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rejecting...';
+    }
 
     try {
         // 3. Valid Master OTP! Update order status to "rejected" and void reward
+        await updateOrderStatus(orderIdToReject, 'rejected', confirmBtn);
+
+        // Close modal after confirmed status update
         closeStaffRejectModal();
-        updateOrderStatus(orderIdToReject, 'rejected');
 
         // 4. Immediately regenerate a new 4-digit Master OTP in Firestore to prevent reuse
         regenerateMasterDeliveryOtpOnUse(orderIdToReject);
         showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected & Reward Voided.`);
+    } catch (err) {
+        console.error('Error rejecting order:', err);
+        showStaffToast(`❌ Rejection failed: ${err.message || 'Database error'}`);
+        if (otpError) {
+            otpError.style.display = 'block';
+            otpError.textContent = `❌ Error: ${err.message || 'Failed to save rejection in Firestore.'}`;
+        }
+        alert(`Rejection Failed: Could not reject Order #${orderIdToReject}.\n\n${err.message || 'Please check your connection and retry.'}`);
     } finally {
-        actionInFlightOrders.delete(orderIdToReject);
-        if (confirmBtn) confirmBtn.disabled = false;
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = originalConfirmHTML;
+        }
     }
 }
 window.confirmRejectOrder = confirmRejectOrder;
@@ -3277,14 +3406,22 @@ async function handleAdminDeleteOrder(orderId) {
 window.handleAdminDeleteOrder = handleAdminDeleteOrder;
 
 async function syncOrderStatusToBackend(orderId, newStatus) {
-    const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
-    const isDelivered = (newStatus === 'completed');
+    const rawId = String(orderId || '').replace(/^#/, '').trim();
+    const order = staffOrders.find(o => 
+        String(o.id) === rawId || 
+        String(o.orderId) === rawId ||
+        String(o.id).replace(/^#/, '') === rawId ||
+        String(o.orderId).replace(/^#/, '') === rawId
+    );
+
+    const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
     const isRejected = (newStatus === 'rejected');
+    const effectiveStatus = isDelivered ? 'delivered' : (isRejected ? 'rejected' : newStatus);
 
     const patchPayload = {
-        orderId: String(orderId),
-        id: String(orderId),
-        status: newStatus
+        orderId: rawId,
+        id: rawId,
+        status: effectiveStatus
     };
 
     if (isDelivered) {
@@ -3295,23 +3432,44 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
         patchPayload.wonCashback = 0;
     }
 
-    // 1. Instantly update in Firestore for real-time customer and admin notification
+    const db = getStaffFirestore();
     let firestoreSucceeded = false;
-    if (staffFirestore) {
+    let firestoreError = null;
+
+    if (db) {
         try {
+            // Resolve exact Firestore document ID (not display index like #1 or #2)
+            const exactDocId = await resolveExactFirestoreOrderDocId(db, order, rawId);
+            if (!exactDocId) {
+                throw new Error(`Could not resolve Firestore document ID for order ${rawId}`);
+            }
+
+            const serverTs = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString();
+
             const fsUpdate = {
-                status: newStatus,
-                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+                status: effectiveStatus,
+                updatedAt: serverTs
             };
+
             if (isDelivered) {
+                fsUpdate.status = 'delivered';
+                fsUpdate.deliveredAt = serverTs;
+                fsUpdate.completedAt = serverTs;
                 fsUpdate.rewardStatus = 'active_credited';
                 fsUpdate.scratchClaimed = true;
             } else if (isRejected) {
+                fsUpdate.status = 'rejected';
+                fsUpdate.rejectedAt = serverTs;
                 fsUpdate.rewardStatus = 'voided';
                 fsUpdate.wonCashback = 0;
             }
-            await staffFirestore.collection('orders').doc(String(orderId)).set(fsUpdate, { merge: true });
+
+            console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
+            await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
             firestoreSucceeded = true;
+            console.log(`Firestore order ${exactDocId} successfully updated to "${effectiveStatus}"`);
 
             // Direct client increment on users/{phone} if delivered with cashback
             if (isDelivered && order) {
@@ -3319,18 +3477,18 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
                 const rawPhone = order.customerPhone || order.phone || (order.customer && order.customer.phone) || '';
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
                 if (wonAmt > 0 && cleanPhone) {
-                    const userDocRef = staffFirestore.collection('users').doc(`phone_${cleanPhone}`);
-                    const userDocRefRaw = staffFirestore.collection('users').doc(cleanPhone);
+                    const userDocRef = db.collection('users').doc(`phone_${cleanPhone}`);
+                    const userDocRefRaw = db.collection('users').doc(cleanPhone);
                     const txItem = {
                         type: 'credit',
                         amount: wonAmt,
-                        orderId: String(orderId),
-                        description: `Cashback unlocked upon delivery of Order #${orderId}`,
-                        createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString(),
+                        orderId: exactDocId,
+                        description: `Cashback unlocked upon delivery of Order #${order.id || exactDocId}`,
+                        createdAt: serverTs,
                         status: 'active'
                     };
                     const incObj = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                        ? { walletBalance: firebase.firestore.FieldValue.increment(wonAmt), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }
+                        ? { walletBalance: firebase.firestore.FieldValue.increment(wonAmt), updatedAt: serverTs }
                         : { walletBalance: wonAmt, updatedAt: new Date().toISOString() };
 
                     userDocRef.set(incObj, { merge: true }).catch(() => {});
@@ -3340,11 +3498,14 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
                 }
             }
         } catch (e) {
-            console.warn('Firestore live order update notice:', e.message);
+            firestoreError = e;
+            console.error('Firestore live order update error:', e);
         }
     }
 
     // 2. Sync to backend API
+    let apiSucceeded = false;
+    let apiError = null;
     try {
         const response = await apiCall('/orders', {
             method: 'PATCH',
@@ -3352,15 +3513,18 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
         });
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            if (!firestoreSucceeded) {
-                throw new Error(errData.message || `Server error (HTTP ${response.status})`);
-            }
+            throw new Error(errData.message || `Server error (HTTP ${response.status})`);
         }
+        apiSucceeded = true;
     } catch (err) {
+        apiError = err;
         console.error('Order status backend sync error:', err.message);
-        if (!firestoreSucceeded) {
-            showStaffToast(`⚠️ Cloud sync notice: ${err.message}`);
-        }
+    }
+
+    // If both Firestore and backend API failed, throw so caller catch blocks can alert staff
+    if (!firestoreSucceeded && !apiSucceeded) {
+        const primaryErrorMsg = (firestoreError && firestoreError.message) || (apiError && apiError.message) || 'Network connection error';
+        throw new Error(`Failed to persist order status to remote database: ${primaryErrorMsg}`);
     }
 }
 
@@ -3414,7 +3578,7 @@ function scheduleClientMidnightCleanup() {
 }
 
 async function executeStaffMidnightCleanup() {
-    const completedOrders = staffOrders.filter(o => o.status === 'completed' || o.status === 'rejected');
+    const completedOrders = staffOrders.filter(isFinishedStaffOrder);
     if (completedOrders.length === 0) {
         console.log('🌙 [Staff Portal] Midnight Routine: No completed orders to purge.');
         return;
@@ -3423,7 +3587,7 @@ async function executeStaffMidnightCleanup() {
     console.log(`🌙 [Staff Portal] 11:59 PM Midnight Routine: Purging ${completedOrders.length} completed order(s). Active pending orders remain protected.`);
 
     // 1. Purge completed orders locally (active pending orders remain untouched)
-    staffOrders = staffOrders.filter(o => o.status !== 'completed' && o.status !== 'rejected');
+    staffOrders = staffOrders.filter(o => !isFinishedStaffOrder(o));
 
     try {
         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
