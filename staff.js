@@ -462,7 +462,6 @@ function unlockStaffDashboard(user) {
     scheduleClientMidnightCleanup();
     stopStaffOrderAlertSound();
 }
-window.unlockStaffDashboard = unlockStaffDashboard;
 
 let activeStaffSessionListener = null;
 let activeStaffSessionUsersListener = null;
@@ -521,7 +520,7 @@ function startStaffSessionSecurityListener(userPhone) {
         } catch(e) { }
     }
 
-    // 2. Background polling backup (every 60s) for offline response
+    // 2. High-frequency polling backup (every 3 seconds) for instant cross-tab / offline response
     activeStaffSessionPoller = setInterval(async () => {
         try {
             const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
@@ -530,7 +529,7 @@ function startStaffSessionSecurityListener(userPhone) {
                 handleStaffInstantBlockedLockdown(data.user?.fullName || data.user?.name || 'Staff Member', clean);
             }
         } catch (e) { }
-    }, 60000);
+    }, 3000);
 }
 
 function handleStaffInstantBlockedLockdown(userName, userPhone) {
@@ -1605,46 +1604,7 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
 
 let isStaffAudioUnlocked = false;
 let isAudioAutoplayBlocked = false;
-let isStaffAudioMuted = false;
 let pendingOrderAlertData = null;
-
-function updateStaffAudioToggleButton() {
-    const btn = document.getElementById('btn-staff-audio-toggle');
-    const icon = document.getElementById('staff-audio-icon');
-    const text = document.getElementById('staff-audio-text');
-    if (!btn || !icon || !text) return;
-
-    if (isStaffAudioUnlocked && !isStaffAudioMuted) {
-        btn.className = 'btn-staff-audio-toggle active';
-        icon.className = 'fa-solid fa-volume-high';
-        text.textContent = 'Sound ON';
-        btn.title = 'Kitchen Audio Alerts Active - Tap to Mute';
-    } else {
-        btn.className = 'btn-staff-audio-toggle is-muted';
-        icon.className = 'fa-solid fa-volume-xmark';
-        text.textContent = 'Muted';
-        btn.title = 'Kitchen Audio Muted / Restricted - Tap to Enable Sound';
-    }
-}
-
-function toggleOrUnlockStaffAudio() {
-    if (!isStaffAudioUnlocked) {
-        unlockStaffAudioAlerts(false);
-        isStaffAudioMuted = false;
-        showStaffToast('🔔 Kitchen Audio Chimes Enabled & Armed');
-    } else {
-        isStaffAudioMuted = !isStaffAudioMuted;
-        if (isStaffAudioMuted) {
-            stopOrderAlertAudio();
-            showStaffToast('🔇 Kitchen Audio Alerts Muted');
-        } else {
-            showStaffToast('🔔 Kitchen Audio Alerts Active');
-        }
-    }
-    updateStaffAudioToggleButton();
-}
-window.toggleOrUnlockStaffAudio = toggleOrUnlockStaffAudio;
-window.updateStaffAudioToggleButton = updateStaffAudioToggleButton;
 
 function unlockStaffAudioAlerts(silent = true) {
     // 1. Resume Web Audio Context if suspended
@@ -1671,7 +1631,6 @@ function unlockStaffAudioAlerts(silent = true) {
                     isStaffAudioUnlocked = true;
                     isAudioAutoplayBlocked = false;
                     dismissStaffAudioBanner();
-                    updateStaffAudioToggleButton();
                     console.log('🔓 [Staff Audio] Audio element primed for notifications.');
                     if (pendingOrderAlertData && isOrderAlertAudioPlaying) {
                         const { orderId, details } = pendingOrderAlertData;
@@ -1688,7 +1647,6 @@ function unlockStaffAudioAlerts(silent = true) {
 
     isStaffAudioUnlocked = true;
     dismissStaffAudioBanner();
-    updateStaffAudioToggleButton();
 }
 window.unlockStaffAudioAlerts = unlockStaffAudioAlerts;
 
@@ -1995,13 +1953,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inline Web Worker ticker to avoid mobile background tab timer throttling
     initStaffWebWorkerTimer();
 
-    // 30-second interval for backend sync fallback (real-time listener handles active stream)
+    // 6-second interval for backend sync
     if (staffBackendSyncInterval) clearInterval(staffBackendSyncInterval);
     staffBackendSyncInterval = setInterval(() => {
         if (currentStaffUser) {
             fetchOrdersFromBackend();
         }
-    }, 30000);
+    }, 6000);
 });
 
 function updateLiveTimers() {
@@ -2642,7 +2600,7 @@ function buildOrderCardHTML(order) {
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
 
     return `
-        <article class="order-card" id="card-${order.id}" data-status="${escapeHtml(order.status || 'new')}">
+        <article class="order-card" id="card-${order.id}">
             <div class="card-head">
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
@@ -3535,10 +3493,6 @@ function getOrderAlertAudio() {
  * Plays the alert track in a continuous loop for new incoming orders until accepted, rejected, or silenced.
  */
 function startOrderAlertAudio(orderId = '', details = '') {
-    if (isStaffAudioMuted) {
-        console.log('🔇 [Staff Audio] Sound suppressed because audio is muted.');
-        return;
-    }
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
         return; // Already playing for this order
     }
