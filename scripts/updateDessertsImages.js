@@ -14,7 +14,7 @@ const DESSERTS_ITEMS = [
         isMultiSize: false,
         price: 79,
         available: true,
-        img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg",
+        img: "https://i.ibb.co/0Rj6DQVp/Ice-Cream-Vanilla-desserts.webp",
         desc: "Creamy classic vanilla ice cream scoop"
     },
     {
@@ -24,7 +24,7 @@ const DESSERTS_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg",
+        img: "https://i.ibb.co/NgZNCJbR/Lava-Cake-Cream-desserts.webp",
         desc: "Warm molten chocolate lava cake served with rich vanilla ice cream"
     },
     {
@@ -34,7 +34,7 @@ const DESSERTS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg",
+        img: "https://i.ibb.co/PZVP1y3B/Lava-Cake-desserts.webp",
         desc: "Decadent chocolate cake with a warm molten chocolate center"
     }
 ];

@@ -14,7 +14,7 @@ const MOJITO_ITEMS = [
         isMultiSize: false,
         price: 59,
         available: true,
-        img: "https://i.ibb.co/tMGr4c9y/Fresh-Lime-Soda.jpg",
+        img: "https://i.ibb.co/nqXkpPGX/Fresh-Lime-Soda-Mojito.webp",
         desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint"
     },
     {
@@ -24,7 +24,7 @@ const MOJITO_ITEMS = [
         isMultiSize: false,
         price: 89,
         available: true,
-        img: "https://i.ibb.co/fGy3Rt0C/Green-Apple-Mojito.jpg",
+        img: "https://i.ibb.co/DfxvzYvY/Green-Apple-Mojito.webp",
         desc: "Crisp green apple flavored sparkling mojito with crushed mint and lime"
     },
     {
@@ -34,7 +34,7 @@ const MOJITO_ITEMS = [
         isMultiSize: false,
         price: 20,
         available: true,
-        img: "https://i.ibb.co/35d2ZxDD/Mineral-Water-Soft-Drink.jpg",
+        img: "https://i.ibb.co/wZznTVZ1/Mineral-Water-Soft-Drink-Mojito.webp",
         desc: "Pure and refreshing chilled packaged drinking water"
     },
     {
@@ -44,7 +44,7 @@ const MOJITO_ITEMS = [
         isMultiSize: false,
         price: 89,
         available: true,
-        img: "https://i.ibb.co/Lzn2WZPk/Mint-Mojito.jpg",
+        img: "https://i.ibb.co/WpycLrbs/Mint-Mojito.webp",
         desc: "Classic cooling mint infused sparkling beverage with zesty lemon"
     },
     {
@@ -54,7 +54,7 @@ const MOJITO_ITEMS = [
         isMultiSize: false,
         price: 89,
         available: true,
-        img: "https://i.ibb.co/5XnrXt5d/Strawberry-Mojito.jpg",
+        img: "https://i.ibb.co/CsPH2c2J/Strawberry-Mojito.webp",
         desc: "Sweet and tangy strawberry blended with fresh mint, lime and sparkling soda"
     },
     {
@@ -64,7 +64,7 @@ const MOJITO_ITEMS = [
         isMultiSize: false,
         price: 79,
         available: true,
-        img: "https://i.ibb.co/B24VCS65/Virgin-Mojito.jpg",
+        img: "https://i.ibb.co/VWg3nBjn/Virgin-Mojito.webp",
         desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves"
     }
 ];

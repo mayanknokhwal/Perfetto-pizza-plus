@@ -14,7 +14,7 @@ const CHINESE_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/kgp9bjrS/Honey-Chilly-Cauliflower.jpg",
+        img: "https://i.ibb.co/NdwbQrrR/Honey-Chilly-Cauliflower-food.webp",
         desc: "Crispy florets tossed in sweet honey chilli glaze"
     },
     {
@@ -24,7 +24,7 @@ const CHINESE_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/GfY6XTJR/Honey-Chilly-Potato.jpg",
+        img: "https://i.ibb.co/B2V7N0GC/Honey-Chilly-Potato-food.webp",
         desc: "Crispy potato fries glazed with honey, sesame and spicy chilli"
     },
     {
@@ -34,7 +34,7 @@ const CHINESE_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/NgMyx9My/Veg-Manchurian.jpg",
+        img: "https://i.ibb.co/Fq43P9w1/Veg-Manchurian-food.webp",
         desc: "Vegetable dumplings tossed in spicy garlic soy Manchurian sauce"
     },
     {
@@ -44,7 +44,7 @@ const CHINESE_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/pBPy144w/Chilly-Cauliflower.jpg",
+        img: "https://i.ibb.co/jP6QCgvJ/Chilly-Cauliflower-food.webp",
         desc: "Crispy fried cauliflower tossed with bell peppers and chilli sauce"
     },
     {
@@ -54,7 +54,7 @@ const CHINESE_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/HTm4J9Vh/Chilly-Paneer.jpg",
+        img: "https://i.ibb.co/VWh8Hm56/Chilly-Paneer-food.webp",
         desc: "Cubes of cottage cheese tossed with onion, capsicum & dark soy sauce"
     },
     {
@@ -64,7 +64,7 @@ const CHINESE_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/9k7pS8S3/Chilly-Potato.jpg",
+        img: "https://i.ibb.co/Xx539H2T/Chilly-Potato-food.webp",
         desc: "Spicy crisp potato fingers tossed in garlic chilli sauce"
     }
 ];

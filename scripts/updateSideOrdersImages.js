@@ -14,7 +14,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 89,
         available: true,
-        img: "https://i.ibb.co/3y4xtxj7/French-Fries.jpg",
+        img: "https://i.ibb.co/nNtdVDJj/French-Fries-side.webp",
         desc: "Crispy golden fried potato fries lightly salted to perfection"
     },
     {
@@ -24,7 +24,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/KxGpWPHz/Masala-Fries.jpg",
+        img: "https://i.ibb.co/v4QRWT0b/Masala-Fries-side.webp",
         desc: "Crispy french fries tossed with tangy chaat masala and spicy seasonings"
     },
     {
@@ -34,7 +34,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/dwSwJ6zK/Paneer-Parcel.jpg",
+        img: "https://i.ibb.co/7NWFL9rr/Paneer-Parcel-side.webp",
         desc: "Flaky baked golden pastry filled with seasoned paneer & herbs"
     },
     {
@@ -44,7 +44,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/PGK7N3mJ/Peri-Peri-Fries.jpg",
+        img: "https://i.ibb.co/rfXHnkyR/Peri-Peri-Fries-side.webp",
         desc: "Crisp potato fries dusted with hot and zesty peri peri spice mix"
     },
     {
@@ -54,7 +54,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/gZ0RCYrS/Saucy-Fries.jpg",
+        img: "https://i.ibb.co/tPLTnMnt/Saucy-Fries-side.webp",
         desc: "Crispy fries drizzled generously with signature savory and cheesy sauces"
     },
     {
@@ -64,7 +64,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/ZzKMq3h7/Taco.jpg",
+        img: "https://i.ibb.co/zVdy8L5t/Taco-side.webp",
         desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce"
     },
     {
@@ -74,7 +74,7 @@ const SIDE_ORDERS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg",
+        img: "https://i.ibb.co/jkKQt3hC/Zingy-Parcel-side.webp",
         desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese"
     }
 ];

@@ -1186,32 +1186,32 @@ const categorySubItems = {
         { name: "Stuffed Cheese Pocket", desc: "Crispy crust filled with herbs & cheese", price: 159.00, tag: "Hot" }
     ],
     "Chinese Food": [
-        { id: "chn-honey-chilly-cauliflower", name: "Honey Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/kgp9bjrS/Honey-Chilly-Cauliflower.jpg", desc: "Crispy florets tossed in sweet honey chilli glaze" },
-        { id: "chn-honey-chilly-potato", name: "Honey Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/GfY6XTJR/Honey-Chilly-Potato.jpg", desc: "Crispy potato fries glazed with honey, sesame and spicy chilli" },
-        { id: "chn-veg-manchurian", name: "Veg Manchurian", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/NgMyx9My/Veg-Manchurian.jpg", desc: "Vegetable dumplings tossed in spicy garlic soy Manchurian sauce" },
-        { id: "chn-chilly-cauliflower", name: "Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/pBPy144w/Chilly-Cauliflower.jpg", desc: "Crispy fried cauliflower tossed with bell peppers and chilli sauce" },
-        { id: "chn-chilly-paneer", name: "Chilly Paneer", category: "Chinese Food", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/HTm4J9Vh/Chilly-Paneer.jpg", desc: "Cubes of cottage cheese tossed with onion, capsicum & dark soy sauce" },
-        { id: "chn-chilly-potato", name: "Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/9k7pS8S3/Chilly-Potato.jpg", desc: "Spicy crisp potato fingers tossed in garlic chilli sauce" }
+        { id: "chn-honey-chilly-cauliflower", name: "Honey Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/NdwbQrrR/Honey-Chilly-Cauliflower-food.webp", desc: "Crispy florets tossed in sweet honey chilli glaze" },
+        { id: "chn-honey-chilly-potato", name: "Honey Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/B2V7N0GC/Honey-Chilly-Potato-food.webp", desc: "Crispy potato fries glazed with honey, sesame and spicy chilli" },
+        { id: "chn-veg-manchurian", name: "Veg Manchurian", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Fq43P9w1/Veg-Manchurian-food.webp", desc: "Vegetable dumplings tossed in spicy garlic soy Manchurian sauce" },
+        { id: "chn-chilly-cauliflower", name: "Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/jP6QCgvJ/Chilly-Cauliflower-food.webp", desc: "Crispy fried cauliflower tossed with bell peppers and chilli sauce" },
+        { id: "chn-chilly-paneer", name: "Chilly Paneer", category: "Chinese Food", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/VWh8Hm56/Chilly-Paneer-food.webp", desc: "Cubes of cottage cheese tossed with onion, capsicum & dark soy sauce" },
+        { id: "chn-chilly-potato", name: "Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/Xx539H2T/Chilly-Potato-food.webp", desc: "Spicy crisp potato fingers tossed in garlic chilli sauce" }
     ],
     "Colo Drinks": [
-        { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/r2JVJSMg/Coke-300ml.jpg", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
-        { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/jcQ2SVP/Coke-With-Ice-Cream.jpg", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
-        { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/Mk3VkTbK/Milky-Cola.jpg", desc: "Smooth and creamy cola blend with a velvety milky twist" },
-        { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/35LxWDgq/Milky-Mango.jpg", desc: "Rich and refreshing creamy mango flavored chilled beverage" }
+        { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/hFFB26fM/Coke-300ml-cold.webp", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
+        { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/tTHLCFJk/Coke-With-Ice-Cream-cold.webp", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
+        { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/NgsyRT7m/Milky-Cola-cold.webp", desc: "Smooth and creamy cola blend with a velvety milky twist" },
+        { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/7xsP7BYY/Milky-Mango-cold.webp", desc: "Rich and refreshing creamy mango flavored chilled beverage" }
     ],
     "Cold Drinks": [
-        { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/r2JVJSMg/Coke-300ml.jpg", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
-        { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/jcQ2SVP/Coke-With-Ice-Cream.jpg", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
-        { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/Mk3VkTbK/Milky-Cola.jpg", desc: "Smooth and creamy cola blend with a velvety milky twist" },
-        { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/35LxWDgq/Milky-Mango.jpg", desc: "Rich and refreshing creamy mango flavored chilled beverage" }
+        { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/hFFB26fM/Coke-300ml-cold.webp", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
+        { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/tTHLCFJk/Coke-With-Ice-Cream-cold.webp", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
+        { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/NgsyRT7m/Milky-Cola-cold.webp", desc: "Smooth and creamy cola blend with a velvety milky twist" },
+        { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/7xsP7BYY/Milky-Mango-cold.webp", desc: "Rich and refreshing creamy mango flavored chilled beverage" }
     ],
     "Mojito": [
-        { id: "moj-fresh-lime-soda", name: "Fresh Lime Soda", category: "Mojito", isMultiSize: false, price: 59, available: true, img: "https://i.ibb.co/tMGr4c9y/Fresh-Lime-Soda.jpg", desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint" },
-        { id: "moj-green-apple", name: "Green Apple Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/fGy3Rt0C/Green-Apple-Mojito.jpg", desc: "Crisp green apple flavored sparkling mojito with crushed mint and lime" },
-        { id: "moj-mineral-water", name: "Mineral Water Soft Drink", category: "Mojito", isMultiSize: false, price: 20, available: true, img: "https://i.ibb.co/35d2ZxDD/Mineral-Water-Soft-Drink.jpg", desc: "Pure and refreshing chilled packaged drinking water" },
-        { id: "moj-mint", name: "Mint Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/Lzn2WZPk/Mint-Mojito.jpg", desc: "Classic cooling mint infused sparkling beverage with zesty lemon" },
-        { id: "moj-strawberry", name: "Strawberry Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/5XnrXt5d/Strawberry-Mojito.jpg", desc: "Sweet and tangy strawberry blended with fresh mint, lime and sparkling soda" },
-        { id: "moj-virgin", name: "Virgin Mojito", category: "Mojito", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/B24VCS65/Virgin-Mojito.jpg", desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves" }
+        { id: "moj-fresh-lime-soda", name: "Fresh Lime Soda", category: "Mojito", isMultiSize: false, price: 59, available: true, img: "https://i.ibb.co/nqXkpPGX/Fresh-Lime-Soda-Mojito.webp", desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint" },
+        { id: "moj-green-apple", name: "Green Apple Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/DfxvzYvY/Green-Apple-Mojito.webp", desc: "Crisp green apple flavored sparkling mojito with crushed mint and lime" },
+        { id: "moj-mineral-water", name: "Mineral Water Soft Drink", category: "Mojito", isMultiSize: false, price: 20, available: true, img: "https://i.ibb.co/wZznTVZ1/Mineral-Water-Soft-Drink-Mojito.webp", desc: "Pure and refreshing chilled packaged drinking water" },
+        { id: "moj-mint", name: "Mint Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/WpycLrbs/Mint-Mojito.webp", desc: "Classic cooling mint infused sparkling beverage with zesty lemon" },
+        { id: "moj-strawberry", name: "Strawberry Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/CsPH2c2J/Strawberry-Mojito.webp", desc: "Sweet and tangy strawberry blended with fresh mint, lime and sparkling soda" },
+        { id: "moj-virgin", name: "Virgin Mojito", category: "Mojito", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/VWg3nBjn/Virgin-Mojito.webp", desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves" }
     ],
     "Pasta": [
         { id: "pst-baked-mix", name: "Baked Mix Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/DPg7DTSN/Baked-Mix-Pasta.webp", desc: "Oven baked pasta with rich combination of red and white sauces topped with melted cheese" },
@@ -1293,9 +1293,9 @@ const categorySubItems = {
         { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/Fbp92V4J/Veg-Noodles.webp", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
     ],
     "Desserts": [
-        { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg", desc: "Creamy classic vanilla ice cream scoop" },
-        { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
-        { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg", desc: "Decadent chocolate cake with a warm molten chocolate center" }
+        { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/0Rj6DQVp/Ice-Cream-Vanilla-desserts.webp", desc: "Creamy classic vanilla ice cream scoop" },
+        { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/NgZNCJbR/Lava-Cake-Cream-desserts.webp", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
+        { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/PZVP1y3B/Lava-Cake-desserts.webp", desc: "Decadent chocolate cake with a warm molten chocolate center" }
     ],
     "Salad": [
         { id: "sld-green", name: "Green Salad", category: "Salad", isMultiSize: false, price: 69, available: true, img: "https://i.ibb.co/fYxbGzMk/Green-Salad.webp", desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges" },
@@ -1303,13 +1303,13 @@ const categorySubItems = {
         { id: "sld-russian", name: "Russian Salad", category: "Salad", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/qL3gX0sH/Russian-Salad.webp", desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing" }
     ],
     "Side Orders": [
-        { id: "sde-french-fries", name: "French Fries", category: "Side Orders", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/3y4xtxj7/French-Fries.jpg", desc: "Crispy golden fried potato fries lightly salted to perfection" },
-        { id: "sde-masala-fries", name: "Masala Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/KxGpWPHz/Masala-Fries.jpg", desc: "Crispy french fries tossed with tangy chaat masala and spicy seasonings" },
-        { id: "sde-paneer-parcel", name: "Paneer Parcel", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dwSwJ6zK/Paneer-Parcel.jpg", desc: "Flaky baked golden pastry filled with seasoned paneer & herbs" },
-        { id: "sde-peri-peri-fries", name: "Peri Peri Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/PGK7N3mJ/Peri-Peri-Fries.jpg", desc: "Crisp potato fries dusted with hot and zesty peri peri spice mix" },
-        { id: "sde-saucy-fries", name: "Saucy Fries", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/gZ0RCYrS/Saucy-Fries.jpg", desc: "Crispy fries drizzled generously with signature savory and cheesy sauces" },
-        { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ZzKMq3h7/Taco.jpg", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
-        { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" }
+        { id: "sde-french-fries", name: "French Fries", category: "Side Orders", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/nNtdVDJj/French-Fries-side.webp", desc: "Crispy golden fried potato fries lightly salted to perfection" },
+        { id: "sde-masala-fries", name: "Masala Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/v4QRWT0b/Masala-Fries-side.webp", desc: "Crispy french fries tossed with tangy chaat masala and spicy seasonings" },
+        { id: "sde-paneer-parcel", name: "Paneer Parcel", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/7NWFL9rr/Paneer-Parcel-side.webp", desc: "Flaky baked golden pastry filled with seasoned paneer & herbs" },
+        { id: "sde-peri-peri-fries", name: "Peri Peri Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rfXHnkyR/Peri-Peri-Fries-side.webp", desc: "Crisp potato fries dusted with hot and zesty peri peri spice mix" },
+        { id: "sde-saucy-fries", name: "Saucy Fries", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/tPLTnMnt/Saucy-Fries-side.webp", desc: "Crispy fries drizzled generously with signature savory and cheesy sauces" },
+        { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/zVdy8L5t/Taco-side.webp", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
+        { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/jkKQt3hC/Zingy-Parcel-side.webp", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" }
     ],
     "Spring Rolls": [
         { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
@@ -1330,30 +1330,39 @@ const NEW_SPRING_ROLLS_MENU_ITEMS = [
     { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
 ];
 
+const NEW_CHINESE_FOOD_MENU_ITEMS = [
+    { id: "chn-honey-chilly-cauliflower", name: "Honey Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/NdwbQrrR/Honey-Chilly-Cauliflower-food.webp", desc: "Crispy florets tossed in sweet honey chilli glaze" },
+    { id: "chn-honey-chilly-potato", name: "Honey Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/B2V7N0GC/Honey-Chilly-Potato-food.webp", desc: "Crispy potato fries glazed with honey, sesame and spicy chilli" },
+    { id: "chn-veg-manchurian", name: "Veg Manchurian", category: "Chinese Food", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Fq43P9w1/Veg-Manchurian-food.webp", desc: "Vegetable dumplings tossed in spicy garlic soy Manchurian sauce" },
+    { id: "chn-chilly-cauliflower", name: "Chilly Cauliflower", category: "Chinese Food", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/jP6QCgvJ/Chilly-Cauliflower-food.webp", desc: "Crispy fried cauliflower tossed with bell peppers and chilli sauce" },
+    { id: "chn-chilly-paneer", name: "Chilly Paneer", category: "Chinese Food", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/VWh8Hm56/Chilly-Paneer-food.webp", desc: "Cubes of cottage cheese tossed with onion, capsicum & dark soy sauce" },
+    { id: "chn-chilly-potato", name: "Chilly Potato", category: "Chinese Food", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/Xx539H2T/Chilly-Potato-food.webp", desc: "Spicy crisp potato fingers tossed in garlic chilli sauce" }
+];
+
 const NEW_MOJITO_MENU_ITEMS = [
-    { id: "moj-fresh-lime-soda", name: "Fresh Lime Soda", category: "Mojito", isMultiSize: false, price: 59, available: true, img: "https://i.ibb.co/tMGr4c9y/Fresh-Lime-Soda.jpg", desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint" },
-    { id: "moj-green-apple", name: "Green Apple Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/fGy3Rt0C/Green-Apple-Mojito.jpg", desc: "Crisp green apple flavored sparkling mojito with crushed mint and lime" },
-    { id: "moj-mineral-water", name: "Mineral Water Soft Drink", category: "Mojito", isMultiSize: false, price: 20, available: true, img: "https://i.ibb.co/35d2ZxDD/Mineral-Water-Soft-Drink.jpg", desc: "Pure and refreshing chilled packaged drinking water" },
-    { id: "moj-mint", name: "Mint Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/Lzn2WZPk/Mint-Mojito.jpg", desc: "Classic cooling mint infused sparkling beverage with zesty lemon" },
-    { id: "moj-strawberry", name: "Strawberry Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/5XnrXt5d/Strawberry-Mojito.jpg", desc: "Sweet and tangy strawberry blended with fresh mint, lime and sparkling soda" },
-    { id: "moj-virgin", name: "Virgin Mojito", category: "Mojito", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/B24VCS65/Virgin-Mojito.jpg", desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves" }
+    { id: "moj-fresh-lime-soda", name: "Fresh Lime Soda", category: "Mojito", isMultiSize: false, price: 59, available: true, img: "https://i.ibb.co/nqXkpPGX/Fresh-Lime-Soda-Mojito.webp", desc: "Crisp and sparkling fresh lemon lime soda with a touch of mint" },
+    { id: "moj-green-apple", name: "Green Apple Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/DfxvzYvY/Green-Apple-Mojito.webp", desc: "Crisp green apple flavored sparkling mojito with crushed mint and lime" },
+    { id: "moj-mineral-water", name: "Mineral Water Soft Drink", category: "Mojito", isMultiSize: false, price: 20, available: true, img: "https://i.ibb.co/wZznTVZ1/Mineral-Water-Soft-Drink-Mojito.webp", desc: "Pure and refreshing chilled packaged drinking water" },
+    { id: "moj-mint", name: "Mint Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/WpycLrbs/Mint-Mojito.webp", desc: "Classic cooling mint infused sparkling beverage with zesty lemon" },
+    { id: "moj-strawberry", name: "Strawberry Mojito", category: "Mojito", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/CsPH2c2J/Strawberry-Mojito.webp", desc: "Sweet and tangy strawberry blended with fresh mint, lime and sparkling soda" },
+    { id: "moj-virgin", name: "Virgin Mojito", category: "Mojito", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/VWg3nBjn/Virgin-Mojito.webp", desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves" }
 ];
 
 const NEW_COLD_DRINKS_MENU_ITEMS = [
-    { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/r2JVJSMg/Coke-300ml.jpg", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
-    { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/jcQ2SVP/Coke-With-Ice-Cream.jpg", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
-    { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/Mk3VkTbK/Milky-Cola.jpg", desc: "Smooth and creamy cola blend with a velvety milky twist" },
-    { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/35LxWDgq/Milky-Mango.jpg", desc: "Rich and refreshing creamy mango flavored chilled beverage" }
+    { id: "drk-coke-300ml", name: "Coke (300ml)", category: "Colo Drinks", isMultiSize: false, price: 40, available: true, img: "https://i.ibb.co/hFFB26fM/Coke-300ml-cold.webp", desc: "Chilled refreshing Coca-Cola bottle (300ml)" },
+    { id: "drk-coke-ice-cream", name: "Coke With Ice Cream", category: "Colo Drinks", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/tTHLCFJk/Coke-With-Ice-Cream-cold.webp", desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream" },
+    { id: "drk-milky-cola", name: "Milky Cola", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/NgsyRT7m/Milky-Cola-cold.webp", desc: "Smooth and creamy cola blend with a velvety milky twist" },
+    { id: "drk-milky-mango", name: "Milky Mango", category: "Colo Drinks", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/7xsP7BYY/Milky-Mango-cold.webp", desc: "Rich and refreshing creamy mango flavored chilled beverage" }
 ];
 
 const NEW_SIDE_ORDERS_MENU_ITEMS = [
-    { id: "sde-french-fries", name: "French Fries", category: "Side Orders", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/3y4xtxj7/French-Fries.jpg", desc: "Crispy golden fried potato fries lightly salted to perfection" },
-    { id: "sde-masala-fries", name: "Masala Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/KxGpWPHz/Masala-Fries.jpg", desc: "Crispy french fries tossed with tangy chaat masala and spicy seasonings" },
-    { id: "sde-paneer-parcel", name: "Paneer Parcel", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dwSwJ6zK/Paneer-Parcel.jpg", desc: "Flaky baked golden pastry filled with seasoned paneer & herbs" },
-    { id: "sde-peri-peri-fries", name: "Peri Peri Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/PGK7N3mJ/Peri-Peri-Fries.jpg", desc: "Crisp potato fries dusted with hot and zesty peri peri spice mix" },
-    { id: "sde-saucy-fries", name: "Saucy Fries", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/gZ0RCYrS/Saucy-Fries.jpg", desc: "Crispy fries drizzled generously with signature savory and cheesy sauces" },
-    { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ZzKMq3h7/Taco.jpg", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
-    { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" }
+    { id: "sde-french-fries", name: "French Fries", category: "Side Orders", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/nNtdVDJj/French-Fries-side.webp", desc: "Crispy golden fried potato fries lightly salted to perfection" },
+    { id: "sde-masala-fries", name: "Masala Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/v4QRWT0b/Masala-Fries-side.webp", desc: "Crispy french fries tossed with tangy chaat masala and spicy seasonings" },
+    { id: "sde-paneer-parcel", name: "Paneer Parcel", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/7NWFL9rr/Paneer-Parcel-side.webp", desc: "Flaky baked golden pastry filled with seasoned paneer & herbs" },
+    { id: "sde-peri-peri-fries", name: "Peri Peri Fries", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rfXHnkyR/Peri-Peri-Fries-side.webp", desc: "Crisp potato fries dusted with hot and zesty peri peri spice mix" },
+    { id: "sde-saucy-fries", name: "Saucy Fries", category: "Side Orders", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/tPLTnMnt/Saucy-Fries-side.webp", desc: "Crispy fries drizzled generously with signature savory and cheesy sauces" },
+    { id: "sde-taco", name: "Taco", category: "Side Orders", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/zVdy8L5t/Taco-side.webp", desc: "Crispy folded taco shell stuffed with spiced fillings, crunchy veggies & creamy sauce" },
+    { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/jkKQt3hC/Zingy-Parcel-side.webp", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" }
 ];
 
 const NEW_SALAD_MENU_ITEMS = [
@@ -1363,9 +1372,9 @@ const NEW_SALAD_MENU_ITEMS = [
 ];
 
 const NEW_DESSERTS_MENU_ITEMS = [
-    { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg", desc: "Creamy classic vanilla ice cream scoop" },
-    { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
-    { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg", desc: "Decadent chocolate cake with a warm molten chocolate center" }
+    { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/0Rj6DQVp/Ice-Cream-Vanilla-desserts.webp", desc: "Creamy classic vanilla ice cream scoop" },
+    { id: "des-lava-cake-ice-cream", name: "Lava Cake With Ice Cream", category: "Desserts", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/NgZNCJbR/Lava-Cake-Cream-desserts.webp", desc: "Warm molten chocolate lava cake served with rich vanilla ice cream" },
+    { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/PZVP1y3B/Lava-Cake-desserts.webp", desc: "Decadent chocolate cake with a warm molten chocolate center" }
 ];
 
 const NEW_NOODLES_MENU_ITEMS = [
@@ -1617,9 +1626,9 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const DESSERTS_IMAGE_MAP = {
-        "des-ice-cream-vanilla": "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg",
-        "des-lava-cake-ice-cream": "https://i.ibb.co/7tVhrnxQ/Lava-Cake-With-Ice-Cream.jpg",
-        "des-lava-cake": "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg"
+        "des-ice-cream-vanilla": "https://i.ibb.co/0Rj6DQVp/Ice-Cream-Vanilla-desserts.webp",
+        "des-lava-cake-ice-cream": "https://i.ibb.co/NgZNCJbR/Lava-Cake-Cream-desserts.webp",
+        "des-lava-cake": "https://i.ibb.co/PZVP1y3B/Lava-Cake-desserts.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Desserts' && item.id && DESSERTS_IMAGE_MAP[item.id]) {
@@ -1720,13 +1729,13 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const SIDE_ORDERS_IMAGE_MAP = {
-        "sde-french-fries": "https://i.ibb.co/3y4xtxj7/French-Fries.jpg",
-        "sde-masala-fries": "https://i.ibb.co/KxGpWPHz/Masala-Fries.jpg",
-        "sde-paneer-parcel": "https://i.ibb.co/dwSwJ6zK/Paneer-Parcel.jpg",
-        "sde-peri-peri-fries": "https://i.ibb.co/PGK7N3mJ/Peri-Peri-Fries.jpg",
-        "sde-saucy-fries": "https://i.ibb.co/gZ0RCYrS/Saucy-Fries.jpg",
-        "sde-taco": "https://i.ibb.co/ZzKMq3h7/Taco.jpg",
-        "sde-zingy-parcel": "https://i.ibb.co/WNfHNVBk/Zingy-Parcel.jpg"
+        "sde-french-fries": "https://i.ibb.co/nNtdVDJj/French-Fries-side.webp",
+        "sde-masala-fries": "https://i.ibb.co/v4QRWT0b/Masala-Fries-side.webp",
+        "sde-paneer-parcel": "https://i.ibb.co/7NWFL9rr/Paneer-Parcel-side.webp",
+        "sde-peri-peri-fries": "https://i.ibb.co/rfXHnkyR/Peri-Peri-Fries-side.webp",
+        "sde-saucy-fries": "https://i.ibb.co/tPLTnMnt/Saucy-Fries-side.webp",
+        "sde-taco": "https://i.ibb.co/zVdy8L5t/Taco-side.webp",
+        "sde-zingy-parcel": "https://i.ibb.co/jkKQt3hC/Zingy-Parcel-side.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Side Orders' && item.id && SIDE_ORDERS_IMAGE_MAP[item.id]) {
@@ -1746,10 +1755,10 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const COLD_DRINKS_IMAGE_MAP = {
-        "drk-coke-300ml": "https://i.ibb.co/r2JVJSMg/Coke-300ml.jpg",
-        "drk-coke-ice-cream": "https://i.ibb.co/jcQ2SVP/Coke-With-Ice-Cream.jpg",
-        "drk-milky-cola": "https://i.ibb.co/Mk3VkTbK/Milky-Cola.jpg",
-        "drk-milky-mango": "https://i.ibb.co/35LxWDgq/Milky-Mango.jpg"
+        "drk-coke-300ml": "https://i.ibb.co/hFFB26fM/Coke-300ml-cold.webp",
+        "drk-coke-ice-cream": "https://i.ibb.co/tTHLCFJk/Coke-With-Ice-Cream-cold.webp",
+        "drk-milky-cola": "https://i.ibb.co/NgsyRT7m/Milky-Cola-cold.webp",
+        "drk-milky-mango": "https://i.ibb.co/7xsP7BYY/Milky-Mango-cold.webp"
     };
     updated.forEach(item => {
         if ((item.category === 'Colo Drinks' || item.category === 'Cold Drinks') && item.id && COLD_DRINKS_IMAGE_MAP[item.id]) {
@@ -1769,17 +1778,35 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const MOJITO_IMAGE_MAP = {
-        "moj-fresh-lime-soda": "https://i.ibb.co/tMGr4c9y/Fresh-Lime-Soda.jpg",
-        "moj-green-apple": "https://i.ibb.co/fGy3Rt0C/Green-Apple-Mojito.jpg",
-        "moj-mineral-water": "https://i.ibb.co/35d2ZxDD/Mineral-Water-Soft-Drink.jpg",
-        "moj-mint": "https://i.ibb.co/Lzn2WZPk/Mint-Mojito.jpg",
-        "moj-strawberry": "https://i.ibb.co/5XnrXt5d/Strawberry-Mojito.jpg",
-        "moj-virgin": "https://i.ibb.co/B24VCS65/Virgin-Mojito.jpg"
+        "moj-fresh-lime-soda": "https://i.ibb.co/nqXkpPGX/Fresh-Lime-Soda-Mojito.webp",
+        "moj-green-apple": "https://i.ibb.co/DfxvzYvY/Green-Apple-Mojito.webp",
+        "moj-mineral-water": "https://i.ibb.co/wZznTVZ1/Mineral-Water-Soft-Drink-Mojito.webp",
+        "moj-mint": "https://i.ibb.co/WpycLrbs/Mint-Mojito.webp",
+        "moj-strawberry": "https://i.ibb.co/CsPH2c2J/Strawberry-Mojito.webp",
+        "moj-virgin": "https://i.ibb.co/VWg3nBjn/Virgin-Mojito.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Mojito' && item.id && MOJITO_IMAGE_MAP[item.id]) {
             if (item.img !== MOJITO_IMAGE_MAP[item.id]) {
                 item.img = MOJITO_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // Sanitize Chinese Food images
+    const CHINESE_FOOD_IMAGE_MAP = {
+        "chn-honey-chilly-cauliflower": "https://i.ibb.co/NdwbQrrR/Honey-Chilly-Cauliflower-food.webp",
+        "chn-honey-chilly-potato": "https://i.ibb.co/B2V7N0GC/Honey-Chilly-Potato-food.webp",
+        "chn-veg-manchurian": "https://i.ibb.co/Fq43P9w1/Veg-Manchurian-food.webp",
+        "chn-chilly-cauliflower": "https://i.ibb.co/jP6QCgvJ/Chilly-Cauliflower-food.webp",
+        "chn-chilly-paneer": "https://i.ibb.co/VWh8Hm56/Chilly-Paneer-food.webp",
+        "chn-chilly-potato": "https://i.ibb.co/Xx539H2T/Chilly-Potato-food.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Chinese Food' && item.id && CHINESE_FOOD_IMAGE_MAP[item.id]) {
+            if (item.img !== CHINESE_FOOD_IMAGE_MAP[item.id]) {
+                item.img = CHINESE_FOOD_IMAGE_MAP[item.id];
                 modified = true;
             }
         }

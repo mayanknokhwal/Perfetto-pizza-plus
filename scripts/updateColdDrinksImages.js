@@ -14,7 +14,7 @@ const COLD_DRINKS_ITEMS = [
         isMultiSize: false,
         price: 40,
         available: true,
-        img: "https://i.ibb.co/r2JVJSMg/Coke-300ml.jpg",
+        img: "https://i.ibb.co/hFFB26fM/Coke-300ml-cold.webp",
         desc: "Chilled refreshing Coca-Cola bottle (300ml)"
     },
     {
@@ -24,7 +24,7 @@ const COLD_DRINKS_ITEMS = [
         isMultiSize: false,
         price: 89,
         available: true,
-        img: "https://i.ibb.co/jcQ2SVP/Coke-With-Ice-Cream.jpg",
+        img: "https://i.ibb.co/tTHLCFJk/Coke-With-Ice-Cream-cold.webp",
         desc: "Classic chilled Coca-Cola served with a scoop of vanilla ice cream"
     },
     {
@@ -34,7 +34,7 @@ const COLD_DRINKS_ITEMS = [
         isMultiSize: false,
         price: 79,
         available: true,
-        img: "https://i.ibb.co/Mk3VkTbK/Milky-Cola.jpg",
+        img: "https://i.ibb.co/NgsyRT7m/Milky-Cola-cold.webp",
         desc: "Smooth and creamy cola blend with a velvety milky twist"
     },
     {
@@ -44,7 +44,7 @@ const COLD_DRINKS_ITEMS = [
         isMultiSize: false,
         price: 79,
         available: true,
-        img: "https://i.ibb.co/35LxWDgq/Milky-Mango.jpg",
+        img: "https://i.ibb.co/7xsP7BYY/Milky-Mango-cold.webp",
         desc: "Rich and refreshing creamy mango flavored chilled beverage"
     }
 ];
