@@ -216,10 +216,13 @@ async function handleWalletConfigRequest(req, res) {
  */
 const DEFAULT_STORE_NOTICE = {
     key: 'store_notice',
+    active: true,
     enabled: true,
     title: 'Store Notice',
+    content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     characterCount: 202,
+    lineCount: 1,
     updatedAt: null
 };
 
@@ -257,29 +260,45 @@ async function handleStoreNoticeRequest(req, res) {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
 
-            const isEnabled = body.enabled !== undefined ? Boolean(body.enabled) : true;
+            const isActive = body.active !== undefined
+                ? Boolean(body.active)
+                : (body.enabled !== undefined ? Boolean(body.enabled) : true);
             const title = (body.title && typeof body.title === 'string' && body.title.trim())
                 ? body.title.trim().slice(0, 100)
                 : 'Store Notice';
-            const rawText = typeof body.text === 'string' ? body.text : '';
+            const rawContent = typeof body.content === 'string'
+                ? body.content
+                : (typeof body.text === 'string' ? body.text : '');
 
-            // Character count validation (1000 characters limit)
-            if (rawText.length > 1000) {
+            // Strict 500 characters and 12 lines constraints
+            if (rawContent.length > 500) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Notice content exceeds maximum 1000 characters limit'
+                    message: 'Notice content exceeds maximum 500 characters limit'
                 });
             }
 
-            const text = rawText.slice(0, 1000);
-            const characterCount = text.length;
+            const lines = rawContent.split('\n');
+            if (lines.length > 12) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Notice content exceeds maximum 12 lines limit'
+                });
+            }
+
+            const content = rawContent.slice(0, 500);
+            const characterCount = content.length;
+            const lineCount = lines.length;
 
             const updatedNotice = {
                 key: 'store_notice',
-                enabled: isEnabled,
+                active: isActive,
+                enabled: isActive,
                 title,
-                text,
+                content,
+                text: content,
                 characterCount,
+                lineCount,
                 updatedAt: new Date().toISOString()
             };
 

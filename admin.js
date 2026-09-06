@@ -137,8 +137,10 @@ export function getCashbackTierBoundaries(orderAmount, walletConfig = DEFAULT_WA
 // --------------------------------------------------------------------------
 export const DEFAULT_STORE_NOTICE = {
     key: 'store_notice',
+    active: true,
     enabled: true,
     title: 'Store Notice',
+    content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     updatedAt: null
 };
@@ -166,7 +168,7 @@ export function countCharacters(text) {
 }
 
 /**
- * Validates and normalizes store notice object (enforces 1000 character maximum)
+ * Validates and normalizes store notice object (enforces 500 characters and 12 lines maximum)
  * @param {Object} raw 
  * @returns {Object}
  */
@@ -175,19 +177,27 @@ export function normalizeStoreNotice(raw) {
         return JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
     }
 
-    const enabled = raw.enabled !== false;
+    const active = raw.active !== undefined ? Boolean(raw.active) : (raw.enabled !== false);
     const title = (raw.title && typeof raw.title === 'string' && raw.title.trim())
         ? raw.title.trim().slice(0, 100)
         : DEFAULT_STORE_NOTICE.title;
-    const rawText = typeof raw.text === 'string' ? raw.text : (DEFAULT_STORE_NOTICE.text || '');
-    const text = rawText.slice(0, 1000);
+    const rawContent = typeof raw.content === 'string'
+        ? raw.content
+        : (typeof raw.text === 'string' ? raw.text : (DEFAULT_STORE_NOTICE.content || ''));
+
+    // Clamp to 12 lines and 500 characters
+    const lines = rawContent.split('\n').slice(0, 12);
+    const content = lines.join('\n').slice(0, 500);
 
     return {
         key: 'store_notice',
-        enabled,
+        active,
+        enabled: active,
         title,
-        text,
-        characterCount: text.length,
+        content,
+        text: content,
+        characterCount: content.length,
+        lineCount: content.split('\n').length,
         updatedAt: raw.updatedAt || null
     };
 }

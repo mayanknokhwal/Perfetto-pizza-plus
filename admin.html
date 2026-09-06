@@ -3947,15 +3947,15 @@
                     <div class="store-notice-textarea-container" style="margin-top: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <label class="setting-input-label" style="margin-bottom: 0;">
-                                <i class="fa-solid fa-file-pen" style="color: var(--primary-orange);"></i> Notice Content (Up to 1000 characters)
+                                <i class="fa-solid fa-file-pen" style="color: var(--primary-orange);"></i> Notice Content (Max 500 characters, 12 lines)
                             </label>
                             <div class="store-notice-counters" id="store-notice-counters" style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted);">
-                                <span id="notice-char-count" style="color: var(--primary-orange); font-weight: 800;">0 / 1000 Characters</span>
+                                <span id="notice-char-count" style="color: var(--primary-orange); font-weight: 800;">0 / 500 Characters</span>
                             </div>
                         </div>
-                        <textarea id="input-store-notice-text" class="store-notice-textarea" rows="7" placeholder="Enter store notice or announcement for customers (max 1000 characters)..." maxlength="1000" oninput="onStoreNoticeTextInput()" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); font-family: var(--font-body, inherit); font-size: 0.88rem; line-height: 1.6; resize: vertical; transition: border-color 0.2s ease;"></textarea>
+                        <textarea id="input-store-notice-text" class="store-notice-textarea" rows="7" placeholder="Enter store notice or announcement for customers (max 500 characters, up to 12 lines)..." maxlength="500" onkeydown="onStoreNoticeTextKeydown(event)" oninput="onStoreNoticeTextInput()" style="width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--border-color); background: var(--bg-surface-elevated); color: var(--text-main); font-family: var(--font-body, inherit); font-size: 0.88rem; line-height: 1.6; resize: vertical; transition: border-color 0.2s ease;"></textarea>
                         <div id="notice-word-warning" style="display: none; margin-top: 6px; font-size: 0.76rem; color: var(--accent-red, #ef4444); font-weight: 700;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> Notice exceeds the 1000 characters limit! Please shorten your text before saving.
+                            <i class="fa-solid fa-triangle-exclamation"></i> Notice exceeds the limit (max 500 characters, 12 lines)! Please shorten your text before saving.
                         </div>
                     </div>
 
@@ -8175,8 +8175,10 @@
         // --------------------------------------------------------------------------
         const DEFAULT_STORE_NOTICE = {
             key: 'store_notice',
+            active: true,
             enabled: true,
             title: 'Store Notice',
+            content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
             text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
             updatedAt: null
         };
@@ -8198,6 +8200,39 @@
         }
         window.countCharacters = countCharacters;
 
+        function onStoreNoticeTextKeydown(e) {
+            if (e.key === 'Enter') {
+                const textarea = e.target || document.getElementById('input-store-notice-text');
+                if (!textarea) return;
+
+                const val = textarea.value;
+                const selStart = textarea.selectionStart || 0;
+                const selEnd = textarea.selectionEnd || 0;
+
+                const selectedText = val.substring(selStart, selEnd);
+                const selectedNewlines = (selectedText.match(/\n/g) || []).length;
+                const totalNewlines = (val.match(/\n/g) || []).length;
+
+                // Future line count if Enter is allowed
+                const futureLineCount = (totalNewlines - selectedNewlines) + 2;
+                if (futureLineCount > 12) {
+                    e.preventDefault();
+                    const warningEl = document.getElementById('notice-word-warning');
+                    if (warningEl) {
+                        warningEl.textContent = '⚠️ Maximum 12 lines allowed for store notice.';
+                        warningEl.style.display = 'block';
+                        setTimeout(() => {
+                            if (warningEl && textarea.value.length <= 500 && textarea.value.split('\n').length <= 12) {
+                                warningEl.style.display = 'none';
+                            }
+                        }, 3000);
+                    }
+                    return false;
+                }
+            }
+        }
+        window.onStoreNoticeTextKeydown = onStoreNoticeTextKeydown;
+
         function onStoreNoticeTextInput() {
             const textarea = document.getElementById('input-store-notice-text');
             const charCountEl = document.getElementById('notice-char-count');
@@ -8205,15 +8240,37 @@
 
             if (!textarea) return;
 
+            let val = textarea.value;
+
+            // 1. Max 12 lines restriction: truncate pasted or entered content exceeding 12 lines
+            const lines = val.split('\n');
+            if (lines.length > 12) {
+                val = lines.slice(0, 12).join('\n');
+                textarea.value = val;
+            }
+
+            // 2. Strict 500-character limit: enforce truncation
+            if (val.length > 500) {
+                val = val.slice(0, 500);
+                textarea.value = val;
+            }
+
             const currentLength = textarea.value.length;
-            const counterText = `${currentLength} / 1000 Characters`;
+            const currentLineCount = textarea.value.split('\n').length;
+            const counterText = `${currentLength} / 500 Characters`;
 
             if (charCountEl) {
                 charCountEl.textContent = counterText;
-                charCountEl.style.color = currentLength >= 1000 ? 'var(--accent-red, #ef4444)' : 'var(--primary-orange)';
+                charCountEl.style.color = currentLength >= 500 ? 'var(--accent-red, #ef4444)' : 'var(--primary-orange)';
             }
             if (warningEl) {
-                warningEl.style.display = currentLength > 1000 ? 'block' : 'none';
+                const isLimitHit = currentLength > 500 || currentLineCount > 12;
+                warningEl.style.display = isLimitHit ? 'block' : 'none';
+                if (isLimitHit) {
+                    warningEl.textContent = currentLineCount > 12
+                        ? '⚠️ Notice exceeds the 12-line limit! Truncated to 12 lines.'
+                        : '⚠️ Notice exceeds 500 characters limit! Truncated to 500 characters.';
+                }
             }
         }
         window.onStoreNoticeTextInput = onStoreNoticeTextInput;
@@ -8243,15 +8300,18 @@
             const titleEl = document.getElementById('input-store-notice-title');
             const textEl = document.getElementById('input-store-notice-text');
 
+            const isActive = data.active !== undefined ? Boolean(data.active) : (data.enabled !== false);
+            const noticeContent = data.content !== undefined ? data.content : (data.text || '');
+
             if (toggleEl && activeEl !== toggleEl) {
-                toggleEl.checked = adminStoreNotice.enabled !== false;
+                toggleEl.checked = isActive;
                 updateStoreNoticeToggleLabel(toggleEl.checked);
             }
             if (titleEl && activeEl !== titleEl) {
-                titleEl.value = adminStoreNotice.title || 'Store Notice';
+                titleEl.value = data.title || 'Store Notice';
             }
             if (textEl && activeEl !== textEl) {
-                textEl.value = adminStoreNotice.text || '';
+                textEl.value = noticeContent;
                 onStoreNoticeTextInput();
             }
         }
@@ -8259,6 +8319,19 @@
 
         async function fetchAdminStoreNotice() {
             if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                if (!adminStoreNoticeUnsubscribe) {
+                    try {
+                        adminStoreNoticeUnsubscribe = adminFirestore.collection('settings').doc('store_notice').onSnapshot((doc) => {
+                            if (doc.exists && doc.data()) {
+                                applyAdminStoreNotice(doc.data());
+                            }
+                        }, (err) => {
+                            console.warn('Firestore admin store notice snapshot error:', err);
+                        });
+                    } catch (e) {
+                        console.warn('Admin store notice snapshot setup error:', e);
+                    }
+                }
                 try {
                     const snap = await adminFirestore.collection('settings').doc('store_notice').get();
                     if (snap.exists && snap.data()) {
@@ -8305,19 +8378,32 @@
 
                 const isEnabled = toggleEl ? Boolean(toggleEl.checked) : true;
                 const title = titleEl && titleEl.value.trim() ? titleEl.value.trim().slice(0, 100) : 'Store Notice';
-                const text = textEl ? textEl.value.slice(0, 1000) : '';
+                let content = textEl ? textEl.value : '';
 
-                if (textEl && textEl.value.length > 1000) {
-                    if (showToastMsg) showToast('⚠️ Notice exceeds 1000 characters! Please shorten the text.');
-                    return false;
+                // Clamp to 12 lines and 500 characters
+                const lines = content.split('\n');
+                if (lines.length > 12) {
+                    content = lines.slice(0, 12).join('\n');
+                }
+                if (content.length > 500) {
+                    content = content.slice(0, 500);
+                }
+                if (textEl) {
+                    textEl.value = content;
+                    onStoreNoticeTextInput();
                 }
 
+                // Strict persistence schema: { active: boolean, title: string, content: string, updatedAt: serverTimestamp() }
+                // plus compatibility fields (enabled, text, key)
                 const payload = {
                     key: 'store_notice',
+                    active: isEnabled,
                     enabled: isEnabled,
                     title: title,
-                    text: text,
-                    characterCount: text.length,
+                    content: content,
+                    text: content,
+                    characterCount: content.length,
+                    lineCount: content.split('\n').length,
                     updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                         ? firebase.firestore.FieldValue.serverTimestamp()
                         : new Date().toISOString()
@@ -8350,7 +8436,7 @@
                 }
 
                 if (typeof logAdminActivity === 'function') {
-                    logAdminActivity(`Updated Store Notice ("${title}", ${text.length} characters, ${isEnabled ? 'Visible' : 'Hidden'})`);
+                    logAdminActivity(`Updated Store Notice ("${title}", ${content.length} characters, ${isEnabled ? 'Active' : 'Hidden'})`);
                 }
                 return true;
             } catch (err) {

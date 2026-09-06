@@ -5172,8 +5172,10 @@ window.renderProfileWalletTxList = renderProfileWalletTxList;
 // --------------------------------------------------------------------------
 const DEFAULT_STORE_NOTICE = {
     key: 'store_notice',
+    active: true,
     enabled: true,
     title: 'Store Notice',
+    content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     updatedAt: null
 };
@@ -5200,31 +5202,37 @@ function updateStoreNoticeUI() {
     const profileBottomCard = document.getElementById('profile-store-notice-bottom');
 
     const notice = customerStoreNotice || DEFAULT_STORE_NOTICE;
-    const isEnabled = Boolean(notice && notice.enabled !== false && notice.text && notice.text.trim().length > 0);
-    const hasNoticeContent = Boolean(notice && notice.text && notice.text.trim().length > 0);
+    const isActive = Boolean(notice && (notice.active !== undefined ? notice.active : notice.enabled !== false));
+    const content = (notice && (notice.content !== undefined ? notice.content : notice.text)) || '';
+    const hasNoticeContent = content.trim().length > 0;
 
     // 1. Homepage Shimmer Badge:
-    // Aligned directly opposite "DAILY OFFER". Strictly hidden when toggle is OFF or text is empty.
+    // When active: true -> Show shimmer notice badge beside "DAILY OFFER" on homepage
+    // When active: false -> Hide badge from homepage completely
     if (homeBadgeWrapper) {
-        homeBadgeWrapper.style.display = isEnabled ? 'inline-flex' : 'none';
-        if (badgeLabel && notice && notice.title) {
-            badgeLabel.textContent = notice.title.length > 18 ? notice.title.substring(0, 16) + '...' : notice.title;
+        if (isActive && hasNoticeContent) {
+            homeBadgeWrapper.style.display = 'inline-flex';
+            if (badgeLabel && notice.title) {
+                badgeLabel.textContent = notice.title.length > 18 ? notice.title.substring(0, 16) + '...' : notice.title;
+            }
+        } else {
+            homeBadgeWrapper.style.display = 'none';
         }
     }
 
     // 2. Profile Screen Adaptive Placements:
-    // When toggle is ON: Display prominently at the very top of Profile screen.
-    // When toggle is OFF: Keep completely hidden from Homepage, but render as muted disclaimer at bottom of Profile.
+    // When active: true -> Place prominent notice card at top of Profile screen
+    // When active: false -> Place muted policy disclaimer at bottom of Profile screen
     if (profileTopCard) {
-        if (isEnabled) {
+        if (isActive && hasNoticeContent) {
             profileTopCard.style.display = 'block';
             const topTitle = document.getElementById('profile-notice-top-title');
             const topText = document.getElementById('profile-notice-top-text');
             const topTime = document.getElementById('profile-notice-top-time');
 
             if (topTitle) topTitle.textContent = notice.title || 'Store Notice';
-            if (topText && notice.text) {
-                const cleanText = notice.text.replace(/\s+/g, ' ').trim();
+            if (topText) {
+                const cleanText = content.replace(/\s+/g, ' ').trim();
                 topText.textContent = cleanText.length > 130 ? cleanText.substring(0, 130) + '...' : cleanText;
             }
             if (topTime) {
@@ -5241,14 +5249,14 @@ function updateStoreNoticeUI() {
     }
 
     if (profileBottomCard) {
-        if (!isEnabled && hasNoticeContent) {
+        if (!isActive && hasNoticeContent) {
             profileBottomCard.style.display = 'block';
             const bottomTitle = document.getElementById('profile-notice-bottom-title');
             const bottomText = document.getElementById('profile-notice-bottom-text');
 
             if (bottomTitle) bottomTitle.textContent = notice.title || 'Store Notice & Disclaimer';
-            if (bottomText && notice.text) {
-                const cleanText = notice.text.replace(/\s+/g, ' ').trim();
+            if (bottomText) {
+                const cleanText = content.replace(/\s+/g, ' ').trim();
                 bottomText.textContent = cleanText.length > 110 ? cleanText.substring(0, 110) + '...' : cleanText;
             }
         } else {
@@ -5259,15 +5267,22 @@ function updateStoreNoticeUI() {
 window.updateStoreNoticeUI = updateStoreNoticeUI;
 
 async function fetchLiveNoticeFromBackend() {
-    if (storeNoticeRealtimeUnsubscribe) {
-        return;
-    }
     try {
         const res = await fetch(resolveApiUrl ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice');
         if (res.ok) {
             const data = await res.json();
             if (data && data.success && data.notice) {
-                customerStoreNotice = { ...DEFAULT_STORE_NOTICE, ...data.notice };
+                const rawNotice = data.notice;
+                const active = rawNotice.active !== undefined ? Boolean(rawNotice.active) : (rawNotice.enabled !== false);
+                const content = rawNotice.content !== undefined ? rawNotice.content : (rawNotice.text || '');
+                customerStoreNotice = {
+                    ...DEFAULT_STORE_NOTICE,
+                    ...rawNotice,
+                    active: active,
+                    enabled: active,
+                    content: content,
+                    text: content
+                };
                 try {
                     localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
                 } catch (e) {}
@@ -5293,13 +5308,12 @@ function openStoreNoticeModal() {
     }
 
     if (contentEl) {
-        const rawText = notice.text || 'No active store announcements at the moment.';
-        const paragraphs = rawText.split(/\n+/).filter(p => p.trim().length > 0);
-        if (paragraphs.length > 0) {
-            contentEl.innerHTML = paragraphs.map(p => `<p>${escapeHtml(p)}</p>`).join('');
-        } else {
-            contentEl.innerHTML = `<p>${escapeHtml(rawText)}</p>`;
-        }
+        const rawContent = (notice.content !== undefined ? notice.content : notice.text) || 'No active store announcements at the moment.';
+        const lines = rawContent.split('\n');
+        contentEl.innerHTML = lines.map(line => {
+            const trimmed = line.trim();
+            return trimmed ? `<p>${escapeHtml(line)}</p>` : '<p class="notice-empty-line">&nbsp;</p>';
+        }).join('');
     }
 
     if (timeEl) {
@@ -10590,11 +10604,20 @@ function listenToRealtimeMenuAndRates() {
         try {
             storeNoticeRealtimeUnsubscribe = customerFirestore.collection('settings').doc('store_notice').onSnapshot((doc) => {
                 if (doc.exists && doc.data()) {
+                    const rawData = doc.data();
+                    const active = rawData.active !== undefined ? Boolean(rawData.active) : (rawData.enabled !== false);
+                    const content = rawData.content !== undefined ? rawData.content : (rawData.text || '');
                     customerStoreNotice = {
                         ...DEFAULT_STORE_NOTICE,
-                        ...doc.data()
+                        ...rawData,
+                        active: active,
+                        enabled: active,
+                        content: content,
+                        text: content
                     };
-                    localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
+                    try {
+                        localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
+                    } catch (e) {}
                     updateStoreNoticeUI();
                 }
             }, (err) => {
@@ -10918,9 +10941,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof initFirstVisitLanguageModal === 'function') {
         initFirstVisitLanguageModal();
     }
-    // 1. Initial live menu & settings fetch
+    // 1. Initial live menu, settings & store notice fetch
     fetchLiveMenuFromBackend();
     fetchLiveSettingsFromBackend();
+    fetchLiveNoticeFromBackend();
 
     // 2. Cross-Device Profile & Address Automatic Sync
     const effectiveSyncPhone = (savedProfile && savedProfile.phone) || getStoredVerifiedPhone();
@@ -10971,11 +10995,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!document.hidden) {
             fetchLiveMenuFromBackend();
             fetchLiveSettingsFromBackend();
+            fetchLiveNoticeFromBackend();
         }
     });
     window.addEventListener('focus', () => {
         fetchLiveMenuFromBackend();
         fetchLiveSettingsFromBackend();
+        fetchLiveNoticeFromBackend();
     });
 });
 
