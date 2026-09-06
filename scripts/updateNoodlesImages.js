@@ -14,7 +14,7 @@ const NOODLES_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg",
+        img: "https://i.ibb.co/Z1bnHNPr/Butter-Paneer-Noodles.webp",
         desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce"
     },
     {
@@ -24,7 +24,7 @@ const NOODLES_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg",
+        img: "https://i.ibb.co/chQ8Y0zc/Chilly-Garlic-Noodles.webp",
         desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies"
     },
     {
@@ -34,7 +34,7 @@ const NOODLES_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg",
+        img: "https://i.ibb.co/TqgkbcCt/Haka-Noodles.webp",
         desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables"
     },
     {
@@ -44,7 +44,7 @@ const NOODLES_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg",
+        img: "https://i.ibb.co/C5tQN9PX/Paneer-Noodles.webp",
         desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies"
     },
     {
@@ -54,7 +54,7 @@ const NOODLES_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg",
+        img: "https://i.ibb.co/LD7Sbm4Z/Singapuri-Noodles.webp",
         desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers"
     },
     {
@@ -64,7 +64,7 @@ const NOODLES_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg",
+        img: "https://i.ibb.co/Fbp92V4J/Veg-Noodles.webp",
         desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables"
     }
 ];

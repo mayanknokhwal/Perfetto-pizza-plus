@@ -14,7 +14,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/nN8ZnFYV/Black-Currant-Shake.jpg",
+        img: "https://i.ibb.co/fdWVLBkM/Black-Currant-Shake.webp",
         desc: "Rich creamy shake blended with luscious black currant flavor"
     },
     {
@@ -24,7 +24,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/Wvy1Zfbj/Butter-Scotch-Shake.jpg",
+        img: "https://i.ibb.co/LXVV1r0X/Butter-Scotch-Shake.webp",
         desc: "Smooth butterscotch milkshake topped with crunchy caramel nuggets"
     },
     {
@@ -34,7 +34,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/dsmztpV7/Chocolate-Shake.jpg",
+        img: "https://i.ibb.co/pv9qz679/Chocolate-Shake.webp",
         desc: "Classic rich cocoa chocolate shake blended to perfection"
     },
     {
@@ -44,7 +44,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/wZZf2jWy/Kit-Kat-Crunchy-Shake.jpg",
+        img: "https://i.ibb.co/CK1gCdRp/Kit-Kat-Crunchy-Shake.webp",
         desc: "Delicious chocolate shake blended with real crispy KitKat wafers"
     },
     {
@@ -54,7 +54,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/YqNxTL3/Oreo-Feast-Shake.jpg",
+        img: "https://i.ibb.co/HD4H8Hy3/Oreo-Feast-Shake.webp",
         desc: "Thick creamy shake loaded with crushed Oreo cookies"
     },
     {
@@ -64,7 +64,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/pc2FGBh/Pineapple-Shake.jpg",
+        img: "https://i.ibb.co/SDXSHgJ2/Pineapple-Shake.webp",
         desc: "Refreshing tropical pineapple milkshake"
     },
     {
@@ -74,7 +74,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/vCtBxC5V/Rasmalai-Shake.jpg",
+        img: "https://i.ibb.co/N2CH8MTf/Rasmalai-Shake.webp",
         desc: "Royal Indian fusion shake with authentic rasmalai flavor & dry fruits"
     },
     {
@@ -84,7 +84,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/jvcrqP0Z/Strawberry-Shake.jpg",
+        img: "https://i.ibb.co/B26T8mwM/Strawberry-Shake.webp",
         desc: "Sweet and tangy fresh strawberry milkshake"
     },
     {
@@ -94,7 +94,7 @@ const SHAKE_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/nqzRxxjB/Vanilla-Shake.jpg",
+        img: "https://i.ibb.co/0pTTNPjC/Vanilla-Shake.webp",
         desc: "Smooth classic Madagascar vanilla milkshake"
     }
 ];

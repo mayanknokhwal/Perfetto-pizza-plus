@@ -14,7 +14,7 @@ const COFFEE_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg",
+        img: "https://i.ibb.co/nMmjCLrF/Cold-Coffee.webp",
         desc: "Creamy chilled coffee blended to rich perfection"
     },
     {
@@ -24,7 +24,7 @@ const COFFEE_ITEMS = [
         isMultiSize: false,
         price: 79,
         available: true,
-        img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg",
+        img: "https://i.ibb.co/nsfGGq4c/Hot-Coffee.webp",
         desc: "Freshly brewed aromatic hot coffee"
     }
 ];

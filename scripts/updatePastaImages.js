@@ -14,7 +14,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/Z1k7wYcZ/Baked-Mix-Pasta.jpg",
+        img: "https://i.ibb.co/DPg7DTSN/Baked-Mix-Pasta.webp",
         desc: "Oven baked pasta with rich combination of red and white sauces topped with melted cheese"
     },
     {
@@ -24,7 +24,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/0pLfYKfN/Baked-Red-Pasta.jpg",
+        img: "https://i.ibb.co/CKzJwGB0/Baked-Red-Pasta.webp",
         desc: "Tangy tomato arrabbiata pasta baked with extra mozzarella"
     },
     {
@@ -34,7 +34,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/PzgbnkXp/Baked-Sweet-Spicy-Pasta.jpg",
+        img: "https://i.ibb.co/wNyqgDjC/Baked-Sweet-Spicy-Pasta.webp",
         desc: "Sweet chilli and herb infused pasta baked to cheesy perfection"
     },
     {
@@ -44,7 +44,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/mFhbQZsN/Baked-Tandoori-Pasta.jpg",
+        img: "https://i.ibb.co/cXgL2JkW/Baked-Tandoori-Pasta.webp",
         desc: "Smoky tandoori sauce pasta baked with golden cheese layer"
     },
     {
@@ -54,7 +54,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/0jQLrKgh/Baked-White-Pasta.jpg",
+        img: "https://i.ibb.co/s9ZmT25L/Baked-White-Pasta.webp",
         desc: "Creamy alfredo sauce pasta baked with Italian herbs and cheese"
     },
     {
@@ -64,7 +64,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/Q3yyX7ss/Creamy-Pasta.jpg",
+        img: "https://i.ibb.co/Ld0XT4V6/Creamy-Pasta.webp",
         desc: "Rich smooth parmesan cream sauce tossed with penne"
     },
     {
@@ -74,7 +74,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/mCHkdqkg/Red-Pasta.jpg",
+        img: "https://i.ibb.co/gMX9t7Cx/Red-Pasta.webp",
         desc: "Classic spicy tomato sauce pasta with Italian basil"
     },
     {
@@ -84,7 +84,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 159,
         available: true,
-        img: "https://i.ibb.co/NDByPtY/Supreme-Pasta.jpg",
+        img: "https://i.ibb.co/GQCnC6HF/Supreme-Pasta.webp",
         desc: "Chef special pasta with fresh veggies, olives, jalapenos and secret herbs"
     },
     {
@@ -94,7 +94,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/hRg5D667/Tandoori-Pasta.jpg",
+        img: "https://i.ibb.co/bRPS4b74/Tandoori-Pasta.webp",
         desc: "Indian fusion pasta tossed in spicy tandoori mayo sauce"
     },
     {
@@ -104,7 +104,7 @@ const PASTA_ITEMS = [
         isMultiSize: false,
         price: 149,
         available: true,
-        img: "https://i.ibb.co/v4KDB6tm/Baked-Makhani-Pasta.jpg",
+        img: "https://i.ibb.co/1f41Gz6R/Baked-Makhani-Pasta.webp",
         desc: "Rich butter makhani gravy pasta baked with melted mozzarella"
     }
 ];

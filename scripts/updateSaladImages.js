@@ -14,7 +14,7 @@ const SALAD_ITEMS = [
         isMultiSize: false,
         price: 69,
         available: true,
-        img: "https://i.ibb.co/dwWmX7HX/Green-Salad.jpg",
+        img: "https://i.ibb.co/fYxbGzMk/Green-Salad.webp",
         desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges"
     },
     {
@@ -24,7 +24,7 @@ const SALAD_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/2YS2PS1s/Perfetto-Special-Salad.jpg",
+        img: "https://i.ibb.co/M5MPrMq8/Perfetto-Special-Salad.webp",
         desc: "Chef special fresh garden salad tossed with paneer cubes, olives and house dressing"
     },
     {
@@ -34,7 +34,7 @@ const SALAD_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/ds4XYn5d/Russian-Salad.jpg",
+        img: "https://i.ibb.co/qL3gX0sH/Russian-Salad.webp",
         desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing"
     }
 ];

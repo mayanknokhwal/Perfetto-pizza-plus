@@ -1157,16 +1157,16 @@ const categorySubItems = {
         { id: "moj-virgin", name: "Virgin Mojito", category: "Mojito", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/B24VCS65/Virgin-Mojito.jpg", desc: "Signature refreshing non-alcoholic mojito with lime wedges & crushed mint leaves" }
     ],
     "Pasta": [
-        { id: "pst-baked-mix", name: "Baked Mix Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Z1k7wYcZ/Baked-Mix-Pasta.jpg", desc: "Oven baked pasta with rich combination of red and white sauces topped with melted cheese" },
-        { id: "pst-baked-red", name: "Baked Red Pasta", category: "Pasta", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/0pLfYKfN/Baked-Red-Pasta.jpg", desc: "Tangy tomato arrabbiata pasta baked with extra mozzarella" },
-        { id: "pst-baked-sweet-spicy", name: "Baked Sweet & Spicy Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/PzgbnkXp/Baked-Sweet-Spicy-Pasta.jpg", desc: "Sweet chilli and herb infused pasta baked to cheesy perfection" },
-        { id: "pst-baked-tandoori", name: "Baked Tandoori Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/mFhbQZsN/Baked-Tandoori-Pasta.jpg", desc: "Smoky tandoori sauce pasta baked with golden cheese layer" },
-        { id: "pst-baked-white", name: "Baked White Pasta", category: "Pasta", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/0jQLrKgh/Baked-White-Pasta.jpg", desc: "Creamy alfredo sauce pasta baked with Italian herbs and cheese" },
-        { id: "pst-creamy", name: "Creamy Pasta", category: "Pasta", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/Q3yyX7ss/Creamy-Pasta.jpg", desc: "Rich smooth parmesan cream sauce tossed with penne" },
-        { id: "pst-red", name: "Red Pasta", category: "Pasta", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/mCHkdqkg/Red-Pasta.jpg", desc: "Classic spicy tomato sauce pasta with Italian basil" },
-        { id: "pst-supreme", name: "Supreme Pasta", category: "Pasta", isMultiSize: false, price: 159, available: true, img: "https://i.ibb.co/NDByPtY/Supreme-Pasta.jpg", desc: "Chef special pasta with fresh veggies, olives, jalapenos and secret herbs" },
-        { id: "pst-tandoori", name: "Tandoori Pasta", category: "Pasta", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/hRg5D667/Tandoori-Pasta.jpg", desc: "Indian fusion pasta tossed in spicy tandoori mayo sauce" },
-        { id: "pst-baked-makhani", name: "Baked Makhani Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/v4KDB6tm/Baked-Makhani-Pasta.jpg", desc: "Rich butter makhani gravy pasta baked with melted mozzarella" }
+        { id: "pst-baked-mix", name: "Baked Mix Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/DPg7DTSN/Baked-Mix-Pasta.webp", desc: "Oven baked pasta with rich combination of red and white sauces topped with melted cheese" },
+        { id: "pst-baked-red", name: "Baked Red Pasta", category: "Pasta", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/CKzJwGB0/Baked-Red-Pasta.webp", desc: "Tangy tomato arrabbiata pasta baked with extra mozzarella" },
+        { id: "pst-baked-sweet-spicy", name: "Baked Sweet & Spicy Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/wNyqgDjC/Baked-Sweet-Spicy-Pasta.webp", desc: "Sweet chilli and herb infused pasta baked to cheesy perfection" },
+        { id: "pst-baked-tandoori", name: "Baked Tandoori Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/cXgL2JkW/Baked-Tandoori-Pasta.webp", desc: "Smoky tandoori sauce pasta baked with golden cheese layer" },
+        { id: "pst-baked-white", name: "Baked White Pasta", category: "Pasta", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/s9ZmT25L/Baked-White-Pasta.webp", desc: "Creamy alfredo sauce pasta baked with Italian herbs and cheese" },
+        { id: "pst-creamy", name: "Creamy Pasta", category: "Pasta", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/Ld0XT4V6/Creamy-Pasta.webp", desc: "Rich smooth parmesan cream sauce tossed with penne" },
+        { id: "pst-red", name: "Red Pasta", category: "Pasta", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/gMX9t7Cx/Red-Pasta.webp", desc: "Classic spicy tomato sauce pasta with Italian basil" },
+        { id: "pst-supreme", name: "Supreme Pasta", category: "Pasta", isMultiSize: false, price: 159, available: true, img: "https://i.ibb.co/GQCnC6HF/Supreme-Pasta.webp", desc: "Chef special pasta with fresh veggies, olives, jalapenos and secret herbs" },
+        { id: "pst-tandoori", name: "Tandoori Pasta", category: "Pasta", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/bRPS4b74/Tandoori-Pasta.webp", desc: "Indian fusion pasta tossed in spicy tandoori mayo sauce" },
+        { id: "pst-baked-makhani", name: "Baked Makhani Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/1f41Gz6R/Baked-Makhani-Pasta.webp", desc: "Rich butter makhani gravy pasta baked with melted mozzarella" }
     ],
     "Wrap": [
         { id: "wrp-tandoori", name: "Tandoori Wrap", price: 99.00, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
@@ -1203,37 +1203,37 @@ const categorySubItems = {
         { id: "mom-veg", name: "Veg Momos", category: "Momos", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0RTw1B4c/Veg-Momos.jpg", desc: "Classic steamed dumplings packed with fresh garden vegetables" }
     ],
     "Shake": [
-        { id: "shk-black-currant", name: "Black Currant Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/nN8ZnFYV/Black-Currant-Shake.jpg", desc: "Rich creamy shake blended with luscious black currant flavor" },
-        { id: "shk-butter-scotch", name: "Butter Scotch Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/Wvy1Zfbj/Butter-Scotch-Shake.jpg", desc: "Smooth butterscotch milkshake topped with crunchy caramel nuggets" },
-        { id: "shk-chocolate", name: "Chocolate Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/dsmztpV7/Chocolate-Shake.jpg", desc: "Classic rich cocoa chocolate shake blended to perfection" },
-        { id: "shk-kitkat-crunchy", name: "Kit Kat Crunchy Shake", category: "Shake", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/wZZf2jWy/Kit-Kat-Crunchy-Shake.jpg", desc: "Delicious chocolate shake blended with real crispy KitKat wafers" },
-        { id: "shk-oreo-feast", name: "Oreo Feast Shake", category: "Shake", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/YqNxTL3/Oreo-Feast-Shake.jpg", desc: "Thick creamy shake loaded with crushed Oreo cookies" },
-        { id: "shk-pineapple", name: "Pineapple Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/pc2FGBh/Pineapple-Shake.jpg", desc: "Refreshing tropical pineapple milkshake" },
-        { id: "shk-rasmalai", name: "Rasmalai Shake", category: "Shake", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/vCtBxC5V/Rasmalai-Shake.jpg", desc: "Royal Indian fusion shake with authentic rasmalai flavor & dry fruits" },
-        { id: "shk-strawberry", name: "Strawberry Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/jvcrqP0Z/Strawberry-Shake.jpg", desc: "Sweet and tangy fresh strawberry milkshake" },
-        { id: "shk-vanilla", name: "Vanilla Shake", category: "Shake", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/nqzRxxjB/Vanilla-Shake.jpg", desc: "Smooth classic Madagascar vanilla milkshake" }
+        { id: "shk-black-currant", name: "Black Currant Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/fdWVLBkM/Black-Currant-Shake.webp", desc: "Rich creamy shake blended with luscious black currant flavor" },
+        { id: "shk-butter-scotch", name: "Butter Scotch Shake", category: "Shake", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/LXVV1r0X/Butter-Scotch-Shake.webp", desc: "Smooth butterscotch milkshake topped with crunchy caramel nuggets" },
+        { id: "shk-chocolate", name: "Chocolate Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/pv9qz679/Chocolate-Shake.webp", desc: "Classic rich cocoa chocolate shake blended to perfection" },
+        { id: "shk-kitkat-crunchy", name: "Kit Kat Crunchy Shake", category: "Shake", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/CK1gCdRp/Kit-Kat-Crunchy-Shake.webp", desc: "Delicious chocolate shake blended with real crispy KitKat wafers" },
+        { id: "shk-oreo-feast", name: "Oreo Feast Shake", category: "Shake", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/HD4H8Hy3/Oreo-Feast-Shake.webp", desc: "Thick creamy shake loaded with crushed Oreo cookies" },
+        { id: "shk-pineapple", name: "Pineapple Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/SDXSHgJ2/Pineapple-Shake.webp", desc: "Refreshing tropical pineapple milkshake" },
+        { id: "shk-rasmalai", name: "Rasmalai Shake", category: "Shake", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/N2CH8MTf/Rasmalai-Shake.webp", desc: "Royal Indian fusion shake with authentic rasmalai flavor & dry fruits" },
+        { id: "shk-strawberry", name: "Strawberry Shake", category: "Shake", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/B26T8mwM/Strawberry-Shake.webp", desc: "Sweet and tangy fresh strawberry milkshake" },
+        { id: "shk-vanilla", name: "Vanilla Shake", category: "Shake", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/0pTTNPjC/Vanilla-Shake.webp", desc: "Smooth classic Madagascar vanilla milkshake" }
     ],
     "Rice": [
-        { id: "ric-veg-fried", name: "Veg Fried Rice", category: "Rice", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/0j2C4vR2/Veg-Fried-Rice.jpg", desc: "Classic stir-fried rice tossed with fresh garden vegetables & aromatic seasonings" },
-        { id: "ric-singapuri", name: "Singapuri Rice", category: "Rice", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/q3wnW2kC/Singapuri-Rice.jpg", desc: "Spicy & exotic Singapore style fried rice infused with mild curry spices" },
-        { id: "ric-chilly-garlic", name: "Chilly Garlic Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/wFBqyMBD/Chilly-Garlic-Rice.jpg", desc: "Zesty fried rice wok-tossed with pungent chili garlic sauce" },
-        { id: "ric-haka", name: "Haka Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/4g1rfZ9V/Haka-Rice.jpg", desc: "Authentic Hakka style wok-tossed rice with crisp vegetables" }
+        { id: "ric-veg-fried", name: "Veg Fried Rice", category: "Rice", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/2YP9KpNt/Veg-Fried-Rice.webp", desc: "Classic stir-fried rice tossed with fresh garden vegetables & aromatic seasonings" },
+        { id: "ric-singapuri", name: "Singapuri Rice", category: "Rice", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/PGSJYhMp/Singapuri-Rice.webp", desc: "Spicy & exotic Singapore style fried rice infused with mild curry spices" },
+        { id: "ric-chilly-garlic", name: "Chilly Garlic Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/v4JZ0GGk/Chilly-Garlic-Rice.webp", desc: "Zesty fried rice wok-tossed with pungent chili garlic sauce" },
+        { id: "ric-haka", name: "Haka Rice", category: "Rice", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/TBQfzv2D/Haka-Rice.webp", desc: "Authentic Hakka style wok-tossed rice with crisp vegetables" }
     ],
     "Hot Cold Coffee": [
-        { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
-        { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
+        { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/nMmjCLrF/Cold-Coffee.webp", desc: "Creamy chilled coffee blended to rich perfection" },
+        { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/nsfGGq4c/Hot-Coffee.webp", desc: "Freshly brewed aromatic hot coffee" }
     ],
     "Coffee": [
-        { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
-        { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
+        { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/nMmjCLrF/Cold-Coffee.webp", desc: "Creamy chilled coffee blended to rich perfection" },
+        { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/nsfGGq4c/Hot-Coffee.webp", desc: "Freshly brewed aromatic hot coffee" }
     ],
     "Noodles": [
-        { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
-        { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
-        { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
-        { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
-        { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
-        { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
+        { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Z1bnHNPr/Butter-Paneer-Noodles.webp", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
+        { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/chQ8Y0zc/Chilly-Garlic-Noodles.webp", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
+        { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/TqgkbcCt/Haka-Noodles.webp", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
+        { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/C5tQN9PX/Paneer-Noodles.webp", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
+        { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/LD7Sbm4Z/Singapuri-Noodles.webp", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
+        { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/Fbp92V4J/Veg-Noodles.webp", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
     ],
     "Desserts": [
         { id: "des-ice-cream-vanilla", name: "Ice Cream Vanilla", category: "Desserts", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/t5SyXgM/Ice-Cream-Vanilla.jpg", desc: "Creamy classic vanilla ice cream scoop" },
@@ -1241,9 +1241,9 @@ const categorySubItems = {
         { id: "des-lava-cake", name: "Lava Cake", category: "Desserts", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/wZQSKRvS/Lava-Cake.jpg", desc: "Decadent chocolate cake with a warm molten chocolate center" }
     ],
     "Salad": [
-        { id: "sld-green", name: "Green Salad", category: "Salad", isMultiSize: false, price: 69, available: true, img: "https://i.ibb.co/dwWmX7HX/Green-Salad.jpg", desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges" },
-        { id: "sld-perfetto-special", name: "Perfetto Special Salad", category: "Salad", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/2YS2PS1s/Perfetto-Special-Salad.jpg", desc: "Chef special fresh garden salad tossed with paneer cubes, olives and house dressing" },
-        { id: "sld-russian", name: "Russian Salad", category: "Salad", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ds4XYn5d/Russian-Salad.jpg", desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing" }
+        { id: "sld-green", name: "Green Salad", category: "Salad", isMultiSize: false, price: 69, available: true, img: "https://i.ibb.co/fYxbGzMk/Green-Salad.webp", desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges" },
+        { id: "sld-perfetto-special", name: "Perfetto Special Salad", category: "Salad", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/M5MPrMq8/Perfetto-Special-Salad.webp", desc: "Chef special fresh garden salad tossed with paneer cubes, olives and house dressing" },
+        { id: "sld-russian", name: "Russian Salad", category: "Salad", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/qL3gX0sH/Russian-Salad.webp", desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing" }
     ],
     "Side Orders": [
         { id: "sde-french-fries", name: "French Fries", category: "Side Orders", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/3y4xtxj7/French-Fries.jpg", desc: "Crispy golden fried potato fries lightly salted to perfection" },
@@ -1300,9 +1300,9 @@ const NEW_SIDE_ORDERS_MENU_ITEMS = [
 ];
 
 const NEW_SALAD_MENU_ITEMS = [
-    { id: "sld-green", name: "Green Salad", category: "Salad", isMultiSize: false, price: 69, available: true, img: "https://i.ibb.co/dwWmX7HX/Green-Salad.jpg", desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges" },
-    { id: "sld-perfetto-special", name: "Perfetto Special Salad", category: "Salad", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/2YS2PS1s/Perfetto-Special-Salad.jpg", desc: "Chef special fresh garden salad tossed with paneer cubes, olives and house dressing" },
-    { id: "sld-russian", name: "Russian Salad", category: "Salad", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/ds4XYn5d/Russian-Salad.jpg", desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing" }
+    { id: "sld-green", name: "Green Salad", category: "Salad", isMultiSize: false, price: 69, available: true, img: "https://i.ibb.co/fYxbGzMk/Green-Salad.webp", desc: "Fresh assortment of sliced cucumbers, tomatoes, carrots, onions & lemon wedges" },
+    { id: "sld-perfetto-special", name: "Perfetto Special Salad", category: "Salad", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/M5MPrMq8/Perfetto-Special-Salad.webp", desc: "Chef special fresh garden salad tossed with paneer cubes, olives and house dressing" },
+    { id: "sld-russian", name: "Russian Salad", category: "Salad", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/qL3gX0sH/Russian-Salad.webp", desc: "Classic diced vegetables, boiled potatoes and sweet corn folded in creamy mayo dressing" }
 ];
 
 const NEW_DESSERTS_MENU_ITEMS = [
@@ -1312,17 +1312,17 @@ const NEW_DESSERTS_MENU_ITEMS = [
 ];
 
 const NEW_NOODLES_MENU_ITEMS = [
-    { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
-    { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
-    { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
-    { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
-    { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
-    { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
+    { id: "ndl-butter-paneer", name: "Butter Paneer Noodles", category: "Noodles", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/Z1bnHNPr/Butter-Paneer-Noodles.webp", desc: "Wok-tossed noodles with soft paneer cubes in rich butter masala sauce" },
+    { id: "ndl-chilly-garlic", name: "Chilly Garlic Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/chQ8Y0zc/Chilly-Garlic-Noodles.webp", desc: "Spicy wok-tossed noodles flavored with pungent garlic and red chillies" },
+    { id: "ndl-haka", name: "Haka Noodles", category: "Noodles", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/TqgkbcCt/Haka-Noodles.webp", desc: "Classic Hakka style noodles stir-fried with crisp garden vegetables" },
+    { id: "ndl-paneer", name: "Paneer Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/C5tQN9PX/Paneer-Noodles.webp", desc: "Delicious stir-fried noodles tossed with spiced paneer cubes and crunchy veggies" },
+    { id: "ndl-singapuri", name: "Singapuri Noodles", category: "Noodles", isMultiSize: false, price: 139, available: true, img: "https://i.ibb.co/LD7Sbm4Z/Singapuri-Noodles.webp", desc: "Zesty Singapore style noodles with exotic spices and fresh bell peppers" },
+    { id: "ndl-veg", name: "Veg Noodles", category: "Noodles", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/Fbp92V4J/Veg-Noodles.webp", desc: "Classic stir-fried noodles loaded with fresh seasoned vegetables" }
 ];
 
 const NEW_COFFEE_MENU_ITEMS = [
-    { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg", desc: "Creamy chilled coffee blended to rich perfection" },
-    { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg", desc: "Freshly brewed aromatic hot coffee" }
+    { id: "cof-cold", name: "Cold Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/nMmjCLrF/Cold-Coffee.webp", desc: "Creamy chilled coffee blended to rich perfection" },
+    { id: "cof-hot", name: "Hot Coffee", category: "Hot Cold Coffee", isMultiSize: false, price: 79, available: true, img: "https://i.ibb.co/nsfGGq4c/Hot-Coffee.webp", desc: "Freshly brewed aromatic hot coffee" }
 ];
 
 const NEW_MOMOS_MENU_ITEMS = [
@@ -1514,8 +1514,8 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const COFFEE_IMAGE_MAP = {
-        "cof-cold": "https://i.ibb.co/NdjHqdXP/Cold-Coffee.jpg",
-        "cof-hot": "https://i.ibb.co/mVQ3X1wp/Hot-Coffee.jpg"
+        "cof-cold": "https://i.ibb.co/nMmjCLrF/Cold-Coffee.webp",
+        "cof-hot": "https://i.ibb.co/nsfGGq4c/Hot-Coffee.webp"
     };
     updated.forEach(item => {
         if ((item.category === 'Hot Cold Coffee' || item.category === 'Coffee' || item.category === 'Hot & Cold Coffee') && item.id && COFFEE_IMAGE_MAP[item.id]) {
@@ -1535,12 +1535,12 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const NOODLES_IMAGE_MAP = {
-        "ndl-butter-paneer": "https://i.ibb.co/Qv9TGVwy/Butter-Paneer-Noodles.jpg",
-        "ndl-chilly-garlic": "https://i.ibb.co/ycQT35rB/Chilly-Garlic-Noodles.jpg",
-        "ndl-haka": "https://i.ibb.co/WvG995DF/Haka-Noodles.jpg",
-        "ndl-paneer": "https://i.ibb.co/Cpwx1BY5/Paneer-Noodles.jpg",
-        "ndl-singapuri": "https://i.ibb.co/M0KJsvz/Singapuri-Noodles.jpg",
-        "ndl-veg": "https://i.ibb.co/21JBqyRP/Veg-Noodles.jpg"
+        "ndl-butter-paneer": "https://i.ibb.co/Z1bnHNPr/Butter-Paneer-Noodles.webp",
+        "ndl-chilly-garlic": "https://i.ibb.co/chQ8Y0zc/Chilly-Garlic-Noodles.webp",
+        "ndl-haka": "https://i.ibb.co/TqgkbcCt/Haka-Noodles.webp",
+        "ndl-paneer": "https://i.ibb.co/C5tQN9PX/Paneer-Noodles.webp",
+        "ndl-singapuri": "https://i.ibb.co/LD7Sbm4Z/Singapuri-Noodles.webp",
+        "ndl-veg": "https://i.ibb.co/Fbp92V4J/Veg-Noodles.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Noodles' && item.id && NOODLES_IMAGE_MAP[item.id]) {
@@ -1582,14 +1582,73 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const SALAD_IMAGE_MAP = {
-        "sld-green": "https://i.ibb.co/dwWmX7HX/Green-Salad.jpg",
-        "sld-perfetto-special": "https://i.ibb.co/2YS2PS1s/Perfetto-Special-Salad.jpg",
-        "sld-russian": "https://i.ibb.co/ds4XYn5d/Russian-Salad.jpg"
+        "sld-green": "https://i.ibb.co/fYxbGzMk/Green-Salad.webp",
+        "sld-perfetto-special": "https://i.ibb.co/M5MPrMq8/Perfetto-Special-Salad.webp",
+        "sld-russian": "https://i.ibb.co/qL3gX0sH/Russian-Salad.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Salad' && item.id && SALAD_IMAGE_MAP[item.id]) {
             if (item.img !== SALAD_IMAGE_MAP[item.id]) {
                 item.img = SALAD_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // Sanitize Pasta images
+    const PASTA_IMAGE_MAP = {
+        "pst-baked-mix": "https://i.ibb.co/DPg7DTSN/Baked-Mix-Pasta.webp",
+        "pst-baked-red": "https://i.ibb.co/CKzJwGB0/Baked-Red-Pasta.webp",
+        "pst-baked-sweet-spicy": "https://i.ibb.co/wNyqgDjC/Baked-Sweet-Spicy-Pasta.webp",
+        "pst-baked-tandoori": "https://i.ibb.co/cXgL2JkW/Baked-Tandoori-Pasta.webp",
+        "pst-baked-white": "https://i.ibb.co/s9ZmT25L/Baked-White-Pasta.webp",
+        "pst-creamy": "https://i.ibb.co/Ld0XT4V6/Creamy-Pasta.webp",
+        "pst-red": "https://i.ibb.co/gMX9t7Cx/Red-Pasta.webp",
+        "pst-supreme": "https://i.ibb.co/GQCnC6HF/Supreme-Pasta.webp",
+        "pst-tandoori": "https://i.ibb.co/bRPS4b74/Tandoori-Pasta.webp",
+        "pst-baked-makhani": "https://i.ibb.co/1f41Gz6R/Baked-Makhani-Pasta.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Pasta' && item.id && PASTA_IMAGE_MAP[item.id]) {
+            if (item.img !== PASTA_IMAGE_MAP[item.id]) {
+                item.img = PASTA_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // Sanitize Shake images
+    const SHAKE_IMAGE_MAP = {
+        "shk-black-currant": "https://i.ibb.co/fdWVLBkM/Black-Currant-Shake.webp",
+        "shk-butter-scotch": "https://i.ibb.co/LXVV1r0X/Butter-Scotch-Shake.webp",
+        "shk-chocolate": "https://i.ibb.co/pv9qz679/Chocolate-Shake.webp",
+        "shk-kitkat-crunchy": "https://i.ibb.co/CK1gCdRp/Kit-Kat-Crunchy-Shake.webp",
+        "shk-oreo-feast": "https://i.ibb.co/HD4H8Hy3/Oreo-Feast-Shake.webp",
+        "shk-pineapple": "https://i.ibb.co/SDXSHgJ2/Pineapple-Shake.webp",
+        "shk-rasmalai": "https://i.ibb.co/N2CH8MTf/Rasmalai-Shake.webp",
+        "shk-strawberry": "https://i.ibb.co/B26T8mwM/Strawberry-Shake.webp",
+        "shk-vanilla": "https://i.ibb.co/0pTTNPjC/Vanilla-Shake.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Shake' && item.id && SHAKE_IMAGE_MAP[item.id]) {
+            if (item.img !== SHAKE_IMAGE_MAP[item.id]) {
+                item.img = SHAKE_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    // Sanitize Rice images
+    const RICE_IMAGE_MAP = {
+        "ric-veg-fried": "https://i.ibb.co/2YP9KpNt/Veg-Fried-Rice.webp",
+        "ric-singapuri": "https://i.ibb.co/PGSJYhMp/Singapuri-Rice.webp",
+        "ric-chilly-garlic": "https://i.ibb.co/v4JZ0GGk/Chilly-Garlic-Rice.webp",
+        "ric-haka": "https://i.ibb.co/TBQfzv2D/Haka-Rice.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Rice' && item.id && RICE_IMAGE_MAP[item.id]) {
+            if (item.img !== RICE_IMAGE_MAP[item.id]) {
+                item.img = RICE_IMAGE_MAP[item.id];
                 modified = true;
             }
         }

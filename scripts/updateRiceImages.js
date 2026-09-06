@@ -14,7 +14,7 @@ const RICE_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/0j2C4vR2/Veg-Fried-Rice.jpg",
+        img: "https://i.ibb.co/2YP9KpNt/Veg-Fried-Rice.webp",
         desc: "Classic stir-fried rice tossed with fresh garden vegetables & aromatic seasonings"
     },
     {
@@ -24,7 +24,7 @@ const RICE_ITEMS = [
         isMultiSize: false,
         price: 139,
         available: true,
-        img: "https://i.ibb.co/q3wnW2kC/Singapuri-Rice.jpg",
+        img: "https://i.ibb.co/PGSJYhMp/Singapuri-Rice.webp",
         desc: "Spicy & exotic Singapore style fried rice infused with mild curry spices"
     },
     {
@@ -34,7 +34,7 @@ const RICE_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/wFBqyMBD/Chilly-Garlic-Rice.jpg",
+        img: "https://i.ibb.co/v4JZ0GGk/Chilly-Garlic-Rice.webp",
         desc: "Zesty fried rice wok-tossed with pungent chili garlic sauce"
     },
     {
@@ -44,7 +44,7 @@ const RICE_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/4g1rfZ9V/Haka-Rice.jpg",
+        img: "https://i.ibb.co/TBQfzv2D/Haka-Rice.webp",
         desc: "Authentic Hakka style wok-tossed rice with crisp vegetables"
     }
 ];
