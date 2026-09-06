@@ -11,7 +11,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "green-veggie",
         matchNames: ["green veggie"],
         name: "Green Veggie",
-        img: "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg",
+        img: "https://i.ibb.co/qL1Kz6wv/Green-Veggie.webp",
         desc: "Onion, Capsicum, Tomato",
         prices: { S: 229, M: 329, L: 429 }
     },
@@ -19,7 +19,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "harissa-pizza",
         matchNames: ["harissa pizza", "harissa"],
         name: "Harissa Pizza",
-        img: "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg",
+        img: "https://i.ibb.co/SD4Zr2R0/Harissa-Pizza.webp",
         desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce",
         prices: { S: 249, M: 349, L: 449 }
     },
@@ -27,7 +27,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "hot-country",
         matchNames: ["hot country"],
         name: "Hot Country",
-        img: "https://i.ibb.co/C59X7CVY/Hot-Country.jpg",
+        img: "https://i.ibb.co/Q3QnjnmK/Hot-Country.webp",
         desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese",
         prices: { S: 199, M: 299, L: 399 }
     },
@@ -35,7 +35,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "indian-veggie",
         matchNames: ["indian veggie"],
         name: "Indian Veggie",
-        img: "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg",
+        img: "https://i.ibb.co/W4RfbZFY/Indian-Veggie.webp",
         desc: "Capsicum, Green Chilli, Onion, Mushroom, Black Olives, Extra Cheese",
         prices: { S: 219, M: 319, L: 419 }
     },
@@ -43,7 +43,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "lovers-pizza",
         matchNames: ["lover's pizza", "lover's", "lovers pizza", "lovers"],
         name: "Lover's Pizza",
-        img: "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg",
+        img: "https://i.ibb.co/HTTC3rqJ/Lover-s-Pizza.webp",
         desc: "Red Paprika, Onion, Capsicum, Corn",
         prices: { S: 249, M: 349, L: 449 }
     },
@@ -51,7 +51,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "makhani-pizza",
         matchNames: ["makhani pizza", "makhani"],
         name: "Makhani Pizza",
-        img: "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg",
+        img: "https://i.ibb.co/679sFgjc/Makhani-Pizza.webp",
         desc: "Capsicum, Paneer, Makhani Sauce",
         prices: { S: 239, M: 339, L: 439 }
     },
@@ -59,7 +59,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "paradise-pizza",
         matchNames: ["paradize pizza", "parndize pizza", "paradise pizza"],
         name: "Paradize Pizza",
-        img: "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg",
+        img: "https://i.ibb.co/Q3JmNWBN/Paradize-Pizza.webp",
         desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno",
         prices: { S: 229, M: 329, L: 429 }
     },
@@ -67,7 +67,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "perfetto-special",
         matchNames: ["perfetto special pizza", "perfetto special"],
         name: "Perfetto Special Pizza",
-        img: "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg",
+        img: "https://i.ibb.co/m5m460Dm/Perfetto-Special-Pizza.webp",
         desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese",
         prices: { S: 299, M: 399, L: 499 }
     },
@@ -75,7 +75,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "spicy-pizza",
         matchNames: ["spicy pizza", "spicy"],
         name: "Spicy Pizza",
-        img: "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg",
+        img: "https://i.ibb.co/n8fyf1nd/Spicy-Pizza.webp",
         desc: "Paneer Chilly, Capsicum, Red Paprika",
         prices: { S: 199, M: 299, L: 399 }
     },
@@ -83,7 +83,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "supreme-pizza",
         matchNames: ["supreme pizza", "supreme"],
         name: "Supreme Pizza",
-        img: "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg",
+        img: "https://i.ibb.co/Pzz7v76f/Supreme-Pizza.webp",
         desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives",
         prices: { S: 249, M: 349, L: 449 }
     },
@@ -91,7 +91,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "tandoori-pizza",
         matchNames: ["tandoori pizza", "tandoori"],
         name: "Tandoori Pizza",
-        img: "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg",
+        img: "https://i.ibb.co/JWTGK7PL/Tandoori-Pizza.webp",
         desc: "Onion, Paneer, Bellpeper, Tandoori Sauce",
         prices: { S: 239, M: 339, L: 439 }
     },
@@ -99,7 +99,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "achari-pizza",
         matchNames: ["acharri pizza", "achari pizza"],
         name: "Acharri Pizza",
-        img: "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg",
+        img: "https://i.ibb.co/23J8xsTN/Acharri-Pizza.webp",
         desc: "Capsicum, Corn, Paneer, Achari Sauce",
         prices: { S: 219, M: 319, L: 419 }
     },
@@ -107,7 +107,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "cheese-n-corn",
         matchNames: ["cheese 'n corn", "cheese-n-corn", "cheese n corn"],
         name: "Cheese 'n Corn",
-        img: "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg",
+        img: "https://i.ibb.co/wh9xKr9m/Cheese-n-Corn.webp",
         desc: "Cheese, Corn",
         prices: { S: 179, M: 279, L: 379 }
     },
@@ -115,7 +115,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "cheese-n-mushroom",
         matchNames: ["cheese 'n mushroom", "cheese-n-mushroom", "cheese n mushroom"],
         name: "Cheese 'n Mushroom",
-        img: "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg",
+        img: "https://i.ibb.co/1tJJ7fCJ/Cheese-n-Mushroom.webp",
         desc: "Cheese, Mushroom",
         prices: { S: 219, M: 319, L: 419 }
     },
@@ -123,7 +123,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "chipotle-pizza",
         matchNames: ["chipotle pizza", "chipotle"],
         name: "Chipotle Pizza",
-        img: "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg",
+        img: "https://i.ibb.co/Zz00RKFx/Chipotle-Pizza.webp",
         desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce",
         prices: { S: 229, M: 329, L: 429 }
     },
@@ -131,7 +131,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "double-cheese-margherita",
         matchNames: ["double cheese margherita", "dbl cheese margherita", "margherita"],
         name: "Double Cheese Margherita",
-        img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg",
+        img: "https://i.ibb.co/NhHmXfZ/Dbl-Cheese-Margherita.webp",
         desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce",
         prices: { S: 199, M: 299, L: 399 }
     },
@@ -139,7 +139,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "delight-pizza",
         matchNames: ["delight pizza", "delight"],
         name: "Delight Pizza",
-        img: "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg",
+        img: "https://i.ibb.co/qYcdWDVt/Delight-Pizza.webp",
         desc: "Capsicum, Jalapeno, Mushroom",
         prices: { S: 219, M: 319, L: 419 }
     },
@@ -147,7 +147,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "deluxe-pizza",
         matchNames: ["deluxe pizza", "deluxe"],
         name: "Deluxe Pizza",
-        img: "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg",
+        img: "https://i.ibb.co/1YVmDWXM/Deluxe-Pizza.webp",
         desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn",
         prices: { S: 199, M: 299, L: 399 }
     },
@@ -155,7 +155,7 @@ const PIZZA_IMAGE_UPDATES = [
         id: "farm-house",
         matchNames: ["farm house"],
         name: "Farm House",
-        img: "https://i.ibb.co/nNsWCp9t/Farm-House.jpg",
+        img: "https://i.ibb.co/3mfwMH8w/Farm-House.webp",
         desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese",
         prices: { S: 239, M: 339, L: 439 }
     }

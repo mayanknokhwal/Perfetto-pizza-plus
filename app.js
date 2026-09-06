@@ -220,8 +220,9 @@ function getCategoryDisplayTitle(itemOrName, category) {
     const isCoffee = normCat.includes('coffee');
     const isRice = normCat === 'rice';
     const isMomos = normCat === 'momos' || normCat === 'momo';
+    const isPizza = normCat === 'pizza' || normCat === 'pizzas';
 
-    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice && !isMomos) {
+    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice && !isMomos && !isPizza) {
         return name;
     }
 
@@ -240,6 +241,8 @@ function getCategoryDisplayTitle(itemOrName, category) {
         title = title.replace(/\s+(rice|राइस)$/i, '');
     } else if (isMomos) {
         title = title.replace(/\s+(momos?|मोमोज़|मोमो)$/i, '');
+    } else if (isPizza) {
+        title = title.replace(/\s+(pizza|पिज़्ज़ा|पिज्जा)$/i, '');
     }
 
     return title || name;
@@ -1054,133 +1057,133 @@ const categorySubItems = {
             name: "Hot Country",
             desc: "Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/C59X7CVY/Hot-Country.jpg"
+            img: "https://i.ibb.co/Q3QnjnmK/Hot-Country.webp"
         },
         {
             id: "indian-veggie",
             name: "Indian Veggie",
             desc: "Capsicum, Green Chilli, Onion, Capsicum, Mushroom, Black Olives, Extra Cheese",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg"
+            img: "https://i.ibb.co/W4RfbZFY/Indian-Veggie.webp"
         },
         {
             id: "lovers-pizza",
             name: "Lover's Pizza",
             desc: "Red Paprika, Onion, Capsicum, Corn",
             prices: { S: 249.00, M: 349.00, L: 449.00 },
-            img: "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg"
+            img: "https://i.ibb.co/HTTC3rqJ/Lover-s-Pizza.webp"
         },
         {
             id: "makhani-pizza",
             name: "Makhani Pizza",
             desc: "Capsicum, Paneer, Makhani Sauce",
             prices: { S: 239.00, M: 339.00, L: 439.00 },
-            img: "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg"
+            img: "https://i.ibb.co/679sFgjc/Makhani-Pizza.webp"
         },
         {
             id: "paradise-pizza",
             name: "Paradize Pizza",
             desc: "Red Paprika, Onion, Mushroom, Tomato & Jalapeno",
             prices: { S: 229.00, M: 329.00, L: 429.00 },
-            img: "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg"
+            img: "https://i.ibb.co/Q3JmNWBN/Paradize-Pizza.webp"
         },
         {
             id: "perfetto-special",
             name: "Perfetto Special Pizza",
             desc: "Onion, Corn, Pineapple, Jalapeno, Capsicum, Mushroom, Black Olives, Red Paprika, Paneer, Tomato, Extra Cheese",
             prices: { S: 299.00, M: 399.00, L: 499.00 },
-            img: "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg"
+            img: "https://i.ibb.co/m5m460Dm/Perfetto-Special-Pizza.webp"
         },
         {
             id: "spicy-pizza",
             name: "Spicy Pizza",
             desc: "Paneer Chilly, Capsicum, Red Paprika",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg"
+            img: "https://i.ibb.co/n8fyf1nd/Spicy-Pizza.webp"
         },
         {
             id: "supreme-pizza",
             name: "Supreme Pizza",
             desc: "Mushroom, Jalapeno, Paneer, Pineapple, Black Olives",
             prices: { S: 249.00, M: 349.00, L: 449.00 },
-            img: "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg"
+            img: "https://i.ibb.co/Pzz7v76f/Supreme-Pizza.webp"
         },
         {
             id: "tandoori-pizza",
             name: "Tandoori Pizza",
             desc: "Onion, Paneer, Bellpeper, Tandoori Sauce",
             prices: { S: 239.00, M: 339.00, L: 439.00 },
-            img: "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg"
+            img: "https://i.ibb.co/JWTGK7PL/Tandoori-Pizza.webp"
         },
         {
             id: "achari-pizza",
             name: "Acharri Pizza",
             desc: "Capsicum, Corn, Paneer, Achari Sauce",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg"
+            img: "https://i.ibb.co/23J8xsTN/Acharri-Pizza.webp"
         },
         {
             id: "cheese-n-corn",
             name: "Cheese 'n Corn",
             desc: "Cheese, Corn",
             prices: { S: 179.00, M: 279.00, L: 379.00 },
-            img: "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg"
+            img: "https://i.ibb.co/wh9xKr9m/Cheese-n-Corn.webp"
         },
         {
             id: "cheese-n-mushroom",
             name: "Cheese 'n Mushroom",
             desc: "Cheese, Mushroom",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg"
+            img: "https://i.ibb.co/1tJJ7fCJ/Cheese-n-Mushroom.webp"
         },
         {
             id: "chipotle-pizza",
             name: "Chipotle Pizza",
             desc: "Paneer, Capsicum, Corn, Onion, Chipotle Sauce",
             prices: { S: 229.00, M: 329.00, L: 429.00 },
-            img: "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg"
+            img: "https://i.ibb.co/Zz00RKFx/Chipotle-Pizza.webp"
         },
         {
             id: "double-cheese-margherita",
             name: "Double Cheese Margherita",
             desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg"
+            img: "https://i.ibb.co/NhHmXfZ/Dbl-Cheese-Margherita.webp"
         },
         {
             id: "deluxe-pizza",
             name: "Deluxe Pizza",
             desc: "Onion, Paneer, Capsicum, Mushroom, Gold Corn",
             prices: { S: 199.00, M: 299.00, L: 399.00 },
-            img: "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg"
+            img: "https://i.ibb.co/1YVmDWXM/Deluxe-Pizza.webp"
         },
         {
             id: "delight-pizza",
             name: "Delight Pizza",
             desc: "Capsicum, Jalapeno, Mushroom",
             prices: { S: 219.00, M: 319.00, L: 419.00 },
-            img: "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg"
+            img: "https://i.ibb.co/qYcdWDVt/Delight-Pizza.webp"
         },
         {
             id: "farm-house",
             name: "Farm House",
             desc: "Corn, Pineapple, Mushroom, Black Olives, Red Paprika, Extra Cheese",
             prices: { S: 239.00, M: 339.00, L: 439.00 },
-            img: "https://i.ibb.co/nNsWCp9t/Farm-House.jpg"
+            img: "https://i.ibb.co/3mfwMH8w/Farm-House.webp"
         },
         {
             id: "green-veggie",
             name: "Green Veggie",
             desc: "Onion, Capsicum, Tomato",
             prices: { S: 229.00, M: 329.00, L: 429.00 },
-            img: "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg"
+            img: "https://i.ibb.co/qL1Kz6wv/Green-Veggie.webp"
         },
         {
             id: "harissa-pizza",
             name: "Harissa Pizza",
             desc: "Paneer, Red Paprika, Black Olives, Onion, Harissa Sauce",
             prices: { S: 249.00, M: 349.00, L: 449.00 },
-            img: "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg"
+            img: "https://i.ibb.co/SD4Zr2R0/Harissa-Pizza.webp"
         }
     ],
     "Bread": [
@@ -1445,25 +1448,25 @@ const NEW_BREAD_MENU_ITEMS = [
 ];
 
 const NEW_PIZZA_MENU_IMAGES = {
-    "green-veggie": "https://i.ibb.co/FbZ23hF3/Green-Veggie.jpg",
-    "harissa-pizza": "https://i.ibb.co/fVq0W6hp/Harissa-Pizza.jpg",
-    "hot-country": "https://i.ibb.co/C59X7CVY/Hot-Country.jpg",
-    "indian-veggie": "https://i.ibb.co/fdKZMq2H/Indian-Veggie.jpg",
-    "lovers-pizza": "https://i.ibb.co/xKgtXvQ3/Lover-s-Pizza.jpg",
-    "makhani-pizza": "https://i.ibb.co/5gkQ7SSv/Makhani-Pizza.jpg",
-    "paradise-pizza": "https://i.ibb.co/605cWN7n/Paradize-Pizza.jpg",
-    "perfetto-special": "https://i.ibb.co/B5ZHyQ9q/Perfetto-Special-Pizza.jpg",
-    "spicy-pizza": "https://i.ibb.co/Nd788pWq/Spicy-Pizza.jpg",
-    "supreme-pizza": "https://i.ibb.co/Ng1kGnR6/Supreme-Pizza.jpg",
-    "tandoori-pizza": "https://i.ibb.co/jkpyY1b0/Tandoori-Pizza.jpg",
-    "achari-pizza": "https://i.ibb.co/5XgKZM2Z/Acharri-Pizza.jpg",
-    "cheese-n-corn": "https://i.ibb.co/FkgyjwHx/Cheese-n-Corn.jpg",
-    "cheese-n-mushroom": "https://i.ibb.co/j96pyGyf/Cheese-n-Mushroom.jpg",
-    "chipotle-pizza": "https://i.ibb.co/WvHtzxPQ/Chipotle-Pizza.jpg",
-    "double-cheese-margherita": "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg",
-    "delight-pizza": "https://i.ibb.co/DDQ7zY7n/Delight-Pizza.jpg",
-    "deluxe-pizza": "https://i.ibb.co/kgZXHP6J/Deluxe-Pizza.jpg",
-    "farm-house": "https://i.ibb.co/nNsWCp9t/Farm-House.jpg"
+    "green-veggie": "https://i.ibb.co/qL1Kz6wv/Green-Veggie.webp",
+    "harissa-pizza": "https://i.ibb.co/SD4Zr2R0/Harissa-Pizza.webp",
+    "hot-country": "https://i.ibb.co/Q3QnjnmK/Hot-Country.webp",
+    "indian-veggie": "https://i.ibb.co/W4RfbZFY/Indian-Veggie.webp",
+    "lovers-pizza": "https://i.ibb.co/HTTC3rqJ/Lover-s-Pizza.webp",
+    "makhani-pizza": "https://i.ibb.co/679sFgjc/Makhani-Pizza.webp",
+    "paradise-pizza": "https://i.ibb.co/Q3JmNWBN/Paradize-Pizza.webp",
+    "perfetto-special": "https://i.ibb.co/m5m460Dm/Perfetto-Special-Pizza.webp",
+    "spicy-pizza": "https://i.ibb.co/n8fyf1nd/Spicy-Pizza.webp",
+    "supreme-pizza": "https://i.ibb.co/Pzz7v76f/Supreme-Pizza.webp",
+    "tandoori-pizza": "https://i.ibb.co/JWTGK7PL/Tandoori-Pizza.webp",
+    "achari-pizza": "https://i.ibb.co/23J8xsTN/Acharri-Pizza.webp",
+    "cheese-n-corn": "https://i.ibb.co/wh9xKr9m/Cheese-n-Corn.webp",
+    "cheese-n-mushroom": "https://i.ibb.co/1tJJ7fCJ/Cheese-n-Mushroom.webp",
+    "chipotle-pizza": "https://i.ibb.co/Zz00RKFx/Chipotle-Pizza.webp",
+    "double-cheese-margherita": "https://i.ibb.co/NhHmXfZ/Dbl-Cheese-Margherita.webp",
+    "delight-pizza": "https://i.ibb.co/qYcdWDVt/Delight-Pizza.webp",
+    "deluxe-pizza": "https://i.ibb.co/1YVmDWXM/Deluxe-Pizza.webp",
+    "farm-house": "https://i.ibb.co/3mfwMH8w/Farm-House.webp"
 };
 
 function sanitizeStoredMenuItems(items) {
@@ -1514,7 +1517,7 @@ function sanitizeStoredMenuItems(items) {
             isMultiSize: true,
             prices: { S: 199, M: 299, L: 399 },
             available: true,
-            img: "https://i.ibb.co/k6xGq83k/Dbl-Cheese-Margherita.jpg",
+            img: "https://i.ibb.co/NhHmXfZ/Dbl-Cheese-Margherita.webp",
             desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce"
         });
         modified = true;
@@ -1996,7 +1999,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                         </div>
                         <div class="pizza-card-body">
-                            <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             ${descMarkup}
                             
                             <div class="pizza-size-selector">
@@ -3125,7 +3128,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                     </div>
                     <div class="pizza-card-body">
-                        <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         ${descMarkup}
                         
                         <div class="pizza-size-selector">
