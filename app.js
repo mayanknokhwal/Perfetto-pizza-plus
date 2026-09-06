@@ -587,12 +587,15 @@ function getStoredVerifiedPhone() {
     return null;
 }
 
-function setStoredPhoneVerified(phone, isVerified = true) {
+function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false) {
     if (!phone) return;
     const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
     if (cleanPhone.length !== 10) return;
 
     try {
+        const currentVerified = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : '';
+        const wasAlreadyVerified = (currentVerified === cleanPhone);
+
         if (isVerified) {
             safeStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
             safeSessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
@@ -610,12 +613,12 @@ function setStoredPhoneVerified(phone, isVerified = true) {
                 safeStorage.setJSON(DELIVERY_PROFILE_KEY, profile);
             }
 
-            // Immediately restore permanent wallet balance & order history for verified phone
-            setTimeout(() => {
+            // Only trigger restore if explicitly requested and not already verified to prevent recursive loops
+            if (shouldRestore && !wasAlreadyVerified) {
                 if (typeof restoreUserProfileFromFirestore === 'function') {
                     restoreUserProfileFromFirestore(cleanPhone, { silent: true });
                 }
-            }, 50);
+            }
         } else {
             safeStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             safeSessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
@@ -2700,22 +2703,9 @@ async function fetchLiveSettingsFromBackend() {
 }
 
 async function fetchLiveBannersFromBackend() {
-    if (typeof customerFirestore !== 'undefined' && customerFirestore) {
-        try {
-            const doc = await customerFirestore.collection('settings').doc('daily_banners').get();
-            if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                const normalized = doc.data().banners.slice(0, 4).map((b, i) => ({
-                    id: b.id || `b${i + 1}`,
-                    url: resolveBannerUrl(b.url),
-                    enabled: b.enabled !== false
-                }));
-                localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
-                renderDynamicOfferSlider(normalized);
-                return;
-            }
-        } catch (e) {
-            console.warn('Direct Firestore daily banners fetch notice:', e.message);
-        }
+    // Quota optimization: Skip if real-time onSnapshot listener is already streaming daily_banners
+    if (bannersRealtimeUnsubscribe) {
+        return;
     }
 
     try {
@@ -8536,12 +8526,36 @@ async function syncProfileToFirestoreBackend(profile) {
     }
 }
 
+// Re-entrancy mutex and per-identifier throttle cache to prevent infinite loops and runaway reads
+let isRestoringUserProfile = false;
+const lastProfileRestoreTimestamps = new Map();
+const PROFILE_RESTORE_MIN_INTERVAL_MS = 25000;
+
 // Cross-Device Profile, Address, Wallet Balance & Order History Automatic Retrieval
 async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
     if (!emailOrPhone) return null;
     const identifier = String(emailOrPhone).trim();
     const isEmail = identifier.includes('@');
     const cleanPhone = isEmail ? '' : identifier.replace(/[^0-9]/g, '').slice(-10);
+    if (!isEmail && cleanPhone.length !== 10) return null;
+
+    const cacheKey = isEmail ? identifier.toLowerCase() : cleanPhone;
+    const now = Date.now();
+    const lastRestore = lastProfileRestoreTimestamps.get(cacheKey) || 0;
+
+    // Throttle guard: Skip if restored within last 25s unless explicitly forced
+    if (!options.force && (now - lastRestore < PROFILE_RESTORE_MIN_INTERVAL_MS)) {
+        return null;
+    }
+
+    // Re-entrancy guard: Skip if already running to prevent recursive ping-pong loops
+    if (isRestoringUserProfile) {
+        return null;
+    }
+
+    isRestoringUserProfile = true;
+    lastProfileRestoreTimestamps.set(cacheKey, now);
+
     const param = isEmail ? `email=${encodeURIComponent(identifier.toLowerCase())}` : `phone=${encodeURIComponent(cleanPhone)}`;
 
     try {
@@ -8601,7 +8615,10 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             try {
                 localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(restoredProfile));
                 if (isVerified && restoredProfile.phone) {
-                    setStoredPhoneVerified(restoredProfile.phone, true);
+                    const currentStored = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : '';
+                    if (currentStored !== restoredProfile.phone) {
+                        setStoredPhoneVerified(restoredProfile.phone, true, false);
+                    }
                 }
             } catch (e) { }
 
@@ -8700,6 +8717,8 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
         }
     } catch (err) {
         console.warn('Cross-device profile lookup notice:', err.message);
+    } finally {
+        isRestoringUserProfile = false;
     }
     return null;
 }
@@ -10259,50 +10278,7 @@ function listenToRealtimeMenuAndRates() {
         }
     }
 
-    // A2. Real-Time Individual Item Stream (menu collection)
-    if (!menuCollectionRealtimeUnsubscribe) {
-        try {
-            menuCollectionRealtimeUnsubscribe = customerFirestore.collection('menu').onSnapshot((snapshot) => {
-                let currentItems = getStoredMenuItems();
-                if (!Array.isArray(currentItems) || currentItems.length === 0) return;
-                
-                let updated = false;
-                snapshot.docChanges().forEach(change => {
-                    const data = change.doc.data();
-                    const itemId = String(data.id || change.doc.id);
-                    const idx = currentItems.findIndex(i => i.id === itemId);
-                    
-                    if (idx !== -1) {
-                        if (data.available !== undefined && currentItems[idx].available !== data.available) {
-                            currentItems[idx].available = data.available;
-                            updated = true;
-                        }
-                        if (data.price !== undefined && currentItems[idx].price !== data.price) {
-                            currentItems[idx].price = data.price;
-                            updated = true;
-                        }
-                        if (data.prices !== undefined && JSON.stringify(currentItems[idx].prices) !== JSON.stringify(data.prices)) {
-                            currentItems[idx].prices = { ...currentItems[idx].prices, ...data.prices };
-                            updated = true;
-                        }
-                    }
-                });
-
-                if (updated) {
-                    try {
-                        localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(currentItems));
-                    } catch (e) { }
-                    syncCartWithLatestMenu(currentItems);
-                    refreshActiveCustomerView(currentItems);
-                    updateCartUI();
-                }
-            }, (err) => {
-                console.warn('Firestore menu collection notice:', err.message);
-            });
-        } catch (e) {
-            console.warn('Error setting up menu collection listener:', e);
-        }
-    }
+    // A2. Individual Item Stream removed to prevent reading 100+ documents on every load (A1 settings/menu already streams all items)
 
     // B. Real-Time Store Settings & Service Rates (Delivery charge, Min order, Customer care)
     if (!settingsRealtimeUnsubscribe) {
@@ -10764,9 +10740,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
     window.restoreCustomerFullProfileAndWallet = restoreUserProfileFromFirestore;
 
-    // 2. Real-Time Background Polling (Every 3.5s for instant multi-device synchronization)
-    const menuIntervalId = setInterval(fetchLiveMenuFromBackend, 3500);
-    const settingsIntervalId = setInterval(fetchLiveSettingsFromBackend, 5000);
+    // 2. Real-Time Background Polling Fallback (Every 60s as backup to real-time snapshot listeners)
+    if (customerMenuPollerInterval) clearInterval(customerMenuPollerInterval);
+    customerMenuPollerInterval = setInterval(fetchLiveMenuFromBackend, 60000);
+
+    if (customerSettingsPollerInterval) clearInterval(customerSettingsPollerInterval);
+    customerSettingsPollerInterval = setInterval(fetchLiveSettingsFromBackend, 60000);
 
     // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
     document.addEventListener('visibilitychange', () => {
@@ -10781,11 +10760,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+let customerMenuPollerInterval = null;
+let customerSettingsPollerInterval = null;
+
 // --------------------------------------------------------------------------
 // 12. CLEANUP & MEMORY LEAK PREVENTION (PAGE UNMOUNT / REFRESH)
 // --------------------------------------------------------------------------
 function cleanupAllCustomerListeners() {
     try {
+        if (customerMenuPollerInterval) {
+            clearInterval(customerMenuPollerInterval);
+            customerMenuPollerInterval = null;
+        }
+        if (customerSettingsPollerInterval) {
+            clearInterval(customerSettingsPollerInterval);
+            customerSettingsPollerInterval = null;
+        }
         if (typeof menuRealtimeUnsubscribe === 'function') {
             menuRealtimeUnsubscribe();
             menuRealtimeUnsubscribe = null;
@@ -10798,9 +10788,21 @@ function cleanupAllCustomerListeners() {
             settingsRealtimeUnsubscribe();
             settingsRealtimeUnsubscribe = null;
         }
+        if (typeof bannersRealtimeUnsubscribe === 'function') {
+            bannersRealtimeUnsubscribe();
+            bannersRealtimeUnsubscribe = null;
+        }
+        if (typeof walletConfigRealtimeUnsubscribe === 'function') {
+            walletConfigRealtimeUnsubscribe();
+            walletConfigRealtimeUnsubscribe = null;
+        }
         if (typeof storeNoticeRealtimeUnsubscribe === 'function') {
             storeNoticeRealtimeUnsubscribe();
             storeNoticeRealtimeUnsubscribe = null;
+        }
+        if (typeof customerWalletRealtimeUnsubscribe === 'function') {
+            customerWalletRealtimeUnsubscribe();
+            customerWalletRealtimeUnsubscribe = null;
         }
         if (customerOrdersUnsubscribeMap && customerOrdersUnsubscribeMap.size > 0) {
             customerOrdersUnsubscribeMap.forEach((unsub) => {

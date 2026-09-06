@@ -7075,23 +7075,13 @@
                 updateAutoScheduleToggleLabel(isAuto);
             }
 
-            // Direct instant fetch from Firestore settings/storeSettings (0ms speed)
-            if (adminFirestore) {
-                try {
-                    const docSnap = await adminFirestore.collection('settings').doc('storeSettings').get();
-                    if (docSnap.exists && docSnap.data()) {
-                        applyAdminStoreSettings(docSnap.data());
-                        listenToAdminSettingsRealtime();
-                        return;
-                    }
-                } catch (e) {
-                    console.warn('Direct Firestore store settings fetch notice:', e.message);
-                }
-            }
-
-            // Backup API fetch
-            await fetchSettingsFromBackend();
+            // Listen to real-time store settings (snapshot listener fires immediately with current data)
             listenToAdminSettingsRealtime();
+
+            // Backup API fetch if Firestore is not initialized
+            if (!adminFirestore) {
+                fetchSettingsFromBackend();
+            }
         }
 
         async function fetchSettingsFromBackend() {
@@ -7254,8 +7244,12 @@
             }
         });
 
-        // 13. LIVE ORDERS FETCH & 5-SECOND BACKEND POLLING
-        async function fetchAdminOrdersFromBackend() {
+        // 13. LIVE ORDERS FETCH & BACKEND FALLBACK POLLING
+        async function fetchAdminOrdersFromBackend(force = false) {
+            // Quota optimization: Skip polling if real-time onSnapshot listener is actively receiving orders
+            if (!force && adminOrdersUnsubscribe) {
+                return;
+            }
             try {
                 const res = await fetch(resolveApiUrl('/api/orders'));
                 const data = await res.json();
@@ -8898,6 +8892,8 @@
             }
 
             activeAdminPendingApprovalPoller = setInterval(async () => {
+                // Skip polling if real-time snapshot listener is active
+                if (activeAdminPendingApprovalListener) return;
                 try {
                     const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
                     const data = await res.json();
@@ -8935,7 +8931,7 @@
                         showPendingAccessScreen(data.user?.fullName || adminCurrentName, clean, 'blocked');
                     }
                 } catch (e) { }
-            }, 3000);
+            }, 60000);
         }
 
         async function checkPendingApprovalStatus() {
@@ -9340,8 +9336,9 @@
                 }
             }
 
-            // 2. High-frequency polling backup (every 3 seconds) for instant cross-tab / offline response
+            // 2. Periodic polling backup (every 60 seconds) as fallback if snapshot listener disconnects
             activeAdminSessionPoller = setInterval(async () => {
+                if (activeAdminSessionListener) return;
                 try {
                     const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
                     const data = await res.json();
@@ -9349,7 +9346,7 @@
                         handleInstantBlockedLockdown(data.user?.fullName || 'User', clean);
                     }
                 } catch (e) { }
-            }, 3000);
+            }, 60000);
         }
 
         function handleInstantBlockedLockdown(userName, userPhone) {
@@ -9646,26 +9643,7 @@
             // 1. Start real-time Firestore listener immediately for instant reactive updates
             listenToAdminTeamRealtime();
 
-            // 2. Direct Firestore Fetch for instant initial display (Guarantees 0ms latency & zero 404s)
-            if (adminFirestore) {
-                try {
-                    const snapshot = await adminFirestore.collection('team').get();
-                    if (!snapshot.empty) {
-                        const rawList = [];
-                        snapshot.forEach((doc) => {
-                            const d = doc.data() || {};
-                            if (!d.phone && doc.id) d.phone = doc.id;
-                            rawList.push(d);
-                        });
-                        const processed = processTeamMemberList(rawList);
-                        renderTeamUIFromData(processed);
-                    }
-                } catch (e) {
-                    console.warn('Direct Firestore initial team fetch notice:', e.message);
-                }
-            }
-
-            // 3. Background API Synchronization
+            // 2. Background API Synchronization
             try {
                 const response = await fetch(resolveApiUrl(`/api/admin-auth?list=all&requesterPhone=${encodeURIComponent(requesterPhone)}`), {
                     headers: {
@@ -10869,9 +10847,9 @@
             fetchAdminOrdersFromBackend();
             cleanupOldActivityLogs();
 
-            // Set lightweight polling interval to refresh revenue and orders every 5 seconds
+            // Set fallback polling interval to refresh revenue and orders every 60 seconds (only if real-time listener is offline)
             if (adminOrdersPollerInterval) clearInterval(adminOrdersPollerInterval);
-            adminOrdersPollerInterval = setInterval(fetchAdminOrdersFromBackend, 5000);
+            adminOrdersPollerInterval = setInterval(fetchAdminOrdersFromBackend, 60000);
 
             // Periodically evaluate Auto-Schedule & Shop Status every 10 seconds
             if (adminAutoScheduleInterval) clearInterval(adminAutoScheduleInterval);

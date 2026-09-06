@@ -520,8 +520,9 @@ function startStaffSessionSecurityListener(userPhone) {
         } catch(e) { }
     }
 
-    // 2. High-frequency polling backup (every 3 seconds) for instant cross-tab / offline response
+    // 2. Periodic polling backup (every 60 seconds) as fallback if snapshot listener disconnects
     activeStaffSessionPoller = setInterval(async () => {
+        if (activeStaffSessionListener) return;
         try {
             const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
             const data = await res.json();
@@ -529,7 +530,7 @@ function startStaffSessionSecurityListener(userPhone) {
                 handleStaffInstantBlockedLockdown(data.user?.fullName || data.user?.name || 'Staff Member', clean);
             }
         } catch (e) { }
-    }, 3000);
+    }, 60000);
 }
 
 function handleStaffInstantBlockedLockdown(userName, userPhone) {
@@ -985,6 +986,7 @@ function startStaffPendingApprovalListener(phone) {
     }
 
     activeStaffPendingApprovalPoller = setInterval(async () => {
+        if (activeStaffPendingApprovalListener) return;
         try {
             const res = await fetch(resolveApiUrl(`/api/admin-auth?phone=${clean}`));
             const data = await res.json();
@@ -1015,7 +1017,7 @@ function startStaffPendingApprovalListener(phone) {
                 showStaffPendingAccessScreen(data.user?.fullName || staffCurrentName, clean, 'blocked');
             }
         } catch(e) {}
-    }, 3000);
+    }, 60000);
 }
 
 async function checkStaffPendingApprovalStatus() {
@@ -1506,7 +1508,11 @@ function loadCustomerOrders() {
     fetchOrdersFromBackend();
 }
 
-async function fetchOrdersFromBackend() {
+async function fetchOrdersFromBackend(force = false) {
+    // Quota optimization: Skip polling if real-time onSnapshot listener is actively receiving orders
+    if (!force && staffOrdersUnsubscribe) {
+        return;
+    }
     try {
         const response = await apiCall('/orders');
         if (!response.ok) {
@@ -1953,13 +1959,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inline Web Worker ticker to avoid mobile background tab timer throttling
     initStaffWebWorkerTimer();
 
-    // 6-second interval for backend sync
+    // Fallback 60-second interval for backend sync (only if real-time listener is offline)
     if (staffBackendSyncInterval) clearInterval(staffBackendSyncInterval);
     staffBackendSyncInterval = setInterval(() => {
         if (currentStaffUser) {
             fetchOrdersFromBackend();
         }
-    }, 6000);
+    }, 60000);
 });
 
 function updateLiveTimers() {
