@@ -5192,8 +5192,10 @@ let storeNoticeRealtimeUnsubscribe = null;
 
 function updateStoreNoticeUI() {
     try {
-        const stored = localStorage.getItem('perfetto_store_notice');
-        if (stored) customerStoreNotice = JSON.parse(stored);
+        if (!customerStoreNotice) {
+            const stored = localStorage.getItem('perfetto_store_notice');
+            if (stored) customerStoreNotice = JSON.parse(stored);
+        }
     } catch (e) {}
 
     const homeBadgeWrapper = document.getElementById('home-store-notice-wrapper');
@@ -5221,8 +5223,8 @@ function updateStoreNoticeUI() {
     }
 
     // 2. Profile Screen Adaptive Placements:
-    // When active: true -> Place prominent notice card at top of Profile screen
-    // When active: false -> Place muted policy disclaimer at bottom of Profile screen
+    // When active: true -> Place prominent notice card at top of Profile screen, hide bottom disclaimer
+    // When active: false -> Place muted policy disclaimer at bottom of Profile screen, hide top notice card
     if (profileTopCard) {
         if (isActive && hasNoticeContent) {
             profileTopCard.style.display = 'block';
@@ -5249,14 +5251,14 @@ function updateStoreNoticeUI() {
     }
 
     if (profileBottomCard) {
-        if (!isActive && hasNoticeContent) {
+        if (!isActive) {
             profileBottomCard.style.display = 'block';
             const bottomTitle = document.getElementById('profile-notice-bottom-title');
             const bottomText = document.getElementById('profile-notice-bottom-text');
 
             if (bottomTitle) bottomTitle.textContent = notice.title || 'Store Notice & Disclaimer';
             if (bottomText) {
-                const cleanText = content.replace(/\s+/g, ' ').trim();
+                const cleanText = content ? content.replace(/\s+/g, ' ').trim() : 'Store policies, holiday updates and service guidelines.';
                 bottomText.textContent = cleanText.length > 110 ? cleanText.substring(0, 110) + '...' : cleanText;
             }
         } else {
@@ -5266,12 +5268,71 @@ function updateStoreNoticeUI() {
 }
 window.updateStoreNoticeUI = updateStoreNoticeUI;
 
-async function fetchLiveNoticeFromBackend() {
+function setupStoreNoticeRealtimeListener() {
+    if (storeNoticeRealtimeUnsubscribe) return;
+
+    let db = typeof customerFirestore !== 'undefined' ? customerFirestore : null;
+    if (!db && typeof firebase !== 'undefined') {
+        try {
+            if (!firebase.apps.length) {
+                const config = window.FIREBASE_CONFIG || firebaseConfig || FIREBASE_CONFIG;
+                firebase.initializeApp(config);
+            }
+            if (firebase.firestore) {
+                customerFirestore = firebase.firestore();
+                db = customerFirestore;
+            }
+        } catch (e) {
+            console.warn('Customer Firestore init warning in setupStoreNoticeRealtimeListener:', e.message);
+        }
+    }
+
+    if (!db) {
+        // Automatically retry with backoff for mobile browsers where remote scripts can load asynchronously
+        if (!window.__storeNoticeRetryCount) window.__storeNoticeRetryCount = 0;
+        if (window.__storeNoticeRetryCount < 15) {
+            window.__storeNoticeRetryCount++;
+            setTimeout(setupStoreNoticeRealtimeListener, 300);
+        }
+        return;
+    }
+
     try {
-        const res = await fetch(resolveApiUrl ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice');
+        storeNoticeRealtimeUnsubscribe = db.collection('settings').doc('store_notice').onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                const rawData = doc.data();
+                const active = rawData.active !== undefined ? Boolean(rawData.active) : (rawData.enabled !== false);
+                const content = rawData.content !== undefined ? rawData.content : (rawData.text || '');
+                customerStoreNotice = {
+                    ...DEFAULT_STORE_NOTICE,
+                    ...rawData,
+                    active: active,
+                    enabled: active,
+                    content: content,
+                    text: content
+                };
+                try {
+                    localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
+                } catch (e) {}
+                updateStoreNoticeUI();
+            }
+        }, (err) => {
+            console.warn('Firestore store_notice real-time notice:', err.message);
+        });
+    } catch (e) {
+        console.warn('Error setting up store_notice real-time listener:', e);
+    }
+}
+window.setupStoreNoticeRealtimeListener = setupStoreNoticeRealtimeListener;
+
+async function fetchLiveNoticeFromBackend() {
+    if (storeNoticeRealtimeUnsubscribe) return;
+    try {
+        const apiUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice';
+        const res = await fetch(apiUrl);
         if (res.ok) {
             const data = await res.json();
-            if (data && data.success && data.notice) {
+            if (data && data.success && data.notice && !storeNoticeRealtimeUnsubscribe) {
                 const rawNotice = data.notice;
                 const active = rawNotice.active !== undefined ? Boolean(rawNotice.active) : (rawNotice.enabled !== false);
                 const content = rawNotice.content !== undefined ? rawNotice.content : (rawNotice.text || '');
@@ -10459,7 +10520,7 @@ async function initFirebaseRealtimeSync() {
         if (typeof firebase !== 'undefined' && firebase.apps) {
             // 1. Initialize Firebase App
             if (!firebase.apps.length) {
-                const config = window.FIREBASE_CONFIG || FIREBASE_CONFIG;
+                const config = window.FIREBASE_CONFIG || firebaseConfig || FIREBASE_CONFIG;
                 firebase.initializeApp(config);
             }
             if (firebase.auth) {
@@ -10471,6 +10532,14 @@ async function initFirebaseRealtimeSync() {
                 customerFirestore = firebase.firestore();
                 listenToRealtimeMenuAndRates();
                 listenToCustomerActiveOrders();
+                setupStoreNoticeRealtimeListener();
+            }
+        } else {
+            // Retry for mobile devices if Firebase scripts are still loading
+            if (!window.__fbInitRetryCount) window.__fbInitRetryCount = 0;
+            if (window.__fbInitRetryCount < 12) {
+                window.__fbInitRetryCount++;
+                setTimeout(initFirebaseRealtimeSync, 250);
             }
         }
     } catch (e) {
@@ -10600,33 +10669,7 @@ function listenToRealtimeMenuAndRates() {
     }
 
     // B.4 Real-Time Store Notice Sync ('settings/store_notice')
-    if (!storeNoticeRealtimeUnsubscribe && customerFirestore) {
-        try {
-            storeNoticeRealtimeUnsubscribe = customerFirestore.collection('settings').doc('store_notice').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    const rawData = doc.data();
-                    const active = rawData.active !== undefined ? Boolean(rawData.active) : (rawData.enabled !== false);
-                    const content = rawData.content !== undefined ? rawData.content : (rawData.text || '');
-                    customerStoreNotice = {
-                        ...DEFAULT_STORE_NOTICE,
-                        ...rawData,
-                        active: active,
-                        enabled: active,
-                        content: content,
-                        text: content
-                    };
-                    try {
-                        localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
-                    } catch (e) {}
-                    updateStoreNoticeUI();
-                }
-            }, (err) => {
-                console.warn('Firestore store_notice real-time notice:', err.message);
-            });
-        } catch (e) {
-            console.warn('Error setting up store_notice real-time listener:', e);
-        }
-    }
+    setupStoreNoticeRealtimeListener();
 }
 
 // C. Real-Time Listener for Customer Active Placed Orders
@@ -10935,6 +10978,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateProfileTotalsUI();
     setupLocalStorageSync();
     initFirebaseRealtimeSync();
+    setupStoreNoticeRealtimeListener();
     initPhoneInputRestrictions();
     updateStoreNoticeUI();
     initStoreNoticeModal();

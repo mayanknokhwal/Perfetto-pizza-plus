@@ -7373,6 +7373,27 @@
         const FIREBASE_CONFIG = firebaseConfig;
         window.FIREBASE_CONFIG = firebaseConfig;
 
+        function getAdminFirestore() {
+            if (adminFirestore) return adminFirestore;
+            try {
+                if (typeof firebase !== 'undefined') {
+                    if (!firebase.apps.length) {
+                        const config = window.FIREBASE_CONFIG || firebaseConfig || FIREBASE_CONFIG;
+                        firebase.initializeApp(config);
+                    }
+                    if (firebase.firestore) {
+                        adminFirestore = firebase.firestore();
+                        return adminFirestore;
+                    }
+                }
+            } catch (e) {
+                console.warn('getAdminFirestore init notice:', e.message);
+            }
+            return adminFirestore;
+        }
+        window.getAdminFirestore = getAdminFirestore;
+        getAdminFirestore();
+
         function hideAdminAuthSplash() {
             const splash = document.getElementById('admin-auth-splash');
             if (splash) {
@@ -8318,10 +8339,11 @@
         window.applyAdminStoreNotice = applyAdminStoreNotice;
 
         async function fetchAdminStoreNotice() {
-            if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+            const db = getAdminFirestore();
+            if (db) {
                 if (!adminStoreNoticeUnsubscribe) {
                     try {
-                        adminStoreNoticeUnsubscribe = adminFirestore.collection('settings').doc('store_notice').onSnapshot((doc) => {
+                        adminStoreNoticeUnsubscribe = db.collection('settings').doc('store_notice').onSnapshot((doc) => {
                             if (doc.exists && doc.data()) {
                                 applyAdminStoreNotice(doc.data());
                             }
@@ -8333,7 +8355,7 @@
                     }
                 }
                 try {
-                    const snap = await adminFirestore.collection('settings').doc('store_notice').get();
+                    const snap = await db.collection('settings').doc('store_notice').get();
                     if (snap.exists && snap.data()) {
                         applyAdminStoreNotice(snap.data());
                         return snap.data();
@@ -8344,7 +8366,8 @@
             }
 
             try {
-                const res = await fetch(resolveApiUrl('/api/settings/notice'));
+                const apiUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice';
+                const res = await fetch(apiUrl);
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.success && data.notice) {
@@ -8368,7 +8391,7 @@
             const origHtml = saveBtn ? saveBtn.innerHTML : '';
             if (saveBtn) {
                 saveBtn.disabled = true;
-                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving to Database...';
             }
 
             try {
@@ -8395,7 +8418,7 @@
 
                 // Strict persistence schema: { active: boolean, title: string, content: string, updatedAt: serverTimestamp() }
                 // plus compatibility fields (enabled, text, key)
-                const payload = {
+                const firestorePayload = {
                     key: 'store_notice',
                     active: isEnabled,
                     enabled: isEnabled,
@@ -8409,30 +8432,80 @@
                         : new Date().toISOString()
                 };
 
-                if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                const serializablePayload = {
+                    ...firestorePayload,
+                    updatedAt: new Date().toISOString()
+                };
+
+                // Explicit Firestore set call to remote database document located at settings/store_notice
+                const db = getAdminFirestore();
+                let writeSuccess = false;
+                let lastError = null;
+
+                if (db) {
                     try {
-                        await adminFirestore.collection('settings').doc('store_notice').set(payload, { merge: true });
+                        await db.collection('settings').doc('store_notice').set(firestorePayload, { merge: true });
+                        writeSuccess = true;
                     } catch (fsErr) {
-                        console.warn('Firestore store_notice write notice:', fsErr);
+                        console.error('Firestore settings/store_notice direct write error:', fsErr);
+                        lastError = fsErr;
                     }
                 }
 
-                // Sync to backend API
-                try {
-                    await fetch(resolveApiUrl('/api/settings/notice'), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                } catch (apiErr) {
-                    console.warn('Backend store notice sync notice:', apiErr);
+                // Fallback attempt via backend API if direct client was unavailable or errored
+                if (!writeSuccess) {
+                    try {
+                        const apiUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice';
+                        const res = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(serializablePayload)
+                        });
+                        if (res.ok) {
+                            const resData = await res.json();
+                            if (resData && resData.success) {
+                                writeSuccess = true;
+                                lastError = null;
+                            } else {
+                                lastError = new Error(resData?.message || 'Server failed to save store notice');
+                            }
+                        } else {
+                            lastError = new Error(`Database write failed with status ${res.status}`);
+                        }
+                    } catch (apiErr) {
+                        console.error('Backend settings/notice fallback error:', apiErr);
+                        if (!lastError) lastError = apiErr;
+                    }
                 }
 
-                localStorage.setItem('perfetto_store_notice', JSON.stringify({ ...payload, updatedAt: new Date().toISOString() }));
-                adminStoreNotice = payload;
+                // Remove any logic that only updates local browser storage or window state without confirming a successful database network write
+                if (!writeSuccess) {
+                    const failMsg = lastError ? (lastError.message || String(lastError)) : 'Remote Firestore database write failed.';
+                    console.error('Store notice write not confirmed by database:', failMsg);
+                    if (showToastMsg) {
+                        showToast('❌ Failed to save notice to database: ' + failMsg);
+                    }
+                    return false;
+                }
+
+                // Background sync to server API if direct Firestore write succeeded
+                if (db) {
+                    try {
+                        const apiUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice';
+                        fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(serializablePayload)
+                        }).catch(() => {});
+                    } catch (e) {}
+                }
+
+                // Display a visual success notification to the admin ONLY after the remote database confirms the write
+                localStorage.setItem('perfetto_store_notice', JSON.stringify(serializablePayload));
+                adminStoreNotice = serializablePayload;
 
                 if (showToastMsg) {
-                    showToast('✅ Store Notice saved successfully and published to app!');
+                    showToast('✅ Store Notice saved successfully to Firestore and published to app!');
                 }
 
                 if (typeof logAdminActivity === 'function') {
@@ -8440,8 +8513,8 @@
                 }
                 return true;
             } catch (err) {
-                console.error('Error saving store notice:', err);
-                if (showToastMsg) showToast('❌ Failed to save store notice: ' + err.message);
+                console.error('Error in saveStoreNotice:', err);
+                if (showToastMsg) showToast('❌ Failed to save store notice: ' + (err.message || err));
                 return false;
             } finally {
                 if (saveBtn) {
