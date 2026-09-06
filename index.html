@@ -278,26 +278,6 @@
                     </div>
                 </div>
 
-                <!-- PROMINENT STORE NOTICE CARD AT TOP OF PROFILE (When toggle is ON) -->
-                <div class="profile-store-notice-top-card" id="profile-store-notice-top" style="display: none;" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice">
-                    <div class="notice-top-card-inner">
-                        <div class="notice-top-icon-wrap">
-                            <i class="fa-solid fa-bullhorn"></i>
-                        </div>
-                        <div class="notice-top-content">
-                            <div class="notice-top-header">
-                                <span class="notice-top-badge"><i class="fa-solid fa-bell"></i> Store Announcement</span>
-                                <span class="notice-top-time" id="profile-notice-top-time">Official</span>
-                            </div>
-                            <h4 class="notice-top-title" id="profile-notice-top-title">Store Notice</h4>
-                            <p class="notice-top-text" id="profile-notice-top-text">Click to read store announcements &amp; guidelines...</p>
-                            <div class="notice-top-read-more">
-                                <span>Read full announcement</span>
-                                <i class="fa-solid fa-arrow-right"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- PROFILE HEADER CARD (User Avatar & Customer Name / Phone) -->
                 <div class="profile-header-card">
@@ -388,6 +368,18 @@
                 <!-- ACCOUNT SETTINGS (ORDER HISTORY, EDIT PROFILE & INFO/LEGAL) -->
                 <div class="menu-list-group">
                     <h4 class="group-title" data-i18n="account_settings">Account Settings</h4>
+
+                    <!-- STORE NOTICE (Directly above Order History, active notice card) -->
+                    <div class="menu-item-row profile-notice-row" id="profile-store-notice-row" style="display: none;" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice">
+                        <div class="menu-item-icon icon-profile-notice">
+                            <i class="fa-solid fa-bullhorn"></i>
+                        </div>
+                        <div class="menu-item-text">
+                            <span class="item-title profile-notice-title" data-i18n="store_notice">Store Notice</span>
+                            <span class="item-subtitle profile-notice-subtitle" id="profile-notice-preview-text" data-i18n="store_notice_sub">Announcements, holiday alerts &amp; store updates</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow profile-notice-arrow"></i>
+                    </div>
 
                     <div class="menu-item-row" id="menu-order-history" onclick="toggleOrderHistoryView()">
                         <div class="menu-item-icon icon-order-history"><i class="fa-solid fa-clock-rotate-left"></i></div>
@@ -488,16 +480,6 @@
                                     <i class="fa-solid fa-arrow-up-right-from-square legal-link-arrow"></i>
                                 </a>
 
-                                <a href="javascript:void(0)" class="legal-accordion-link-item" onclick="openStoreNoticeModal()">
-                                    <div class="legal-link-icon notice-icon">
-                                        <i class="fa-solid fa-bullhorn"></i>
-                                    </div>
-                                    <div class="legal-link-info">
-                                        <span class="legal-link-title">Store Notice</span>
-                                        <span class="legal-link-desc">Announcements, updates &amp; store guidelines</span>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-right legal-link-arrow"></i>
-                                </a>
 
                                 <a href="privacy.html" class="legal-accordion-link-item">
                                     <div class="legal-link-icon privacy-icon">
@@ -528,15 +510,6 @@
                         </div>
                     </div>
 
-                    <!-- 4TH OPTION: STORE NOTICE -->
-                    <div class="menu-item-row" id="menu-store-notice" onclick="openStoreNoticeModal()">
-                        <div class="menu-item-icon icon-store-notice"><i class="fa-solid fa-bullhorn"></i></div>
-                        <div class="menu-item-text">
-                            <span class="item-title" data-i18n="store_notice">Store Notice</span>
-                            <span class="item-subtitle" data-i18n="store_notice_sub">Announcements, holiday alerts &amp; store updates</span>
-                        </div>
-                        <i class="fa-solid fa-chevron-right item-arrow" id="arrow-store-notice"></i>
-                    </div>
                 </div>
 
                 <!-- MUTED STORE NOTICE DISCLAIMER CARD AT BOTTOM OF PROFILE (When toggle is OFF) -->

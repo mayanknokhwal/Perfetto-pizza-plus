@@ -5203,6 +5203,7 @@ function updateStoreNoticeUI() {
     const homeBadgeWrapper = document.getElementById('home-store-notice-wrapper');
     const badgeLabel = document.getElementById('home-notice-badge-label');
     const profileTopCard = document.getElementById('profile-store-notice-top');
+    const profileNoticeRow = document.getElementById('profile-store-notice-row');
     const profileBottomCard = document.getElementById('profile-store-notice-bottom');
 
     const notice = customerStoreNotice || DEFAULT_STORE_NOTICE;
@@ -5211,60 +5212,52 @@ function updateStoreNoticeUI() {
     const hasNoticeContent = content.trim().length > 0;
 
     // 1. Homepage Shimmer Badge:
-    // When active: true -> Show shimmer notice badge beside "DAILY OFFER" on homepage
+    // When active: true -> Show shimmer notice badge beside "DAILY OFFER" with static label "Notice"
     // When active: false -> Hide badge from homepage completely
     if (homeBadgeWrapper) {
         if (isActive && hasNoticeContent) {
             homeBadgeWrapper.style.display = 'inline-flex';
-            if (badgeLabel && notice.title) {
-                badgeLabel.textContent = notice.title.length > 18 ? notice.title.substring(0, 16) + '...' : notice.title;
+            if (badgeLabel) {
+                badgeLabel.textContent = 'Notice';
             }
         } else {
             homeBadgeWrapper.style.display = 'none';
         }
     }
 
-    // 2. Profile Screen Adaptive Placements:
-    // When active: true -> Place prominent notice card at top of Profile screen, hide bottom disclaimer
-    // When active: false -> Place muted policy disclaimer at bottom of Profile screen, hide top notice card
+    // If legacy top card exists in DOM, ensure it is hidden
     if (profileTopCard) {
-        if (isActive && hasNoticeContent) {
-            profileTopCard.style.display = 'block';
-            const topTitle = document.getElementById('profile-notice-top-title');
-            const topText = document.getElementById('profile-notice-top-text');
-            const topTime = document.getElementById('profile-notice-top-time');
+        profileTopCard.style.display = 'none';
+    }
 
-            if (topTitle) topTitle.textContent = notice.title || 'Store Notice';
-            if (topText) {
+    // 2. Profile Screen Account Settings Notice Row (Directly above Order History):
+    // When active: true -> Show clean white card with golden accents directly above Order History
+    // When active: false -> Hide this row cleanly from Account Settings
+    if (profileNoticeRow) {
+        if (isActive && hasNoticeContent) {
+            profileNoticeRow.style.display = 'flex';
+            const previewEl = document.getElementById('profile-notice-preview-text');
+            if (previewEl && content) {
                 const cleanText = content.replace(/\s+/g, ' ').trim();
-                topText.textContent = cleanText.length > 130 ? cleanText.substring(0, 130) + '...' : cleanText;
-            }
-            if (topTime) {
-                if (notice.updatedAt) {
-                    const d = notice.updatedAt.toDate ? notice.updatedAt.toDate() : new Date(notice.updatedAt);
-                    topTime.textContent = !isNaN(d.getTime()) ? d.toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Active';
-                } else {
-                    topTime.textContent = 'Active';
+                if (cleanText) {
+                    previewEl.textContent = cleanText.length > 55 ? cleanText.substring(0, 52) + '...' : cleanText;
                 }
             }
         } else {
-            profileTopCard.style.display = 'none';
+            profileNoticeRow.style.display = 'none';
         }
     }
 
+    // 3. Persistent Store Policy & Notice Disclaimer Card at bottom of Profile screen
     if (profileBottomCard) {
-        if (!isActive) {
-            profileBottomCard.style.display = 'block';
-            const bottomTitle = document.getElementById('profile-notice-bottom-title');
-            const bottomText = document.getElementById('profile-notice-bottom-text');
+        profileBottomCard.style.display = 'block';
+        const bottomTitle = document.getElementById('profile-notice-bottom-title');
+        const bottomText = document.getElementById('profile-notice-bottom-text');
 
-            if (bottomTitle) bottomTitle.textContent = notice.title || 'Store Notice & Disclaimer';
-            if (bottomText) {
-                const cleanText = content ? content.replace(/\s+/g, ' ').trim() : 'Store policies, holiday updates and service guidelines.';
-                bottomText.textContent = cleanText.length > 110 ? cleanText.substring(0, 110) + '...' : cleanText;
-            }
-        } else {
-            profileBottomCard.style.display = 'none';
+        if (bottomTitle) bottomTitle.textContent = notice.title || 'Store Notice & Disclaimer';
+        if (bottomText) {
+            const cleanText = content ? content.replace(/\s+/g, ' ').trim() : 'Store policies, holiday updates and service guidelines.';
+            bottomText.textContent = cleanText.length > 110 ? cleanText.substring(0, 110) + '...' : cleanText;
         }
     }
 }
