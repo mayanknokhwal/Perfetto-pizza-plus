@@ -407,8 +407,8 @@
                                 <span data-i18n="recent_orders">Recent Orders</span>
                             </div>
                             <button type="button" class="btn-clear-history" id="btn-clear-history"
-                                onclick="clearCustomerOrderHistory()">
-                                <i class="fa-solid fa-trash-can"></i> <span data-i18n="clear_history">Clear History</span>
+                                onclick="clearCustomerOrderHistory()" title="Clear completed and cancelled orders">
+                                <i class="fa-solid fa-broom"></i> <span data-i18n="clear_completed_orders">Clear Completed Orders</span>
                             </button>
                         </div>
                         <div id="order-history-list" class="order-history-list">
@@ -564,7 +564,7 @@
             <section class="tab-view" id="view-cart">
                 <div class="cart-view-header">
                     <h3 data-i18n="cart_title">Your Food Cart</h3>
-                    <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()" data-i18n="clear_history">Clear All</button>
+                    <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()" data-i18n="clear_cart">Clear All</button>
                 </div>
 
                 <div id="cart-items-container" class="cart-items-list">
@@ -768,18 +768,18 @@
         <div class="checkout-modal-overlay" id="clear-history-confirm-modal" aria-hidden="true" style="display: none;">
             <div class="checkout-modal-card confirm-dialog-card" role="dialog" aria-labelledby="clear-history-dialog-title">
                 <div class="confirm-dialog-icon danger">
-                    <i class="fa-solid fa-trash-can"></i>
+                    <i class="fa-solid fa-broom"></i>
                 </div>
-                <h3 class="confirm-dialog-title" id="clear-history-dialog-title">Clear Order History?</h3>
-                <p class="confirm-dialog-message">
-                    Are you sure you want to delete your entire order history? This action is permanent and cannot be undone.
+                <h3 class="confirm-dialog-title" id="clear-history-dialog-title" data-i18n="clear_orders_title">Clear Completed Orders?</h3>
+                <p class="confirm-dialog-message" data-i18n="clear_orders_desc">
+                    This will remove only completed, delivered, and cancelled orders from your history. Any active and in-progress orders will remain safely preserved and tracked.
                 </p>
                 <div class="confirm-dialog-actions">
-                    <button type="button" class="btn-dialog-cancel" onclick="closeClearHistoryModal()">
+                    <button type="button" class="btn-dialog-cancel" onclick="closeClearHistoryModal()" data-i18n="cancel">
                         Cancel
                     </button>
                     <button type="button" class="btn-dialog-confirm-danger" onclick="confirmClearCustomerOrderHistory()">
-                        <i class="fa-solid fa-trash-can"></i> Clear History
+                        <i class="fa-solid fa-broom"></i> <span data-i18n="clear_completed_orders">Clear Completed Orders</span>
                     </button>
                 </div>
             </div>

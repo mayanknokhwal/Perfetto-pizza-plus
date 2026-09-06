@@ -97,7 +97,11 @@
             store_notice_sub: "Important news & announcements",
             recent_orders: "Recent Orders",
             no_orders_placed: "No orders placed yet",
-            clear_history: "Clear History",
+            clear_history: "Clear Completed Orders",
+            clear_completed_orders: "Clear Completed Orders",
+            clear_orders_title: "Clear Completed Orders?",
+            clear_orders_desc: "This will remove only completed, delivered, and cancelled orders from your history. Any active and in-progress orders will remain safely preserved and tracked.",
+            clear_cart: "Clear All",
             items_count: "Items ({count} items)",
 
             // Order Success OTP Modal
@@ -235,7 +239,11 @@
             store_notice_sub: "ज़रूरी सूचनाएं और घोषणाएं",
             recent_orders: "हाल के ऑर्डर",
             no_orders_placed: "अभी तक कोई ऑर्डर नहीं किया गया है",
-            clear_history: "हिस्ट्री हटाएं",
+            clear_history: "पूरे हुए ऑर्डर हटाएं",
+            clear_completed_orders: "पूरे हुए ऑर्डर हटाएं",
+            clear_orders_title: "पूरे हुए ऑर्डर हटाएं?",
+            clear_orders_desc: "यह आपके इतिहास से केवल पूरे, डिलीवर और रद्द किए गए ऑर्डर हटाएगा। सभी सक्रिय ऑर्डर सुरक्षित रहेंगे और ट्रैक होते रहेंगे।",
+            clear_cart: "सब हटाएं",
             items_count: "सामान ({count} आइटम)",
 
             // Order Success OTP Modal

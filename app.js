@@ -8968,10 +8968,25 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
 
                     if (remoteOrders.length > 0) {
                         const existingLocal = safeStorage.getJSON('perfettoCustomerOrders', []);
+                        let clearedIds = [];
+                        try {
+                            clearedIds = safeStorage.getJSON('perfettoClearedOrderIds', []);
+                            if (!Array.isArray(clearedIds)) clearedIds = [];
+                        } catch (e) { }
+                        const clearedSet = new Set(clearedIds);
+                        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
 
                         const map = new Map();
-                        // Remote orders take precedence
-                        remoteOrders.forEach(o => map.set(String(o.id || o.orderId), o));
+                        // Remote orders take precedence, but skip terminal orders that user explicitly cleared
+                        remoteOrders.forEach(o => {
+                            const id = String(o.id || o.orderId);
+                            const st = String(o.status || '').trim().toLowerCase();
+                            // If terminal and user explicitly cleared it, do not resurrect
+                            if (clearedSet.has(id) && terminalStatuses.has(st)) {
+                                return;
+                            }
+                            map.set(id, o);
+                        });
                         existingLocal.forEach(o => {
                             const id = String(o.id || o.orderId);
                             if (!map.has(id)) map.set(id, o);
@@ -8999,13 +9014,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             updateCheckoutWalletUI();
             updateCartUI();
 
-            if (!options.silent) {
-                const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-                showToast(isHindi
-                    ? `🎉 स्वागत है! आपका वॉलेट (₹${restoredBalance}) और ऑर्डर इतिहास रीस्टोर हो गए हैं।`
-                    : `🎉 Welcome back! Wallet (₹${restoredBalance}) and order history restored.`);
-            }
-
+            // Session restoration and wallet synchronizations run silently in the background without UI interruptions
             console.log('✅ User profile, wallet (₹' + restoredBalance + ') & orders successfully restored from Firestore:', restoredProfile.fullName);
             return restoredProfile;
         }
@@ -9473,15 +9482,84 @@ function closeClearHistoryModal() {
 }
 
 function confirmClearCustomerOrderHistory() {
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     try {
-        localStorage.removeItem('perfettoCustomerOrders');
+        let currentOrders = [];
+        try {
+            const stored = localStorage.getItem('perfettoCustomerOrders');
+            if (stored) {
+                currentOrders = JSON.parse(stored) || [];
+            }
+        } catch (readErr) {
+            currentOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        }
+
+        if (!Array.isArray(currentOrders)) {
+            currentOrders = [];
+        }
+
+        // Terminal/finalized statuses: only these may be cleared
+        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
+        const isTerminalOrder = (order) => {
+            const st = String((order && order.status) || '').trim().toLowerCase();
+            return terminalStatuses.has(st);
+        };
+
+        // Strictly protect all active/transitional orders (e.g., pending, accepted, preparing, out_for_delivery)
+        const preservedOrders = currentOrders.filter(o => !isTerminalOrder(o));
+        const removedOrders = currentOrders.filter(o => isTerminalOrder(o));
+        const removedCount = removedOrders.length;
+
+        // Remember user-cleared terminal order IDs so background remote sync does not re-add them
+        let clearedIds = [];
+        try {
+            clearedIds = safeStorage.getJSON('perfettoClearedOrderIds', []);
+            if (!Array.isArray(clearedIds)) clearedIds = [];
+        } catch (e) { }
+        const clearedSet = new Set(clearedIds);
+        removedOrders.forEach(o => {
+            const id = String((o && (o.id || o.orderId)) || '');
+            if (id) clearedSet.add(id);
+        });
+        safeStorage.setJSON('perfettoClearedOrderIds', Array.from(clearedSet));
+
+        // Clean up Firestore snapshot listeners for removed terminal orders only
+        if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
+            removedOrders.forEach(o => {
+                const orderId = String((o && (o.id || o.orderId)) || '');
+                if (orderId && customerOrdersUnsubscribeMap.has(orderId)) {
+                    try {
+                        const unsub = customerOrdersUnsubscribeMap.get(orderId);
+                        if (typeof unsub === 'function') unsub();
+                    } catch (unsubErr) { }
+                    customerOrdersUnsubscribeMap.delete(orderId);
+                }
+            });
+        }
+
+        // Strictly update order list, preserving active orders, tokens, credentials, and session state
+        safeStorage.setJSON('perfettoCustomerOrders', preservedOrders);
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(preservedOrders));
+
+        closeClearHistoryModal();
+        renderOrderHistoryDetails();
+        updateProfileTotalsUI();
+
+        if (removedCount > 0) {
+            showToast(isHindi
+                ? `🧹 ${removedCount} पूरे हुए ऑर्डर हटा दिए गए। सक्रिय ऑर्डर सुरक्षित हैं!`
+                : `🧹 ${removedCount} completed/cancelled order${removedCount > 1 ? 's' : ''} cleared. Active orders preserved!`);
+        } else {
+            showToast(isHindi
+                ? `ℹ️ हटाने के लिए कोई पूरा हुआ ऑर्डर नहीं मिला। आपके सक्रिय ऑर्डर चल रहे हैं!`
+                : `ℹ️ No completed orders to clear. Active orders are still ongoing!`);
+        }
     } catch (e) {
         console.error('Error clearing customer order history:', e);
+        closeClearHistoryModal();
+        renderOrderHistoryDetails();
+        updateProfileTotalsUI();
     }
-    closeClearHistoryModal();
-    renderOrderHistoryDetails();
-    updateProfileTotalsUI();
-    showToast('🗑️ Order history cleared successfully!');
 }
 
 // --------------------------------------------------------------------------
@@ -10993,7 +11071,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Cross-Device Profile & Address Automatic Sync
     const effectiveSyncPhone = (savedProfile && savedProfile.phone) || getStoredVerifiedPhone();
     if (effectiveSyncPhone) {
-        restoreUserProfileFromFirestore(effectiveSyncPhone);
+        restoreUserProfileFromFirestore(effectiveSyncPhone, { silent: true });
     }
 
     const phoneInput = document.getElementById('customer-phone');
@@ -11003,7 +11081,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = String(e.target.value || '').replace(/[^0-9]/g, '').slice(-10);
             if (val.length === 10 && val !== lastRestoredPhone) {
                 lastRestoredPhone = val;
-                restoreUserProfileFromFirestore(val);
+                restoreUserProfileFromFirestore(val, { silent: true });
             }
         };
         phoneInput.addEventListener('blur', handlePhoneLookup);
@@ -11017,7 +11095,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const val = String(e.target.value || '').replace(/[^0-9]/g, '').slice(-10);
             if (val.length === 10 && val !== lastRestoredCheckoutPhone) {
                 lastRestoredCheckoutPhone = val;
-                restoreUserProfileFromFirestore(val);
+                restoreUserProfileFromFirestore(val, { silent: true });
             }
         };
         checkoutPhoneInput.addEventListener('blur', handleCheckoutPhoneLookup);
