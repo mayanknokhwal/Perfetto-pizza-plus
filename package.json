@@ -6,13 +6,19 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "deploy:rules": "node scripts/deployRules.js"
+    "deploy:rules": "node scripts/deployRules.js",
+    "deploy:vercel": "npx vercel --prod",
+    "env:push": "node scripts/syncVercelEnv.js --push",
+    "env:pull": "node scripts/syncVercelEnv.js --pull"
   },
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
     "express": "^5.2.1",
     "firebase-admin": "^14.3.0"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.29.0",
+    "vercel": "^59.11.7"
   }
 }
-
