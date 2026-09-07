@@ -4886,13 +4886,13 @@ function updateCartCashbackIncentiveBar(subtotal) {
                         : `Add <strong>${formatPrice(diff)}</strong> more to unlock a cashback scratch card! | Min ₹${slab1Threshold}`}
                 </span>
             </div>
-            <span class="cashback-current-badge"><i class="fa-solid fa-lock"></i> ${isHindiCashback ? `न्यूनतम ₹${slab1Threshold}` : `Min ₹${slab1Threshold}`}</span>
+            <span class="cashback-current-badge badge-locked"><i class="fa-solid fa-lock"></i> ${isHindiCashback ? `न्यूनतम ₹${slab1Threshold}` : `Min ₹${slab1Threshold}`}</span>
         `;
     } else if (boundaries.qualified && boundaries.max > 0) {
         const reward = boundaries.max;
         const scratchText = isHindiCashback
-            ? `₹${reward} कैशबैक अनलॉक! (स्क्रैच कार्ड तैयार)`
-            : `₹${reward} Cashback Unlocked! (Scratch Card ready)`;
+            ? `₹${reward} कैशबैक अनलॉक`
+            : `₹${reward} Cashback Unlocked`;
 
         if (boundaries.nextSlab) {
             const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
@@ -4907,7 +4907,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
                         <strong>${scratchText}</strong> • ${isHindiCashback ? `<strong>${formatPrice(diff)}</strong> और जोड़ें (₹${nextReward} रिवॉर्ड पाएं)` : `Add <strong>${formatPrice(diff)}</strong> more for <strong>${formatPrice(nextReward)}</strong> Cashback!`}
                     </span>
                 </div>
-                <span class="cashback-current-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> ${isHindiCashback ? 'स्क्रैच कार्ड अनलॉक' : 'Scratch Card Unlocked'}</span>
+                <span class="cashback-current-badge"><i class="fa-solid fa-ticket"></i> ${isHindiCashback ? 'स्क्रैच कार्ड' : 'Scratch Card'}</span>
             `;
         } else {
             bar.classList.add('cashback-max-unlocked');
@@ -4916,7 +4916,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
                     <i class="fa-solid fa-crown"></i>
                     <span class="cashback-bar-text">🎉 <strong>${scratchText}</strong></span>
                 </div>
-                <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> ${isHindiCashback ? 'अधिकतम स्क्रैच कार्ड' : 'Max Scratch Card'}</span>
+                <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> ${isHindiCashback ? 'स्क्रैच कार्ड' : 'Scratch Card'}</span>
             `;
         }
     } else {
