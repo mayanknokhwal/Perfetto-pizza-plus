@@ -3461,7 +3461,7 @@
                                 </label>
                                 <div class="search-box">
                                     <i class="fa-solid fa-clock"></i>
-                                    <input type="time" id="input-opening-time" class="search-input" value="11:00" onchange="onScheduleInputChange()">
+                                    <input type="time" id="input-opening-time" class="search-input" value="11:00" oninput="onScheduleInputChange()" onchange="onScheduleInputChange()">
                                 </div>
                             </div>
 
@@ -3473,7 +3473,7 @@
                                 </label>
                                 <div class="search-box">
                                     <i class="fa-solid fa-clock"></i>
-                                    <input type="time" id="input-closing-time" class="search-input" value="23:00" onchange="onScheduleInputChange()">
+                                    <input type="time" id="input-closing-time" class="search-input" value="23:00" oninput="onScheduleInputChange()" onchange="onScheduleInputChange()">
                                 </div>
                             </div>
 
@@ -6025,7 +6025,7 @@
 
                 // 2. Atomically validate and persist Store Settings
                 if (typeof saveOrderSettings === 'function') {
-                    const settingsSuccess = saveOrderSettings(false);
+                    const settingsSuccess = await saveOrderSettings(false);
                     if (settingsSuccess === false) {
                         if (saveBtn) saveBtn.disabled = false;
                         if (saveBtnText) saveBtnText.innerHTML = origText;
@@ -6608,13 +6608,16 @@
             const closeTimeInput = document.getElementById('input-closing-time');
 
             if (toggle) {
+                isAutoScheduleDirty = true;
                 updateAutoScheduleToggleLabel(toggle.checked);
                 localStorage.setItem(AUTO_SCHEDULE_KEY, toggle.checked.toString());
             }
             if (openTimeInput && openTimeInput.value) {
+                isOpeningTimeDirty = true;
                 localStorage.setItem(OPENING_TIME_KEY, openTimeInput.value);
             }
             if (closeTimeInput && closeTimeInput.value) {
+                isClosingTimeDirty = true;
                 localStorage.setItem(CLOSING_TIME_KEY, closeTimeInput.value);
             }
 
@@ -6963,11 +6966,14 @@
             }
         }
 
-        // Customer Care Component State & Dirty Tracking
+        // Store Settings & Timings Component State & Dirty Tracking
         let currentCustomerCarePhone = getCustomerCarePhone();
         let currentCustomerCareEnabled = getCustomerCareEnabled();
         let isCustomerCarePhoneDirty = false;
         let isCustomerCareToggleDirty = false;
+        let isOpeningTimeDirty = false;
+        let isClosingTimeDirty = false;
+        let isAutoScheduleDirty = false;
 
         function onCustomerCarePhoneInput(val) {
             const cleaned = String(val || '').replace(/[^0-9]/g, '').slice(0, 10);
@@ -7024,17 +7030,17 @@
 
             if (data.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
             if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
-            if (data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
-            if (data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
+            if (!isCustomerCarePhoneDirty && data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
+            if (!isCustomerCareToggleDirty && data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
             if (data.masterDeliveryOtp !== undefined) localStorage.setItem(MASTER_DELIVERY_OTP_KEY, String(data.masterDeliveryOtp));
             if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
             if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
             if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
             if (data.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(data.zoneCharges));
             if (data.shopStatus !== undefined) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-            if (data.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
-            if (data.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
-            if (data.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
+            if (!isOpeningTimeDirty && data.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
+            if (!isClosingTimeDirty && data.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
+            if (!isAutoScheduleDirty && data.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
             if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
             if (data.manualCloseDate !== undefined) {
                 if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
@@ -7087,9 +7093,9 @@
                 updateRadiusStepperUI(currentAdminDeliveryRadius);
             }
 
-            if (openTimeInput && activeEl !== openTimeInput && data.openingTime !== undefined) openTimeInput.value = data.openingTime;
-            if (closeTimeInput && activeEl !== closeTimeInput && data.closingTime !== undefined) closeTimeInput.value = data.closingTime;
-            if (toggleAutoSchedule && activeEl !== toggleAutoSchedule && data.autoScheduleEnabled !== undefined) {
+            if (openTimeInput && !isOpeningTimeDirty && activeEl !== openTimeInput && data.openingTime !== undefined) openTimeInput.value = data.openingTime;
+            if (closeTimeInput && !isClosingTimeDirty && activeEl !== closeTimeInput && data.closingTime !== undefined) closeTimeInput.value = data.closingTime;
+            if (toggleAutoSchedule && !isAutoScheduleDirty && activeEl !== toggleAutoSchedule && data.autoScheduleEnabled !== undefined) {
                 const isAuto = Boolean(data.autoScheduleEnabled === true || data.autoScheduleEnabled === 'true');
                 toggleAutoSchedule.checked = isAuto;
                 updateAutoScheduleToggleLabel(isAuto);
@@ -7147,8 +7153,8 @@
             if (masterOtpInput) masterOtpInput.value = getMasterDeliveryOtp();
             if (latInput) latInput.value = currentLat;
             if (lngInput) lngInput.value = currentLng;
-            if (openTimeInput) openTimeInput.value = getOpeningTime();
-            if (closeTimeInput) closeTimeInput.value = getClosingTime();
+            if (openTimeInput && !isOpeningTimeDirty) openTimeInput.value = getOpeningTime();
+            if (closeTimeInput && !isClosingTimeDirty) closeTimeInput.value = getClosingTime();
 
             // Pre-fill 6 flexible zone charges
             for (let i = 1; i <= 6; i++) {
@@ -7179,7 +7185,7 @@
                 updateCustomerCareToggleLabel(currentCustomerCareEnabled);
             }
 
-            if (toggleAutoSchedule) {
+            if (toggleAutoSchedule && !isAutoScheduleDirty) {
                 const isAuto = getAutoScheduleEnabled();
                 toggleAutoSchedule.checked = isAuto;
                 updateAutoScheduleToggleLabel(isAuto);
@@ -7268,11 +7274,9 @@
 
             const isCareEnabled = toggleCare ? toggleCare.checked : (currentCustomerCareEnabled !== undefined ? Boolean(currentCustomerCareEnabled) : true);
 
-            // Commit to in-memory state and clear dirty flags
+            // Commit to in-memory state
             currentCustomerCarePhone = phoneVal;
             currentCustomerCareEnabled = isCareEnabled;
-            isCustomerCarePhoneDirty = false;
-            isCustomerCareToggleDirty = false;
 
             if (phoneInput) phoneInput.value = phoneVal;
             if (masterOtpInput) masterOtpInput.value = masterOtpVal;
@@ -7316,20 +7320,18 @@
                     closingTime: closingTimeVal,
                     autoScheduleEnabled: isAutoScheduleOn,
                     manualOverride: manualOverrideVal,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
                 };
 
                 // Instantly sync rates & settings to Firebase Firestore in real-time
                 if (adminFirestore) {
                     try {
-                        adminFirestore.collection('settings').doc('storeSettings').set(settingsPayload, { merge: true }).catch((fsErr) => {
-                            console.warn('Firestore store settings write notice:', fsErr.message);
-                        });
-                        adminFirestore.collection('settings').doc('store_config').set(settingsPayload, { merge: true }).catch((fsErr) => {
-                            console.warn('Firestore store_config write notice:', fsErr.message);
-                        });
+                        await Promise.all([
+                            adminFirestore.collection('settings').doc('storeSettings').set(settingsPayload, { merge: true }),
+                            adminFirestore.collection('settings').doc('store_config').set(settingsPayload, { merge: true })
+                        ]);
                     } catch (fsEx) {
-                        console.warn('Firestore store settings exception:', fsEx);
+                        console.warn('Firestore store settings write notice:', fsEx.message);
                     }
                 }
 
@@ -7350,6 +7352,13 @@
                     manualOverride: manualOverrideVal,
                 });
 
+                // Clear dirty flags now that save has persisted successfully
+                isCustomerCarePhoneDirty = false;
+                isCustomerCareToggleDirty = false;
+                isOpeningTimeDirty = false;
+                isClosingTimeDirty = false;
+                isAutoScheduleDirty = false;
+
                 if (showToastMsg) {
                     const careLabel = isCareEnabled ? 'Enabled' : 'Disabled';
                     showToast(`✅ Store Settings saved! Customer Care: ${careLabel} (+91 ${phoneVal})`);
@@ -7359,8 +7368,8 @@
                 evaluateAndSyncShopStatus(true);
                 return true;
             } catch (e) {
-                console.error('Failed to save order settings to localStorage:', e);
-                showToast('❌ Error saving store settings. Please try again.');
+                console.error('Failed to save order settings:', e);
+                showToast('❌ Error saving store settings: ' + (e.message || 'Please try again.'));
                 return false;
             } finally {
                 if (saveBtn) {
@@ -8221,26 +8230,30 @@
                 };
 
                 if (typeof adminFirestore !== 'undefined' && adminFirestore) {
-                    await adminFirestore.collection('settings').doc('wallet_config').set(docPayload, { merge: true });
-                    // Universal Firestore alignment: mirror to settings/rewards and settings/store_config
                     try {
-                        await adminFirestore.collection('settings').doc('rewards').set({
-                            key: 'rewards',
-                            slabs: slabs,
-                            rewardTiers: slabs,
-                            cashbackTiers: slabs,
-                            enabled: isEnabled,
-                            expiryDays: expiryDays,
-                            updatedAt: docPayload.updatedAt
-                        }, { merge: true });
-                    } catch (e) {}
-                    try {
-                        await adminFirestore.collection('settings').doc('store_config').set({
-                            wallet_config: docPayload,
-                            slabs: slabs,
-                            updatedAt: docPayload.updatedAt
-                        }, { merge: true });
-                    } catch (e) {}
+                        await adminFirestore.collection('settings').doc('wallet_config').set(docPayload, { merge: true });
+                        // Universal Firestore alignment: mirror to settings/rewards and settings/store_config
+                        try {
+                            await adminFirestore.collection('settings').doc('rewards').set({
+                                key: 'rewards',
+                                slabs: slabs,
+                                rewardTiers: slabs,
+                                cashbackTiers: slabs,
+                                enabled: isEnabled,
+                                expiryDays: expiryDays,
+                                updatedAt: docPayload.updatedAt
+                            }, { merge: true });
+                        } catch (e) {}
+                        try {
+                            await adminFirestore.collection('settings').doc('store_config').set({
+                                wallet_config: docPayload,
+                                slabs: slabs,
+                                updatedAt: docPayload.updatedAt
+                            }, { merge: true });
+                        } catch (e) {}
+                    } catch (fsErr) {
+                        console.warn('Firestore wallet_config write note:', fsErr.message);
+                    }
                 }
 
                 // Sync to backend API if available

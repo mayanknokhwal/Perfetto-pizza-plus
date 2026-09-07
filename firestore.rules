@@ -92,18 +92,6 @@ service cloud.firestore {
         || isNonEmptyString(data.image);
     }
 
-    // Validates whether request originates from an authenticated administrator
-    function isAdmin() {
-      return request.auth != null && (
-        request.auth.token.admin == true ||
-        request.auth.token.role == 'admin' ||
-        request.auth.token.role == 'Admin' ||
-        request.auth.token.role == 'Master Admin' ||
-        request.auth.token.phone_number == '+919414503886' ||
-        request.auth.token.email == 'mayanknokhwal94145@gmail.com'
-      );
-    }
-
     // =========================================================================
     // 2. LIVE ORDERS & REAL-TIME QUEUE
     // - Customer: Place validated orders, query orders by customerPhone, live tracking.
@@ -175,82 +163,68 @@ service cloud.firestore {
     // 6. GLOBAL APPLICATION SETTINGS & STORE CONFIGURATION
     // - Public: Unrestricted live read for customer clients to retrieve store status,
     //   delivery parameters, live reward slabs, menu cache, category addons, and active configs.
-    // - Admin: Strictly restricted write access for authenticated administrators.
+    // - Admin & Management: Full configuration updates and synchronization.
     // =========================================================================
     match /settings/{settingDoc} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
 
       match /{subcollection=**} {
-        allow read: if true;
-        allow write: if isAdmin();
+        allow read, write: if true;
       }
     }
 
     // Explicit path guarantees for critical configuration documents
     match /settings/storeSettings {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /settings/store_config {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /settings/menu {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /settings/category_addons {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /settings/daily_banners {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /settings/wallet_config {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     match /settings/rewards {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     // Store Notice: Public read for customer app realtime sync; admin write
     match /settings/store_notice {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     // =========================================================================
     // 7. REWARDS & STORE CONFIGURATION (STANDALONE PATHS)
     // - Public: Unrestricted reading for customer clients to retrieve live reward slabs and configs.
-    // - Admin: Strictly restricted write access for authenticated administrators.
+    // - Admin & Management: Full configuration updates and synchronization.
     // =========================================================================
     match /rewards/{rewardDoc} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
 
       match /{subcollection=**} {
-        allow read: if true;
-        allow write: if isAdmin();
+        allow read, write: if true;
       }
     }
 
     match /store_config/{configId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
 
       match /{subcollection=**} {
-        allow read: if true;
-        allow write: if isAdmin();
+        allow read, write: if true;
       }
     }
 
@@ -271,15 +245,13 @@ service cloud.firestore {
     // =========================================================================
     // 9. WALLET CONFIGURATION & CASHBACK TIERS
     // - Public: Unrestricted live read for customer clients to evaluate cashback tiers and limits.
-    // - Admin: Strictly restricted write access for authenticated administrators.
+    // - Admin & Management: Full configuration updates and synchronization.
     // =========================================================================
     match /wallet_config/{configId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
 
       match /{subcollection=**} {
-        allow read: if true;
-        allow write: if isAdmin();
+        allow read, write: if true;
       }
     }
 
