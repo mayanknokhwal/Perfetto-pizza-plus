@@ -4563,31 +4563,120 @@ let currentCustomerWallet = (function() {
     return { balance: directBal, nonExpiredBalance: directBal, transactions: [] };
 })();
 
+function reconcileWalletTranches(wallet) {
+    if (!wallet) return 0;
+    const nowMs = Date.now();
+
+    if (!Array.isArray(wallet.transactions) || wallet.transactions.length === 0) {
+        let rawBal = Number(wallet.balance) || 0;
+        if (wallet.expiresAt) {
+            const expMs = typeof wallet.expiresAt === 'number'
+                ? wallet.expiresAt
+                : new Date(wallet.expiresAt).getTime();
+            if (!isNaN(expMs) && expMs <= nowMs) {
+                rawBal = 0;
+                wallet.expired = true;
+            }
+        }
+        wallet.balance = Math.max(0, rawBal);
+        wallet.nonExpiredBalance = wallet.balance;
+        return wallet.balance;
+    }
+
+    // 1. Separate credits and compute total debits
+    const credits = [];
+    let totalDebitAmount = 0;
+
+    wallet.transactions.forEach(tx => {
+        if (!tx) return;
+        if (tx.type === 'debit') {
+            totalDebitAmount += Math.max(0, Math.abs(Number(tx.amount) || 0));
+        } else if (tx.type === 'credit') {
+            if (tx.originalAmount === undefined) {
+                tx.originalAmount = (tx.amount !== undefined) ? Math.max(0, Number(tx.amount) || 0) : 0;
+            }
+            tx.remainingAmount = Math.max(0, Number(tx.originalAmount));
+            tx.status = 'active';
+            credits.push(tx);
+        }
+    });
+
+    // 2. Sort credits FIFO: earliest expiring first, then oldest createdAt first
+    credits.sort((a, b) => {
+        const expA = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
+        const expB = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
+        if (expA !== expB) return expA - expB;
+        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return createdA - createdB;
+    });
+
+    // 3. Allocate total debits sequentially against credit tranches
+    let debitToApply = totalDebitAmount;
+    for (const credit of credits) {
+        if (debitToApply <= 0) break;
+        const avail = credit.remainingAmount;
+        if (avail <= 0) continue;
+
+        if (avail <= debitToApply) {
+            debitToApply -= avail;
+            credit.remainingAmount = 0;
+            credit.status = 'used';
+        } else {
+            credit.remainingAmount = avail - debitToApply;
+            debitToApply = 0;
+            credit.status = 'partially_used';
+        }
+    }
+
+    // 4. Invalidate expired credit tranches and calculate net active non-expired sum
+    let activeSum = 0;
+    credits.forEach(credit => {
+        if (credit.expiresAt) {
+            const expMs = new Date(credit.expiresAt).getTime();
+            if (!isNaN(expMs) && expMs <= nowMs) {
+                credit.remainingAmount = 0;
+                credit.status = 'expired';
+            }
+        }
+        if (credit.remainingAmount > 0 && credit.status !== 'used' && credit.status !== 'expired') {
+            activeSum += credit.remainingAmount;
+        }
+    });
+
+    const reconciledBalance = Math.max(0, activeSum);
+    wallet.balance = reconciledBalance;
+    wallet.nonExpiredBalance = reconciledBalance;
+
+    try {
+        localStorage.setItem('perfetto_wallet_balance', reconciledBalance);
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(wallet));
+    } catch (e) {}
+
+    return reconciledBalance;
+}
+window.reconcileWalletTranches = reconcileWalletTranches;
+
+// Reconcile current wallet instance immediately
+if (currentCustomerWallet) {
+    reconcileWalletTranches(currentCustomerWallet);
+}
+
 function getActiveCreditTranches() {
+    if (currentCustomerWallet) {
+        reconcileWalletTranches(currentCustomerWallet);
+    }
     const nowMs = Date.now();
     const txList = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
         ? currentCustomerWallet.transactions
         : [];
     return txList.filter(tx => {
-        if (!tx) return false;
-        const isCredit = tx.type === 'credit' || (tx.amount && Number(tx.amount) > 0);
-        if (!isCredit) return false;
-
-        // Ensure remainingAmount is defined
-        if (tx.remainingAmount === undefined) {
-            tx.remainingAmount = (tx.status === 'used') ? 0 : Math.max(0, Number(tx.amount) || 0);
-        }
-
+        if (!tx || tx.type !== 'credit') return false;
         const remaining = Number(tx.remainingAmount) || 0;
-        if (remaining <= 0 || tx.status === 'used') return false;
-
+        if (remaining <= 0 || tx.status === 'used' || tx.status === 'expired') return false;
         if (tx.expiresAt) {
             const expMs = new Date(tx.expiresAt).getTime();
-            if (!isNaN(expMs) && expMs <= nowMs) {
-                tx.status = 'expired';
-                tx.remainingAmount = 0;
-                return false;
-            }
+            if (!isNaN(expMs) && expMs <= nowMs) return false;
         }
         return true;
     }).sort((a, b) => {
@@ -4599,77 +4688,12 @@ function getActiveCreditTranches() {
 window.getActiveCreditTranches = getActiveCreditTranches;
 
 function getEffectiveWalletBalance() {
-    const nowMs = Date.now();
-    if (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) && currentCustomerWallet.transactions.length > 0) {
-        let hasExpiredTranches = false;
-        let sumActive = 0;
-        let hasCreditTxs = false;
-
-        currentCustomerWallet.transactions.forEach(tx => {
-            if (!tx) return;
-            const isCredit = tx.type === 'credit' || (tx.amount && Number(tx.amount) > 0);
-            if (!isCredit) return;
-            hasCreditTxs = true;
-
-            if (tx.remainingAmount === undefined) {
-                tx.remainingAmount = (tx.status === 'used') ? 0 : Math.max(0, Number(tx.amount) || 0);
-            }
-
-            if (Number(tx.remainingAmount) > 0 && tx.status !== 'used') {
-                if (tx.expiresAt) {
-                    const expMs = new Date(tx.expiresAt).getTime();
-                    if (!isNaN(expMs) && expMs <= nowMs) {
-                        tx.status = 'expired';
-                        tx.remainingAmount = 0;
-                        hasExpiredTranches = true;
-                        return;
-                    }
-                }
-                sumActive += Number(tx.remainingAmount);
-            }
-        });
-
-        if (hasCreditTxs) {
-            const currentDirectBal = Number(localStorage.getItem('perfetto_wallet_balance') || 0);
-            // Reconcile balance with active tranches if any expired
-            const reconciledBal = Math.max(0, Math.min(sumActive, currentDirectBal > 0 ? currentDirectBal : sumActive));
-            if (hasExpiredTranches || currentCustomerWallet.balance !== reconciledBal) {
-                currentCustomerWallet.balance = reconciledBal;
-                currentCustomerWallet.nonExpiredBalance = reconciledBal;
-                try {
-                    localStorage.setItem('perfetto_wallet_balance', reconciledBal);
-                    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
-                } catch (e) {}
-            }
-            return reconciledBal;
-        }
-    }
-
-    // Fallback if no transactions list or legacy format
-    if (currentCustomerWallet && currentCustomerWallet.expiresAt) {
-        const expMs = typeof currentCustomerWallet.expiresAt === 'number'
-            ? currentCustomerWallet.expiresAt
-            : new Date(currentCustomerWallet.expiresAt).getTime();
-        if (!isNaN(expMs) && expMs > 0) {
-            const remainingDays = Math.ceil((expMs - nowMs) / (24 * 60 * 60 * 1000));
-            if (remainingDays <= 0) {
-                currentCustomerWallet.balance = 0;
-                currentCustomerWallet.nonExpiredBalance = 0;
-                currentCustomerWallet.expired = true;
-                try {
-                    localStorage.setItem('perfetto_wallet_balance', 0);
-                    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
-                } catch (e) {}
-                return 0;
-            }
-        }
+    if (currentCustomerWallet) {
+        return reconcileWalletTranches(currentCustomerWallet);
     }
     const directStored = localStorage.getItem('perfetto_wallet_balance');
     if (directStored !== null && !isNaN(Number(directStored))) {
         return Math.max(0, Number(directStored));
-    }
-    if (currentCustomerWallet && typeof currentCustomerWallet.balance === 'number') {
-        return Math.max(0, currentCustomerWallet.balance);
     }
     return 0;
 }
@@ -4713,6 +4737,7 @@ async function fetchCustomerWallet(phone) {
                     ...doc.data(),
                     ...valid
                 };
+                reconcileWalletTranches(currentCustomerWallet);
                 localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
                 localStorage.setItem('perfetto_wallet_balance', currentCustomerWallet.balance);
                 return currentCustomerWallet;
@@ -4722,6 +4747,9 @@ async function fetchCustomerWallet(phone) {
         }
     }
 
+    if (currentCustomerWallet) {
+        reconcileWalletTranches(currentCustomerWallet);
+    }
     return currentCustomerWallet;
 }
 window.fetchCustomerWallet = fetchCustomerWallet;
@@ -4744,6 +4772,7 @@ function listenToCustomerWalletRealtime(phone) {
                     ...doc.data(),
                     ...valid
                 };
+                reconcileWalletTranches(currentCustomerWallet);
                 localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
                 localStorage.setItem('perfetto_wallet_balance', currentCustomerWallet.balance);
                 updateProfileWalletUI();
@@ -5089,65 +5118,35 @@ async function debitCustomerWallet(phone, amount, orderId) {
     const debitAmt = Number(amount) || 0;
     if (debitAmt <= 0) return;
 
-    const currentWalletBalance = Number(localStorage.getItem('perfetto_wallet_balance') || (currentCustomerWallet && currentCustomerWallet.balance) || 0);
-    const updatedWalletBalance = Math.max(0, currentWalletBalance - debitAmt);
-    localStorage.setItem('perfetto_wallet_balance', updatedWalletBalance);
-
+    const effectiveOrderId = String(orderId || '');
     if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
-    currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
-    currentCustomerWallet.balance = updatedWalletBalance;
-    currentCustomerWallet.nonExpiredBalance = updatedWalletBalance;
-
-    let remainingToDeduct = debitAmt;
-    const nowMs = Date.now();
-
-    // Ensure all existing credit transactions have remainingAmount initialized
     const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
-    existingTx.forEach(tx => {
-        if (tx && (tx.type === 'credit' || Number(tx.amount) > 0)) {
-            if (tx.remainingAmount === undefined) {
-                tx.remainingAmount = (tx.status === 'used') ? 0 : Math.max(0, Number(tx.amount) || 0);
-            }
-        }
-    });
 
-    // Earliest-Expiring First (FIFO): Order active credit tranches by expiration date ASCENDING
-    const activeCreditTranches = existingTx
-        .filter(tx => (tx.type === 'credit' || Number(tx.amount) > 0) && Number(tx.remainingAmount) > 0 && (!tx.expiresAt || new Date(tx.expiresAt).getTime() > nowMs))
-        .sort((a, b) => {
-            const timeA = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
-            const timeB = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
-            return timeA - timeB;
-        });
-
-    // Sequentially deduct balance starting from the credit tranche that expires earliest
-    for (const tranche of activeCreditTranches) {
-        if (remainingToDeduct <= 0) break;
-        const available = Number(tranche.remainingAmount) || 0;
-        if (available <= 0) continue;
-
-        if (available <= remainingToDeduct) {
-            remainingToDeduct -= available;
-            tranche.remainingAmount = 0;
-            tranche.status = 'used';
-        } else {
-            tranche.remainingAmount = available - remainingToDeduct;
-            remainingToDeduct = 0;
-            tranche.status = 'partially_used';
+    // Idempotency check: prevent duplicate debit for the exact same order
+    if (effectiveOrderId && effectiveOrderId !== 'ORDER' && effectiveOrderId !== '--') {
+        const alreadyDebited = existingTx.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === effectiveOrderId);
+        if (alreadyDebited) {
+            console.log(`[WALLET] Order #${effectiveOrderId} has already been debited. Skipping duplicate debit.`);
+            return;
         }
     }
+
+    currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
 
     // Prepend debit transaction record
     const debitTxData = {
         type: 'debit',
         amount: debitAmt,
-        orderId: String(orderId),
-        description: `Redeemed on Order #${orderId}`,
-        createdAt: new Date().toISOString()
+        orderId: effectiveOrderId,
+        description: `Redeemed on Order #${effectiveOrderId}`,
+        createdAt: new Date().toISOString(),
+        status: 'completed'
     };
     existingTx.unshift(debitTxData);
     currentCustomerWallet.transactions = existingTx.slice(0, 30);
-    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+
+    // Reconcile tranches with FIFO deduction against credit tranches
+    const updatedWalletBalance = reconcileWalletTranches(currentCustomerWallet);
 
     updateProfileWalletUI();
     renderProfileWalletTxList();
@@ -5168,8 +5167,8 @@ async function debitCustomerWallet(phone, amount, orderId) {
             await walletRef.collection('transactions').add({
                 type: 'debit',
                 amount: debitAmt,
-                orderId: String(orderId),
-                description: `Redeemed on Order #${orderId}`,
+                orderId: effectiveOrderId,
+                description: `Redeemed on Order #${effectiveOrderId}`,
                 createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                     ? firebase.firestore.FieldValue.serverTimestamp()
                     : new Date().toISOString()
@@ -5216,10 +5215,18 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     const earnedCashback = Number(amount) || 0;
     if (earnedCashback <= 0) return;
 
-    // Cumulative Addition Logic:
-    const currentWalletBalance = Number(localStorage.getItem('perfetto_wallet_balance') || 0);
-    const updatedWalletBalance = currentWalletBalance + earnedCashback;
-    localStorage.setItem('perfetto_wallet_balance', updatedWalletBalance);
+    const effectiveOrderId = String(orderId || '');
+    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+
+    // Idempotency check: prevent duplicate credit for the exact same order
+    if (effectiveOrderId && effectiveOrderId !== 'ORDER' && effectiveOrderId !== '--') {
+        const alreadyCredited = existingTx.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === effectiveOrderId);
+        if (alreadyCredited) {
+            console.log(`[WALLET] Order #${effectiveOrderId} cashback already credited. Skipping duplicate credit.`);
+            return;
+        }
+    }
 
     let activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
     let expiresAt = null;
@@ -5258,10 +5265,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         expiresAt = new Date(now.getTime() + activeDays * 24 * 60 * 60 * 1000).toISOString();
     }
 
-    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
-    currentCustomerWallet.balance = updatedWalletBalance;
-    currentCustomerWallet.nonExpiredBalance = updatedWalletBalance;
     currentCustomerWallet.expiresAt = expiresAt;
     currentCustomerWallet.expiryDays = activeDays;
     currentCustomerWallet.cashbackExpiryDays = activeDays;
@@ -5270,14 +5274,14 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     const campaignName = (customExpiryOptions && customExpiryOptions.campaign) || (activeScratchOrder && activeScratchOrder.rewardTitle) || 'Order Cashback';
     const txDesc = (customExpiryOptions && customExpiryOptions.description)
         ? customExpiryOptions.description
-        : (customExpiryOptions && customExpiryOptions.campaign ? `${customExpiryOptions.campaign} (+₹${earnedCashback})` : `credited +₹${earnedCashback} for Order #${orderId}`);
+        : (customExpiryOptions && customExpiryOptions.campaign ? `${customExpiryOptions.campaign} (+₹${earnedCashback})` : `credited +₹${earnedCashback} for Order #${effectiveOrderId}`);
 
-    const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
     existingTx.unshift({
         type: 'credit',
         amount: earnedCashback,
+        originalAmount: earnedCashback,
         remainingAmount: earnedCashback,
-        orderId: String(orderId),
+        orderId: effectiveOrderId,
         description: txDesc,
         createdAt: now.toISOString(),
         expiresAt: expiresAt,
@@ -5287,7 +5291,8 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         campaign: campaignName
     });
     currentCustomerWallet.transactions = existingTx.slice(0, 30);
-    localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+
+    const updatedWalletBalance = reconcileWalletTranches(currentCustomerWallet);
 
     updateProfileWalletUI();
     renderProfileWalletTxList();
@@ -5486,7 +5491,7 @@ function renderProfileWalletTxList() {
     }
 
     container.innerHTML = txList.slice(0, 15).map(tx => {
-        const isCredit = tx.type === 'credit' || (tx.amount && Number(tx.amount) > 0);
+        const isCredit = (tx.type === 'credit');
         const amt = Math.abs(Number(tx.amount) || 0);
         const dateStr = tx.createdAt ? new Date(tx.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently';
 
@@ -7685,10 +7690,15 @@ async function handleClaimScratchReward() {
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const amount = Number(activeScratchRewardAmount) || Number(activeScratchOrder.earnedCashback) || 0;
     const isDelivered = activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered';
+    const effectiveOrderId = String(activeScratchOrder.id || activeScratchOrder.orderId || '');
+
+    const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
+        ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === effectiveOrderId)
+        : false;
 
     // Anti-Abuse Double Claim Prevention Check:
-    if (activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed)) {
-        showToast(isHindi ? 'यह स्क्रैच कार्ड पहले ही क्लेम किया जा चुका है!' : 'This scratch card has already been claimed!');
+    if (activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed) || activeScratchOrder.rewardStatus === 'active_credited' || alreadyCreditedInWallet) {
+        showToast(isHindi ? `🎉 ₹${amount} कैशबैक आपके वॉलेट में जुड़ चुका है!` : `🎉 ₹${amount} Cashback credited to your wallet!`);
         closeScratchCardModal();
         return;
     }
@@ -7714,10 +7724,10 @@ async function handleClaimScratchReward() {
         const orderId = activeScratchOrder.id || activeScratchOrder.orderId || 'ORDER';
         await creditCustomerWallet(customerPhone, amount, orderId);
         activeScratchOrder.scratchClaimed = true;
-        activeScratchOrder.rewardStatus = 'credited';
+        activeScratchOrder.rewardStatus = 'active_credited';
         if (activeScratchOrder.scratchCard) {
             activeScratchOrder.scratchCard.claimed = true;
-            activeScratchOrder.scratchCard.status = 'credited';
+            activeScratchOrder.scratchCard.status = 'active_credited';
             activeScratchOrder.scratchCard.claimedAt = new Date().toISOString();
         }
         showToast(isHindi ? `🎉 ₹${amount} कैशबैक आपके वॉलेट में जोड़ दिया गया!` : `🎉 ₹${amount} Cashback credited to your wallet!`);
@@ -9400,6 +9410,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             } else if (Array.isArray(u.transactions) && u.transactions.length > 0) {
                 currentCustomerWallet.transactions = u.transactions;
             }
+            reconcileWalletTranches(currentCustomerWallet);
             safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
 
             // Restore complete order history bound to this phone number
@@ -9856,7 +9867,12 @@ function renderOrderHistoryDetails() {
                 const isScratchRevealed = Boolean(o.scratchRevealed || (o.scratchCard && o.scratchCard.revealed));
 
                 // Auto-credit pending delivery cashback only if order was delivered AND card was already revealed
-                if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired) {
+                const targetOrderId = String(o.id || o.orderId || '');
+                const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
+                    ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
+                    : false;
+
+                if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired && o.rewardStatus !== 'active_credited' && !alreadyCreditedInWallet) {
                     if (orderCashback > 0) {
                         o.scratchClaimed = true;
                         o.rewardStatus = 'active_credited';
@@ -9866,10 +9882,18 @@ function renderOrderHistoryDetails() {
                             o.scratchCard.claimedAt = new Date().toISOString();
                         }
                         const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
-                        creditCustomerWallet(phone, orderCashback, o.id || o.orderId);
+                        creditCustomerWallet(phone, orderCashback, targetOrderId);
                         isScratchClaimed = true;
                         safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
+                } else if (alreadyCreditedInWallet || o.rewardStatus === 'active_credited') {
+                    o.scratchClaimed = true;
+                    o.rewardStatus = 'active_credited';
+                    if (o.scratchCard) {
+                        o.scratchCard.claimed = true;
+                        o.scratchCard.status = 'active_credited';
+                    }
+                    isScratchClaimed = true;
                 }
 
                     return `
@@ -11494,20 +11518,33 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 const isCardExpired = typeof isScratchCardExpired === 'function' ? isScratchCardExpired(target) : false;
                 const isPendingDelivery = (target.rewardStatus === 'pending_delivery' || (target.scratchCard && target.scratchCard.status === 'pending_delivery') || target.scratchRevealed);
 
-                if (isPendingDelivery && !isScratchClaimed && !isCardExpired && orderCashback > 0) {
+                const targetOrderId = String(target.id || target.orderId || '');
+                const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
+                    ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
+                    : false;
+
+                if (isPendingDelivery && !isScratchClaimed && !isCardExpired && target.rewardStatus !== 'active_credited' && !alreadyCreditedInWallet && orderCashback > 0) {
                     target.scratchClaimed = true;
-                    target.rewardStatus = 'credited';
+                    target.rewardStatus = 'active_credited';
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
-                        target.scratchCard.status = 'credited';
+                        target.scratchCard.status = 'active_credited';
                         target.scratchCard.claimedAt = new Date().toISOString();
                     }
                     const phone = target.customerPhone || target.phone || ((currentUserProfile && currentUserProfile.phone) || '');
-                    creditCustomerWallet(phone, orderCashback, target.id || target.orderId);
+                    creditCustomerWallet(phone, orderCashback, targetOrderId);
                     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
                     showToast(isHindi 
                         ? `🎉 बधाई हो! ऑर्डर #${orderId} डिलीवर हो गया - ₹${orderCashback} कैशबैक आपके वॉलेट में जोड़ दिया गया है!` 
                         : `🎉 Order #${orderId} Delivered! ₹${orderCashback} Cashback has been credited to your wallet!`);
+                    updated = true;
+                } else if (alreadyCreditedInWallet || target.rewardStatus === 'active_credited') {
+                    target.scratchClaimed = true;
+                    target.rewardStatus = 'active_credited';
+                    if (target.scratchCard) {
+                        target.scratchCard.claimed = true;
+                        target.scratchCard.status = 'active_credited';
+                    }
                     updated = true;
                 }
             }

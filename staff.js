@@ -3513,32 +3513,8 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
             firestoreSucceeded = true;
             console.log(`Firestore order ${exactDocId} successfully updated to "${effectiveStatus}"`);
 
-            // Direct client increment on users/{phone} if delivered with cashback
-            if (isDelivered && order) {
-                const wonAmt = Number(order.wonCashback || order.earnedCashback || order.scratchCard?.wonAmount || order.scratchCard?.amount || 0);
-                const rawPhone = order.customerPhone || order.phone || (order.customer && order.customer.phone) || '';
-                const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
-                if (wonAmt > 0 && cleanPhone) {
-                    const userDocRef = db.collection('users').doc(`phone_${cleanPhone}`);
-                    const userDocRefRaw = db.collection('users').doc(cleanPhone);
-                    const txItem = {
-                        type: 'credit',
-                        amount: wonAmt,
-                        orderId: exactDocId,
-                        description: `Cashback unlocked upon delivery of Order #${order.id || exactDocId}`,
-                        createdAt: serverTs,
-                        status: 'active'
-                    };
-                    const incObj = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                        ? { walletBalance: firebase.firestore.FieldValue.increment(wonAmt), updatedAt: serverTs }
-                        : { walletBalance: wonAmt, updatedAt: new Date().toISOString() };
-
-                    userDocRef.set(incObj, { merge: true }).catch(() => {});
-                    userDocRefRaw.set(incObj, { merge: true }).catch(() => {});
-                    userDocRef.collection('transactions').add(txItem).catch(() => {});
-                    userDocRefRaw.collection('transactions').add(txItem).catch(() => {});
-                }
-            }
+            // Note: Wallet settlement and cashback crediting are authoritatively handled
+            // by the backend /api/orders endpoint to ensure strict idempotency and zero double-crediting.
         } catch (e) {
             firestoreError = e;
             console.error('Firestore live order update error:', e);

@@ -6,6 +6,7 @@
 
 const { getFirestoreDoc, setFirestoreDoc, listFirestoreCollection, deleteFirestoreDoc } = require('../lib/firestore');
 const { sendOrderNotificationToStaff } = require('../lib/firebaseAdmin');
+const { DEFAULT_WALLET_CONFIG } = require('../lib/globalStores');
 
 function isValidOrder(order) {
     if (!order || typeof order !== 'object') return false;
@@ -178,6 +179,16 @@ async function handleOrdersRequest(req, res) {
             const usedWallet = Number(body.walletDiscount || body.usedWalletCash || 0);
 
             // Dynamically read the minimum qualification amount for Slab 1 from global.__perfettoWalletConfig
+            if (!global.__walletConfigLoadedFromFirestore) {
+                try {
+                    const walletDoc = await getFirestoreDoc('settings', 'wallet_config') || await getFirestoreDoc('settings', 'rewards') || await getFirestoreDoc('settings', 'store_config');
+                    if (walletDoc) {
+                        global.__perfettoWalletConfig = { ...DEFAULT_WALLET_CONFIG, ...(walletDoc.wallet_config || walletDoc) };
+                        global.__walletConfigLoadedFromFirestore = true;
+                    }
+                } catch (e) { }
+            }
+
             const rawSlabs = (Array.isArray(global.__perfettoWalletConfig?.slabs) && global.__perfettoWalletConfig.slabs.length > 0)
                 ? global.__perfettoWalletConfig.slabs
                 : (DEFAULT_WALLET_CONFIG?.slabs || []);
@@ -193,6 +204,7 @@ async function handleOrdersRequest(req, res) {
             const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : activeSlab1Amount;
             const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false);
 
+            const clientWonAmt = Number(body.wonCashback || body.earnedCashback || body.scratchCard?.wonAmount || body.scratchCard?.amount || 0);
             let verifiedCashback = 0;
             let rewardTitle = '';
 
@@ -207,9 +219,12 @@ async function handleOrdersRequest(req, res) {
                     for (const s of sortedSlabs) {
                         if (subtotal >= s.minOrder) q = s;
                     }
-                    verifiedCashback = q ? q.cashback : 0;
-                    rewardTitle = body.rewardTitle || 'Cashback Reward';
+                    verifiedCashback = q ? q.cashback : (clientWonAmt > 0 ? clientWonAmt : 10);
+                    rewardTitle = body.rewardTitle || (body.scratchCard?.title) || 'Cashback Reward';
                 }
+            } else if (clientWonAmt > 0 && subtotal >= slab1Threshold) {
+                verifiedCashback = clientWonAmt;
+                rewardTitle = body.rewardTitle || 'Cashback Reward';
             } else {
                 // Cart Subtotal < Slab 1 Threshold: Do not issue any scratch card
                 verifiedCashback = 0;
@@ -256,10 +271,16 @@ async function handleOrdersRequest(req, res) {
                     subtotal: subtotal,
                     deliveryFee: deliveryFee,
                     discount: Number(body.discount || 0),
+                    walletDiscount: usedWallet,
+                    usedWalletCash: usedWallet,
+                    usedWallet: usedWallet,
                     total: total,
                 },
                 subtotal: subtotal,
                 deliveryFee: deliveryFee,
+                walletDiscount: usedWallet,
+                usedWalletCash: usedWallet,
+                usedWallet: usedWallet,
                 total: total,
                 customerName: body.customerName || body.customer?.name || 'Customer',
                 customerPhone: body.customerPhone || body.phone || body.customer?.phone || '',
@@ -342,6 +363,34 @@ async function handleOrdersRequest(req, res) {
                         });
                         if (userDoc.scratchCards.length > 50) userDoc.scratchCards.length = 50;
                     }
+
+                    // Settle wallet redemption debit on order creation if wallet cash was used
+                    if (usedWallet > 0) {
+                        const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
+                        const newBal = Math.max(0, currentBal - usedWallet);
+                        userDoc.walletBalance = newBal;
+                        userDoc.balance = newBal;
+                        userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
+                        if (!userDoc.walletTransactions.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === String(finalOrderId))) {
+                            userDoc.walletTransactions.unshift({
+                                id: `tx_debit_${finalOrderId}`,
+                                type: 'debit',
+                                amount: usedWallet,
+                                orderId: String(finalOrderId),
+                                description: `Redeemed on Order #${finalOrderId}`,
+                                createdAt: orderDoc.createdAt,
+                                status: 'completed'
+                            });
+                            if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;
+                        }
+                        await setFirestoreDoc('wallets', newOrderCleanPhone, {
+                            phone: newOrderCleanPhone,
+                            balance: newBal,
+                            transactions: userDoc.walletTransactions,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+
                     userDoc.lastOrderAt = orderDoc.createdAt;
                     userDoc.updatedAt = new Date().toISOString();
 
@@ -410,50 +459,59 @@ async function handleOrdersRequest(req, res) {
             if (isDelivered) {
                 const wonAmt = Number(targetOrder.wonCashback || targetOrder.earnedCashback || targetOrder.scratchCard?.wonAmount || targetOrder.scratchCard?.amount || 0);
                 const isCardScratched = Boolean(targetOrder.scratchRevealed || targetOrder.scratchCard?.revealed || targetOrder.rewardStatus === 'pending_delivery');
+                const wasAlreadyCredited = Boolean(targetOrder.scratchClaimed || targetOrder.rewardStatus === 'active_credited' || targetOrder.rewardStatus === 'credited' || targetOrder.scratchCard?.claimed);
+                const usedWallet = Number(targetOrder.walletDiscount || targetOrder.usedWalletCash || targetOrder.usedWallet || 0);
 
-                if (isCardScratched && wonAmt > 0) {
-                    // Card was scratched (either before delivery or post-delivery in Order History) -> Credit wallet now
-                    const wasAlreadyCredited = (targetOrder.rewardStatus === 'active_credited' && targetOrder.scratchClaimed && targetOrder.scratchCard?.claimed);
+                const rawPhone = targetOrder.customerPhone || targetOrder.phone || targetOrder.customer?.phone || '';
+                const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
-                    targetOrder.rewardStatus = 'active_credited';
-                    targetOrder.scratchRevealed = true;
-                    targetOrder.scratchClaimed = true;
-                    if (!targetOrder.scratchCard) {
-                        targetOrder.scratchCard = {};
-                    }
-                    targetOrder.scratchCard.status = 'active_credited';
-                    targetOrder.scratchCard.revealed = true;
-                    targetOrder.scratchCard.claimed = true;
-                    if (!targetOrder.scratchCard.claimedAt) {
-                        targetOrder.scratchCard.claimedAt = new Date().toISOString();
-                    }
+                if (cleanPhone) {
+                    try {
+                        let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`);
+                        if (!userDoc) {
+                            userDoc = await getFirestoreDoc('users', cleanPhone);
+                        }
+                        if (!userDoc) {
+                            userDoc = global.__perfettoUsersList.find(u => u.phone === cleanPhone) || {
+                                phone: cleanPhone,
+                                fullName: targetOrder.customerName || 'Customer',
+                                isPhoneVerified: true
+                            };
+                        }
 
-                    const rawPhone = targetOrder.customerPhone || targetOrder.phone || targetOrder.customer?.phone || '';
-                    const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+                        userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
 
-                    if (!wasAlreadyCredited && cleanPhone) {
-                        try {
-                            let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`);
-                            if (!userDoc) {
-                                userDoc = await getFirestoreDoc('users', cleanPhone);
+                        // 1A. Settle wallet redemption debit on delivery if not already recorded
+                        if (usedWallet > 0) {
+                            const debitAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === String(targetId));
+                            if (!debitAlreadyLogged) {
+                                const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
+                                const newBalAfterDebit = Math.max(0, currentBal - usedWallet);
+                                userDoc.walletBalance = newBalAfterDebit;
+                                userDoc.balance = newBalAfterDebit;
+                                userDoc.walletTransactions.unshift({
+                                    id: `tx_debit_${targetId}`,
+                                    type: 'debit',
+                                    amount: usedWallet,
+                                    orderId: String(targetId),
+                                    description: `Redeemed on Order #${targetId}`,
+                                    createdAt: new Date().toISOString(),
+                                    status: 'completed'
+                                });
                             }
-                            if (!userDoc) {
-                                userDoc = global.__perfettoUsersList.find(u => u.phone === cleanPhone) || {
-                                    phone: cleanPhone,
-                                    fullName: targetOrder.customerName || 'Customer',
-                                    isPhoneVerified: true
-                                };
-                            }
+                        }
 
-                            const oldBal = Number(userDoc.walletBalance || userDoc.balance || 0);
-                            const newBal = oldBal + wonAmt;
+                        // 1B. Credit cashback reward strictly once (idempotent)
+                        const creditAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === String(targetId));
+
+                        if (isCardScratched && wonAmt > 0 && !wasAlreadyCredited && !creditAlreadyLogged) {
+                            const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
+                            const newBal = currentBal + wonAmt;
                             userDoc.walletBalance = newBal;
                             userDoc.balance = newBal;
-                            userDoc.updatedAt = new Date().toISOString();
 
-                            // Record immutable ledger transaction
                             const txEntry = {
-                                id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                                id: `tx_credit_${targetId}`,
                                 type: 'credit',
                                 amount: wonAmt,
                                 orderId: targetId,
@@ -461,46 +519,65 @@ async function handleOrdersRequest(req, res) {
                                 createdAt: new Date().toISOString(),
                                 status: 'active'
                             };
-                            userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
                             userDoc.walletTransactions.unshift(txEntry);
-                            if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;
 
-                            // Update in-memory users cache
-                            const uIdx = global.__perfettoUsersList.findIndex(u => u.phone === cleanPhone);
-                            if (uIdx >= 0) {
-                                global.__perfettoUsersList[uIdx] = { ...global.__perfettoUsersList[uIdx], ...userDoc };
-                            } else {
-                                global.__perfettoUsersList.push(userDoc);
+                            targetOrder.rewardStatus = 'active_credited';
+                            targetOrder.scratchRevealed = true;
+                            targetOrder.scratchClaimed = true;
+                            if (!targetOrder.scratchCard) {
+                                targetOrder.scratchCard = {};
                             }
-
-                            // Atomically persist to Firestore users/{phone} under both keys
-                            await setFirestoreDoc('users', `phone_${cleanPhone}`, userDoc);
-                            await setFirestoreDoc('users', cleanPhone, userDoc);
-
-                            // Sync to /wallets/{cleanPhone}
-                            await setFirestoreDoc('wallets', cleanPhone, {
-                                phone: cleanPhone,
-                                balance: newBal,
-                                lastCreditedAt: new Date().toISOString(),
-                                updatedAt: new Date().toISOString()
-                            });
-                        } catch (walletErr) {
-                            console.warn('Error incrementing customer wallet in users collection:', walletErr.message);
+                            targetOrder.scratchCard.status = 'active_credited';
+                            targetOrder.scratchCard.revealed = true;
+                            targetOrder.scratchCard.claimed = true;
+                            targetOrder.scratchCard.claimedAt = new Date().toISOString();
+                        } else if (creditAlreadyLogged || wasAlreadyCredited) {
+                            // Ensure order status reflects credited state without modifying balance again
+                            targetOrder.rewardStatus = 'active_credited';
+                            targetOrder.scratchRevealed = true;
+                            targetOrder.scratchClaimed = true;
+                            if (!targetOrder.scratchCard) {
+                                targetOrder.scratchCard = {};
+                            }
+                            targetOrder.scratchCard.status = 'active_credited';
+                            targetOrder.scratchCard.claimed = true;
+                        } else if (!isCardScratched && wonAmt > 0) {
+                            // Unrevealed fallback: keep card state as "unscratched" until customer reveals it
+                            targetOrder.rewardStatus = 'unscratched';
+                            targetOrder.scratchRevealed = false;
+                            targetOrder.scratchClaimed = false;
+                            if (!targetOrder.scratchCard) {
+                                targetOrder.scratchCard = {};
+                            }
+                            targetOrder.scratchCard.status = 'unscratched';
+                            targetOrder.scratchCard.revealed = false;
+                            targetOrder.scratchCard.claimed = false;
                         }
+
+                        if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;
+                        userDoc.updatedAt = new Date().toISOString();
+
+                        // Update in-memory users cache
+                        const uIdx = global.__perfettoUsersList.findIndex(u => u.phone === cleanPhone);
+                        if (uIdx >= 0) {
+                            global.__perfettoUsersList[uIdx] = { ...global.__perfettoUsersList[uIdx], ...userDoc };
+                        } else {
+                            global.__perfettoUsersList.push(userDoc);
+                        }
+
+                        // Atomically persist to Firestore users/{phone} and /wallets/{cleanPhone}
+                        await setFirestoreDoc('users', `phone_${cleanPhone}`, userDoc);
+                        await setFirestoreDoc('users', cleanPhone, userDoc);
+
+                        await setFirestoreDoc('wallets', cleanPhone, {
+                            phone: cleanPhone,
+                            balance: userDoc.walletBalance,
+                            transactions: userDoc.walletTransactions,
+                            updatedAt: new Date().toISOString()
+                        });
+                    } catch (walletErr) {
+                        console.warn('Error synchronizing customer wallet on order delivery:', walletErr.message);
                     }
-                } else if (!isCardScratched && wonAmt > 0) {
-                    // Fallback for unrevealed scratch cards:
-                    // Order is delivered, but customer exited before scratching.
-                    // Keep card state as "unscratched" under order doc with immutable expiration timestamp
-                    targetOrder.rewardStatus = 'unscratched';
-                    targetOrder.scratchRevealed = false;
-                    targetOrder.scratchClaimed = false;
-                    if (!targetOrder.scratchCard) {
-                        targetOrder.scratchCard = {};
-                    }
-                    targetOrder.scratchCard.status = 'unscratched';
-                    targetOrder.scratchCard.revealed = false;
-                    targetOrder.scratchCard.claimed = false;
                 }
             } else if (isRejected) {
                 // 2. REJECTION / CANCELLATION: Atomically update reward status to "voided" with ₹0 credited
