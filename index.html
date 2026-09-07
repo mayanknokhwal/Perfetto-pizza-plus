@@ -92,7 +92,7 @@
         <div class="shop-closed-banner" id="shop-closed-banner" style="display: none;">
             <div class="banner-content">
                 <i class="fa-solid fa-store-slash banner-icon"></i>
-                <span data-i18n="shop_closed_banner">This time shop is closed. We are not accepting orders right now.</span>
+                <span data-i18n="shop_closed_banner">Restaurant is currently closed for orders.</span>
             </div>
         </div>
 
@@ -550,6 +550,14 @@
                     </div>
                 </div>
 
+                <!-- DYNAMIC CART CLOSED WARNING BANNER -->
+                <div class="cart-closed-banner" id="cart-closed-banner" style="display: none;">
+                    <div class="cart-closed-inner">
+                        <i class="fa-solid fa-store-slash"></i>
+                        <span id="cart-closed-text">Restaurant is currently closed for orders.</span>
+                    </div>
+                </div>
+
                 <div class="cart-summary-card" id="cart-summary">
                     <div class="summary-line">
                         <span data-i18n="subtotal">Subtotal</span>
@@ -994,6 +1002,19 @@
                         <div class="checkout-section-header">
                             <div class="step-badge">1</div>
                             <h4 class="checkout-section-title" data-i18n="delivery_address">Delivery Address</h4>
+                        </div>
+
+                        <!-- OUT OF DELIVERY RADIUS WARNING CARD -->
+                        <div class="checkout-radius-alert-card" id="checkout-radius-alert" style="display: none; margin-bottom: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(239, 68, 68, 0.12); border: 1.5px solid rgba(239, 68, 68, 0.4); color: #ef4444;">
+                            <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.2rem; margin-top: 2px;"></i>
+                                <div style="flex: 1;">
+                                    <strong id="checkout-radius-alert-text" style="display: block; font-size: 0.88rem; font-weight: 700; margin-bottom: 6px;">Your selected location is outside our delivery radius.</strong>
+                                    <button type="button" class="btn-adjust-map-pill" onclick="handleAdjustLocationFromCheckout()" style="background: #ef4444; color: #ffffff; border: none; padding: 6px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                        <i class="fa-solid fa-map-pin"></i> Adjust Pin on Map
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="saved-address-card checkout-address-card">

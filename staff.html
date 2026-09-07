@@ -421,7 +421,7 @@
                         <i class="fa-solid fa-triangle-exclamation"></i>
                     </div>
                     <div>
-                        <h3 class="staff-modal-title" id="reject-modal-title">Decline / Reject Order?</h3>
+                        <h3 class="staff-modal-title" id="reject-modal-title">Enter Master Admin OTP to Cancel Order</h3>
                         <p class="staff-modal-subtitle" id="reject-modal-order-tag">Order #--</p>
                     </div>
                 </div>
@@ -437,9 +437,20 @@
                             <strong id="reject-modal-order-total" style="color: var(--primary-orange);">₹0</strong>
                         </div>
                     </div>
-                    <p class="reject-warning-text">
-                        Are you sure you want to reject / cancel this order? Entering the Admin Master Delivery OTP is strictly required to authorize rejection and void rewards.
-                    </p>
+
+                    <div class="reject-reason-box" style="margin-top: 12px; text-align: left;">
+                        <label for="reject-modal-reason" style="display: block; font-size: 0.82rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">
+                            <i class="fa-solid fa-comment-dots" style="color: #ef4444;"></i> Cancellation Reason (Mandatory):
+                        </label>
+                        <textarea 
+                            id="reject-modal-reason" 
+                            rows="2" 
+                            placeholder="State mandatory reason for rejecting this order..." 
+                            style="width: 100%; border: 1.5px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); border-radius: 8px; padding: 8px 10px; color: #ffffff; font-size: 0.85rem; resize: none; font-family: inherit; box-sizing: border-box;"
+                        ></textarea>
+                        <div id="reject-modal-reason-error" style="display: none; color: #ef4444; font-size: 0.78rem; font-weight: 600; margin-top: 4px;"></div>
+                    </div>
+
                     <div class="reject-otp-auth-box" style="margin-top: 14px; text-align: left;">
                         <label for="reject-modal-master-otp" style="display: block; font-size: 0.82rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">
                             <i class="fa-solid fa-key" style="color: #ef4444;"></i> Admin Master Delivery OTP:

@@ -2007,6 +2007,33 @@
             color: var(--text-main);
         }
 
+        .slab-input-wrapper.input-error {
+            border-color: #ef4444 !important;
+            background: rgba(239, 68, 68, 0.08) !important;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
+        }
+
+        .slab-inline-error {
+            font-size: 0.72rem;
+            color: #ef4444;
+            font-weight: 600;
+            line-height: 1.25;
+            margin-top: 4px;
+            display: none;
+            align-items: center;
+            gap: 4px;
+            word-break: break-word;
+        }
+
+        .btn-save-wallet-settings:disabled,
+        .btn-save-wallet-settings.btn-disabled {
+            opacity: 0.45 !important;
+            cursor: not-allowed !important;
+            pointer-events: auto !important;
+            filter: grayscale(0.5);
+            box-shadow: none !important;
+        }
+
         /* --------------------------------------------------------------------------
            10. CLEAR ACTIVITY LOGS BUTTON (MASTER ADMIN RESTRICTED)
            -------------------------------------------------------------------------- */
@@ -3383,21 +3410,6 @@
 
                         <div class="setting-input-group">
                             <label class="setting-input-label">
-                                <i class="fa-solid fa-indian-rupee-sign" style="color: var(--primary-orange);"></i> Hide Chef Order Prices
-                            </label>
-                            <div class="setting-toggle-box">
-                                <span id="hide-payment-details-toggle-status"
-                                    style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">OFF (Prices Visible)</span>
-                                <label class="switch" style="margin: 0;">
-                                    <input type="checkbox" id="toggle-hide-payment-details"
-                                        onchange="onHidePaymentDetailsChange(this.checked)">
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="setting-input-group">
-                            <label class="setting-input-label">
                                 <i class="fa-solid fa-key" style="color: var(--primary-orange);"></i> Emergency Master Delivery OTP
                             </label>
                             <div class="search-box" style="position: relative;">
@@ -3745,20 +3757,22 @@
                                 <div class="slab-card-body">
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Min Order Amount (₹)</label>
-                                        <div class="slab-input-wrapper">
+                                        <div class="slab-input-wrapper" id="wrap-slab1-min">
                                             <i class="fa-solid fa-cart-arrow-down"></i>
-                                            <input type="number" id="input-slab1-min" class="slab-num-input" value="350" min="0" placeholder="350" oninput="onSlabInputChange(1)" onchange="onSlabMinChange(1)" onblur="onSlabMinBlur(1)">
+                                            <input type="number" id="input-slab1-min" class="slab-num-input" value="350" min="1" placeholder="350" oninput="onSlabInputChange(1)" onchange="onSlabInputChange(1)" onblur="onSlabInputChange(1)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab1-min"></div>
                                     </div>
                                     <div class="slab-arrow-divider">
                                         <i class="fa-solid fa-arrow-down"></i>
                                     </div>
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Cashback Amount (₹)</label>
-                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                        <div class="slab-input-wrapper slab-cashback-highlight" id="wrap-slab1-cashback">
                                             <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
-                                            <input type="number" id="input-slab1-cashback" class="slab-num-input" value="10" min="0" placeholder="10" oninput="onSlabInputChange(1)" onchange="onSlabCashbackChange(1)" onblur="onSlabCashbackBlur(1)">
+                                            <input type="number" id="input-slab1-cashback" class="slab-num-input" value="10" min="1" placeholder="10" oninput="onSlabInputChange(1)" onchange="onSlabInputChange(1)" onblur="onSlabInputChange(1)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab1-cashback"></div>
                                     </div>
                                 </div>
                                 <div class="slab-card-summary" id="slab1-summary-text">
@@ -3770,29 +3784,31 @@
                             <div class="wallet-slab-card" id="card-slab-2">
                                 <div class="slab-card-header">
                                     <span class="slab-badge">Slab 2</span>
-                                    <span class="slab-percent-pill" id="slab2-rate-tag">10% Return</span>
+                                    <span class="slab-percent-pill" id="slab2-rate-tag">9% Return</span>
                                 </div>
                                 <div class="slab-card-body">
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Min Order Amount (₹)</label>
-                                        <div class="slab-input-wrapper">
+                                        <div class="slab-input-wrapper" id="wrap-slab2-min">
                                             <i class="fa-solid fa-cart-arrow-down"></i>
-                                            <input type="number" id="input-slab2-min" class="slab-num-input" value="500" min="0" placeholder="500" oninput="onSlabInputChange(2)" onchange="onSlabMinChange(2)" onblur="onSlabMinBlur(2)">
+                                            <input type="number" id="input-slab2-min" class="slab-num-input" value="450" min="1" placeholder="450" oninput="onSlabInputChange(2)" onchange="onSlabInputChange(2)" onblur="onSlabInputChange(2)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab2-min"></div>
                                     </div>
                                     <div class="slab-arrow-divider">
                                         <i class="fa-solid fa-arrow-down"></i>
                                     </div>
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Cashback Amount (₹)</label>
-                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                        <div class="slab-input-wrapper slab-cashback-highlight" id="wrap-slab2-cashback">
                                             <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
-                                            <input type="number" id="input-slab2-cashback" class="slab-num-input" value="50" min="0" placeholder="50" oninput="onSlabInputChange(2)" onchange="onSlabCashbackChange(2)" onblur="onSlabCashbackBlur(2)">
+                                            <input type="number" id="input-slab2-cashback" class="slab-num-input" value="40" min="1" placeholder="40" oninput="onSlabInputChange(2)" onchange="onSlabInputChange(2)" onblur="onSlabInputChange(2)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab2-cashback"></div>
                                     </div>
                                 </div>
                                 <div class="slab-card-summary" id="slab2-summary-text">
-                                    Earn <strong>₹50</strong> on orders ≥ <strong>₹500</strong>
+                                    Earn <strong>₹40</strong> on orders ≥ <strong>₹450</strong>
                                 </div>
                             </div>
 
@@ -3800,29 +3816,31 @@
                             <div class="wallet-slab-card" id="card-slab-3">
                                 <div class="slab-card-header">
                                     <span class="slab-badge">Slab 3</span>
-                                    <span class="slab-percent-pill" id="slab3-rate-tag">10% Return</span>
+                                    <span class="slab-percent-pill" id="slab3-rate-tag">11% Return</span>
                                 </div>
                                 <div class="slab-card-body">
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Min Order Amount (₹)</label>
-                                        <div class="slab-input-wrapper">
+                                        <div class="slab-input-wrapper" id="wrap-slab3-min">
                                             <i class="fa-solid fa-cart-arrow-down"></i>
-                                            <input type="number" id="input-slab3-min" class="slab-num-input" value="1000" min="0" placeholder="1000" oninput="onSlabInputChange(3)" onchange="onSlabMinChange(3)" onblur="onSlabMinBlur(3)">
+                                            <input type="number" id="input-slab3-min" class="slab-num-input" value="700" min="1" placeholder="700" oninput="onSlabInputChange(3)" onchange="onSlabInputChange(3)" onblur="onSlabInputChange(3)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab3-min"></div>
                                     </div>
                                     <div class="slab-arrow-divider">
                                         <i class="fa-solid fa-arrow-down"></i>
                                     </div>
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Cashback Amount (₹)</label>
-                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                        <div class="slab-input-wrapper slab-cashback-highlight" id="wrap-slab3-cashback">
                                             <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
-                                            <input type="number" id="input-slab3-cashback" class="slab-num-input" value="100" min="0" placeholder="100" oninput="onSlabInputChange(3)" onchange="onSlabCashbackChange(3)" onblur="onSlabCashbackBlur(3)">
+                                            <input type="number" id="input-slab3-cashback" class="slab-num-input" value="80" min="1" placeholder="80" oninput="onSlabInputChange(3)" onchange="onSlabInputChange(3)" onblur="onSlabInputChange(3)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab3-cashback"></div>
                                     </div>
                                 </div>
                                 <div class="slab-card-summary" id="slab3-summary-text">
-                                    Earn <strong>₹100</strong> on orders ≥ <strong>₹1000</strong>
+                                    Earn <strong>₹80</strong> on orders ≥ <strong>₹700</strong>
                                 </div>
                             </div>
 
@@ -3835,20 +3853,22 @@
                                 <div class="slab-card-body">
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Min Order Amount (₹)</label>
-                                        <div class="slab-input-wrapper">
+                                        <div class="slab-input-wrapper" id="wrap-slab4-min">
                                             <i class="fa-solid fa-cart-arrow-down"></i>
-                                            <input type="number" id="input-slab4-min" class="slab-num-input" value="2000" min="0" placeholder="2000" oninput="onSlabInputChange(4)" onchange="onSlabMinChange(4)" onblur="onSlabMinBlur(4)">
+                                            <input type="number" id="input-slab4-min" class="slab-num-input" value="2000" min="1" placeholder="2000" oninput="onSlabInputChange(4)" onchange="onSlabInputChange(4)" onblur="onSlabInputChange(4)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab4-min"></div>
                                     </div>
                                     <div class="slab-arrow-divider">
                                         <i class="fa-solid fa-arrow-down"></i>
                                     </div>
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Cashback Amount (₹)</label>
-                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                        <div class="slab-input-wrapper slab-cashback-highlight" id="wrap-slab4-cashback">
                                             <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
-                                            <input type="number" id="input-slab4-cashback" class="slab-num-input" value="200" min="0" placeholder="200" oninput="onSlabInputChange(4)" onchange="onSlabCashbackChange(4)" onblur="onSlabCashbackBlur(4)">
+                                            <input type="number" id="input-slab4-cashback" class="slab-num-input" value="200" min="1" placeholder="200" oninput="onSlabInputChange(4)" onchange="onSlabInputChange(4)" onblur="onSlabInputChange(4)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab4-cashback"></div>
                                     </div>
                                 </div>
                                 <div class="slab-card-summary" id="slab4-summary-text">
@@ -3865,20 +3885,22 @@
                                 <div class="slab-card-body">
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Min Order Amount (₹)</label>
-                                        <div class="slab-input-wrapper">
+                                        <div class="slab-input-wrapper" id="wrap-slab5-min">
                                             <i class="fa-solid fa-cart-arrow-down"></i>
-                                            <input type="number" id="input-slab5-min" class="slab-num-input" value="3000" min="0" placeholder="3000" oninput="onSlabInputChange(5)" onchange="onSlabMinChange(5)" onblur="onSlabMinBlur(5)">
+                                            <input type="number" id="input-slab5-min" class="slab-num-input" value="3000" min="1" placeholder="3000" oninput="onSlabInputChange(5)" onchange="onSlabInputChange(5)" onblur="onSlabInputChange(5)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab5-min"></div>
                                     </div>
                                     <div class="slab-arrow-divider">
                                         <i class="fa-solid fa-arrow-down"></i>
                                     </div>
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Cashback Amount (₹)</label>
-                                        <div class="slab-input-wrapper slab-cashback-highlight">
+                                        <div class="slab-input-wrapper slab-cashback-highlight" id="wrap-slab5-cashback">
                                             <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
-                                            <input type="number" id="input-slab5-cashback" class="slab-num-input" value="300" min="0" placeholder="300" oninput="onSlabInputChange(5)" onchange="onSlabCashbackChange(5)" onblur="onSlabCashbackBlur(5)">
+                                            <input type="number" id="input-slab5-cashback" class="slab-num-input" value="300" min="1" placeholder="300" oninput="onSlabInputChange(5)" onchange="onSlabInputChange(5)" onblur="onSlabInputChange(5)">
                                         </div>
+                                        <div class="slab-inline-error" id="error-slab5-cashback"></div>
                                     </div>
                                 </div>
                                 <div class="slab-card-summary" id="slab5-summary-text">
@@ -6516,7 +6538,6 @@
         const FREE_DELIVERY_KEY = 'freeDeliveryLimit';
         const CUSTOMER_CARE_PHONE_KEY = 'customerCarePhone';
         const CUSTOMER_CARE_ENABLED_KEY = 'customerCareEnabled';
-        const HIDE_STAFF_PAYMENT_KEY = 'hideStaffPaymentDetails';
         const RESTAURANT_LAT_KEY = 'restaurantLatitude';
         const RESTAURANT_LNG_KEY = 'restaurantLongitude';
         const DELIVERY_RADIUS_KEY = 'deliveryRadiusKm';
@@ -6598,42 +6619,6 @@
             }
 
             evaluateAndSyncShopStatus(true);
-        }
-
-        function getHideStaffPaymentDetails() {
-            try {
-                const stored = localStorage.getItem(HIDE_STAFF_PAYMENT_KEY);
-                return stored === 'true';
-            } catch (e) {
-                return false;
-            }
-        }
-
-        function updateHidePaymentDetailsToggleLabel(hide) {
-            const statusEl = document.getElementById('hide-payment-details-toggle-status');
-            if (statusEl) {
-                statusEl.textContent = hide ? 'ON (Prices Hidden)' : 'OFF (Prices Visible)';
-                statusEl.style.color = hide ? 'var(--accent-red)' : 'var(--text-muted)';
-            }
-        }
-
-        function onHidePaymentDetailsChange(checked) {
-            updateHidePaymentDetailsToggleLabel(checked);
-            try {
-                localStorage.setItem(HIDE_STAFF_PAYMENT_KEY, checked.toString());
-            } catch (e) { }
-
-            if (adminFirestore) {
-                try {
-                    adminFirestore.collection('settings').doc('storeSettings').set({
-                        hideStaffPaymentDetails: checked,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true }).catch(() => { });
-                } catch (e) { }
-            }
-
-            syncStoreSettingsToBackend({ hideStaffPaymentDetails: checked });
-            showToast(checked ? 'Order prices are now HIDDEN on Chef Portal (Payment types remain visible)' : 'Order prices are now VISIBLE on Chef Portal');
         }
 
         // 6 Flexible Zone Delivery Charges Keys & Defaults
@@ -7041,7 +7026,6 @@
             if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
             if (data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
             if (data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-            if (data.hideStaffPaymentDetails !== undefined) localStorage.setItem(HIDE_STAFF_PAYMENT_KEY, String(data.hideStaffPaymentDetails));
             if (data.masterDeliveryOtp !== undefined) localStorage.setItem(MASTER_DELIVERY_OTP_KEY, String(data.masterDeliveryOtp));
             if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
             if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
@@ -7063,7 +7047,6 @@
             const phoneInput = document.getElementById('input-customer-care-phone');
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
             const statusEl = document.getElementById('customer-care-toggle-status');
-            const toggleHidePayment = document.getElementById('toggle-hide-payment-details');
             const masterOtpInput = document.getElementById('input-master-delivery-otp');
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
@@ -7087,11 +7070,6 @@
                     toggleCare.checked = isCareOn;
                     updateCustomerCareToggleLabel(isCareOn);
                 }
-            }
-            if (toggleHidePayment && activeEl !== toggleHidePayment && data.hideStaffPaymentDetails !== undefined) {
-                const isHide = Boolean(data.hideStaffPaymentDetails === true || data.hideStaffPaymentDetails === 'true');
-                toggleHidePayment.checked = isHide;
-                updateHidePaymentDetailsToggleLabel(isHide);
             }
             if (masterOtpInput && activeEl !== masterOtpInput && data.masterDeliveryOtp !== undefined) {
                 const incomingOtp = String(data.masterDeliveryOtp);
@@ -7201,13 +7179,6 @@
                 updateCustomerCareToggleLabel(currentCustomerCareEnabled);
             }
 
-            const toggleHidePayment = document.getElementById('toggle-hide-payment-details');
-            if (toggleHidePayment) {
-                const isHide = getHideStaffPaymentDetails();
-                toggleHidePayment.checked = isHide;
-                updateHidePaymentDetailsToggleLabel(isHide);
-            }
-
             if (toggleAutoSchedule) {
                 const isAuto = getAutoScheduleEnabled();
                 toggleAutoSchedule.checked = isAuto;
@@ -7240,7 +7211,6 @@
             const freeInput = document.getElementById('input-free-delivery-limit');
             const phoneInput = document.getElementById('input-customer-care-phone');
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
-            const toggleHidePayment = document.getElementById('toggle-hide-payment-details');
             const masterOtpInput = document.getElementById('input-master-delivery-otp');
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
@@ -7252,7 +7222,7 @@
 
             const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
             const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
-            const phoneRaw = currentCustomerCarePhone || (phoneInput ? phoneInput.value : '') || DEFAULT_CUSTOMER_CARE_PHONE;
+            const phoneRaw = (phoneInput && phoneInput.value.trim() !== '') ? phoneInput.value.trim() : (currentCustomerCarePhone || DEFAULT_CUSTOMER_CARE_PHONE);
             const phoneVal = String(phoneRaw).replace(/[^0-9]/g, '').trim();
             const masterOtpVal = masterOtpInput ? masterOtpInput.value.replace(/[^0-9]/g, '').slice(0, 4) : DEFAULT_MASTER_DELIVERY_OTP;
             const latVal = latInput ? (parseFloat(latInput.value) || DEFAULT_RESTAURANT_LAT) : DEFAULT_RESTAURANT_LAT;
@@ -7296,10 +7266,7 @@
                 return false;
             }
 
-            const isCareEnabled = currentCustomerCareEnabled !== undefined
-                ? Boolean(currentCustomerCareEnabled)
-                : (toggleCare ? toggleCare.checked : true);
-            const isHidePayment = toggleHidePayment ? toggleHidePayment.checked : false;
+            const isCareEnabled = toggleCare ? toggleCare.checked : (currentCustomerCareEnabled !== undefined ? Boolean(currentCustomerCareEnabled) : true);
 
             // Commit to in-memory state and clear dirty flags
             currentCustomerCarePhone = phoneVal;
@@ -7323,7 +7290,6 @@
                 localStorage.setItem(FREE_DELIVERY_KEY, freeVal.toString());
                 localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, phoneVal);
                 localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, isCareEnabled.toString());
-                localStorage.setItem(HIDE_STAFF_PAYMENT_KEY, isHidePayment.toString());
                 localStorage.setItem(MASTER_DELIVERY_OTP_KEY, masterOtpVal);
                 localStorage.setItem(RESTAURANT_LAT_KEY, latVal.toString());
                 localStorage.setItem(RESTAURANT_LNG_KEY, lngVal.toString());
@@ -7341,7 +7307,6 @@
                     freeDeliveryLimit: freeVal,
                     customerCarePhone: phoneVal,
                     customerCareEnabled: isCareEnabled,
-                    hideStaffPaymentDetails: isHidePayment,
                     masterDeliveryOtp: masterOtpVal,
                     restaurantLat: latVal,
                     restaurantLng: lngVal,
@@ -7374,7 +7339,6 @@
                     freeDeliveryLimit: freeVal,
                     customerCarePhone: phoneVal,
                     customerCareEnabled: isCareEnabled,
-                    hideStaffPaymentDetails: isHidePayment,
                     masterDeliveryOtp: masterOtpVal,
                     restaurantLat: latVal,
                     restaurantLng: lngVal,
@@ -7799,8 +7763,8 @@
         // WALLET & CASHBACK SLABS CONFIGURATION CONTROLLER (5 SLABS SYSTEM)
         // --------------------------------------------------------------------------
         const TOTAL_WALLET_SLABS = 5;
-        const MIN_ORDER_GAP = 1;
-        const CASHBACK_GAP = 1;
+        const MIN_ORDER_GAP = 100;
+        const CASHBACK_GAP = 5;
 
         const DEFAULT_WALLET_CONFIG = {
             enabled: true,
@@ -7851,127 +7815,142 @@
         window.getSlabCashbackVal = getSlabCashbackVal;
 
         /**
-         * Real-time auto-clamping for Minimum Order Amount on change / blur:
-         * Lower bound: Slab(i-1).minOrder + 100 (or 0 for Slab 1)
-         * Upper bound: Slab(i+1).minOrder - 100 (or Infinity for Slab 5)
+         * Comprehensive Real-time Validation for Slabs 1 to 5:
+         * 1. Minimum Order Amount:
+         *    - Strict ascending order: Slab 1 < Slab 2 < Slab 3 < Slab 4 < Slab 5.
+         *    - Mandatory minimum gap of ₹100 between consecutive slabs (Slab[i] >= Slab[i-1] + 100).
+         * 2. Cashback Amount:
+         *    - Strict ascending order across all 5 slabs: Cashback 1 < Cashback 2 < Cashback 3 < Cashback 4 < Cashback 5.
+         *    - Mandatory minimum gap of ₹5 between consecutive slabs (Cashback[i] >= Cashback[i-1] + 5).
+         *    - Cashback cannot exceed Minimum Order Amount for any slab.
+         * 3. UI State & Error Handling:
+         *    - Displays immediate inline error beneath offending input field.
+         *    - Highlights offending input with .input-error class.
+         *    - Keeps "Save Wallet Settings" button disabled until all 5 slabs satisfy constraints.
          */
-        function clampSlabMinOrder(index, announce = false) {
-            const el = document.getElementById(`input-slab${index}-min`);
-            if (!el) return;
+        function validateWalletSlabsUI() {
+            let hasError = false;
 
-            let val = parseFloat(el.value);
-            const def = DEFAULT_WALLET_CONFIG.slabs[index - 1] ? DEFAULT_WALLET_CONFIG.slabs[index - 1].minOrder : index * 500;
-            if (isNaN(val) || val < 0) {
-                val = def;
-            } else {
-                val = Math.round(val);
+            const minVals = [];
+            const cbVals = [];
+
+            for (let i = 1; i <= TOTAL_WALLET_SLABS; i++) {
+                const minEl = document.getElementById(`input-slab${i}-min`);
+                const cbEl = document.getElementById(`input-slab${i}-cashback`);
+                const minWrap = document.getElementById(`wrap-slab${i}-min`) || (minEl ? minEl.closest('.slab-input-wrapper') : null);
+                const cbWrap = document.getElementById(`wrap-slab${i}-cashback`) || (cbEl ? cbEl.closest('.slab-input-wrapper') : null);
+                const minErrEl = document.getElementById(`error-slab${i}-min`);
+                const cbErrEl = document.getElementById(`error-slab${i}-cashback`);
+
+                if (minWrap) minWrap.classList.remove('input-error');
+                if (cbWrap) cbWrap.classList.remove('input-error');
+                if (minErrEl) { minErrEl.textContent = ''; minErrEl.style.display = 'none'; }
+                if (cbErrEl) { cbErrEl.textContent = ''; cbErrEl.style.display = 'none'; }
+
+                const rawMin = minEl ? minEl.value.trim() : '';
+                const rawCb = cbEl ? cbEl.value.trim() : '';
+
+                const minNum = rawMin === '' ? NaN : parseFloat(rawMin);
+                const cbNum = rawCb === '' ? NaN : parseFloat(rawCb);
+
+                minVals.push({ index: i, val: minNum, raw: rawMin, el: minEl, wrap: minWrap, errEl: minErrEl });
+                cbVals.push({ index: i, val: cbNum, raw: rawCb, el: cbEl, wrap: cbWrap, errEl: cbErrEl });
             }
 
-            const minAllowed = index === 1 ? 0 : getSlabMinOrderVal(index - 1) + MIN_ORDER_GAP;
-            const maxAllowed = index === TOTAL_WALLET_SLABS ? Infinity : Math.max(minAllowed, getSlabMinOrderVal(index + 1) - MIN_ORDER_GAP);
+            // 1. Validate Minimum Order Amounts (Slabs 1 to 5)
+            for (let i = 0; i < TOTAL_WALLET_SLABS; i++) {
+                const item = minVals[i];
+                let err = '';
 
-            let clampedVal = val;
-            let wasClamped = false;
-            let reason = '';
+                if (isNaN(item.val) || item.raw === '') {
+                    err = `⚠️ Slab ${item.index} Min Order is required.`;
+                } else if (item.val < 1) {
+                    err = `⚠️ Slab ${item.index} Min Order must be at least ₹1.`;
+                } else if (i > 0) {
+                    const prev = minVals[i - 1];
+                    if (!isNaN(prev.val) && item.val < prev.val + MIN_ORDER_GAP) {
+                        err = `⚠️ Must be ≥ ₹${prev.val + MIN_ORDER_GAP} (min ₹100 gap above Slab ${i}).`;
+                    }
+                }
 
-            if (val < minAllowed) {
-                clampedVal = minAllowed;
-                wasClamped = true;
-                reason = index > 1 
-                    ? `Slab ${index} Min Order must be at least ₹${minAllowed} (≥ Slab ${index - 1} + ₹100). Auto-adjusted.`
-                    : `Slab 1 Min Order cannot be negative. Auto-adjusted to ₹${minAllowed}.`;
-            } else if (val > maxAllowed) {
-                clampedVal = maxAllowed;
-                wasClamped = true;
-                reason = `Slab ${index} Min Order cannot exceed ₹${maxAllowed} (must be ≤ Slab ${index + 1} - ₹100). Auto-adjusted.`;
+                if (!err && i < TOTAL_WALLET_SLABS - 1) {
+                    const next = minVals[i + 1];
+                    if (!isNaN(next.val) && item.val > next.val - MIN_ORDER_GAP) {
+                        err = `⚠️ Must be ≤ ₹${next.val - MIN_ORDER_GAP} (min ₹100 gap below Slab ${i + 2}).`;
+                    }
+                }
+
+                if (err) {
+                    hasError = true;
+                    if (item.wrap) item.wrap.classList.add('input-error');
+                    if (item.errEl) {
+                        item.errEl.textContent = err;
+                        item.errEl.style.display = 'flex';
+                    }
+                }
             }
 
-            el.value = clampedVal;
-            updateSlabSummary(index);
+            // 2. Validate Cashback Amounts (Slabs 1 to 5)
+            for (let i = 0; i < TOTAL_WALLET_SLABS; i++) {
+                const item = cbVals[i];
+                const minItem = minVals[i];
+                let err = '';
 
-            if (wasClamped && announce && typeof showToast === 'function') {
-                showToast(`⚠️ ${reason}`);
+                if (isNaN(item.val) || item.raw === '') {
+                    err = `⚠️ Slab ${item.index} Cashback is required.`;
+                } else if (item.val < 1) {
+                    err = `⚠️ Slab ${item.index} Cashback must be at least ₹1.`;
+                } else if (!isNaN(minItem.val) && item.val > minItem.val) {
+                    err = `⚠️ Cashback (₹${item.val}) cannot exceed Min Order (₹${minItem.val}).`;
+                } else if (i > 0) {
+                    const prev = cbVals[i - 1];
+                    if (!isNaN(prev.val) && item.val < prev.val + CASHBACK_GAP) {
+                        err = `⚠️ Must be ≥ ₹${prev.val + CASHBACK_GAP} (min ₹5 gap above Slab ${i}).`;
+                    }
+                }
+
+                if (!err && i < TOTAL_WALLET_SLABS - 1) {
+                    const next = cbVals[i + 1];
+                    if (!isNaN(next.val) && item.val > next.val - CASHBACK_GAP) {
+                        err = `⚠️ Must be ≤ ₹${next.val - CASHBACK_GAP} (min ₹5 gap below Slab ${i + 2}).`;
+                    }
+                }
+
+                if (err) {
+                    hasError = true;
+                    if (item.wrap) item.wrap.classList.add('input-error');
+                    if (item.errEl) {
+                        item.errEl.textContent = err;
+                        item.errEl.style.display = 'flex';
+                    }
+                }
             }
 
-            return clampedVal;
-        }
-        window.clampSlabMinOrder = clampSlabMinOrder;
-
-        /**
-         * Real-time auto-clamping for Cashback Amount on change / blur:
-         * Lower bound: Slab(i-1).cashback + 10 (or 0 for Slab 1)
-         * Upper bound: Slab(i+1).cashback - 10 (or Infinity for Slab 5)
-         */
-        function clampSlabCashback(index, announce = false) {
-            const el = document.getElementById(`input-slab${index}-cashback`);
-            if (!el) return;
-
-            let val = parseFloat(el.value);
-            const def = DEFAULT_WALLET_CONFIG.slabs[index - 1] ? DEFAULT_WALLET_CONFIG.slabs[index - 1].cashback : index * 50;
-            if (isNaN(val) || val < 0) {
-                val = def;
-            } else {
-                val = Math.round(val);
+            // 3. Keep "Save Wallet Settings" button disabled while any violation exists
+            const saveBtn = document.getElementById('btn-save-wallet-settings');
+            if (saveBtn) {
+                saveBtn.disabled = hasError;
+                if (hasError) {
+                    saveBtn.classList.add('btn-disabled');
+                    saveBtn.title = 'Please resolve all slab validation errors before saving';
+                } else {
+                    saveBtn.classList.remove('btn-disabled');
+                    saveBtn.title = 'Save Wallet Settings';
+                }
             }
 
-            const minAllowed = index === 1 ? 0 : getSlabCashbackVal(index - 1) + CASHBACK_GAP;
-            const maxAllowed = index === TOTAL_WALLET_SLABS ? Infinity : Math.max(minAllowed, getSlabCashbackVal(index + 1) - CASHBACK_GAP);
-
-            let clampedVal = val;
-            let wasClamped = false;
-            let reason = '';
-
-            if (val < minAllowed) {
-                clampedVal = minAllowed;
-                wasClamped = true;
-                reason = index > 1
-                    ? `Slab ${index} Cashback must be at least ₹${minAllowed} (≥ Slab ${index - 1} + ₹10). Auto-adjusted.`
-                    : `Slab 1 Cashback cannot be negative. Auto-adjusted to ₹${minAllowed}.`;
-            } else if (val > maxAllowed) {
-                clampedVal = maxAllowed;
-                wasClamped = true;
-                reason = `Slab ${index} Cashback cannot exceed ₹${maxAllowed} (must be ≤ Slab ${index + 1} - ₹10). Auto-adjusted.`;
-            }
-
-            el.value = clampedVal;
-            updateSlabSummary(index);
-
-            if (wasClamped && announce && typeof showToast === 'function') {
-                showToast(`⚠️ ${reason}`);
-            }
-
-            return clampedVal;
+            return !hasError;
         }
-        window.clampSlabCashback = clampSlabCashback;
-
-        // Change, blur, and input handlers
-        function onSlabMinChange(index) {
-            clampSlabMinOrder(index, true);
-        }
-        window.onSlabMinChange = onSlabMinChange;
-
-        function onSlabMinBlur(index) {
-            clampSlabMinOrder(index, false);
-        }
-        window.onSlabMinBlur = onSlabMinBlur;
-
-        function onSlabCashbackChange(index) {
-            clampSlabCashback(index, true);
-        }
-        window.onSlabCashbackChange = onSlabCashbackChange;
-
-        function onSlabCashbackBlur(index) {
-            clampSlabCashback(index, false);
-        }
-        window.onSlabCashbackBlur = onSlabCashbackBlur;
+        window.validateWalletSlabsUI = validateWalletSlabsUI;
 
         function onSlabInputChange(index) {
             updateSlabSummary(index);
+            validateWalletSlabsUI();
         }
         window.onSlabInputChange = onSlabInputChange;
 
         function onWalletConfigChange() {
-            // Live validation hook
+            validateWalletSlabsUI();
         }
         window.onWalletConfigChange = onWalletConfigChange;
 
@@ -7999,68 +7978,32 @@
         window.updateSlabSummary = updateSlabSummary;
 
         /**
-         * Comprehensive Integrity Pass across all 5 slabs:
-         * Guarantees strictly ascending hierarchy:
-         * - minOrder[i] >= minOrder[i-1] + 100
-         * - cashback[i] >= cashback[i-1] + 10
-         * Updates DOM inputs and returns clean array of 5 slab objects.
+         * Collects validated slabs array from DOM inputs
          */
-        function validateAndEnforceAllSlabsIntegrity() {
+        function getValidatedSlabsFromDOM() {
             const slabs = [];
             for (let i = 1; i <= TOTAL_WALLET_SLABS; i++) {
-                const def = DEFAULT_WALLET_CONFIG.slabs[i - 1];
-                let m = getSlabMinOrderVal(i);
-                let c = getSlabCashbackVal(i);
                 slabs.push({
-                    minOrder: Math.max(0, m),
-                    cashback: Math.max(0, c)
+                    minOrder: getSlabMinOrderVal(i),
+                    cashback: getSlabCashbackVal(i)
                 });
             }
-
-            // Forward pass for minOrder (mandatory minimum gap of 100)
-            if (slabs[0].minOrder < 0) slabs[0].minOrder = 0;
-            for (let i = 1; i < TOTAL_WALLET_SLABS; i++) {
-                const minReq = slabs[i - 1].minOrder + MIN_ORDER_GAP;
-                if (slabs[i].minOrder < minReq) {
-                    slabs[i].minOrder = minReq;
-                }
-            }
-
-            // Forward pass for cashback (mandatory minimum gap of 10)
-            if (slabs[0].cashback < 0) slabs[0].cashback = 0;
-            for (let i = 1; i < TOTAL_WALLET_SLABS; i++) {
-                const cbReq = slabs[i - 1].cashback + CASHBACK_GAP;
-                if (slabs[i].cashback < cbReq) {
-                    slabs[i].cashback = cbReq;
-                }
-            }
-
-            // Write back to inputs and update summaries
-            for (let i = 1; i <= TOTAL_WALLET_SLABS; i++) {
-                const minEl = document.getElementById(`input-slab${i}-min`);
-                const cbEl = document.getElementById(`input-slab${i}-cashback`);
-                if (minEl && document.activeElement !== minEl) minEl.value = slabs[i - 1].minOrder;
-                if (cbEl && document.activeElement !== cbEl) cbEl.value = slabs[i - 1].cashback;
-                updateSlabSummary(i);
-            }
-
             return slabs;
         }
-        window.validateAndEnforceAllSlabsIntegrity = validateAndEnforceAllSlabsIntegrity;
+        window.getValidatedSlabsFromDOM = getValidatedSlabsFromDOM;
 
         function applyAdminWalletConfig(config) {
             if (!config) return;
 
-            // Normalize incoming slabs array to 5 slabs
             let rawSlabs = Array.isArray(config.slabs) ? [...config.slabs] : [];
             if (rawSlabs.length < TOTAL_WALLET_SLABS) {
                 for (let i = rawSlabs.length; i < TOTAL_WALLET_SLABS; i++) {
                     const prevMin = i > 0 ? (rawSlabs[i - 1].minOrder || 0) : 0;
                     const prevCb = i > 0 ? (rawSlabs[i - 1].cashback || 0) : 0;
-                    const def = DEFAULT_WALLET_CONFIG.slabs[i];
+                    const def = DEFAULT_WALLET_CONFIG.slabs[i] || { minOrder: (i + 1) * 600, cashback: (i + 1) * 60 };
                     rawSlabs.push({
-                        minOrder: Math.max(def.minOrder, prevMin + 1000),
-                        cashback: Math.max(def.cashback, prevCb + 100)
+                        minOrder: Math.max(def.minOrder, prevMin + MIN_ORDER_GAP),
+                        cashback: Math.max(def.cashback, prevCb + CASHBACK_GAP)
                     });
                 }
             }
@@ -8098,14 +8041,7 @@
                 updateSlabSummary(i);
             }
 
-            const isUserTypingWallet = [expiryEl, ...Array.from({ length: TOTAL_WALLET_SLABS }, (_, i) => [
-                document.getElementById(`input-slab${i + 1}-min`),
-                document.getElementById(`input-slab${i + 1}-cashback`)
-            ]).flat()].some(el => el && document.activeElement === el);
-
-            if (!isUserTypingWallet) {
-                validateAndEnforceAllSlabsIntegrity();
-            }
+            validateWalletSlabsUI();
             bindSlabValidationEventListeners();
         }
         window.applyAdminWalletConfig = applyAdminWalletConfig;
@@ -8116,13 +8052,15 @@
                 const cbEl = document.getElementById(`input-slab${i}-cashback`);
                 if (minEl && !minEl.dataset.validatedBound) {
                     minEl.dataset.validatedBound = 'true';
-                    minEl.addEventListener('change', () => clampSlabMinOrder(i, true));
-                    minEl.addEventListener('blur', () => clampSlabMinOrder(i, false));
+                    minEl.addEventListener('input', () => onSlabInputChange(i));
+                    minEl.addEventListener('change', () => onSlabInputChange(i));
+                    minEl.addEventListener('blur', () => onSlabInputChange(i));
                 }
                 if (cbEl && !cbEl.dataset.validatedBound) {
                     cbEl.dataset.validatedBound = 'true';
-                    cbEl.addEventListener('change', () => clampSlabCashback(i, true));
-                    cbEl.addEventListener('blur', () => clampSlabCashback(i, false));
+                    cbEl.addEventListener('input', () => onSlabInputChange(i));
+                    cbEl.addEventListener('change', () => onSlabInputChange(i));
+                    cbEl.addEventListener('blur', () => onSlabInputChange(i));
                 }
             }
 
@@ -8248,6 +8186,15 @@
          */
         async function saveWalletSettings(showToastMsg = true) {
             try {
+                // Strict validation check across all 5 slabs before saving
+                const isSlabsValid = validateWalletSlabsUI();
+                if (!isSlabsValid) {
+                    if (showToastMsg && typeof showToast === 'function') {
+                        showToast('⚠️ Cannot save: Please resolve all slab validation errors (gap and ordering constraints).');
+                    }
+                    throw new Error('Validation failed: Slab ordering or minimum gap constraints violated.');
+                }
+
                 const toggleEl = document.getElementById('toggle-wallet-enabled');
                 const expiryEl = document.getElementById('input-cashback-expiry-days');
 
@@ -8259,8 +8206,8 @@
                 if (expiryDays > 30) expiryDays = 30;
                 if (expiryEl) expiryEl.value = String(expiryDays);
 
-                // Run final integrity pass across all 5 slabs to guarantee clean ascending configurations
-                const slabs = validateAndEnforceAllSlabsIntegrity();
+                // Collect the validated clean slab objects
+                const slabs = getValidatedSlabsFromDOM();
 
                 const docPayload = {
                     key: 'wallet_config',
@@ -11245,7 +11192,7 @@
             if (!e.key || e.key === SHOP_STATUS_KEY) {
                 initShopStatus();
             }
-            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY || e.key === HIDE_STAFF_PAYMENT_KEY || e.key === MASTER_DELIVERY_OTP_KEY || e.key === RESTAURANT_LAT_KEY || e.key === RESTAURANT_LNG_KEY || e.key === DELIVERY_RADIUS_KEY || e.key === OPENING_TIME_KEY || e.key === CLOSING_TIME_KEY || e.key === AUTO_SCHEDULE_KEY || e.key === MANUAL_OVERRIDE_KEY) {
+            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY || e.key === MASTER_DELIVERY_OTP_KEY || e.key === RESTAURANT_LAT_KEY || e.key === RESTAURANT_LNG_KEY || e.key === DELIVERY_RADIUS_KEY || e.key === OPENING_TIME_KEY || e.key === CLOSING_TIME_KEY || e.key === AUTO_SCHEDULE_KEY || e.key === MANUAL_OVERRIDE_KEY) {
                 initOrderSettingsUI();
             }
             if (!e.key || e.key === 'perfettoCustomerOrders') {

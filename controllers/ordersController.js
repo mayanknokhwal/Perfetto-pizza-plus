@@ -201,32 +201,50 @@ async function handleOrdersRequest(req, res) {
                 ? Number(rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min))
                 : Number(DEFAULT_WALLET_CONFIG?.slabs?.[0]?.minOrder || 0);
 
-            const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : activeSlab1Amount;
-            const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false);
+            const isSystemEnabled = global.__perfettoWalletConfig?.enabled !== false;
+            const isSlab1Qualified = Boolean(isSystemEnabled && subtotal >= slab1Threshold && subtotal > 0);
 
             const clientWonAmt = Number(body.wonCashback || body.earnedCashback || body.scratchCard?.wonAmount || body.scratchCard?.amount || 0);
             let verifiedCashback = 0;
             let rewardTitle = '';
 
-            if (isSlab1Qualified) {
+            if (isSystemEnabled && isSlab1Qualified) {
                 if (usedWallet > 0) {
                     // SCENARIO B: Qualifying order (Slab 1+) with Wallet Cash Applied -> Guaranteed flat ₹10 Thank You reward
                     verifiedCashback = 10;
                     rewardTitle = 'Thank You Cashback Reward';
                 } else {
                     // SCENARIO A: Qualifying order (Slab 1+) with Wallet Cash Unchecked -> Dynamic tier reward matching reached milestone
-                    let q = null;
-                    for (const s of sortedSlabs) {
-                        if (subtotal >= s.minOrder) q = s;
+                    let qIndex = -1;
+                    for (let i = 0; i < sortedSlabs.length; i++) {
+                        if (subtotal >= sortedSlabs[i].minOrder) {
+                            qIndex = i;
+                        }
                     }
-                    verifiedCashback = q ? q.cashback : (clientWonAmt > 0 ? clientWonAmt : 10);
-                    rewardTitle = body.rewardTitle || (body.scratchCard?.title) || 'Cashback Reward';
+
+                    if (qIndex >= 0) {
+                        const currentSlab = sortedSlabs[qIndex];
+                        let minBound = 1;
+                        let maxBound = Number(currentSlab.cashback) || 1;
+
+                        if (qIndex > 0) {
+                            const prevMax = Number(sortedSlabs[qIndex - 1].cashback) || 1;
+                            const currMax = Number(currentSlab.cashback) || prevMax;
+                            minBound = Math.min(prevMax, currMax);
+                            maxBound = Math.max(prevMax, currMax);
+                        }
+
+                        // Accept client uniform random choice if strictly within fair [minBound, maxBound]; otherwise generate fair random integer
+                        if (clientWonAmt >= minBound && clientWonAmt <= maxBound) {
+                            verifiedCashback = Math.round(clientWonAmt);
+                        } else {
+                            verifiedCashback = Math.floor(Math.random() * (maxBound - minBound + 1)) + minBound;
+                        }
+                        rewardTitle = body.rewardTitle || (body.scratchCard?.title) || 'Cashback Reward';
+                    }
                 }
-            } else if (clientWonAmt > 0 && subtotal >= slab1Threshold) {
-                verifiedCashback = clientWonAmt;
-                rewardTitle = body.rewardTitle || 'Cashback Reward';
             } else {
-                // Cart Subtotal < Slab 1 Threshold: Do not issue any scratch card
+                // Cart Subtotal < Slab 1 Threshold or System Disabled: No scratch card issued
                 verifiedCashback = 0;
                 rewardTitle = '';
             }
@@ -424,7 +442,7 @@ async function handleOrdersRequest(req, res) {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
             const effectiveId = body?.orderId || body?.id || req.query?.orderId || req.query?.id;
-            const { status, paymentStatus, paymentDetails, deliveryOtp, completedAt, completedDurationSec, scratchClaimed, scratchCard, scratchExpired, scratchExpiresAt, rewardStatus, wonCashback, scratchRevealed } = body || {};
+            const { status, paymentStatus, paymentDetails, deliveryOtp, completedAt, completedDurationSec, scratchClaimed, scratchCard, scratchExpired, scratchExpiresAt, rewardStatus, wonCashback, scratchRevealed, rejectionReason } = body || {};
 
             if (!effectiveId) {
                 return res.status(400).json({ success: false, message: 'orderId is required' });
@@ -437,7 +455,22 @@ async function handleOrdersRequest(req, res) {
                 targetOrder = await getFirestoreDoc('orders', targetId) || { id: targetId, orderId: targetId };
             }
 
+            if (status === 'rejected' || status === 'cancelled') {
+                const liveSettings = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config');
+                const validMasterOtp = String(liveSettings?.masterDeliveryOtp || global.__perfettoStoreSettings?.masterDeliveryOtp || '9999').replace(/[^0-9]/g, '').slice(0, 4);
+                const providedOtp = String(body?.masterOtp || req.headers['x-master-otp'] || '').replace(/[^0-9]/g, '').slice(0, 4);
+
+                const isMasterAdminAuth = req.staffUser && (req.staffUser.isMasterAdmin || req.staffUser.role === 'Master Admin');
+                if (!isMasterAdminAuth && (!providedOtp || providedOtp !== validMasterOtp)) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Invalid Admin Master Cancellation OTP. Order cancellation unauthorized.'
+                    });
+                }
+            }
+
             if (status) targetOrder.status = status;
+            if (rejectionReason !== undefined) targetOrder.rejectionReason = String(rejectionReason).trim();
             if (paymentStatus) targetOrder.paymentStatus = paymentStatus;
             if (paymentDetails) targetOrder.paymentDetails = paymentDetails;
             if (deliveryOtp) targetOrder.deliveryOtp = deliveryOtp;
@@ -505,6 +538,10 @@ async function handleOrdersRequest(req, res) {
                         const creditAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === String(targetId));
 
                         if (isCardScratched && wonAmt > 0 && !wasAlreadyCredited && !creditAlreadyLogged) {
+                            const claimTime = Date.now();
+                            const activeExpiryDays = Math.min(30, Math.max(1, Number(targetOrder.scratchExpiryDays || targetOrder.cashbackExpiryDays || global.__perfettoWalletConfig?.expiryDays || 15)));
+                            const expiresAt = new Date(claimTime + activeExpiryDays * 24 * 60 * 60 * 1000).toISOString();
+
                             const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
                             const newBal = currentBal + wonAmt;
                             userDoc.walletBalance = newBal;
@@ -514,9 +551,15 @@ async function handleOrdersRequest(req, res) {
                                 id: `tx_credit_${targetId}`,
                                 type: 'credit',
                                 amount: wonAmt,
-                                orderId: targetId,
+                                originalAmount: wonAmt,
+                                remainingAmount: wonAmt,
+                                orderId: String(targetId),
                                 description: `Cashback unlocked & credited for Order #${targetId}`,
-                                createdAt: new Date().toISOString(),
+                                createdAt: new Date(claimTime).toISOString(),
+                                claimedAt: new Date(claimTime).toISOString(),
+                                expiresAt: expiresAt,
+                                expiryDays: activeExpiryDays,
+                                cashbackExpiryDays: activeExpiryDays,
                                 status: 'active'
                             };
                             userDoc.walletTransactions.unshift(txEntry);

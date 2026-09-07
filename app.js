@@ -4140,19 +4140,19 @@ function evaluateCustomerStoreStatus() {
         if (!withinHours) {
             return {
                 isOpen: false,
-                message: `We are currently closed. We open at ${formattedOpen}.`
+                message: `Restaurant is currently closed for orders. (Opens at ${formattedOpen})`
             };
         }
 
-        // Inside hours: check if an emergency manual close occurred TODAY
-        if (manualCloseDate && manualCloseDate === todayStr && manualShopStatus === 'closed') {
+        // Inside hours: check if manual shop status is closed
+        if (manualShopStatus === 'closed') {
             return {
                 isOpen: false,
-                message: `We are temporarily closed for today. We will resume normal operations at ${formattedOpen}.`
+                message: `Restaurant is currently closed for orders. (Opens at ${formattedOpen})`
             };
         }
 
-        // Within hours and no active emergency close for today: Open
+        // Within hours and open:
         return { isOpen: true, message: '' };
     }
 
@@ -4160,7 +4160,7 @@ function evaluateCustomerStoreStatus() {
     if (manualShopStatus === 'closed') {
         return {
             isOpen: false,
-            message: `We are currently closed. We open at ${formattedOpen}.`
+            message: `Restaurant is currently closed for orders. (Opens at ${formattedOpen})`
         };
     }
 
@@ -4170,13 +4170,22 @@ function evaluateCustomerStoreStatus() {
 function checkAndUpdateShopStatusUI() {
     const statusInfo = evaluateCustomerStoreStatus();
     const banner = document.getElementById('shop-closed-banner');
+    const cartClosedBanner = document.getElementById('cart-closed-banner');
+    const cartClosedText = document.getElementById('cart-closed-text');
     const isClosed = !statusInfo.isOpen;
 
     if (banner) {
         banner.style.display = isClosed ? 'block' : 'none';
         const bannerSpan = banner.querySelector('span');
-        if (bannerSpan && statusInfo.message) {
-            bannerSpan.textContent = statusInfo.message;
+        if (bannerSpan) {
+            bannerSpan.textContent = statusInfo.message || 'Restaurant is currently closed for orders.';
+        }
+    }
+
+    if (cartClosedBanner) {
+        cartClosedBanner.style.display = isClosed ? 'block' : 'none';
+        if (cartClosedText) {
+            cartClosedText.textContent = statusInfo.message || 'Restaurant is currently closed for orders.';
         }
     }
 
@@ -4186,19 +4195,35 @@ function checkAndUpdateShopStatusUI() {
         document.body.classList.remove('shop-closed');
     }
 
-    const checkoutBtn = document.querySelector('.checkout-btn');
-    if (checkoutBtn) {
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    checkoutBtns.forEach(btn => {
         if (isClosed || (typeof cart !== 'undefined' && cart.length === 0)) {
-            checkoutBtn.setAttribute('disabled', 'true');
+            btn.setAttribute('disabled', 'true');
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
         } else {
-            checkoutBtn.removeAttribute('disabled');
+            btn.removeAttribute('disabled');
+            btn.style.pointerEvents = 'auto';
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
         }
-    }
+    });
 
-    const modalPlaceOrderBtn = document.getElementById('btn-place-order');
-    if (modalPlaceOrderBtn && isClosed) {
-        modalPlaceOrderBtn.setAttribute('disabled', 'true');
-    }
+    const modalPlaceOrderBtns = document.querySelectorAll('#btn-place-order, #btn-pay-cod');
+    modalPlaceOrderBtns.forEach(btn => {
+        if (isClosed) {
+            btn.setAttribute('disabled', 'true');
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        } else if (typeof isCheckoutAddressConfirmed !== 'undefined' && isCheckoutAddressConfirmed) {
+            btn.removeAttribute('disabled');
+            btn.style.pointerEvents = 'auto';
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        }
+    });
 }
 
 // Automatically re-evaluate store schedule every 30 seconds
@@ -4420,7 +4445,8 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
 
     banner.style.display = 'block';
 
-    const isShopClosed = getCustomerShopStatus() === 'closed';
+    const storeStatus = evaluateCustomerStoreStatus();
+    const isShopClosed = !storeStatus.isOpen;
 
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
@@ -4443,8 +4469,18 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
             <i class="fa-solid fa-truck-arrow-right"></i>
             <span>${isHindi ? `मुफ्त होम डिलीवरी के लिए ${formatPrice(diff)} और जोड़ें!` : `Add ${formatPrice(diff)} more to get FREE Home Delivery!`}</span>
         `;
-        if (checkoutBtn && !isShopClosed) {
-            checkoutBtn.removeAttribute('disabled');
+        if (checkoutBtn) {
+            if (isShopClosed) {
+                checkoutBtn.setAttribute('disabled', 'true');
+                checkoutBtn.style.pointerEvents = 'none';
+                checkoutBtn.style.opacity = '0.5';
+                checkoutBtn.style.cursor = 'not-allowed';
+            } else {
+                checkoutBtn.removeAttribute('disabled');
+                checkoutBtn.style.pointerEvents = 'auto';
+                checkoutBtn.style.opacity = '1';
+                checkoutBtn.style.cursor = 'pointer';
+            }
         }
     } else {
         // CONDITION C: Free Delivery Unlocked!
@@ -4453,8 +4489,18 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
             <i class="fa-solid fa-circle-check"></i>
             <span>${isHindi ? `बधाई हो! आपको मुफ़्त डिलीवरी मिल गई है।` : `Congratulations! You have unlocked FREE Delivery.`}</span>
         `;
-        if (checkoutBtn && !isShopClosed) {
-            checkoutBtn.removeAttribute('disabled');
+        if (checkoutBtn) {
+            if (isShopClosed) {
+                checkoutBtn.setAttribute('disabled', 'true');
+                checkoutBtn.style.pointerEvents = 'none';
+                checkoutBtn.style.opacity = '0.5';
+                checkoutBtn.style.cursor = 'not-allowed';
+            } else {
+                checkoutBtn.removeAttribute('disabled');
+                checkoutBtn.style.pointerEvents = 'auto';
+                checkoutBtn.style.opacity = '1';
+                checkoutBtn.style.cursor = 'pointer';
+            }
         }
     }
 }
@@ -4583,70 +4629,123 @@ function reconcileWalletTranches(wallet) {
         return wallet.balance;
     }
 
-    // 1. Separate credits and compute total debits
+    // 1. Collect credits and debits
     const credits = [];
-    let totalDebitAmount = 0;
+    const debits = [];
 
     wallet.transactions.forEach(tx => {
         if (!tx) return;
         if (tx.type === 'debit') {
-            totalDebitAmount += Math.max(0, Math.abs(Number(tx.amount) || 0));
+            const amt = Math.max(0, Math.abs(Number(tx.amount) || 0));
+            if (amt > 0) {
+                const debitTime = tx.createdAt ? new Date(tx.createdAt).getTime() : nowMs;
+                debits.push({ tx, amount: amt, time: isNaN(debitTime) ? nowMs : debitTime });
+            }
         } else if (tx.type === 'credit') {
             if (tx.originalAmount === undefined) {
                 tx.originalAmount = (tx.amount !== undefined) ? Math.max(0, Number(tx.amount) || 0) : 0;
             }
             tx.remainingAmount = Math.max(0, Number(tx.originalAmount));
             tx.status = 'active';
-            credits.push(tx);
+
+            const createdTime = tx.createdAt ? new Date(tx.createdAt).getTime() : 0;
+            const expMs = tx.expiresAt ? new Date(tx.expiresAt).getTime() : Infinity;
+
+            credits.push({
+                tx,
+                createdTime: isNaN(createdTime) ? 0 : createdTime,
+                expiresAtMs: isNaN(expMs) ? Infinity : expMs
+            });
         }
     });
 
-    // 2. Sort credits FIFO: earliest expiring first, then oldest createdAt first
-    credits.sort((a, b) => {
-        const expA = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
-        const expB = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
-        if (expA !== expB) return expA - expB;
-        const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return createdA - createdB;
-    });
+    // 2. Sort debits chronologically (oldest debit first)
+    debits.sort((a, b) => a.time - b.time);
 
-    // 3. Allocate total debits sequentially against credit tranches
-    let debitToApply = totalDebitAmount;
-    for (const credit of credits) {
-        if (debitToApply <= 0) break;
-        const avail = credit.remainingAmount;
-        if (avail <= 0) continue;
+    // 3. For each debit, allocate against eligible credits:
+    // Eligible credits must have been active (not expired at debit time, and created at or before debit time)
+    // Consuming strictly in FIFO order: earliest expiring first
+    for (const debit of debits) {
+        let needed = debit.amount;
+        if (needed <= 0) continue;
 
-        if (avail <= debitToApply) {
-            debitToApply -= avail;
-            credit.remainingAmount = 0;
-            credit.status = 'used';
-        } else {
-            credit.remainingAmount = avail - debitToApply;
-            debitToApply = 0;
-            credit.status = 'partially_used';
+        // Filter and sort available credit tranches for this debit
+        const eligible = credits
+            .filter(c => c.tx.remainingAmount > 0 && c.createdTime <= debit.time && c.expiresAtMs > debit.time)
+            .sort((a, b) => {
+                if (a.expiresAtMs !== b.expiresAtMs) return a.expiresAtMs - b.expiresAtMs;
+                return a.createdTime - b.createdTime;
+            });
+
+        for (const c of eligible) {
+            if (needed <= 0) break;
+            const avail = c.tx.remainingAmount;
+            if (avail <= 0) continue;
+
+            if (avail <= needed) {
+                needed -= avail;
+                c.tx.remainingAmount = 0;
+                c.tx.status = 'used';
+            } else {
+                c.tx.remainingAmount = avail - needed;
+                needed = 0;
+                c.tx.status = 'partially_used';
+            }
+        }
+
+        // Fallback for legacy data where credit createdAt may be missing or newer than debit
+        if (needed > 0) {
+            const fallbackEligible = credits
+                .filter(c => c.tx.remainingAmount > 0 && c.expiresAtMs > debit.time)
+                .sort((a, b) => a.expiresAtMs - b.expiresAtMs);
+            for (const c of fallbackEligible) {
+                if (needed <= 0) break;
+                const avail = c.tx.remainingAmount;
+                if (avail <= 0) continue;
+                if (avail <= needed) {
+                    needed -= avail;
+                    c.tx.remainingAmount = 0;
+                    c.tx.status = 'used';
+                } else {
+                    c.tx.remainingAmount = avail - needed;
+                    needed = 0;
+                    c.tx.status = 'partially_used';
+                }
+            }
         }
     }
 
-    // 4. Invalidate expired credit tranches and calculate net active non-expired sum
+    // 4. Invalidate expired credits at current time and calculate net active unexpired balance
     let activeSum = 0;
-    credits.forEach(credit => {
-        if (credit.expiresAt) {
-            const expMs = new Date(credit.expiresAt).getTime();
-            if (!isNaN(expMs) && expMs <= nowMs) {
-                credit.remainingAmount = 0;
-                credit.status = 'expired';
+    let earliestExpiryMs = Infinity;
+
+    credits.forEach(c => {
+        if (c.expiresAtMs <= nowMs) {
+            c.tx.remainingAmount = 0;
+            c.tx.status = 'expired';
+        } else if (c.tx.remainingAmount > 0) {
+            activeSum += c.tx.remainingAmount;
+            if (c.expiresAtMs < earliestExpiryMs) {
+                earliestExpiryMs = c.expiresAtMs;
             }
-        }
-        if (credit.remainingAmount > 0 && credit.status !== 'used' && credit.status !== 'expired') {
-            activeSum += credit.remainingAmount;
+            if (c.tx.remainingAmount < c.tx.originalAmount) {
+                c.tx.status = 'partially_used';
+            } else {
+                c.tx.status = 'active';
+            }
+        } else {
+            c.tx.status = 'used';
         }
     });
 
     const reconciledBalance = Math.max(0, activeSum);
     wallet.balance = reconciledBalance;
     wallet.nonExpiredBalance = reconciledBalance;
+    if (earliestExpiryMs < Infinity) {
+        wallet.expiresAt = new Date(earliestExpiryMs).toISOString();
+    } else if (reconciledBalance === 0) {
+        wallet.expiresAt = null;
+    }
 
     try {
         localStorage.setItem('perfetto_wallet_balance', reconciledBalance);
@@ -4838,18 +4937,43 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
     }
 
     const currentSlab = sorted[qualifiedIndex];
-    const exactCashback = Number(currentSlab.cashback) || 0;
+    const currentMax = Number(currentSlab.cashback) || 0;
+    let min = 1;
+    let max = Math.max(1, currentMax);
+
+    if (qualifiedIndex > 0) {
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback) || 1;
+        min = Math.min(prevMax, currentMax);
+        max = Math.max(prevMax, currentMax);
+    }
 
     return {
         qualified: true,
-        min: exactCashback,
-        max: exactCashback,
+        min,
+        max,
         tierIndex: qualifiedIndex,
         slab: currentSlab,
         nextSlab
     };
 }
 window.getCashbackRewardBoundaries = getCashbackRewardBoundaries;
+
+/**
+ * Generates a fair uniformly distributed random integer reward for a qualifying order subtotal:
+ * - Slab 1: random integer between ₹1 and Slab 1 max amount inclusive.
+ * - Slabs 2 to 5: fair uniformly distributed random integer between previous slab max and current slab max inclusive.
+ * @param {number} subtotal
+ * @param {Object} [walletConfig]
+ * @returns {number}
+ */
+function generateSlabRewardAmount(subtotal, walletConfig = customerWalletConfig) {
+    const boundaries = getCashbackRewardBoundaries(subtotal, walletConfig);
+    if (!boundaries.qualified || boundaries.max <= 0) return 0;
+    const min = boundaries.min;
+    const max = boundaries.max;
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+window.generateSlabRewardAmount = generateSlabRewardAmount;
 
 /**
  * Dynamically resolves the minimum order threshold required to qualify for Slab 1 reward.
@@ -4971,7 +5095,8 @@ function updateCheckoutWalletUI() {
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
     const availableBalance = getEffectiveWalletBalance();
 
-    if (!isSystemEnabled || availableBalance <= 0 || cart.length === 0) {
+    // System Toggle Behavior: When disabled, existing wallet balance remains 100% redeemable until exhausted
+    if (availableBalance <= 0 || cart.length === 0) {
         walletCard.style.display = 'none';
         isWalletRedemptionSelected = false;
         appliedWalletDiscountAmount = 0;
@@ -5261,6 +5386,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         }
     }
     const now = new Date();
+    // Expiration date calculated at the time of claim based on the active admin config (claimed_at + expiry_days)
     if (!expiresAt) {
         expiresAt = new Date(now.getTime() + activeDays * 24 * 60 * 60 * 1000).toISOString();
     }
@@ -5284,6 +5410,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         orderId: effectiveOrderId,
         description: txDesc,
         createdAt: now.toISOString(),
+        claimedAt: now.toISOString(),
         expiresAt: expiresAt,
         expiryDays: activeDays,
         cashbackExpiryDays: activeDays,
@@ -6147,6 +6274,22 @@ function processCheckout() {
     // Check if delivery profile already exists and is complete
     const savedProfile = getSavedDeliveryProfile();
     if (savedProfile) {
+        // Check delivery radius boundary
+        const coords = (savedProfile.gpsLat !== null && savedProfile.gpsLng !== null)
+            ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
+            : (currentCustomerGps || null);
+
+        if (coords && !isNaN(coords.lat) && !isNaN(coords.lng)) {
+            const radiusCheck = isWithinDeliveryRadius(coords.lat, coords.lng);
+            if (!radiusCheck.isAllowed) {
+                const errMsg = `Selected location is outside our delivery radius of ${radiusCheck.maxRadiusKm} km (You are ${radiusCheck.distanceKm} km away).`;
+                showToast(`🚫 ${errMsg}`);
+                alert(`${errMsg}\n\nPlease move your marker to a valid nearby pick-up/delivery spot within the allowed zone.`);
+                launchCustomerMapModal(coords.lat, coords.lng);
+                return;
+            }
+        }
+
         openCheckoutModal(savedProfile);
         return;
     }
@@ -6157,6 +6300,19 @@ function processCheckout() {
     updateProfileTotalsUI();
     toggleEditProfileForm(true);
 }
+
+function handleAdjustLocationFromCheckout() {
+    closeCheckoutModal();
+    const profile = getSavedDeliveryProfile();
+    let lat = getRestaurantLat();
+    let lng = getRestaurantLng();
+    if (profile && profile.gpsLat && profile.gpsLng) {
+        lat = parseFloat(profile.gpsLat) || lat;
+        lng = parseFloat(profile.gpsLng) || lng;
+    }
+    launchCustomerMapModal(lat, lng);
+}
+window.handleAdjustLocationFromCheckout = handleAdjustLocationFromCheckout;
 
 function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
@@ -6233,6 +6389,27 @@ function openCheckoutModal(profile) {
         `;
     }
 
+    // 2.1 Check delivery radius boundary & render warning banner if outside
+    const radiusAlert = document.getElementById('checkout-radius-alert');
+    const radiusAlertText = document.getElementById('checkout-radius-alert-text');
+    const maxRadius = getDeliveryRadiusKm();
+    let isOutOfRadius = false;
+    let distKm = 0;
+    if (customCoords && !isNaN(customCoords.lat) && !isNaN(customCoords.lng)) {
+        const radiusCheck = isWithinDeliveryRadius(customCoords.lat, customCoords.lng);
+        if (!radiusCheck.isAllowed) {
+            isOutOfRadius = true;
+            distKm = radiusCheck.distanceKm;
+        }
+    }
+
+    if (radiusAlert) {
+        radiusAlert.style.display = isOutOfRadius ? 'block' : 'none';
+        if (radiusAlertText && isOutOfRadius) {
+            radiusAlertText.textContent = `Selected location is outside our delivery radius of ${maxRadius} km (You are ${distKm} km away). Please adjust your location on the map.`;
+        }
+    }
+
     // 3. Update & render customer wallet redemption state
     updateCheckoutWalletUI();
 
@@ -6243,8 +6420,19 @@ function openCheckoutModal(profile) {
     const onlineAlert = document.getElementById('online-payment-alert');
 
     if (confirmBtn) {
-        confirmBtn.className = 'btn-confirm-address-action';
-        confirmBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${typeof t === 'function' ? t('confirm_address') : 'Confirm Address'}`;
+        if (isOutOfRadius) {
+            confirmBtn.className = 'btn-confirm-address-action';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.5';
+            confirmBtn.style.pointerEvents = 'none';
+            confirmBtn.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Location Outside Delivery Area`;
+        } else {
+            confirmBtn.className = 'btn-confirm-address-action';
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.pointerEvents = 'auto';
+            confirmBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${typeof t === 'function' ? t('confirm_address') : 'Confirm Address'}`;
+        }
     }
     if (paymentSection) {
         paymentSection.style.opacity = '0.5';
@@ -6272,6 +6460,22 @@ function handleEditAddressFromCheckout() {
 }
 
 function handleConfirmAddressForCheckout() {
+    const profile = getSavedDeliveryProfile();
+    const coords = (profile && profile.gpsLat && profile.gpsLng)
+        ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
+        : (currentCustomerGps || null);
+
+    if (coords && !isNaN(coords.lat) && !isNaN(coords.lng)) {
+        const radiusCheck = isWithinDeliveryRadius(coords.lat, coords.lng);
+        if (!radiusCheck.isAllowed) {
+            const errMsg = `Selected location is outside our delivery radius of ${radiusCheck.maxRadiusKm} km (You are ${radiusCheck.distanceKm} km away).`;
+            showToast(`🚫 ${errMsg}`);
+            alert(`${errMsg}\n\nPlease move your marker to a valid nearby pick-up/delivery spot within the allowed zone.`);
+            launchCustomerMapModal(coords.lat, coords.lng);
+            return;
+        }
+    }
+
     isCheckoutAddressConfirmed = true;
     const confirmBtn = document.getElementById('btn-confirm-address-action');
     const paymentSection = document.getElementById('checkout-payment-section');
@@ -6303,7 +6507,7 @@ function handleSelectOnlinePayment() {
 function handleSelectCodPayment() {
     const storeStatus = evaluateCustomerStoreStatus();
     if (!storeStatus.isOpen) {
-        showToast(storeStatus.message || 'We are currently closed.');
+        showToast(storeStatus.message || 'Restaurant is currently closed for orders.');
         return;
     }
     if (!isCheckoutAddressConfirmed) {
@@ -6322,6 +6526,21 @@ function handleSelectCodPayment() {
         toggleEditProfileForm(true);
         showToast('Please complete your delivery address first.');
         return;
+    }
+
+    const coords = (savedProfile.gpsLat && savedProfile.gpsLng)
+        ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
+        : (currentCustomerGps || null);
+
+    if (coords && !isNaN(coords.lat) && !isNaN(coords.lng)) {
+        const radiusCheck = isWithinDeliveryRadius(coords.lat, coords.lng);
+        if (!radiusCheck.isAllowed) {
+            const errMsg = `Selected location is outside our delivery radius of ${radiusCheck.maxRadiusKm} km (You are ${radiusCheck.distanceKm} km away).`;
+            showToast(`🚫 ${errMsg}`);
+            alert(`${errMsg}\n\nPlease move your marker to a valid nearby pick-up/delivery spot within the allowed zone.`);
+            launchCustomerMapModal(coords.lat, coords.lng);
+            return;
+        }
     }
 
     closeCheckoutModal();
@@ -6414,7 +6633,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
             rewardTitle = 'Thank You Cashback Reward';
             rewardStatus = 'unscratched';
         } else {
-            earnedCashback = calculateOrderCashback(subtotal);
+            earnedCashback = generateSlabRewardAmount(subtotal, customerWalletConfig);
             wonCashback = earnedCashback;
             rewardTitle = 'Cashback Reward';
             rewardStatus = earnedCashback > 0 ? 'unscratched' : 'none';
@@ -7182,11 +7401,13 @@ function setupScratchCanvas(order, rewardAmount) {
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const isWalletUsed = Boolean(order && (Number(order.usedWallet || order.usedWalletCash || order.walletDiscount || order.appliedWalletDiscount) > 0));
     const isThankYouReward = isWalletUsed || (order && order.rewardTitle === 'Thank You Cashback Reward') || (rewardAmount === 10 && (order && order.rewardTitle && order.rewardTitle.includes('Thank You')));
-    let targetAmount = isThankYouReward ? 10 : Math.max(0, Math.round(Number(rewardAmount || (order && (order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)))) || 0)));
-    if (targetAmount <= 0) {
+    let targetAmount = 10;
+    if (isThankYouReward) {
+        targetAmount = 10;
+    } else {
         const subtotal = Number(order && order.subtotal) || 0;
-        const boundaries = (typeof getCashbackRewardBoundaries === 'function') ? getCashbackRewardBoundaries(subtotal) : { max: 10 };
-        targetAmount = boundaries.max || 10;
+        const boundaries = (typeof getCashbackRewardBoundaries === 'function') ? getCashbackRewardBoundaries(subtotal) : { max: 0 };
+        targetAmount = boundaries.max || Math.max(0, Math.round(Number(rewardAmount || (order && (order.wonCashback || order.earnedCashback)) || 10)));
     }
     const dynamicTargetAmount = targetAmount;
 
@@ -7688,6 +7909,15 @@ async function handleClaimScratchReward() {
     }
 
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+
+    // System Toggle Check: When disabled, customers cannot claim new scratch cards
+    if (customerWalletConfig && customerWalletConfig.enabled === false) {
+        showToast(isHindi 
+            ? 'कैशबैक व रिवॉर्ड सिस्टम वर्तमान में बंद है। स्क्रैच कार्ड क्लेम नहीं किया जा सकता।' 
+            : 'The Wallet & Cashback Rewards system is currently paused. Scratch cards cannot be claimed at this time.');
+        closeScratchCardModal();
+        return;
+    }
     const amount = Number(activeScratchRewardAmount) || Number(activeScratchOrder.earnedCashback) || 0;
     const isDelivered = activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered';
     const effectiveOrderId = String(activeScratchOrder.id || activeScratchOrder.orderId || '');
@@ -7933,7 +8163,7 @@ function openScratchCardModal(order, demoAmount) {
         activeScratchOrder.wonCashback = 10;
         activeScratchOrder.rewardTitle = 'Thank You Cashback Reward';
     } else if (rewardAmount <= 0 && isSlab1Qualified) {
-        rewardAmount = orderSubtotal > 0 ? calculateOrderCashback(orderSubtotal) : (demoAmount !== undefined ? demoAmount : calculateOrderCashback(500));
+        rewardAmount = orderSubtotal > 0 ? generateSlabRewardAmount(orderSubtotal, customerWalletConfig) : (demoAmount !== undefined ? demoAmount : generateSlabRewardAmount(500, customerWalletConfig));
         activeScratchOrder.earnedCashback = rewardAmount;
         activeScratchOrder.wonCashback = rewardAmount;
     } else if (!isSlab1Qualified && demoAmount === undefined) {
@@ -8524,12 +8754,6 @@ function initCustomerLeafletMap(lat, lng) {
             const pos = e.target.getLatLng();
             let newLat = parseFloat(pos.lat.toFixed(6));
             let newLng = parseFloat(pos.lng.toFixed(6));
-            const clamped = clampCoordsToDeliveryRadius(newLat, newLng);
-            if (clamped.wasClamped) {
-                newLat = clamped.lat;
-                newLng = clamped.lng;
-                customerLocationMarker.setLatLng([newLat, newLng]);
-            }
             customerTempCoords = { lat: newLat, lng: newLng };
             updateMapModalCoordsDisplay(newLat, newLng);
         };
@@ -8542,12 +8766,6 @@ function initCustomerLeafletMap(lat, lng) {
             const pos = e.latlng;
             let newLat = parseFloat(pos.lat.toFixed(6));
             let newLng = parseFloat(pos.lng.toFixed(6));
-            const clamped = clampCoordsToDeliveryRadius(newLat, newLng);
-            if (clamped.wasClamped) {
-                newLat = clamped.lat;
-                newLng = clamped.lng;
-                showToast(`⚠️ Location is outside our ${getDeliveryRadiusKm()} km delivery area. Pinned to nearest boundary point!`);
-            }
             customerTempCoords = { lat: newLat, lng: newLng };
             if (customerLocationMarker) {
                 customerLocationMarker.setLatLng([newLat, newLng]);
@@ -8624,7 +8842,7 @@ function updateMapModalCoordsDisplay(lat, lng) {
         if (!check.isAllowed) {
             banner.className = 'map-zone-status-banner out-zone';
             if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
-            text.textContent = `Outside Delivery Zone (${check.distanceKm} km > ${check.maxRadiusKm} km limit)`;
+            text.textContent = `Your selected location is outside our delivery radius of ${check.maxRadiusKm} km (${check.distanceKm} km away). Please move your pin inside the circle.`;
         } else {
             banner.className = 'map-zone-status-banner in-zone';
             if (icon) icon.className = 'fa-solid fa-circle-check';
@@ -8634,6 +8852,8 @@ function updateMapModalCoordsDisplay(lat, lng) {
 
     if (confirmBtn) {
         confirmBtn.disabled = !check.isAllowed;
+        confirmBtn.style.opacity = check.isAllowed ? '1' : '0.5';
+        confirmBtn.style.pointerEvents = check.isAllowed ? 'auto' : 'none';
     }
 }
 
@@ -8793,6 +9013,15 @@ function handleConfirmMapLocation() {
     // Recalculate dynamic delivery fee & update cart / profile UI in real-time
     updateCartUI();
     updateProfileTotalsUI();
+
+    // If checkout modal is open, re-render checkout modal with newly confirmed location
+    const checkoutModal = document.getElementById('checkout-modal');
+    if (checkoutModal && checkoutModal.style.display !== 'none') {
+        const updatedProfile = getSavedDeliveryProfile();
+        if (updatedProfile) {
+            openCheckoutModal(updatedProfile);
+        }
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -10493,15 +10722,16 @@ function checkCustomerCareVisibilityUI() {
 
 function updateCustomerCareModalUI() {
     const phone = getCustomerCarePhone();
-    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
+    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+    const targetPhone = cleanPhone || '9414503886';
     const isEnabled = getCustomerCareEnabled();
 
     const headerCallBtn = document.getElementById('header-call-btn');
     if (headerCallBtn) {
         headerCallBtn.style.display = isEnabled ? 'inline-flex' : 'none';
         headerCallBtn.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
-        headerCallBtn.href = `tel:+91${cleanPhone}`;
-        headerCallBtn.title = `Call Customer Care (+91 ${cleanPhone})`;
+        headerCallBtn.href = `tel:${targetPhone}`;
+        headerCallBtn.title = `Call Customer Care (${targetPhone})`;
     }
 
     const phoneTextEl = document.getElementById('care-phone-number-text');
@@ -10509,14 +10739,14 @@ function updateCustomerCareModalUI() {
 
     if (phoneTextEl) {
         // Nicely formatted 10-digit display (e.g., +91 98765 43210 or 98765 43210)
-        if (cleanPhone.length === 10) {
-            phoneTextEl.textContent = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+        if (targetPhone.length === 10) {
+            phoneTextEl.textContent = `+91 ${targetPhone.slice(0, 5)} ${targetPhone.slice(5)}`;
         } else {
-            phoneTextEl.textContent = cleanPhone;
+            phoneTextEl.textContent = targetPhone;
         }
     }
     if (callLinkEl) {
-        callLinkEl.href = cleanPhone.length === 10 ? `tel:+91${cleanPhone}` : `tel:${cleanPhone}`;
+        callLinkEl.href = `tel:${targetPhone}`;
     }
 
     checkCustomerCareVisibilityUI();
@@ -10554,10 +10784,12 @@ function initCustomerCareModal() {
         // Tapping the header call button directly triggers direct phone dialer protocol
         headerCallBtn.addEventListener('click', (e) => {
             const phone = getCustomerCarePhone();
-            const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
+            const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+            const targetPhone = cleanPhone || '9414503886';
+            headerCallBtn.href = `tel:${targetPhone}`;
             if (headerCallBtn.tagName.toLowerCase() !== 'a' || !headerCallBtn.href) {
                 e.preventDefault();
-                window.location.href = `tel:+91${cleanPhone}`;
+                window.location.href = `tel:${targetPhone}`;
             }
         });
     }
@@ -11113,6 +11345,7 @@ let currentUserProfile = null;
 let customerFirestore = null;
 let menuRealtimeUnsubscribe = null;
 let settingsRealtimeUnsubscribe = null;
+let storeConfigRealtimeUnsubscribe = null;
 
 // Centralized Firebase Configuration for Real-time sync
 const firebaseConfig = window.FIREBASE_CONFIG || {
@@ -11195,38 +11428,56 @@ function listenToRealtimeMenuAndRates() {
     // A2. Individual Item Stream removed to prevent reading 100+ documents on every load (A1 settings/menu already streams all items)
 
     // B. Real-Time Store Settings & Service Rates (Delivery charge, Min order, Customer care)
-    if (!settingsRealtimeUnsubscribe) {
+    function applyIncomingSettingsData(data) {
+        if (!data || typeof data !== 'object') return;
+        if (data.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
+        if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
+        if (data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
+        if (data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
+        if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
+        if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
+        if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
+        if (data.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(data.zoneCharges));
+        if (data.shopStatus !== undefined) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
+        if (data.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
+        if (data.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
+        if (data.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
+        if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
+        if (data.manualCloseDate !== undefined) {
+            if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
+            else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
+        }
+
+        // Instantly apply updated rates & settings to customer UI
+        applyRealtimeStoreSettings();
+        checkAndUpdateShopStatusUI();
+    }
+
+    if (!settingsRealtimeUnsubscribe && customerFirestore) {
         try {
             settingsRealtimeUnsubscribe = customerFirestore.collection('settings').doc('storeSettings').onSnapshot((doc) => {
                 if (doc.exists && doc.data()) {
-                    const data = doc.data();
-                    if (data.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
-                    if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
-                    if (data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
-                    if (data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-                    if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
-                    if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
-                    if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
-                    if (data.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(data.zoneCharges));
-                    if (data.shopStatus !== undefined) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-                    if (data.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
-                    if (data.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
-                    if (data.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
-                    if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
-                    if (data.manualCloseDate !== undefined) {
-                        if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
-                        else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
-                    }
-
-                    // Instantly apply updated rates & settings to customer UI
-                    applyRealtimeStoreSettings();
-                    checkAndUpdateShopStatusUI();
+                    applyIncomingSettingsData(doc.data());
                 }
             }, (err) => {
-                console.warn('Firestore settings real-time notice:', err.message);
+                console.warn('Firestore settings/storeSettings real-time notice:', err.message);
             });
         } catch (e) {
             console.warn('Error setting up settings real-time listener:', e);
+        }
+    }
+
+    if (!storeConfigRealtimeUnsubscribe && customerFirestore) {
+        try {
+            storeConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('store_config').onSnapshot((doc) => {
+                if (doc.exists && doc.data()) {
+                    applyIncomingSettingsData(doc.data());
+                }
+            }, (err) => {
+                console.warn('Firestore settings/store_config real-time notice:', err.message);
+            });
+        } catch (e) {
+            console.warn('Error setting up store_config real-time listener:', e);
         }
     }
 
@@ -11606,15 +11857,16 @@ function applyRealtimeStoreSettings() {
     try {
         const phone = getCustomerCarePhone();
         const careEnabled = getCustomerCareEnabled();
-        const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
+        const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+        const targetPhone = cleanPhone || '9414503886';
 
         // Update header call button
         const headerCallBtn = document.getElementById('header-call-btn');
         if (headerCallBtn) {
             headerCallBtn.style.display = careEnabled ? 'inline-flex' : 'none';
             headerCallBtn.setAttribute('aria-hidden', careEnabled ? 'false' : 'true');
-            headerCallBtn.href = `tel:+91${cleanPhone}`;
-            headerCallBtn.title = `Call Customer Care (+91 ${cleanPhone})`;
+            headerCallBtn.href = `tel:${targetPhone}`;
+            headerCallBtn.title = `Call Customer Care (${targetPhone})`;
         }
 
         // If care is disabled and care modal is currently open, close it immediately
@@ -11626,25 +11878,25 @@ function applyRealtimeStoreSettings() {
         const phoneTextEl = document.getElementById('care-phone-number-text');
         const callLinkEl = document.getElementById('customer-care-call-link');
         if (phoneTextEl) {
-            if (cleanPhone.length === 10) {
-                phoneTextEl.textContent = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
+            if (targetPhone.length === 10) {
+                phoneTextEl.textContent = `+91 ${targetPhone.slice(0, 5)} ${targetPhone.slice(5)}`;
             } else {
-                phoneTextEl.textContent = cleanPhone;
+                phoneTextEl.textContent = targetPhone;
             }
         }
         if (callLinkEl) {
-            callLinkEl.href = cleanPhone.length === 10 ? `tel:+91${cleanPhone}` : `tel:${cleanPhone}`;
+            callLinkEl.href = `tel:${targetPhone}`;
         }
 
         // Backward-compatible updates for any legacy references
         const callBtn = document.getElementById('customer-care-btn');
         const phoneDisplay = document.getElementById('customer-care-number-display');
         if (callBtn) {
-            callBtn.href = `tel:+91${cleanPhone}`;
+            callBtn.href = `tel:${targetPhone}`;
             callBtn.style.display = careEnabled ? 'flex' : 'none';
         }
         if (phoneDisplay) {
-            phoneDisplay.textContent = `+91 ${cleanPhone}`;
+            phoneDisplay.textContent = `+91 ${targetPhone}`;
         }
 
         updateCartUI();
@@ -11874,6 +12126,10 @@ function cleanupAllCustomerListeners() {
         if (typeof settingsRealtimeUnsubscribe === 'function') {
             settingsRealtimeUnsubscribe();
             settingsRealtimeUnsubscribe = null;
+        }
+        if (typeof storeConfigRealtimeUnsubscribe === 'function') {
+            storeConfigRealtimeUnsubscribe();
+            storeConfigRealtimeUnsubscribe = null;
         }
         if (typeof bannersRealtimeUnsubscribe === 'function') {
             bannersRealtimeUnsubscribe();

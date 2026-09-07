@@ -58,7 +58,6 @@ async function handleSettingsRequest(req, res) {
             if (body.autoScheduleEnabled !== undefined) updateFields.autoScheduleEnabled = Boolean(body.autoScheduleEnabled);
             if (body.manualOverride !== undefined) updateFields.manualOverride = String(body.manualOverride).trim();
             if (body.manualCloseDate !== undefined) updateFields.manualCloseDate = body.manualCloseDate ? String(body.manualCloseDate).trim() : null;
-            if (body.hideStaffPaymentDetails !== undefined) updateFields.hideStaffPaymentDetails = Boolean(body.hideStaffPaymentDetails);
             if (body.masterDeliveryOtp !== undefined) updateFields.masterDeliveryOtp = String(body.masterDeliveryOtp).replace(/[^0-9]/g, '').slice(0, 4);
 
             Object.assign(global.__perfettoStoreSettings, updateFields);
@@ -171,25 +170,59 @@ async function handleWalletConfigRequest(req, res) {
             const minRedemptionOrder = body.minRedemptionOrder !== undefined ? Math.max(0, parseFloat(body.minRedemptionOrder) || 0) : 0;
 
             let rawSlabs = Array.isArray(body.slabs) ? [...body.slabs] : [];
-            if (rawSlabs.length < 5) {
-                for (let i = rawSlabs.length; i < 5; i++) {
-                    const prevMin = i > 0 ? (rawSlabs[i - 1].minOrder || 0) : 0;
-                    const prevCb = i > 0 ? (rawSlabs[i - 1].cashback || 0) : 0;
-                    const def = DEFAULT_WALLET_CONFIG.slabs[i] || { minOrder: 3000, cashback: 300 };
-                    rawSlabs.push({
-                        minOrder: Math.max(def.minOrder, prevMin + 1000),
-                        cashback: Math.max(def.cashback, prevCb + 100)
+            if (rawSlabs.length !== 5) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Validation failed: Exactly 5 slabs (Slabs 1 to 5) are required.'
+                });
+            }
+
+            const MIN_ORDER_GAP = 100;
+            const CASHBACK_GAP = 5;
+            const slabs = [];
+
+            for (let i = 0; i < 5; i++) {
+                const s = rawSlabs[i] || {};
+                const minOrder = parseFloat(s.minOrder);
+                const cashback = parseFloat(s.cashback);
+
+                if (isNaN(minOrder) || minOrder < 1) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Validation failed: Slab ${i + 1} Minimum Order Amount must be at least ₹1.`
                     });
                 }
+                if (isNaN(cashback) || cashback < 1) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Validation failed: Slab ${i + 1} Cashback Amount must be at least ₹1.`
+                    });
+                }
+                if (cashback > minOrder) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Validation failed: Slab ${i + 1} Cashback (₹${cashback}) cannot exceed Min Order (₹${minOrder}).`
+                    });
+                }
+
+                if (i > 0) {
+                    const prevSlab = slabs[i - 1];
+                    if (minOrder < prevSlab.minOrder + MIN_ORDER_GAP) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Validation failed: Slab ${i + 1} Min Order (₹${minOrder}) must be at least ₹${prevSlab.minOrder + MIN_ORDER_GAP} (minimum ₹100 gap above Slab ${i}).`
+                        });
+                    }
+                    if (cashback < prevSlab.cashback + CASHBACK_GAP) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Validation failed: Slab ${i + 1} Cashback (₹${cashback}) must be at least ₹${prevSlab.cashback + CASHBACK_GAP} (minimum ₹5 gap above Slab ${i}).`
+                        });
+                    }
+                }
+
+                slabs.push({ minOrder, cashback });
             }
-            const slabs = rawSlabs.slice(0, 5).map((s, i) => ({
-                minOrder: (s.minOrder !== undefined && !isNaN(parseFloat(s.minOrder)))
-                    ? Math.max(0, parseFloat(s.minOrder))
-                    : (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].minOrder : 0),
-                cashback: (s.cashback !== undefined && !isNaN(parseFloat(s.cashback)))
-                    ? Math.max(0, parseFloat(s.cashback))
-                    : (DEFAULT_WALLET_CONFIG.slabs[i] ? DEFAULT_WALLET_CONFIG.slabs[i].cashback : 0)
-            }));
 
             const updatedConfig = {
                 key: 'wallet_config',

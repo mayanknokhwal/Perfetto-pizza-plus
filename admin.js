@@ -70,7 +70,9 @@ export function normalizeWalletConfig(raw) {
 
 /**
  * Calculates exact eligible cashback reward for a given order total based on active slabs.
- * Strictly matches dynamic configured slab values from Firestore without random ranges or static fallbacks.
+ * If generateRandom is true, generates a fair uniformly distributed random integer:
+ * - Slab 1: between ₹1 and Slab 1 max inclusive.
+ * - Slabs 2-5: between previous slab max and current slab max inclusive.
  * @param {number} orderAmount 
  * @param {Object} walletConfig 
  * @param {boolean} [generateRandom=false] 
@@ -94,12 +96,27 @@ export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WA
     }
     if (qualifiedIndex === -1) return 0;
 
-    const currentSlab = sorted[qualifiedIndex];
-    return Number(currentSlab.cashback) || 0;
+    const currentMax = Number(sorted[qualifiedIndex].cashback) || 0;
+    if (!generateRandom) {
+        return currentMax;
+    }
+
+    if (qualifiedIndex === 0) {
+        const min = 1;
+        const max = Math.max(1, currentMax);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    } else {
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback) || 1;
+        const min = Math.min(prevMax, currentMax);
+        const max = Math.max(prevMax, currentMax);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
 }
 
 /**
  * Returns boundaries [min, max] for a given order total
+ * - Slab 1: [1, Slab 1 max]
+ * - Slabs 2-5: [Slab(i-1) max, Slab(i) max]
  * @param {number} orderAmount 
  * @param {Object} walletConfig 
  * @returns {{ qualified: boolean, min: number, max: number, tierIndex: number }}
@@ -121,7 +138,7 @@ export function getCashbackTierBoundaries(orderAmount, walletConfig = DEFAULT_WA
     const max = Number(sorted[qualifiedIndex].cashback) || 0;
     let min = 1;
     if (qualifiedIndex > 0) {
-        min = (Number(sorted[qualifiedIndex - 1].cashback) || 0) + 1;
+        min = Number(sorted[qualifiedIndex - 1].cashback) || 1;
     }
     if (max < min) min = Math.max(1, Math.min(min, max));
 

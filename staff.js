@@ -167,34 +167,10 @@ async function fetchStaffSettingsFromBackend() {
 
 function applyStaffStoreSettings(settings) {
     if (!settings) return;
-    const hideFlag = settings.hideStaffPaymentDetails !== undefined 
-        ? settings.hideStaffPaymentDetails 
-        : (settings.hidePaymentDetails !== undefined ? settings.hidePaymentDetails : undefined);
-
-    if (hideFlag !== undefined) {
-        const hideVal = Boolean(hideFlag === true || hideFlag === 'true');
-        const oldVal = shouldHideStaffPaymentDetails();
-        try {
-            localStorage.setItem('hideStaffPaymentDetails', hideVal.toString());
-        } catch (e) { }
-        if (hideVal !== oldVal) {
-            renderOrders();
-        }
-    }
-
     if (settings.masterDeliveryOtp !== undefined) {
         try {
             localStorage.setItem('masterDeliveryOtp', String(settings.masterDeliveryOtp).replace(/[^0-9]/g, '').slice(0, 4));
         } catch (e) { }
-    }
-}
-
-function shouldHideStaffPaymentDetails() {
-    try {
-        const stored = localStorage.getItem('hideStaffPaymentDetails');
-        return stored === 'true' || stored === true;
-    } catch (e) {
-        return false;
     }
 }
 
@@ -2271,9 +2247,6 @@ window.addEventListener('storage', (e) => {
     if (!e.key || e.key === 'perfettoCustomerOrders') {
         syncCustomerOrders();
     }
-    if (e.key === 'hideStaffPaymentDetails') {
-        renderOrders();
-    }
 });
 
 // --------------------------------------------------------------------------
@@ -2694,7 +2667,6 @@ function buildCompletedOrderCardHTML(order) {
     const rawItems = order.items || order.cart || order.orderItems || [];
     const itemsHTML = Array.isArray(rawItems) ? rawItems.map(formatStaffOrderItem).filter(Boolean).join('') : '';
 
-    const hidePayment = shouldHideStaffPaymentDetails();
     const totalVal = order.total || order.costs?.total || 0;
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
 
@@ -2715,12 +2687,10 @@ function buildCompletedOrderCardHTML(order) {
                     ${itemsHTML || '<div class="item-row"><span class="item-name">Standard Items</span></div>'}
                 </div>
 
-                ${!hidePayment ? `
                 <div class="completed-summary-bar">
                     <span class="completed-total-label">Total Amount:</span>
                     <span class="total-amount">₹${totalVal}</span>
                 </div>
-                ` : ''}
             </div>
 
             ${isAdminViewer ? `
@@ -2920,9 +2890,7 @@ function buildOrderCardHTML(order) {
                         <i class="fa-solid ${isPaidOnline ? 'fa-circle-check' : 'fa-hand-holding-dollar'}"></i>
                         ${paymentLabel}
                     </span>
-                    ${!shouldHideStaffPaymentDetails() ? `
                     <span class="total-amount">₹${order.total || 0}</span>
-                    ` : ''}
                 </div>
             </div>
 
@@ -3151,7 +3119,7 @@ async function resolveExactFirestoreOrderDocId(db, order, fallbackOrderId) {
     return cleanCandidateId;
 }
 
-async function updateOrderStatus(orderId, newStatus, triggerBtn) {
+async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPayload = {}) {
     const rawId = String(orderId || '').replace(/^#/, '').trim();
     if (actionInFlightOrders.has(rawId)) return;
     actionInFlightOrders.add(rawId);
@@ -3216,6 +3184,9 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn) {
 
         if (isRejected) {
             order.rejectedAt = nowIso;
+            if (extraPayload && extraPayload.rejectionReason) {
+                order.rejectionReason = String(extraPayload.rejectionReason).trim();
+            }
             order.rewardStatus = 'voided';
             order.wonCashback = 0;
             order.earnedCashback = 0;
@@ -3235,7 +3206,7 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn) {
         }
 
         // 2. Persist to Firestore & backend API
-        await syncOrderStatusToBackend(order.id, effectiveStatus);
+        await syncOrderStatusToBackend(order.id, effectiveStatus, extraPayload);
 
         let msg = `Order #${order.id} updated to ${effectiveStatus.toUpperCase()}`;
         if (effectiveStatus === 'preparing') msg = `Order #${order.id} Accepted • Preparation started! 🍕`;
@@ -3269,15 +3240,22 @@ function handleRejectOrder(orderId) {
     const orderTagEl = document.getElementById('reject-modal-order-tag');
     const customerEl = document.getElementById('reject-modal-customer-name');
     const totalEl = document.getElementById('reject-modal-order-total');
-    const totalRow = totalEl ? totalEl.closest('.reject-detail-row') : null;
+    const reasonInput = document.getElementById('reject-modal-reason');
+    const reasonError = document.getElementById('reject-modal-reason-error');
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
 
     if (orderTagEl) orderTagEl.textContent = `Order #${order.id}`;
     if (customerEl) customerEl.textContent = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
     if (totalEl) totalEl.textContent = `₹${order.total || order.costs?.total || 0}`;
-    if (totalRow) {
-        totalRow.style.display = shouldHideStaffPaymentDetails() ? 'none' : 'flex';
+
+    if (reasonInput) {
+        reasonInput.value = '';
+        reasonInput.classList.remove('otp-error-shake');
+    }
+    if (reasonError) {
+        reasonError.style.display = 'none';
+        reasonError.textContent = '';
     }
 
     if (otpInput) {
@@ -3294,7 +3272,9 @@ function handleRejectOrder(orderId) {
         modal.setAttribute('aria-hidden', 'false');
     }
 
-    if (otpInput) {
+    if (reasonInput) {
+        setTimeout(() => reasonInput.focus(), 100);
+    } else if (otpInput) {
         setTimeout(() => otpInput.focus(), 100);
     }
 }
@@ -3303,9 +3283,19 @@ window.handleRejectOrder = handleRejectOrder;
 function closeStaffRejectModal() {
     pendingRejectOrderId = null;
     const modal = document.getElementById('staff-reject-modal');
+    const reasonInput = document.getElementById('reject-modal-reason');
+    const reasonError = document.getElementById('reject-modal-reason-error');
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
 
+    if (reasonInput) {
+        reasonInput.value = '';
+        reasonInput.classList.remove('otp-error-shake');
+    }
+    if (reasonError) {
+        reasonError.style.display = 'none';
+        reasonError.textContent = '';
+    }
     if (otpInput) {
         otpInput.value = '';
         otpInput.classList.remove('otp-error-shake');
@@ -3330,12 +3320,36 @@ async function confirmRejectOrder() {
     const rawId = String(orderIdToReject).replace(/^#/, '').trim();
     if (actionInFlightOrders.has(rawId)) return;
 
+    const reasonInput = document.getElementById('reject-modal-reason');
+    const reasonError = document.getElementById('reject-modal-reason-error');
+    const enteredReason = reasonInput ? reasonInput.value.trim() : '';
+
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
     const enteredOtp = otpInput ? otpInput.value.trim().replace(/[^0-9]/g, '') : '';
-    const masterOtp = getMasterDeliveryOtp();
+    let masterOtp = getMasterDeliveryOtp();
 
-    // 1. Strict Validation: Must provide 4-digit Master OTP
+    // 1. Strict Validation: Mandatory cancellation reason is required
+    if (!enteredReason) {
+        if (reasonInput) {
+            reasonInput.classList.remove('otp-error-shake');
+            void reasonInput.offsetWidth;
+            reasonInput.classList.add('otp-error-shake');
+            reasonInput.focus();
+        }
+        if (reasonError) {
+            reasonError.style.display = 'block';
+            reasonError.textContent = '⚠️ Mandatory cancellation reason is required to reject order.';
+        }
+        showStaffToast('⚠️ Please enter a cancellation reason.');
+        return;
+    }
+    if (reasonError) {
+        reasonError.style.display = 'none';
+        reasonError.textContent = '';
+    }
+
+    // 2. Strict Validation: Must provide 4-digit Master OTP
     if (!enteredOtp || enteredOtp.length !== 4) {
         if (otpInput) {
             otpInput.classList.remove('otp-error-shake');
@@ -3351,7 +3365,22 @@ async function confirmRejectOrder() {
         return;
     }
 
-    // 2. Validate against active Master OTP
+    // 2.1 Fetch latest Master OTP from Firestore doc if available for fresh check
+    const db = getStaffFirestore();
+    if (db) {
+        try {
+            const snap = await Promise.race([
+                db.collection('settings').doc('storeSettings').get(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+            ]);
+            if (snap && snap.exists && snap.data() && snap.data().masterDeliveryOtp) {
+                masterOtp = String(snap.data().masterDeliveryOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+            }
+        } catch (e) { }
+    }
+
+    // 3. Validate against active Master OTP set by Admin
     if (enteredOtp !== masterOtp) {
         if (otpInput) {
             otpInput.classList.remove('otp-error-shake');
@@ -3361,7 +3390,7 @@ async function confirmRejectOrder() {
         }
         if (otpError) {
             otpError.style.display = 'block';
-            otpError.textContent = `❌ Invalid Master OTP "${enteredOtp}". Authorization denied.`;
+            otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
         }
         showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
         return;
@@ -3375,15 +3404,16 @@ async function confirmRejectOrder() {
     }
 
     try {
-        // 3. Valid Master OTP! Update order status to "rejected" and void reward
-        await updateOrderStatus(orderIdToReject, 'rejected', confirmBtn);
+        // 4. Valid Master OTP! Update order status to "rejected", store mandatory reason, and void reward
+        await updateOrderStatus(orderIdToReject, 'rejected', confirmBtn, {
+            rejectionReason: enteredReason,
+            masterOtp: enteredOtp
+        });
 
         // Close modal after confirmed status update
         closeStaffRejectModal();
 
-        // 4. Immediately regenerate a new 4-digit Master OTP in Firestore to prevent reuse
-        regenerateMasterDeliveryOtpOnUse(orderIdToReject);
-        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected & Reward Voided.`);
+        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected.`);
     } catch (err) {
         console.error('Error rejecting order:', err);
         showStaffToast(`❌ Rejection failed: ${err.message || 'Database error'}`);
@@ -3447,7 +3477,7 @@ async function handleAdminDeleteOrder(orderId) {
 }
 window.handleAdminDeleteOrder = handleAdminDeleteOrder;
 
-async function syncOrderStatusToBackend(orderId, newStatus) {
+async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
     const rawId = String(orderId || '').replace(/^#/, '').trim();
     const order = staffOrders.find(o => 
         String(o.id) === rawId || 
@@ -3472,6 +3502,9 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
     } else if (isRejected) {
         patchPayload.rewardStatus = 'voided';
         patchPayload.wonCashback = 0;
+        const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
+        if (rejectReason) patchPayload.rejectionReason = rejectReason;
+        if (extraPayload && extraPayload.masterOtp) patchPayload.masterOtp = extraPayload.masterOtp;
     }
 
     const db = getStaffFirestore();
@@ -3506,6 +3539,8 @@ async function syncOrderStatusToBackend(orderId, newStatus) {
                 fsUpdate.rejectedAt = serverTs;
                 fsUpdate.rewardStatus = 'voided';
                 fsUpdate.wonCashback = 0;
+                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
+                if (rejectReason) fsUpdate.rejectionReason = rejectReason;
             }
 
             console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
@@ -4045,7 +4080,7 @@ function showIncomingOrderModal(orderId, details) {
         totalEl.textContent = targetOrder ? `₹${targetOrder.total || 0}` : '—';
     }
     if (totalRow) {
-        totalRow.style.display = shouldHideStaffPaymentDetails() ? 'none' : 'flex';
+        totalRow.style.display = 'flex';
     }
 
     if (paymentEl) {
