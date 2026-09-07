@@ -25,19 +25,19 @@
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.js"
+      "destination": "/api"
     },
     {
       "source": "/api",
-      "destination": "/api/index.js"
+      "destination": "/api"
     },
     {
       "source": "/auth/(.*)",
-      "destination": "/api/index.js"
+      "destination": "/api"
     },
     {
       "source": "/auth",
-      "destination": "/api/index.js"
+      "destination": "/api"
     }
   ],
   "headers": [

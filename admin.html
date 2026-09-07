@@ -3357,9 +3357,10 @@
                             </label>
                             <div class="search-box">
                                 <i class="fa-solid fa-headset"></i>
-                                <input type="tel" id="input-customer-care-phone" class="search-input" value="9876543210"
-                                    placeholder="e.g. 9876543210" maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
-                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);"
+                                <input type="tel" id="input-customer-care-phone" class="search-input"
+                                    placeholder="e.g. 9414503886" maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
+                                    oninput="onCustomerCarePhoneInput(this.value)"
+                                    onchange="onCustomerCarePhoneChange(this.value)"
                                     onkeypress="return (event.charCode >= 48 && event.charCode <= 57)">
                             </div>
                         </div>
@@ -3374,7 +3375,7 @@
                                     style="font-size: 0.85rem; font-weight: 700; color: var(--accent-green);">Enabled</span>
                                 <label class="switch" style="margin: 0;">
                                     <input type="checkbox" id="toggle-customer-care-enabled" checked
-                                        onchange="updateCustomerCareToggleLabel(this.checked)">
+                                        onchange="onCustomerCareToggleChange(this.checked)">
                                     <span class="slider"></span>
                                 </label>
                             </div>
@@ -6646,7 +6647,7 @@
             zone6: 0
         };
 
-        const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
+        const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
         const DEFAULT_RESTAURANT_LAT = 29.533736;
         const DEFAULT_RESTAURANT_LNG = 73.447895;
         const DEFAULT_DELIVERY_RADIUS_KM = 10; // Strictly restricted to 10 KM max
@@ -6977,6 +6978,36 @@
             }
         }
 
+        // Customer Care Component State & Dirty Tracking
+        let currentCustomerCarePhone = getCustomerCarePhone();
+        let currentCustomerCareEnabled = getCustomerCareEnabled();
+        let isCustomerCarePhoneDirty = false;
+        let isCustomerCareToggleDirty = false;
+
+        function onCustomerCarePhoneInput(val) {
+            const cleaned = String(val || '').replace(/[^0-9]/g, '').slice(0, 10);
+            currentCustomerCarePhone = cleaned;
+            isCustomerCarePhoneDirty = true;
+            const phoneInput = document.getElementById('input-customer-care-phone');
+            if (phoneInput && phoneInput.value !== cleaned) {
+                phoneInput.value = cleaned;
+            }
+            if (phoneInput) phoneInput.classList.remove('invalid-field');
+        }
+
+        function onCustomerCarePhoneChange(val) {
+            onCustomerCarePhoneInput(val);
+        }
+
+        function onCustomerCareToggleChange(checked) {
+            currentCustomerCareEnabled = Boolean(checked);
+            isCustomerCareToggleDirty = true;
+            updateCustomerCareToggleLabel(currentCustomerCareEnabled);
+            try {
+                localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, currentCustomerCareEnabled.toString());
+            } catch (e) { }
+        }
+
         function updateCustomerCareToggleLabel(enabled) {
             const statusEl = document.getElementById('customer-care-toggle-status');
             if (statusEl) {
@@ -7042,13 +7073,19 @@
 
             if (minInput && activeEl !== minInput && data.minOrderValue !== undefined) minInput.value = data.minOrderValue;
             if (freeInput && activeEl !== freeInput && data.freeDeliveryLimit !== undefined) freeInput.value = data.freeDeliveryLimit;
-            if (phoneInput && activeEl !== phoneInput && data.customerCarePhone !== undefined) phoneInput.value = data.customerCarePhone;
-            if (toggleCare && activeEl !== toggleCare && data.customerCareEnabled !== undefined) {
+            if (phoneInput && data.customerCarePhone !== undefined) {
+                const incomingPhone = String(data.customerCarePhone).replace(/[^0-9]/g, '').slice(0, 10);
+                if (!isCustomerCarePhoneDirty && activeEl !== phoneInput) {
+                    currentCustomerCarePhone = incomingPhone;
+                    phoneInput.value = incomingPhone;
+                }
+            }
+            if (toggleCare && data.customerCareEnabled !== undefined) {
                 const isCareOn = Boolean(data.customerCareEnabled === true || data.customerCareEnabled === 'true');
-                toggleCare.checked = isCareOn;
-                if (statusEl) {
-                    statusEl.textContent = isCareOn ? 'Enabled' : 'Disabled';
-                    statusEl.style.color = isCareOn ? 'var(--accent-green)' : 'var(--text-muted)';
+                if (!isCustomerCareToggleDirty && activeEl !== toggleCare) {
+                    currentCustomerCareEnabled = isCareOn;
+                    toggleCare.checked = isCareOn;
+                    updateCustomerCareToggleLabel(isCareOn);
                 }
             }
             if (toggleHidePayment && activeEl !== toggleHidePayment && data.hideStaffPaymentDetails !== undefined) {
@@ -7125,7 +7162,10 @@
 
             if (minInput) minInput.value = getMinOrderValue();
             if (freeInput) freeInput.value = getFreeDeliveryLimit();
-            if (phoneInput) phoneInput.value = getCustomerCarePhone();
+            if (phoneInput && !isCustomerCarePhoneDirty) {
+                currentCustomerCarePhone = getCustomerCarePhone();
+                phoneInput.value = currentCustomerCarePhone;
+            }
             if (masterOtpInput) masterOtpInput.value = getMasterDeliveryOtp();
             if (latInput) latInput.value = currentLat;
             if (lngInput) lngInput.value = currentLng;
@@ -7155,13 +7195,10 @@
                 };
             }
 
-            if (toggleCare) {
-                const isEnabled = getCustomerCareEnabled();
-                toggleCare.checked = isEnabled;
-                if (statusEl) {
-                    statusEl.textContent = isEnabled ? 'Enabled' : 'Disabled';
-                    statusEl.style.color = isEnabled ? 'var(--accent-green)' : 'var(--text-muted)';
-                }
+            if (toggleCare && !isCustomerCareToggleDirty) {
+                currentCustomerCareEnabled = getCustomerCareEnabled();
+                toggleCare.checked = currentCustomerCareEnabled;
+                updateCustomerCareToggleLabel(currentCustomerCareEnabled);
             }
 
             const toggleHidePayment = document.getElementById('toggle-hide-payment-details');
@@ -7198,7 +7235,7 @@
             }
         }
 
-        function saveOrderSettings(showToastMsg = true) {
+        async function saveOrderSettings(showToastMsg = true) {
             const minInput = document.getElementById('input-min-order-value');
             const freeInput = document.getElementById('input-free-delivery-limit');
             const phoneInput = document.getElementById('input-customer-care-phone');
@@ -7211,10 +7248,12 @@
             const closeTimeInput = document.getElementById('input-closing-time');
             const toggleAutoSchedule = document.getElementById('toggle-auto-schedule-enabled');
             const selectOverride = document.getElementById('select-manual-override');
+            const saveBtn = document.getElementById('btn-save-store-settings');
 
             const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
             const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
-            const phoneVal = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').trim() : DEFAULT_CUSTOMER_CARE_PHONE;
+            const phoneRaw = currentCustomerCarePhone || (phoneInput ? phoneInput.value : '') || DEFAULT_CUSTOMER_CARE_PHONE;
+            const phoneVal = String(phoneRaw).replace(/[^0-9]/g, '').trim();
             const masterOtpVal = masterOtpInput ? masterOtpInput.value.replace(/[^0-9]/g, '').slice(0, 4) : DEFAULT_MASTER_DELIVERY_OTP;
             const latVal = latInput ? (parseFloat(latInput.value) || DEFAULT_RESTAURANT_LAT) : DEFAULT_RESTAURANT_LAT;
             const lngVal = lngInput ? (parseFloat(lngInput.value) || DEFAULT_RESTAURANT_LNG) : DEFAULT_RESTAURANT_LNG;
@@ -7257,10 +7296,27 @@
                 return false;
             }
 
+            const isCareEnabled = currentCustomerCareEnabled !== undefined
+                ? Boolean(currentCustomerCareEnabled)
+                : (toggleCare ? toggleCare.checked : true);
+            const isHidePayment = toggleHidePayment ? toggleHidePayment.checked : false;
+
+            // Commit to in-memory state and clear dirty flags
+            currentCustomerCarePhone = phoneVal;
+            currentCustomerCareEnabled = isCareEnabled;
+            isCustomerCarePhoneDirty = false;
+            isCustomerCareToggleDirty = false;
+
             if (phoneInput) phoneInput.value = phoneVal;
             if (masterOtpInput) masterOtpInput.value = masterOtpVal;
-            const isCareEnabled = toggleCare ? toggleCare.checked : true;
-            const isHidePayment = toggleHidePayment ? toggleHidePayment.checked : false;
+            if (toggleCare) toggleCare.checked = isCareEnabled;
+            updateCustomerCareToggleLabel(isCareEnabled);
+
+            const origBtnHtml = saveBtn ? saveBtn.innerHTML : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
 
             try {
                 localStorage.setItem(MIN_ORDER_KEY, minVal.toString());
@@ -7280,27 +7336,32 @@
 
                 updateMapFromCoordinates(latVal, lngVal, radiusVal);
 
+                const settingsPayload = {
+                    minOrderValue: minVal,
+                    freeDeliveryLimit: freeVal,
+                    customerCarePhone: phoneVal,
+                    customerCareEnabled: isCareEnabled,
+                    hideStaffPaymentDetails: isHidePayment,
+                    masterDeliveryOtp: masterOtpVal,
+                    restaurantLat: latVal,
+                    restaurantLng: lngVal,
+                    deliveryRadius: radiusVal,
+                    zoneCharges: zoneCharges,
+                    openingTime: openingTimeVal,
+                    closingTime: closingTimeVal,
+                    autoScheduleEnabled: isAutoScheduleOn,
+                    manualOverride: manualOverrideVal,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
                 // Instantly sync rates & settings to Firebase Firestore in real-time
                 if (adminFirestore) {
                     try {
-                        adminFirestore.collection('settings').doc('storeSettings').set({
-                            minOrderValue: minVal,
-                            freeDeliveryLimit: freeVal,
-                            customerCarePhone: phoneVal,
-                            customerCareEnabled: isCareEnabled,
-                            hideStaffPaymentDetails: isHidePayment,
-                            masterDeliveryOtp: masterOtpVal,
-                            restaurantLat: latVal,
-                            restaurantLng: lngVal,
-                            deliveryRadius: radiusVal,
-                            zoneCharges: zoneCharges,
-                            openingTime: openingTimeVal,
-                            closingTime: closingTimeVal,
-                            autoScheduleEnabled: isAutoScheduleOn,
-                            manualOverride: manualOverrideVal,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }, { merge: true }).catch((fsErr) => {
+                        adminFirestore.collection('settings').doc('storeSettings').set(settingsPayload, { merge: true }).catch((fsErr) => {
                             console.warn('Firestore store settings write notice:', fsErr.message);
+                        });
+                        adminFirestore.collection('settings').doc('store_config').set(settingsPayload, { merge: true }).catch((fsErr) => {
+                            console.warn('Firestore store_config write notice:', fsErr.message);
                         });
                     } catch (fsEx) {
                         console.warn('Firestore store settings exception:', fsEx);
@@ -7308,7 +7369,7 @@
                 }
 
                 // Sync rates & settings to Firebase Firestore backend
-                syncStoreSettingsToBackend({
+                await syncStoreSettingsToBackend({
                     minOrderValue: minVal,
                     freeDeliveryLimit: freeVal,
                     customerCarePhone: phoneVal,
@@ -7326,15 +7387,22 @@
                 });
 
                 if (showToastMsg) {
-                    showToast(`Settings & Master Delivery OTP saved in Real-Time! Radius: ${radiusVal.toFixed(1)} km`);
-                    logAdminActivity(`Updated Store Settings & Emergency Master Delivery OTP (Radius: ${radiusVal.toFixed(1)} km, Min Order: ₹${minVal}, Master OTP: ••••)`);
+                    const careLabel = isCareEnabled ? 'Enabled' : 'Disabled';
+                    showToast(`✅ Store Settings saved! Customer Care: ${careLabel} (+91 ${phoneVal})`);
+                    logAdminActivity(`Updated Store Settings & Customer Care (Care: ${careLabel}, Phone: ${phoneVal}, Radius: ${radiusVal.toFixed(1)} km, Min Order: ₹${minVal})`);
                 }
 
                 evaluateAndSyncShopStatus(true);
                 return true;
             } catch (e) {
                 console.error('Failed to save order settings to localStorage:', e);
+                showToast('❌ Error saving store settings. Please try again.');
                 return false;
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = origBtnHtml;
+                }
             }
         }
 

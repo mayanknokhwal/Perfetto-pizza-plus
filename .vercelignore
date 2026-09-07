@@ -1,0 +1,9 @@
+.git
+.agents
+.vscode
+scratch/
+scripts/
+serviceAccountKey*.json
+*.log
+*.tmp
+node_modules

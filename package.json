@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "deploy:rules": "node scripts/deployRules.js",
-    "deploy:vercel": "npx vercel --prod",
+    "deploy:vercel": "node --dns-result-order=ipv4first node_modules/vercel/dist/index.js --prod",
     "env:push": "node scripts/syncVercelEnv.js --push",
     "env:pull": "node scripts/syncVercelEnv.js --pull"
   },

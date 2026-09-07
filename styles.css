@@ -264,6 +264,7 @@ a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    text-decoration: none;
     color: #22c55e;
     font-size: 1.05rem;
     cursor: pointer;

@@ -313,7 +313,7 @@ const VERIFIED_PHONE_STORAGE_KEY = 'perfetto_verified_phone';
 const VERIFIED_PHONE_STATE_KEY = 'perfetto_phone_verification_state';
 const CUSTOMER_CARE_PHONE_KEY = 'customerCarePhone';
 const CUSTOMER_CARE_ENABLED_KEY = 'customerCareEnabled';
-const DEFAULT_CUSTOMER_CARE_PHONE = '9876543210';
+const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
 
 // CATEGORY ADD-ONS CONFIGURATION & REAL-TIME STATE
 const DEFAULT_CATEGORY_ADDONS = {
@@ -2917,7 +2917,7 @@ async function fetchLiveSettingsFromBackend() {
             if (s.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(s.minOrderValue));
             if (s.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(s.freeDeliveryLimit));
             if (s.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(s.customerCarePhone));
-            if (s.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
+            if (s.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(s.customerCareEnabled));
             if (s.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(s.restaurantLat));
             if (s.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(s.restaurantLng));
             if (s.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(s.deliveryRadius));
@@ -10484,24 +10484,38 @@ function checkCustomerCareVisibilityUI() {
     const headerCallBtn = document.getElementById('header-call-btn');
     if (headerCallBtn) {
         headerCallBtn.style.display = isEnabled ? 'inline-flex' : 'none';
+        headerCallBtn.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
+    }
+    if (!isEnabled && typeof window.closeCustomerCareModal === 'function') {
+        window.closeCustomerCareModal(true);
     }
 }
 
 function updateCustomerCareModalUI() {
     const phone = getCustomerCarePhone();
+    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
+    const isEnabled = getCustomerCareEnabled();
+
+    const headerCallBtn = document.getElementById('header-call-btn');
+    if (headerCallBtn) {
+        headerCallBtn.style.display = isEnabled ? 'inline-flex' : 'none';
+        headerCallBtn.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
+        headerCallBtn.href = `tel:+91${cleanPhone}`;
+        headerCallBtn.title = `Call Customer Care (+91 ${cleanPhone})`;
+    }
+
     const phoneTextEl = document.getElementById('care-phone-number-text');
     const callLinkEl = document.getElementById('customer-care-call-link');
 
     if (phoneTextEl) {
         // Nicely formatted 10-digit display (e.g., +91 98765 43210 or 98765 43210)
-        if (phone.length === 10) {
-            phoneTextEl.textContent = `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`;
+        if (cleanPhone.length === 10) {
+            phoneTextEl.textContent = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
         } else {
-            phoneTextEl.textContent = phone;
+            phoneTextEl.textContent = cleanPhone;
         }
     }
     if (callLinkEl) {
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
         callLinkEl.href = cleanPhone.length === 10 ? `tel:+91${cleanPhone}` : `tel:${cleanPhone}`;
     }
 
@@ -10537,9 +10551,14 @@ function initCustomerCareModal() {
     }
 
     if (headerCallBtn) {
+        // Tapping the header call button directly triggers direct phone dialer protocol
         headerCallBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openCareModal();
+            const phone = getCustomerCarePhone();
+            const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
+            if (headerCallBtn.tagName.toLowerCase() !== 'a' || !headerCallBtn.href) {
+                e.preventDefault();
+                window.location.href = `tel:+91${cleanPhone}`;
+            }
         });
     }
 
@@ -11587,25 +11606,33 @@ function applyRealtimeStoreSettings() {
     try {
         const phone = getCustomerCarePhone();
         const careEnabled = getCustomerCareEnabled();
+        const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
 
         // Update header call button
         const headerCallBtn = document.getElementById('header-call-btn');
         if (headerCallBtn) {
             headerCallBtn.style.display = careEnabled ? 'inline-flex' : 'none';
+            headerCallBtn.setAttribute('aria-hidden', careEnabled ? 'false' : 'true');
+            headerCallBtn.href = `tel:+91${cleanPhone}`;
+            headerCallBtn.title = `Call Customer Care (+91 ${cleanPhone})`;
+        }
+
+        // If care is disabled and care modal is currently open, close it immediately
+        if (!careEnabled && typeof window.closeCustomerCareModal === 'function') {
+            window.closeCustomerCareModal(true);
         }
 
         // Update modal phone text and call link
         const phoneTextEl = document.getElementById('care-phone-number-text');
         const callLinkEl = document.getElementById('customer-care-call-link');
         if (phoneTextEl) {
-            if (phone.length === 10) {
-                phoneTextEl.textContent = `+91 ${phone.slice(0, 5)} ${phone.slice(5)}`;
+            if (cleanPhone.length === 10) {
+                phoneTextEl.textContent = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
             } else {
-                phoneTextEl.textContent = phone;
+                phoneTextEl.textContent = cleanPhone;
             }
         }
         if (callLinkEl) {
-            const cleanPhone = phone.replace(/[^0-9]/g, '');
             callLinkEl.href = cleanPhone.length === 10 ? `tel:+91${cleanPhone}` : `tel:${cleanPhone}`;
         }
 
@@ -11613,11 +11640,11 @@ function applyRealtimeStoreSettings() {
         const callBtn = document.getElementById('customer-care-btn');
         const phoneDisplay = document.getElementById('customer-care-number-display');
         if (callBtn) {
-            callBtn.href = `tel:+91${phone}`;
+            callBtn.href = `tel:+91${cleanPhone}`;
             callBtn.style.display = careEnabled ? 'flex' : 'none';
         }
         if (phoneDisplay) {
-            phoneDisplay.textContent = `+91 ${phone}`;
+            phoneDisplay.textContent = `+91 ${cleanPhone}`;
         }
 
         updateCartUI();
