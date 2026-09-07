@@ -376,7 +376,7 @@
                         </div>
                         <div class="menu-item-text">
                             <span class="item-title profile-notice-title" data-i18n="store_notice">Store Notice</span>
-                            <span class="item-subtitle profile-notice-subtitle" id="profile-notice-preview-text" data-i18n="store_notice_sub">Announcements, holiday alerts &amp; store updates</span>
+                            <span class="item-subtitle profile-notice-subtitle" id="profile-notice-preview-text" data-i18n="store_notice_sub">Announcements, special offers &amp; store updates</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow profile-notice-arrow"></i>
                     </div>
@@ -510,26 +510,18 @@
                         </div>
                     </div>
 
-                </div>
-
-                <!-- MUTED STORE NOTICE DISCLAIMER CARD AT BOTTOM OF PROFILE (When toggle is OFF) -->
-                <div class="profile-store-notice-bottom-card" id="profile-store-notice-bottom" style="display: none;" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Notice & Disclaimer">
-                    <div class="notice-bottom-card-inner">
-                        <div class="notice-bottom-icon">
-                            <i class="fa-solid fa-shield-halved"></i>
+                    <!-- STORE NOTICE / POLICY ENTRY (When Store Notice is INACTIVE / Toggled OFF in Admin, strictly beneath Info & Legal Policies) -->
+                    <div class="menu-item-row profile-notice-inactive-row" id="profile-store-notice-inactive-row" style="display: none;" onclick="openStoreNoticeModal()" role="button" tabindex="0" aria-label="View Store Policy & Notice">
+                        <div class="menu-item-icon icon-profile-notice-muted">
+                            <i class="fa-solid fa-file-shield"></i>
                         </div>
-                        <div class="notice-bottom-content">
-                            <div class="notice-bottom-header">
-                                <span class="notice-bottom-badge">Store Policy &amp; Terms Reference</span>
-                            </div>
-                            <h5 class="notice-bottom-title" id="profile-notice-bottom-title">Store Notice &amp; Disclaimer</h5>
-                            <p class="notice-bottom-text" id="profile-notice-bottom-text">Store policies, holiday updates and service guidelines.</p>
-                            <div class="notice-bottom-link">
-                                <span>View archived notice &amp; guidelines</span>
-                                <i class="fa-solid fa-chevron-right"></i>
-                            </div>
+                        <div class="menu-item-text">
+                            <span class="item-title profile-notice-muted-title" data-i18n="store_policy_notice">Store Policy &amp; Notice</span>
+                            <span class="item-subtitle profile-notice-muted-subtitle" id="profile-notice-inactive-preview-text" data-i18n="store_policy_notice_sub">Store guidelines, terms reference &amp; updates</span>
                         </div>
+                        <i class="fa-solid fa-chevron-right item-arrow"></i>
                     </div>
+
                 </div>
             </section>
 

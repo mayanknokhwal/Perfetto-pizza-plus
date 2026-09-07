@@ -3937,7 +3937,7 @@
                             </label>
                             <div class="search-box">
                                 <i class="fa-solid fa-tag"></i>
-                                <input type="text" id="input-store-notice-title" class="search-input" value="Store Notice" placeholder="e.g. Store Notice / Holiday Announcement" maxlength="60">
+                                <input type="text" id="input-store-notice-title" class="search-input" value="Store Notice" placeholder="e.g. Store Notice / Special Announcement" maxlength="60">
                             </div>
                             <span style="font-size: 0.76rem; color: var(--text-muted);">Displays as the primary title in the customer modal dialog</span>
                         </div>
@@ -7736,7 +7736,8 @@
 
         const DEFAULT_WALLET_CONFIG = {
             enabled: true,
-            expiryDays: 7,
+            expiryDays: 15,
+            cashbackExpiryDays: 15,
             minRedemptionOrder: 0,
             minOrderToRedeem: 0,
             slabs: [

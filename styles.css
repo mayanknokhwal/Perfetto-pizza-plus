@@ -6841,6 +6841,50 @@ html[lang="hi"] .nav-label {
 .wallet-tx-expiry {
     font-size: 0.68rem;
     color: #f59e0b;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tx-badge-validity {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.12);
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+
+[data-theme="dark"] .tx-badge-validity {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.22);
+}
+
+.tx-badge-used {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: rgba(148, 163, 184, 0.12);
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+
+.tx-badge-expired {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.12);
+    border-radius: 4px;
+    padding: 1px 5px;
 }
 
 /* OTP Modal Cashback Card */
@@ -7147,95 +7191,47 @@ html[lang="hi"] .nav-label {
 }
 
 /* --------------------------------------------------------------------------
-   PROFILE BOTTOM MUTED STORE NOTICE DISCLAIMER CARD (When toggle is OFF)
+   PROFILE INACTIVE STORE POLICY / NOTICE ROW (Directly beneath Legal Policies)
    -------------------------------------------------------------------------- */
-.profile-store-notice-bottom-card {
-    width: 100%;
-    margin-top: 24px;
-    margin-bottom: 14px;
-    background: var(--bg-surface-elevated);
-    border: 1px dashed var(--border-color);
-    border-radius: 16px;
-    padding: 14px 16px;
-    cursor: pointer;
-    box-sizing: border-box;
-    transition: all 0.2s ease;
-    opacity: 0.85;
+.menu-item-row.profile-notice-inactive-row {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    margin-top: 4px;
 }
 
-.profile-store-notice-bottom-card:hover {
-    opacity: 1;
+.menu-item-row.profile-notice-inactive-row:hover {
     border-color: var(--text-muted);
-    background: var(--bg-input);
-    transform: translateY(-1px);
+    background: var(--bg-surface-elevated);
 }
 
-.notice-bottom-card-inner {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
+.menu-item-icon.icon-profile-notice-muted {
+    background: rgba(100, 116, 139, 0.12) !important;
+    color: var(--text-muted) !important;
+    border: 1px solid rgba(100, 116, 139, 0.22);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    transition: transform 0.2s ease;
 }
 
-.notice-bottom-icon {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: rgba(148, 163, 184, 0.15);
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.95rem;
-    flex-shrink: 0;
+.menu-item-row.profile-notice-inactive-row:hover .menu-item-icon.icon-profile-notice-muted {
+    transform: scale(1.04);
 }
 
-.notice-bottom-content {
-    flex: 1;
-    min-width: 0;
+[data-theme="dark"] .menu-item-icon.icon-profile-notice-muted {
+    background: rgba(148, 163, 184, 0.15) !important;
+    color: #94a3b8 !important;
+    border-color: rgba(148, 163, 184, 0.25);
 }
 
-.notice-bottom-header {
-    margin-bottom: 3px;
-}
-
-.notice-bottom-badge {
-    display: inline-block;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--text-muted);
-    background: rgba(148, 163, 184, 0.12);
-    border-radius: 4px;
-    padding: 1px 6px;
-}
-
-.notice-bottom-title {
-    font-family: var(--font-heading);
-    font-size: 0.86rem;
+.profile-notice-muted-title {
     font-weight: 700;
     color: var(--text-main);
-    margin: 2px 0;
 }
 
-.notice-bottom-text {
-    font-size: 0.76rem;
+.profile-notice-muted-subtitle {
+    font-size: 0.75rem;
     color: var(--text-muted);
-    line-height: 1.45;
-    margin: 0 0 6px 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.notice-bottom-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--text-muted);
+    margin-top: 2px;
+    line-height: 1.35;
 }
 
 /* Profile List Icons */

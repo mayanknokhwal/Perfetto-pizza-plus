@@ -6,8 +6,8 @@
 export const DEFAULT_WALLET_CONFIG = {
     key: 'wallet_config',
     enabled: true,
-    expiryDays: 7,
-    cashbackExpiryDays: 7,
+    expiryDays: 15,
+    cashbackExpiryDays: 15,
     minRedemptionOrder: 0,
     minOrderToRedeem: 0,
     slabs: [
