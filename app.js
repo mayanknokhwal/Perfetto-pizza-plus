@@ -4558,9 +4558,133 @@ let customerWalletConfig = (function() {
 })();
 window.customerWalletConfig = customerWalletConfig;
 
+let walletConfigRealtimeUnsubscribe = null;
+
+// Persistent real-time Firestore listener for Wallet & Cashback Configuration (settings/wallet_config)
+function listenToWalletConfigRealtime() {
+    if (walletConfigRealtimeUnsubscribe) return;
+
+    let db = null;
+    if (customerFirestore) {
+        db = customerFirestore;
+    } else if (typeof firebase !== 'undefined' && firebase.firestore) {
+        try {
+            if (!firebase.apps || !firebase.apps.length) {
+                const config = window.FIREBASE_CONFIG || window.firebaseConfig;
+                if (config) firebase.initializeApp(config);
+            }
+            if (firebase.apps && firebase.apps.length) {
+                customerFirestore = firebase.firestore();
+                db = customerFirestore;
+            }
+        } catch (e) {}
+    }
+
+    if (!db) {
+        if (!window.__walletConfigRetryCount) window.__walletConfigRetryCount = 0;
+        if (window.__walletConfigRetryCount < 30) {
+            window.__walletConfigRetryCount++;
+            setTimeout(listenToWalletConfigRealtime, 250);
+        }
+        return;
+    }
+
+    try {
+        const applyWalletConfigSnapshot = (rawData) => {
+            if (!rawData || typeof rawData !== 'object') return;
+
+            const configData = (rawData.wallet_config && typeof rawData.wallet_config === 'object')
+                ? rawData.wallet_config
+                : rawData;
+
+            const clampedDays = typeof getClampedCashbackExpiryDays === 'function'
+                ? getClampedCashbackExpiryDays(configData)
+                : (configData.cashbackExpiryDays || configData.expiryDays || DEFAULT_WALLET_CONFIG.expiryDays || 15);
+
+            const rawSlabs = (Array.isArray(configData.slabs) && configData.slabs.length > 0)
+                ? configData.slabs
+                : ((Array.isArray(configData.rewardTiers) && configData.rewardTiers.length > 0)
+                    ? configData.rewardTiers
+                    : ((Array.isArray(configData.cashbackTiers) && configData.cashbackTiers.length > 0)
+                        ? configData.cashbackTiers
+                        : ((Array.isArray(configData.rewards) && configData.rewards.length > 0)
+                            ? configData.rewards
+                            : DEFAULT_WALLET_CONFIG.slabs)));
+
+            customerWalletConfig = {
+                ...DEFAULT_WALLET_CONFIG,
+                ...configData,
+                slabs: rawSlabs,
+                cashbackExpiryDays: clampedDays,
+                expiryDays: clampedDays
+            };
+            window.customerWalletConfig = customerWalletConfig;
+
+            try {
+                if (typeof safeStorage !== 'undefined' && safeStorage.setJSON) {
+                    safeStorage.setJSON('perfetto_wallet_config', customerWalletConfig);
+                }
+                localStorage.setItem('perfetto_wallet_config', JSON.stringify(customerWalletConfig));
+            } catch (e) {}
+
+            // Isolated Reward Bar Re-render:
+            // Calculate active cart subtotal and update only the cashback incentive bar in-place.
+            // Do NOT call updateCartUI() here to prevent wiping cartContainer.innerHTML or resetting quantities.
+            const currentSubtotal = (Array.isArray(cart) && cart.length > 0)
+                ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0)
+                : 0;
+
+            if (typeof updateCartCashbackIncentiveBar === 'function') {
+                updateCartCashbackIncentiveBar(currentSubtotal);
+            }
+            if (typeof updateCheckoutWalletUI === 'function') {
+                updateCheckoutWalletUI();
+            }
+            if (typeof updateProfileWalletUI === 'function') {
+                updateProfileWalletUI();
+            }
+            if (typeof renderOrderHistoryDetails === 'function') {
+                renderOrderHistoryDetails();
+            }
+        };
+
+        walletConfigRealtimeUnsubscribe = db.collection('settings').doc('wallet_config').onSnapshot((doc) => {
+            if (doc && doc.exists && doc.data()) {
+                applyWalletConfigSnapshot(doc.data());
+            }
+        }, (err) => {
+            console.warn('Firestore settings/wallet_config real-time notice:', err?.message || err);
+        });
+
+        // Supplementary listener for settings/rewards
+        db.collection('settings').doc('rewards').onSnapshot((doc) => {
+            if (doc && doc.exists && doc.data()) {
+                applyWalletConfigSnapshot(doc.data());
+            }
+        }, () => {});
+
+        // Supplementary listener for settings/store_config
+        db.collection('settings').doc('store_config').onSnapshot((doc) => {
+            if (doc && doc.exists && doc.data()) {
+                const d = doc.data();
+                if (d && (d.wallet_config || d.slabs)) {
+                    applyWalletConfigSnapshot(d.wallet_config || d);
+                }
+            }
+        }, () => {});
+    } catch (e) {
+        console.warn('Error setting up settings/wallet_config real-time listener:', e);
+    }
+}
+window.listenToWalletConfigRealtime = listenToWalletConfigRealtime;
+
 // Proactively fetch live 5-slab wallet config from Backend API / Firestore on boot
 async function fetchAndApplyLiveWalletConfig() {
     try {
+        // 1. Immediately subscribe to real-time Firestore updates for zero-reload responsiveness
+        listenToWalletConfigRealtime();
+
+        // 2. Initial bootstrap/fallback fetch from backend API
         const targetUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/wallet') : '/api/settings/wallet';
         const res = await fetch(targetUrl);
         if (res.ok) {
@@ -4575,7 +4699,10 @@ async function fetchAndApplyLiveWalletConfig() {
                     };
                     window.customerWalletConfig = customerWalletConfig;
                     safeStorage.setJSON('perfetto_wallet_config', customerWalletConfig);
-                    if (typeof updateCartUI === 'function') updateCartUI();
+                    const currentSubtotal = (Array.isArray(cart) && cart.length > 0)
+                        ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0)
+                        : 0;
+                    if (typeof updateCartCashbackIncentiveBar === 'function') updateCartCashbackIncentiveBar(currentSubtotal);
                     if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
                     if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
                 }
@@ -4801,7 +4928,6 @@ window.getEffectiveWalletBalance = getEffectiveWalletBalance;
 let isWalletRedemptionSelected = false;
 let appliedWalletDiscountAmount = 0;
 let customerWalletRealtimeUnsubscribe = null;
-let walletConfigRealtimeUnsubscribe = null;
 
 function calculateValidWalletBalance(walletDoc) {
     if (!walletDoc) return { balance: 0, nonExpiredBalance: 0 };
@@ -5009,6 +5135,11 @@ function getSlab1Threshold(walletConfig = customerWalletConfig) {
 window.getSlab1Threshold = getSlab1Threshold;
 
 function updateCartCashbackIncentiveBar(subtotal) {
+    if (typeof subtotal !== 'number') {
+        subtotal = (Array.isArray(cart) && cart.length > 0)
+            ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0)
+            : 0;
+    }
     const bar = document.getElementById('cart-cashback-bar');
     const content = document.getElementById('cart-cashback-content');
     if (!bar || !content) return;
@@ -5932,7 +6063,16 @@ window.addEventListener('storage', (e) => {
             }
             if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = safeStorage.getJSON('perfetto_customer_wallet', {});
         } catch (err) {}
-        updateCartUI();
+        if (e.key === 'perfetto_wallet_config') {
+            const currentSubtotal = (Array.isArray(cart) && cart.length > 0)
+                ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0)
+                : 0;
+            if (typeof updateCartCashbackIncentiveBar === 'function') {
+                updateCartCashbackIncentiveBar(currentSubtotal);
+            }
+        } else {
+            updateCartUI();
+        }
         updateProfileWalletUI();
         updateCheckoutWalletUI();
         if (typeof renderOrderHistoryDetails === 'function') {
@@ -11504,64 +11644,7 @@ function listenToRealtimeMenuAndRates() {
     }
 
     if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
-        try {
-            const applyRemoteConfig = (rawData) => {
-                if (!rawData || typeof rawData !== 'object') return;
-                const clampedDays = getClampedCashbackExpiryDays(rawData);
-                const rawSlabs = (Array.isArray(rawData.slabs) && rawData.slabs.length > 0)
-                    ? rawData.slabs
-                    : ((Array.isArray(rawData.rewardTiers) && rawData.rewardTiers.length > 0)
-                        ? rawData.rewardTiers
-                        : ((Array.isArray(rawData.cashbackTiers) && rawData.cashbackTiers.length > 0)
-                            ? rawData.cashbackTiers
-                            : ((Array.isArray(rawData.rewards) && rawData.rewards.length > 0)
-                                ? rawData.rewards
-                                : ((rawData.wallet_config && Array.isArray(rawData.wallet_config.slabs)) ? rawData.wallet_config.slabs : DEFAULT_WALLET_CONFIG.slabs))));
-
-                customerWalletConfig = {
-                    ...DEFAULT_WALLET_CONFIG,
-                    ...rawData,
-                    slabs: rawSlabs,
-                    cashbackExpiryDays: clampedDays,
-                    expiryDays: clampedDays
-                };
-                window.customerWalletConfig = customerWalletConfig;
-                localStorage.setItem('perfetto_wallet_config', JSON.stringify(customerWalletConfig));
-                updateCartUI();
-                updateCheckoutWalletUI();
-                updateProfileWalletUI();
-                if (typeof renderOrderHistoryDetails === 'function') {
-                    renderOrderHistoryDetails();
-                }
-            };
-
-            walletConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('wallet_config').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    applyRemoteConfig(doc.data());
-                }
-            }, (err) => {
-                console.warn('Firestore wallet_config real-time notice:', err.message);
-            });
-
-            // Supplementary listener for settings/rewards
-            customerFirestore.collection('settings').doc('rewards').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    applyRemoteConfig(doc.data());
-                }
-            }, () => {});
-
-            // Supplementary listener for settings/store_config
-            customerFirestore.collection('settings').doc('store_config').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    const d = doc.data();
-                    if (d.wallet_config || d.slabs) {
-                        applyRemoteConfig(d.wallet_config || d);
-                    }
-                }
-            }, () => {});
-        } catch (e) {
-            console.warn('Error setting up wallet_config real-time listener:', e);
-        }
+        listenToWalletConfigRealtime();
     }
 
     if (typeof BroadcastChannel !== 'undefined' && !window.__walletBroadcastChannelBound) {
@@ -11582,7 +11665,10 @@ function listenToRealtimeMenuAndRates() {
                         slabs: incomingSlabs
                     };
                     window.customerWalletConfig = customerWalletConfig;
-                    if (typeof updateCartUI === 'function') updateCartUI();
+                    const currentSubtotal = (Array.isArray(cart) && cart.length > 0)
+                        ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0)
+                        : 0;
+                    if (typeof updateCartCashbackIncentiveBar === 'function') updateCartCashbackIncentiveBar(currentSubtotal);
                     if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
                     if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
                 }
