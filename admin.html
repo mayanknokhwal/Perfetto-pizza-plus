@@ -8238,6 +8238,16 @@
                     // Local resilience
                 }
 
+                // Immediate cross-tab local sync & broadcast
+                try {
+                    localStorage.setItem('perfetto_wallet_config', JSON.stringify(docPayload));
+                    if (typeof BroadcastChannel !== 'undefined') {
+                        const bc = new BroadcastChannel('perfetto_store_sync');
+                        bc.postMessage({ type: 'wallet_config_updated', config: docPayload });
+                        bc.close();
+                    }
+                } catch (e) {}
+
                 adminWalletConfig = docPayload;
 
                 if (showToastMsg) {

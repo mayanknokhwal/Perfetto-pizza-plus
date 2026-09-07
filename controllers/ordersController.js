@@ -180,19 +180,17 @@ async function handleOrdersRequest(req, res) {
             // Dynamically read the minimum qualification amount for Slab 1 from global.__perfettoWalletConfig
             const rawSlabs = (Array.isArray(global.__perfettoWalletConfig?.slabs) && global.__perfettoWalletConfig.slabs.length > 0)
                 ? global.__perfettoWalletConfig.slabs
-                : [
-                    { minOrder: 350, cashback: 10 },
-                    { minOrder: 450, cashback: 40 },
-                    { minOrder: 700, cashback: 80 },
-                    { minOrder: 2000, cashback: 200 },
-                    { minOrder: 3000, cashback: 300 }
-                ];
+                : (DEFAULT_WALLET_CONFIG?.slabs || []);
             const sortedSlabs = [...rawSlabs].map(s => ({
                 minOrder: Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0,
                 cashback: Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount))) || 0
             })).filter(s => s.minOrder > 0).sort((a, b) => a.minOrder - b.minOrder);
 
-            const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : 350;
+            const activeSlab1Amount = (rawSlabs[0] && (rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min)))
+                ? Number(rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min))
+                : Number(DEFAULT_WALLET_CONFIG?.slabs?.[0]?.minOrder || 0);
+
+            const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : activeSlab1Amount;
             const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false);
 
             let verifiedCashback = 0;

@@ -4501,13 +4501,6 @@ let customerWalletConfig = (function() {
         if (stored) {
             const parsed = JSON.parse(stored);
             if (parsed && typeof parsed === 'object') {
-                // Purge any stale legacy default where Slab 1 was 200 / 20
-                if (Array.isArray(parsed.slabs) && parsed.slabs.length > 0) {
-                    const firstMin = Number(parsed.slabs[0].minOrder || 0);
-                    if (firstMin < 350) {
-                        parsed.slabs = JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG.slabs));
-                    }
-                }
                 const days = getClampedCashbackExpiryDays(parsed);
                 parsed.expiryDays = days;
                 parsed.cashbackExpiryDays = days;
@@ -4836,22 +4829,29 @@ window.getCashbackRewardBoundaries = getCashbackRewardBoundaries;
  * @returns {number}
  */
 function getSlab1Threshold(walletConfig = customerWalletConfig) {
-    if (!walletConfig || walletConfig.enabled === false) return 350;
-    const rawSlabs = (Array.isArray(walletConfig.slabs) && walletConfig.slabs.length > 0)
+    const rawSlabs = (Array.isArray(walletConfig?.slabs) && walletConfig.slabs.length > 0)
         ? walletConfig.slabs
-        : ((Array.isArray(walletConfig.rewardTiers) && walletConfig.rewardTiers.length > 0)
+        : ((Array.isArray(walletConfig?.rewardTiers) && walletConfig.rewardTiers.length > 0)
             ? walletConfig.rewardTiers
-            : ((Array.isArray(walletConfig.cashbackTiers) && walletConfig.cashbackTiers.length > 0)
+            : ((Array.isArray(walletConfig?.cashbackTiers) && walletConfig.cashbackTiers.length > 0)
                 ? walletConfig.cashbackTiers
-                : ((Array.isArray(walletConfig.rewards) && walletConfig.rewards.length > 0)
+                : ((Array.isArray(walletConfig?.rewards) && walletConfig.rewards.length > 0)
                     ? walletConfig.rewards
-                    : DEFAULT_WALLET_CONFIG.slabs)));
+                    : (DEFAULT_WALLET_CONFIG?.slabs || []))));
 
     const sortedMins = [...rawSlabs].map(s => {
-        return Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0;
+        return Number(s.minOrder !== undefined ? s.minOrder : (s.minAmount !== undefined ? s.minAmount : (s.min !== undefined ? s.min : s.threshold))) || 0;
     }).filter(m => m > 0).sort((a, b) => a - b);
 
-    return sortedMins.length > 0 ? sortedMins[0] : 350;
+    if (sortedMins.length > 0) {
+        return sortedMins[0];
+    }
+
+    const activeSlab1Amount = (rawSlabs[0] && (rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min)))
+        ? Number(rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min))
+        : Number(DEFAULT_WALLET_CONFIG?.slabs?.[0]?.minOrder || 0);
+
+    return activeSlab1Amount;
 }
 window.getSlab1Threshold = getSlab1Threshold;
 
@@ -11255,9 +11255,45 @@ function listenToRealtimeMenuAndRates() {
                     applyRemoteConfig(doc.data());
                 }
             }, () => {});
+
+            // Supplementary listener for settings/store_config
+            customerFirestore.collection('settings').doc('store_config').onSnapshot((doc) => {
+                if (doc.exists && doc.data()) {
+                    const d = doc.data();
+                    if (d.wallet_config || d.slabs) {
+                        applyRemoteConfig(d.wallet_config || d);
+                    }
+                }
+            }, () => {});
         } catch (e) {
             console.warn('Error setting up wallet_config real-time listener:', e);
         }
+    }
+
+    if (typeof BroadcastChannel !== 'undefined' && !window.__walletBroadcastChannelBound) {
+        window.__walletBroadcastChannelBound = true;
+        try {
+            const bc = new BroadcastChannel('perfetto_store_sync');
+            bc.onmessage = (event) => {
+                if (event.data && event.data.type === 'wallet_config_updated' && event.data.config) {
+                    const conf = event.data.config;
+                    const incomingSlabs = (Array.isArray(conf.slabs) && conf.slabs.length > 0)
+                        ? conf.slabs
+                        : ((Array.isArray(conf.rewardTiers) && conf.rewardTiers.length > 0)
+                            ? conf.rewardTiers
+                            : customerWalletConfig.slabs);
+                    customerWalletConfig = {
+                        ...DEFAULT_WALLET_CONFIG,
+                        ...conf,
+                        slabs: incomingSlabs
+                    };
+                    window.customerWalletConfig = customerWalletConfig;
+                    if (typeof updateCartUI === 'function') updateCartUI();
+                    if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+                    if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
+                }
+            };
+        } catch (e) {}
     }
 
     // B.4 Real-Time Store Notice Sync ('settings/store_notice')
