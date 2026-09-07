@@ -1060,6 +1060,12 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
     if (tabName === 'profile') {
         updateProfileTotalsUI();
     }
+    if (tabName === 'cart') {
+        updateCartUI();
+        if (typeof setupWalletConfigRealtimeListener === 'function') {
+            setupWalletConfigRealtimeListener();
+        }
+    }
     if (tabName === 'profile' || tabName === 'home') {
         updateStoreNoticeUI();
     }
@@ -4575,6 +4581,7 @@ async function fetchAndApplyLiveWalletConfig() {
                     };
                     window.customerWalletConfig = customerWalletConfig;
                     safeStorage.setJSON('perfetto_wallet_config', customerWalletConfig);
+                    if (typeof updateCartCashbackIncentiveBar === 'function') updateCartCashbackIncentiveBar();
                     if (typeof updateCartUI === 'function') updateCartUI();
                     if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
                     if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
@@ -5008,25 +5015,35 @@ function getSlab1Threshold(walletConfig = customerWalletConfig) {
 }
 window.getSlab1Threshold = getSlab1Threshold;
 
+// --------------------------------------------------------------------------
+// REAL-TIME CART CASHBACK INCENTIVE PROGRESS BANNER
+// Decoupled from window.onscroll, touch gestures, or intersection observers.
+// Updates immediately on Firestore snapshot and re-renders cart UI in real-time.
+// --------------------------------------------------------------------------
 function updateCartCashbackIncentiveBar(subtotal) {
     const bar = document.getElementById('cart-cashback-bar');
     const content = document.getElementById('cart-cashback-content');
     if (!bar || !content) return;
 
-    if (!customerWalletConfig || customerWalletConfig.enabled === false || cart.length === 0 || subtotal <= 0) {
+    // Autonomous subtotal resolution: decoupled from scroll or external callers
+    const currentSubtotal = (typeof subtotal === 'number')
+        ? subtotal
+        : (Array.isArray(cart) ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0) : 0);
+
+    if (!customerWalletConfig || customerWalletConfig.enabled === false || !Array.isArray(cart) || cart.length === 0 || currentSubtotal <= 0) {
         bar.style.display = 'none';
         return;
     }
 
     const slab1Threshold = getSlab1Threshold(customerWalletConfig);
-    const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0);
-    const boundaries = getCashbackRewardBoundaries(subtotal);
+    const isSlab1Qualified = Boolean(currentSubtotal >= slab1Threshold && currentSubtotal > 0);
+    const boundaries = getCashbackRewardBoundaries(currentSubtotal, customerWalletConfig);
     const isHindiCashback = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     bar.style.display = 'block';
 
     if (!isSlab1Qualified) {
-        const diff = Math.max(0, slab1Threshold - subtotal);
+        const diff = Math.max(0, slab1Threshold - currentSubtotal);
         const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 10;
         bar.classList.remove('cashback-max-unlocked');
 
@@ -5050,7 +5067,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
         if (boundaries.nextSlab) {
             const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
             const nextReward = Number(boundaries.nextSlab.cashback) || 0;
-            const diff = Math.max(0, nextMin - subtotal);
+            const diff = Math.max(0, nextMin - currentSubtotal);
             bar.classList.remove('cashback-max-unlocked');
 
             content.innerHTML = `
@@ -5164,22 +5181,26 @@ function updateCheckoutCashbackTeaser(subtotal) {
     const teaserSub = document.getElementById('checkout-cashback-teaser-sub');
     if (!teaserEl) return;
 
-    if (!customerWalletConfig || customerWalletConfig.enabled === false || cart.length === 0 || subtotal <= 0) {
+    const currentSubtotal = (typeof subtotal === 'number')
+        ? subtotal
+        : (Array.isArray(cart) ? cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0) : 0);
+
+    if (!customerWalletConfig || customerWalletConfig.enabled === false || !Array.isArray(cart) || cart.length === 0 || currentSubtotal <= 0) {
         teaserEl.style.display = 'none';
         return;
     }
 
     const slab1Threshold = getSlab1Threshold(customerWalletConfig);
-    const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0);
+    const isSlab1Qualified = Boolean(currentSubtotal >= slab1Threshold && currentSubtotal > 0);
     const isWalletApplied = Boolean(isWalletRedemptionSelected && appliedWalletDiscountAmount > 0);
-    const boundaries = getCashbackRewardBoundaries(subtotal);
+    const boundaries = getCashbackRewardBoundaries(currentSubtotal, customerWalletConfig);
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     teaserEl.style.display = 'block';
 
     if (!isSlab1Qualified) {
         // Below Slab 1: standard upsell message regardless of payment method
-        const diff = Math.max(0, slab1Threshold - subtotal);
+        const diff = Math.max(0, slab1Threshold - currentSubtotal);
         const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 10;
         teaserEl.classList.remove('teaser-wallet-applied');
         if (teaserText) {
@@ -5208,7 +5229,7 @@ function updateCheckoutCashbackTeaser(subtotal) {
     } else {
         // Qualifying order (Slab 1+) + Wallet Unchecked: dynamic unlocked milestone reward banner
         teaserEl.classList.remove('teaser-wallet-applied');
-        const reward = boundaries.max || calculateOrderCashback(subtotal);
+        const reward = boundaries.max || calculateOrderCashback(currentSubtotal);
         if (teaserText) {
             teaserText.textContent = isHindi
                 ? `₹${reward} कैशबैक अनलॉक! (स्क्रैच कार्ड तैयार)`
@@ -5218,7 +5239,7 @@ function updateCheckoutCashbackTeaser(subtotal) {
             if (boundaries.nextSlab) {
                 const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
                 const nextReward = Number(boundaries.nextSlab.cashback) || 0;
-                const diff = Math.max(0, nextMin - subtotal);
+                const diff = Math.max(0, nextMin - currentSubtotal);
                 teaserSub.textContent = isHindi
                     ? `${formatPrice(diff)} और जोड़ें (₹${nextReward} रिवॉर्ड पाएं) ✨`
                     : `Add ${formatPrice(diff)} more to reach next milestone for ${formatPrice(nextReward)} Cashback ✨`;
@@ -5231,6 +5252,128 @@ function updateCheckoutCashbackTeaser(subtotal) {
     }
 }
 window.updateCheckoutCashbackTeaser = updateCheckoutCashbackTeaser;
+
+/**
+ * --------------------------------------------------------------------------
+ * REAL-TIME FIRESTORE LISTENER FOR WALLET & CASHBACK SLABS
+ * (Decoupled from window.onscroll, touch gestures, or intersection observers)
+ * --------------------------------------------------------------------------
+ * Attaches an active onSnapshot listener to the 'settings/wallet_config' document.
+ * Updates local wallet configuration state immediately whenever admin modifies slabs,
+ * and triggers an instant, seamless re-render of the cart reward progress banner
+ * while the cart view/modal remains completely static on screen.
+ */
+function setupWalletConfigRealtimeListener() {
+    if (walletConfigRealtimeUnsubscribe) return;
+
+    let db = customerFirestore;
+    if (!db && typeof firebase !== 'undefined' && firebase.firestore) {
+        try {
+            if (!firebase.apps || !firebase.apps.length) {
+                const config = (window.FIREBASE_CONFIG || {
+                    apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+                    authDomain: "website-fa79c.firebaseapp.com",
+                    projectId: "website-fa79c",
+                    storageBucket: "website-fa79c.firebasestorage.app",
+                    messagingSenderId: "1070276115284",
+                    appId: "1:1070276115284:web:ebcb37d56f3af2a2d326c1",
+                    measurementId: "G-DT7MRXDMZ0"
+                });
+                firebase.initializeApp(config);
+            }
+            customerFirestore = firebase.firestore();
+            db = customerFirestore;
+        } catch (e) {}
+    }
+
+    if (!db) {
+        if (!window.__walletListenerRetryCount) window.__walletListenerRetryCount = 0;
+        if (window.__walletListenerRetryCount < 40) {
+            window.__walletListenerRetryCount++;
+            setTimeout(setupWalletConfigRealtimeListener, 250);
+        }
+        return;
+    }
+
+    try {
+        const applyRemoteConfig = (rawData) => {
+            if (!rawData || typeof rawData !== 'object') return;
+            const clampedDays = getClampedCashbackExpiryDays(rawData);
+            const rawSlabs = (Array.isArray(rawData.slabs) && rawData.slabs.length > 0)
+                ? rawData.slabs
+                : ((Array.isArray(rawData.rewardTiers) && rawData.rewardTiers.length > 0)
+                    ? rawData.rewardTiers
+                    : ((Array.isArray(rawData.cashbackTiers) && rawData.cashbackTiers.length > 0)
+                        ? rawData.cashbackTiers
+                        : ((Array.isArray(rawData.rewards) && rawData.rewards.length > 0)
+                            ? rawData.rewards
+                            : ((rawData.wallet_config && Array.isArray(rawData.wallet_config.slabs)) ? rawData.wallet_config.slabs : DEFAULT_WALLET_CONFIG.slabs))));
+
+            const normalizedSlabs = [...rawSlabs].map((s, idx) => {
+                const minVal = Number(s.minOrder !== undefined ? s.minOrder : (s.minAmount !== undefined ? s.minAmount : (s.min !== undefined ? s.min : s.threshold)));
+                const cbVal = Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount)));
+                return {
+                    ...s,
+                    minOrder: !isNaN(minVal) ? minVal : (DEFAULT_WALLET_CONFIG.slabs[idx]?.minOrder || 0),
+                    cashback: !isNaN(cbVal) ? cbVal : (DEFAULT_WALLET_CONFIG.slabs[idx]?.cashback || 0)
+                };
+            }).sort((a, b) => a.minOrder - b.minOrder);
+
+            customerWalletConfig = {
+                ...DEFAULT_WALLET_CONFIG,
+                ...rawData,
+                slabs: normalizedSlabs,
+                cashbackExpiryDays: clampedDays,
+                expiryDays: clampedDays
+            };
+            window.customerWalletConfig = customerWalletConfig;
+            try {
+                localStorage.setItem('perfetto_wallet_config', JSON.stringify(customerWalletConfig));
+            } catch (e) {}
+
+            // Immediate Cart UI Re-render:
+            // Updates cart reward progress banner immediately without scroll or manual refresh
+            updateCartCashbackIncentiveBar();
+            if (typeof updateCartUI === 'function') updateCartUI();
+            if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+            if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
+            if (typeof renderOrderHistoryDetails === 'function') {
+                renderOrderHistoryDetails();
+            }
+        };
+
+        walletConfigRealtimeUnsubscribe = db.collection('settings').doc('wallet_config').onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                applyRemoteConfig(doc.data());
+            }
+        }, (err) => {
+            console.warn('Firestore wallet_config real-time notice:', err.message);
+        });
+
+        // Supplementary listener for settings/rewards
+        db.collection('settings').doc('rewards').onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                applyRemoteConfig(doc.data());
+            }
+        }, () => {});
+
+        // Supplementary listener for settings/store_config
+        db.collection('settings').doc('store_config').onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                const d = doc.data();
+                if (d.wallet_config || d.slabs) {
+                    applyRemoteConfig(d.wallet_config || d);
+                }
+            }
+        }, () => {});
+    } catch (e) {
+        console.warn('Error setting up wallet_config real-time listener:', e);
+    }
+}
+window.setupWalletConfigRealtimeListener = setupWalletConfigRealtimeListener;
+
+// Immediately initiate active real-time subscription
+setupWalletConfigRealtimeListener();
 
 function handleToggleUseWallet(isChecked) {
     isWalletRedemptionSelected = isChecked;
@@ -11503,66 +11646,9 @@ function listenToRealtimeMenuAndRates() {
         }
     }
 
-    if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
-        try {
-            const applyRemoteConfig = (rawData) => {
-                if (!rawData || typeof rawData !== 'object') return;
-                const clampedDays = getClampedCashbackExpiryDays(rawData);
-                const rawSlabs = (Array.isArray(rawData.slabs) && rawData.slabs.length > 0)
-                    ? rawData.slabs
-                    : ((Array.isArray(rawData.rewardTiers) && rawData.rewardTiers.length > 0)
-                        ? rawData.rewardTiers
-                        : ((Array.isArray(rawData.cashbackTiers) && rawData.cashbackTiers.length > 0)
-                            ? rawData.cashbackTiers
-                            : ((Array.isArray(rawData.rewards) && rawData.rewards.length > 0)
-                                ? rawData.rewards
-                                : ((rawData.wallet_config && Array.isArray(rawData.wallet_config.slabs)) ? rawData.wallet_config.slabs : DEFAULT_WALLET_CONFIG.slabs))));
-
-                customerWalletConfig = {
-                    ...DEFAULT_WALLET_CONFIG,
-                    ...rawData,
-                    slabs: rawSlabs,
-                    cashbackExpiryDays: clampedDays,
-                    expiryDays: clampedDays
-                };
-                window.customerWalletConfig = customerWalletConfig;
-                localStorage.setItem('perfetto_wallet_config', JSON.stringify(customerWalletConfig));
-                updateCartUI();
-                updateCheckoutWalletUI();
-                updateProfileWalletUI();
-                if (typeof renderOrderHistoryDetails === 'function') {
-                    renderOrderHistoryDetails();
-                }
-            };
-
-            walletConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('wallet_config').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    applyRemoteConfig(doc.data());
-                }
-            }, (err) => {
-                console.warn('Firestore wallet_config real-time notice:', err.message);
-            });
-
-            // Supplementary listener for settings/rewards
-            customerFirestore.collection('settings').doc('rewards').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    applyRemoteConfig(doc.data());
-                }
-            }, () => {});
-
-            // Supplementary listener for settings/store_config
-            customerFirestore.collection('settings').doc('store_config').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    const d = doc.data();
-                    if (d.wallet_config || d.slabs) {
-                        applyRemoteConfig(d.wallet_config || d);
-                    }
-                }
-            }, () => {});
-        } catch (e) {
-            console.warn('Error setting up wallet_config real-time listener:', e);
-        }
-    }
+    // B.3 Real-Time Wallet Configuration Sync ('settings/wallet_config')
+    // Decoupled from window.onscroll, touch gestures, or intersection observers.
+    setupWalletConfigRealtimeListener();
 
     if (typeof BroadcastChannel !== 'undefined' && !window.__walletBroadcastChannelBound) {
         window.__walletBroadcastChannelBound = true;
@@ -11582,6 +11668,7 @@ function listenToRealtimeMenuAndRates() {
                         slabs: incomingSlabs
                     };
                     window.customerWalletConfig = customerWalletConfig;
+                    if (typeof updateCartCashbackIncentiveBar === 'function') updateCartCashbackIncentiveBar();
                     if (typeof updateCartUI === 'function') updateCartUI();
                     if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
                     if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
@@ -12028,6 +12115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateProfileTotalsUI();
     setupLocalStorageSync();
     initFirebaseRealtimeSync();
+    setupWalletConfigRealtimeListener();
     setupStoreNoticeRealtimeListener();
     initPhoneInputRestrictions();
     updateStoreNoticeUI();
@@ -12039,6 +12127,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchLiveMenuFromBackend();
     fetchLiveSettingsFromBackend();
     fetchLiveNoticeFromBackend();
+    fetchAndApplyLiveWalletConfig();
 
     // 2. Cross-Device Profile & Address Automatic Sync
     const effectiveSyncPhone = (savedProfile && savedProfile.phone) || getStoredVerifiedPhone();
@@ -12087,15 +12176,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
+            setupWalletConfigRealtimeListener();
             fetchLiveMenuFromBackend();
             fetchLiveSettingsFromBackend();
             fetchLiveNoticeFromBackend();
+            fetchAndApplyLiveWalletConfig();
         }
     });
     window.addEventListener('focus', () => {
+        setupWalletConfigRealtimeListener();
         fetchLiveMenuFromBackend();
         fetchLiveSettingsFromBackend();
         fetchLiveNoticeFromBackend();
+        fetchAndApplyLiveWalletConfig();
     });
 });
 
