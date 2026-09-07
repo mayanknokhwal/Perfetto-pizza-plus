@@ -650,6 +650,26 @@ function getStoredVerifiedPhone() {
     return null;
 }
 
+function getVerifiedCustomerPhone() {
+    try {
+        const verified = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : null;
+        if (verified && verified.length === 10) return verified;
+        if (currentUserProfile && currentUserProfile.phone) {
+            const clean = String(currentUserProfile.phone).replace(/[^0-9]/g, '').slice(-10);
+            if (clean.length === 10) return clean;
+        }
+        const profile = typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null;
+        if (profile && profile.phone) {
+            const clean = String(profile.phone).replace(/[^0-9]/g, '').slice(-10);
+            if (clean.length === 10 && profile.isVerified !== false) return clean;
+        }
+    } catch (e) {
+        console.warn('Error resolving verified customer phone:', e);
+    }
+    return null;
+}
+window.getVerifiedCustomerPhone = getVerifiedCustomerPhone;
+
 function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false) {
     if (!phone) return;
     const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
@@ -658,6 +678,20 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
     try {
         const currentVerified = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : '';
         const wasAlreadyVerified = (currentVerified === cleanPhone);
+
+        if (!wasAlreadyVerified) {
+            if (typeof customerPhoneOrdersUnsubscribe === 'function') {
+                try { customerPhoneOrdersUnsubscribe(); } catch (e) {}
+                customerPhoneOrdersUnsubscribe = null;
+                customerPhoneOrdersCurrentQueryPhone = null;
+            }
+            if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
+                customerOrdersUnsubscribeMap.forEach(unsub => {
+                    try { unsub(); } catch (e) {}
+                });
+                customerOrdersUnsubscribeMap.clear();
+            }
+        }
 
         if (isVerified) {
             safeStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
@@ -681,6 +715,9 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
                 if (typeof restoreUserProfileFromFirestore === 'function') {
                     restoreUserProfileFromFirestore(cleanPhone, { silent: true });
                 }
+            }
+            if (typeof listenToCustomerActiveOrders === 'function') {
+                listenToCustomerActiveOrders();
             }
         } else {
             safeStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
@@ -4840,13 +4877,13 @@ function updateCheckoutCashbackTeaser(subtotal) {
         teaserEl.classList.add('teaser-wallet-applied');
         if (teaserText) {
             teaserText.textContent = isHindi 
-                ? 'वॉलेट कैश लागू है (स्क्रैच कार्ड बिना वॉलेट उपयोग पर मिलते हैं)' 
-                : 'Wallet cash applied (Scratch cards are awarded on orders without wallet discount)';
+                ? 'वॉलेट बैलेंस लागू! ऑर्डर पूरा होने पर आपको फ्लैट ₹10 थैंक यू कैशबैक स्क्रैच कार्ड मिलेगा।' 
+                : 'Wallet balance applied! You will still receive a flat ₹10 Thank You cashback scratch card upon order completion.';
         }
         if (teaserSub) {
             teaserSub.textContent = isHindi 
-                ? 'कैशबैक स्क्रैच कार्ड पाने के लिए वॉलेट बॉक्स को अनचेक करें' 
-                : 'Uncheck wallet box if you prefer earning a cashback scratch card instead';
+                ? 'ऑर्डर पूरा करने पर थैंक यू स्क्रैच कार्ड तुरंत अनलॉक होगा ✨' 
+                : 'Thank You cashback scratch card will be unlocked right after checkout ✨';
         }
     } else if (boundaries.qualified && boundaries.max > 0) {
         teaserEl.style.display = 'block';
@@ -6075,9 +6112,12 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const baseGrandTotal = subtotal + deliveryFee;
     const walletDiscountToApply = isWalletRedemptionSelected ? Math.min(appliedWalletDiscountAmount, baseGrandTotal) : 0;
     const grandTotal = Math.max(0, baseGrandTotal - walletDiscountToApply);
-    // Cashback qualifies only when wallet balance was NOT redeemed on this order
-    const qualifiesForCashback = (walletDiscountToApply <= 0);
-    const earnedCashback = qualifiesForCashback ? calculateOrderCashback(subtotal) : 0;
+    // Hybrid Reward System:
+    // When wallet balance is applied: guaranteed flat ₹10 "Thank You Cashback Reward" scratch card.
+    // When wallet is NOT applied: full dynamic tier reward based on order milestone value.
+    const isWalletApplied = (walletDiscountToApply > 0);
+    const earnedCashback = isWalletApplied ? 10 : calculateOrderCashback(subtotal);
+    const rewardTitle = isWalletApplied ? 'Thank You Cashback Reward' : 'Cashback Reward';
 
     const resolvedPaymentMethod = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Wallet Cash' : paymentMethod;
     const resolvedPaymentStatus = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Paid via Wallet' : paymentStatus;
@@ -6132,6 +6172,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         usedWalletCash: Math.round(walletDiscountToApply),
         earnedCashback: Math.round(earnedCashback),
         wonCashback: Math.round(earnedCashback),
+        rewardTitle: rewardTitle,
         rewardStatus: 'unscratched',
         scratchRevealed: false,
         scratchClaimed: false,
@@ -6146,6 +6187,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
             const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
             const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
             return {
+                title: rewardTitle,
                 amount: Math.round(earnedCashback),
                 wonAmount: Math.round(earnedCashback),
                 revealed: false,
@@ -6818,8 +6860,14 @@ function setupScratchCanvas(order, rewardAmount) {
 
     // 6. Central Badge & Guidance Text
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    const boundaries = order ? getCashbackRewardBoundaries(order.subtotal || 0) : { max: rewardAmount };
-    const maxBound = boundaries.max || rewardAmount;
+    const isWalletUsed = Boolean(order && (Number(order.usedWallet || order.walletDiscount || order.appliedWalletDiscount) > 0));
+    let targetAmount = isWalletUsed ? 10 : Math.max(0, Math.round(Number(rewardAmount || (order && (order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)))) || 0)));
+    if (targetAmount <= 0) {
+        const subtotal = Number(order && order.subtotal) || 0;
+        const boundaries = (typeof getCashbackRewardBoundaries === 'function') ? getCashbackRewardBoundaries(subtotal) : { max: 10 };
+        targetAmount = boundaries.max || 10;
+    }
+    const dynamicTargetAmount = targetAmount;
 
     // Center pill box
     const badgeW = width - 70;
@@ -6850,11 +6898,11 @@ function setupScratchCanvas(order, rewardAmount) {
 
     ctx.font = '800 17px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#fffae0';
-    ctx.fillText(isHindi ? `₹${maxBound} कैशबैक 🎁` : `₹${maxBound} Cashback 🎁`, width / 2, badgeY + 42);
+    ctx.fillText(isHindi ? `जीतें ₹${dynamicTargetAmount} तक 🎁` : `Win up to ₹${dynamicTargetAmount} 🎁`, width / 2, badgeY + 42);
 
     ctx.font = '500 11px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillText('अपनी उंगली से स्क्रैच करें (45%)', width / 2, badgeY + 61);
+    ctx.fillText(isHindi ? 'उंगली या माउस से स्क्रैच करें ✨' : 'Scratch with finger or mouse ✨', width / 2, badgeY + 61);
 
     initScratchCardCanvasEvents();
 }
@@ -6930,14 +6978,13 @@ function initScratchCardCanvasEvents() {
             scratchPixelCheckTimer = setTimeout(() => {
                 scratchPixelCheckTimer = null;
                 checkScratchCompletion();
-            }, 80);
+            }, 60);
         }
     }
 
-    // Touch Event Handlers (passive: false + preventDefault() eliminates mobile scroll freezing)
+    // Touch Event Handlers (passive event handling + touch-action: none eliminates mobile dragging lag)
     function onTouchStart(e) {
         if (isScratchCardRevealed) return;
-        if (e.cancelable) e.preventDefault();
         isScratchingCard = true;
         const touch = e.touches[0];
         const coords = getCoords(touch.clientX, touch.clientY);
@@ -6948,7 +6995,6 @@ function initScratchCardCanvasEvents() {
 
     function onTouchMove(e) {
         if (!isScratchingCard || isScratchCardRevealed) return;
-        if (e.cancelable) e.preventDefault();
         const touch = e.touches[0];
         const coords = getCoords(touch.clientX, touch.clientY);
         eraseContinuousPath(scratchLastX, scratchLastY, coords.x, coords.y);
@@ -6990,11 +7036,11 @@ function initScratchCardCanvasEvents() {
         checkScratchCompletion();
     }
 
-    // Bind touch events on canvas with passive: false so preventDefault() stops mobile scrolling
-    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend', onTouchEnd);
-    window.addEventListener('touchcancel', onTouchEnd);
+    // Bind touch events on canvas with passive: true so browser renders drag gestures instantly without lag
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
 
     // Bind mouse events on canvas and window
     canvas.addEventListener('mousedown', onMouseDown);
@@ -7021,8 +7067,8 @@ function checkScratchCompletion() {
         }
 
         const percentage = total > 0 ? (transparent / total) * 100 : 0;
-        // Require customer to scratch at least 45% of the card area
-        if (percentage >= 45) {
+        // Require customer to scratch at least 25% of the card area for effortless and smooth reveal
+        if (percentage >= 25) {
             revealScratchCardReward();
         }
     } catch (e) {
@@ -7534,8 +7580,14 @@ function openScratchCardModal(order, demoAmount) {
     };
 
     // Calculate or resolve exact rupee reward amount matching active admin settings
+    const isWalletUsedOnOrder = Boolean(activeScratchOrder && (Number(activeScratchOrder.usedWallet || activeScratchOrder.walletDiscount || activeScratchOrder.appliedWalletDiscount) > 0));
     let rewardAmount = Number(activeScratchOrder.earnedCashback || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.wonAmount || activeScratchOrder.scratchCard.amount)) || activeScratchOrder.wonCashback || 0);
-    if (rewardAmount <= 0) {
+    if (isWalletUsedOnOrder && rewardAmount <= 0) {
+        rewardAmount = 10;
+        activeScratchOrder.earnedCashback = 10;
+        activeScratchOrder.wonCashback = 10;
+        activeScratchOrder.rewardTitle = 'Thank You Cashback Reward';
+    } else if (rewardAmount <= 0) {
         const subtotal = Number(activeScratchOrder.subtotal) || 0;
         rewardAmount = subtotal > 0 ? calculateOrderCashback(subtotal) : (demoAmount !== undefined ? demoAmount : calculateOrderCashback(500));
         activeScratchOrder.earnedCashback = rewardAmount;
@@ -7692,8 +7744,8 @@ function openScratchCardModal(order, demoAmount) {
         }
         if (hintText) {
             hintText.textContent = isHindi 
-                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 45%)' 
-                : 'Scratch the card using your finger or mouse! (45% required)';
+                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 25%)' 
+                : 'Scratch the card using your finger or mouse! (25% required)';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-hand-pointer fa-bounce';
 
@@ -9044,7 +9096,10 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                             }
                             map.set(id, o);
                         });
+                        const targetClean = String(targetPhone || '').replace(/[^0-9]/g, '').slice(-10);
                         existingLocal.forEach(o => {
+                            const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                            if (targetClean && p && p !== targetClean) return; // Strict isolation: drop orders belonging to other phone numbers
                             const id = String(o.id || o.orderId);
                             if (!map.has(id)) map.set(id, o);
                         });
@@ -9054,6 +9109,18 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                             return timeB - timeA;
                         });
                         safeStorage.setJSON('perfettoCustomerOrders', merged);
+                        if (typeof listenToCustomerActiveOrders === 'function') {
+                            listenToCustomerActiveOrders();
+                        }
+                    } else {
+                        // When no remote orders exist, cleanse local storage of orders from other phone numbers
+                        const targetClean = String(targetPhone || '').replace(/[^0-9]/g, '').slice(-10);
+                        const existingLocal = safeStorage.getJSON('perfettoCustomerOrders', []);
+                        const filteredLocal = existingLocal.filter(o => {
+                            const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                            return !p || (targetClean && p === targetClean);
+                        });
+                        safeStorage.setJSON('perfettoCustomerOrders', filteredLocal);
                         if (typeof listenToCustomerActiveOrders === 'function') {
                             listenToCustomerActiveOrders();
                         }
@@ -9220,13 +9287,22 @@ function updateProfileTotalsUI() {
     if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
     if (orderTotalEl) orderTotalEl.textContent = formatPrice(total);
 
-    // Update stats counters - clean Total Orders only
+    // Update stats counters - clean Total Orders only (strictly isolated to verified phone)
     let orderCount = 0;
     try {
         const storedOrders = localStorage.getItem('perfettoCustomerOrders');
         if (storedOrders) {
-            const list = JSON.parse(storedOrders);
-            if (Array.isArray(list)) orderCount = list.length;
+            let list = JSON.parse(storedOrders);
+            if (Array.isArray(list)) {
+                const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+                if (verifiedPhone) {
+                    list = list.filter(o => {
+                        const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                        return p === verifiedPhone;
+                    });
+                }
+                orderCount = list.length;
+            }
         }
     } catch (e) { }
 
@@ -9401,7 +9477,14 @@ function renderOrderHistoryDetails() {
     if (!listEl) return;
 
     try {
-        const orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        if (verifiedPhone && Array.isArray(orders)) {
+            orders = orders.filter(o => {
+                const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                return p === verifiedPhone;
+            });
+        }
         if (Array.isArray(orders) && orders.length > 0) {
             if (clearBtn) clearBtn.style.display = 'inline-flex';
             listEl.innerHTML = orders.map(o => {
@@ -10832,11 +10915,108 @@ function listenToRealtimeMenuAndRates() {
 
 // C. Real-Time Listener for Customer Active Placed Orders
 const customerOrdersUnsubscribeMap = new Map();
+let customerPhoneOrdersUnsubscribe = null;
+let customerPhoneOrdersCurrentQueryPhone = null;
+
+function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
+    try {
+        let storedOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (!Array.isArray(storedOrders)) storedOrders = [];
+
+        // Prune out orders belonging to other phones or desktop sessions
+        storedOrders = storedOrders.filter(o => {
+            const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+            return !p || p === verifiedPhone;
+        });
+
+        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
+        let clearedIds = safeStorage.getJSON('perfettoClearedOrderIds', []);
+        if (!Array.isArray(clearedIds)) clearedIds = [];
+        const clearedSet = new Set(clearedIds);
+
+        const map = new Map();
+        remoteOrders.forEach(o => {
+            const id = String(o.id || o.orderId);
+            const st = String(o.status || '').trim().toLowerCase();
+            if (clearedSet.has(id) && terminalStatuses.has(st)) return;
+            map.set(id, o);
+        });
+
+        storedOrders.forEach(o => {
+            const id = String(o.id || o.orderId);
+            if (!map.has(id)) {
+                map.set(id, o);
+            } else {
+                const remote = map.get(id);
+                map.set(id, {
+                    ...remote,
+                    scratchRevealed: o.scratchRevealed || remote.scratchRevealed,
+                    scratchClaimed: o.scratchClaimed || remote.scratchClaimed,
+                    rewardStatus: (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited') ? o.rewardStatus : remote.rewardStatus
+                });
+            }
+        });
+
+        const merged = Array.from(map.values()).sort((a, b) => {
+            const timeA = new Date(a.createdAt || 0).getTime();
+            const timeB = new Date(b.createdAt || 0).getTime();
+            return timeB - timeA;
+        });
+
+        safeStorage.setJSON('perfettoCustomerOrders', merged);
+        renderOrderHistoryDetails();
+        updateProfileTotalsUI();
+    } catch (e) {
+        console.warn('Error syncing customer phone orders:', e);
+    }
+}
 
 function listenToCustomerActiveOrders() {
     if (!customerFirestore) return;
 
-    // 1. Listen to individual orders stored locally
+    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+
+    // 1. Strict Firestore query listener strictly filtered by verified customer phone
+    if (verifiedPhone) {
+        if (customerPhoneOrdersCurrentQueryPhone !== verifiedPhone) {
+            if (customerPhoneOrdersUnsubscribe) {
+                customerPhoneOrdersUnsubscribe();
+                customerPhoneOrdersUnsubscribe = null;
+            }
+            customerPhoneOrdersCurrentQueryPhone = verifiedPhone;
+            try {
+                customerPhoneOrdersUnsubscribe = customerFirestore.collection('orders')
+                    .where('customerPhone', '==', verifiedPhone)
+                    .onSnapshot((snapshot) => {
+                        if (!snapshot) return;
+                        const remoteOrders = [];
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            if (data) {
+                                remoteOrders.push({
+                                    ...data,
+                                    id: doc.id,
+                                    orderId: doc.id
+                                });
+                            }
+                        });
+                        syncCustomerPhoneOrders(remoteOrders, verifiedPhone);
+                    }, (err) => {
+                        console.warn('Firestore customer phone orders query listener notice:', err.message);
+                    });
+            } catch (e) {
+                console.warn('Error attaching customer phone orders query listener:', e);
+            }
+        }
+    } else {
+        if (customerPhoneOrdersUnsubscribe) {
+            customerPhoneOrdersUnsubscribe();
+            customerPhoneOrdersUnsubscribe = null;
+            customerPhoneOrdersCurrentQueryPhone = null;
+        }
+    }
+
+    // 2. Individual doc listeners for real-time order progression (strictly for verified phone)
     let storedOrders = [];
     try {
         const stored = localStorage.getItem('perfettoCustomerOrders');
@@ -10849,6 +11029,9 @@ function listenToCustomerActiveOrders() {
         storedOrders.forEach(o => {
             const orderId = String(o.id || o.orderId || '');
             if (!orderId || customerOrdersUnsubscribeMap.has(orderId)) return;
+
+            const orderPhone = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+            if (verifiedPhone && orderPhone && orderPhone !== verifiedPhone) return;
 
             try {
                 const unsub = customerFirestore.collection('orders').doc(orderId).onSnapshot((doc) => {
@@ -10871,6 +11054,10 @@ function listenToCustomerActiveOrders() {
 
 function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
     try {
+        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        const freshPhone = String(freshOrderData.customerPhone || freshOrderData.phone || (freshOrderData.customer && freshOrderData.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+        if (verifiedPhone && freshPhone && freshPhone !== verifiedPhone) return;
+
         let storedOrders = [];
         const stored = localStorage.getItem('perfettoCustomerOrders');
         if (stored) {
@@ -10938,12 +11125,14 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 }
             }
         } else {
-            storedOrders.unshift({
-                ...freshOrderData,
-                id: orderId,
-                orderId: orderId
-            });
-            updated = true;
+            if (!verifiedPhone || !freshPhone || freshPhone === verifiedPhone) {
+                storedOrders.unshift({
+                    ...freshOrderData,
+                    id: orderId,
+                    orderId: orderId
+                });
+                updated = true;
+            }
         }
 
         if (updated) {

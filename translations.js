@@ -121,7 +121,7 @@
             // Scratch Card Rewards
             scratch_card_title: "Scratch & Win Cashback",
             scratch_card_subtitle: "अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!",
-            scratch_instruction: "Scratch the card using your finger or mouse! (Scratch 45% to reveal)",
+            scratch_instruction: "Scratch the card using your finger or mouse! (Scratch 25% to reveal)",
             scratch_you_won: "YOU WON!",
             scratch_cashback_bonus: "Cashback Reward",
             scratch_validity_note: "Valid for {days} days in your wallet",
@@ -263,7 +263,7 @@
             // Scratch Card Rewards
             scratch_card_title: "Scratch & Win Cashback",
             scratch_card_subtitle: "अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!",
-            scratch_instruction: "कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 45%)",
+            scratch_instruction: "कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 25%)",
             scratch_you_won: "आप जीत गए!",
             scratch_cashback_bonus: "कैशबैक रिवॉर्ड",
             scratch_validity_note: "आपके वॉलेट में {days} दिनों के लिए मान्य",

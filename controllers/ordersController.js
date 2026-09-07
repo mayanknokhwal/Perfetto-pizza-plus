@@ -177,7 +177,15 @@ async function handleOrdersRequest(req, res) {
 
             const usedWallet = Number(body.walletDiscount || body.usedWalletCash || 0);
             let verifiedCashback = Number(body.wonCashback !== undefined ? body.wonCashback : (body.earnedCashback !== undefined ? body.earnedCashback : (body.scratchCard?.wonAmount || body.scratchCard?.amount || 0)));
-            if (verifiedCashback <= 0 && usedWallet <= 0 && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false) {
+            const rewardTitle = (usedWallet > 0)
+                ? (body.rewardTitle || 'Thank You Cashback Reward')
+                : (body.rewardTitle || 'Cashback Reward');
+
+            if (usedWallet > 0) {
+                if (verifiedCashback <= 0) {
+                    verifiedCashback = 10;
+                }
+            } else if (verifiedCashback <= 0 && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false) {
                 const slabs = global.__perfettoWalletConfig?.slabs || [];
                 const sorted = [...slabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
                 let q = null;
@@ -234,6 +242,7 @@ async function handleOrdersRequest(req, res) {
                 createdAt: body.createdAt || new Date().toISOString(),
                 timeAgo: body.timeAgo || 'Just now',
                 rewardStatus: body.rewardStatus || 'pending_delivery',
+                rewardTitle: rewardTitle,
                 wonCashback: verifiedCashback,
                 earnedCashback: verifiedCashback,
                 scratchRevealed: Boolean(body.scratchRevealed),
@@ -244,9 +253,11 @@ async function handleOrdersRequest(req, res) {
                 cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7),
                 scratchCard: body.scratchCard ? {
                     ...body.scratchCard,
+                    title: rewardTitle,
                     amount: verifiedCashback,
                     wonAmount: verifiedCashback
                 } : {
+                    title: rewardTitle,
                     amount: verifiedCashback,
                     wonAmount: verifiedCashback,
                     status: body.rewardStatus || 'pending_delivery',
