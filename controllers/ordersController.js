@@ -176,24 +176,55 @@ async function handleOrdersRequest(req, res) {
             const total = Number(body.total || body.costs?.total || subtotal + deliveryFee);
 
             const usedWallet = Number(body.walletDiscount || body.usedWalletCash || 0);
-            let verifiedCashback = Number(body.wonCashback !== undefined ? body.wonCashback : (body.earnedCashback !== undefined ? body.earnedCashback : (body.scratchCard?.wonAmount || body.scratchCard?.amount || 0)));
-            const rewardTitle = (usedWallet > 0)
-                ? (body.rewardTitle || 'Thank You Cashback Reward')
-                : (body.rewardTitle || 'Cashback Reward');
 
-            if (usedWallet > 0) {
-                if (verifiedCashback <= 0) {
+            // Dynamically read the minimum qualification amount for Slab 1 from global.__perfettoWalletConfig
+            const rawSlabs = (Array.isArray(global.__perfettoWalletConfig?.slabs) && global.__perfettoWalletConfig.slabs.length > 0)
+                ? global.__perfettoWalletConfig.slabs
+                : [
+                    { minOrder: 200, cashback: 20 },
+                    { minOrder: 500, cashback: 50 },
+                    { minOrder: 1000, cashback: 100 },
+                    { minOrder: 2000, cashback: 200 },
+                    { minOrder: 3000, cashback: 300 }
+                ];
+            const sortedSlabs = [...rawSlabs].map(s => ({
+                minOrder: Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0,
+                cashback: Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount))) || 0
+            })).filter(s => s.minOrder > 0).sort((a, b) => a.minOrder - b.minOrder);
+
+            const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : 200;
+            const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false);
+
+            let verifiedCashback = 0;
+            let rewardTitle = '';
+
+            if (isSlab1Qualified) {
+                if (usedWallet > 0) {
+                    // SCENARIO B: Qualifying order (Slab 1+) with Wallet Cash Applied -> Guaranteed flat ₹10 Thank You reward
                     verifiedCashback = 10;
+                    rewardTitle = 'Thank You Cashback Reward';
+                } else {
+                    // SCENARIO A: Qualifying order (Slab 1+) with Wallet Cash Unchecked -> Dynamic tier reward matching reached milestone
+                    let q = null;
+                    for (const s of sortedSlabs) {
+                        if (subtotal >= s.minOrder) q = s;
+                    }
+                    verifiedCashback = q ? q.cashback : 0;
+                    rewardTitle = body.rewardTitle || 'Cashback Reward';
                 }
-            } else if (verifiedCashback <= 0 && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false) {
-                const slabs = global.__perfettoWalletConfig?.slabs || [];
-                const sorted = [...slabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
-                let q = null;
-                for (const s of sorted) {
-                    if (subtotal >= (Number(s.minOrder) || 0)) q = s;
-                }
-                if (q) verifiedCashback = Number(q.cashback) || 0;
+            } else {
+                // Cart Subtotal < Slab 1 Threshold: Do not issue any scratch card
+                verifiedCashback = 0;
+                rewardTitle = '';
             }
+
+            const hasScratchReward = Boolean(verifiedCashback > 0);
+            const activeOrderDays = hasScratchReward
+                ? Number(body.scratchExpiryDays || body.cashbackExpiryDays || global.__perfettoWalletConfig?.expiryDays || 15)
+                : 0;
+            const scratchExpiryTimestamp = hasScratchReward
+                ? (body.scratchExpiresAt || (Date.now() + activeOrderDays * 24 * 60 * 60 * 1000))
+                : null;
 
             const parsedLat = body.gpsLat ?? body.latitude ?? body.gps?.lat ?? body.customer?.gps?.lat ?? body.deliveryDetails?.gpsLat ?? null;
             const parsedLng = body.gpsLng ?? body.longitude ?? body.gps?.lng ?? body.customer?.gps?.lng ?? body.deliveryDetails?.gpsLng ?? null;
@@ -241,22 +272,18 @@ async function handleOrdersRequest(req, res) {
                 status: body.status || 'new',
                 createdAt: body.createdAt || new Date().toISOString(),
                 timeAgo: body.timeAgo || 'Just now',
-                rewardStatus: body.rewardStatus || 'pending_delivery',
+                rewardStatus: hasScratchReward ? (body.rewardStatus || 'pending_delivery') : 'none',
                 rewardTitle: rewardTitle,
                 wonCashback: verifiedCashback,
                 earnedCashback: verifiedCashback,
-                scratchRevealed: Boolean(body.scratchRevealed),
-                scratchClaimed: Boolean(body.scratchClaimed),
-                scratchExpired: Boolean(body.scratchExpired),
-                scratchExpiresAt: body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000),
-                scratchExpiryDays: Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7),
-                cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7),
-                scratchCard: body.scratchCard ? {
-                    ...body.scratchCard,
-                    title: rewardTitle,
-                    amount: verifiedCashback,
-                    wonAmount: verifiedCashback
-                } : {
+                scratchRevealed: hasScratchReward ? Boolean(body.scratchRevealed) : false,
+                scratchClaimed: hasScratchReward ? Boolean(body.scratchClaimed) : false,
+                scratchExpired: hasScratchReward ? Boolean(body.scratchExpired) : false,
+                scratchExpiresAt: scratchExpiryTimestamp,
+                scratchExpiryDays: activeOrderDays,
+                cashbackExpiryDays: activeOrderDays,
+                scratchCard: hasScratchReward ? {
+                    ...(body.scratchCard || {}),
                     title: rewardTitle,
                     amount: verifiedCashback,
                     wonAmount: verifiedCashback,
@@ -265,11 +292,11 @@ async function handleOrdersRequest(req, res) {
                     claimed: Boolean(body.scratchClaimed),
                     claimedAt: body.scratchCard?.claimedAt || null,
                     createdAt: body.createdAt || new Date().toISOString(),
-                    expiresAt: body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000),
-                    expiresAtISO: new Date(body.scratchExpiresAt || (Date.now() + (Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7)) * 24 * 60 * 60 * 1000)).toISOString(),
-                    expiryDays: Number(body.scratchExpiryDays || body.cashbackExpiryDays || 7),
-                    cashbackExpiryDays: Number(body.cashbackExpiryDays || body.scratchExpiryDays || 7)
-                },
+                    expiresAt: scratchExpiryTimestamp,
+                    expiresAtISO: scratchExpiryTimestamp ? new Date(scratchExpiryTimestamp).toISOString() : null,
+                    expiryDays: activeOrderDays,
+                    cashbackExpiryDays: activeOrderDays
+                } : null,
             };
 
             // Update in-memory

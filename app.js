@@ -4793,6 +4793,32 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
 }
 window.getCashbackRewardBoundaries = getCashbackRewardBoundaries;
 
+/**
+ * Dynamically resolves the minimum order threshold required to qualify for Slab 1 reward.
+ * Orders below this amount receive no scratch card.
+ * @param {Object} [walletConfig]
+ * @returns {number}
+ */
+function getSlab1Threshold(walletConfig = customerWalletConfig) {
+    if (!walletConfig || walletConfig.enabled === false) return 200;
+    const rawSlabs = (Array.isArray(walletConfig.slabs) && walletConfig.slabs.length > 0)
+        ? walletConfig.slabs
+        : ((Array.isArray(walletConfig.rewardTiers) && walletConfig.rewardTiers.length > 0)
+            ? walletConfig.rewardTiers
+            : ((Array.isArray(walletConfig.cashbackTiers) && walletConfig.cashbackTiers.length > 0)
+                ? walletConfig.cashbackTiers
+                : ((Array.isArray(walletConfig.rewards) && walletConfig.rewards.length > 0)
+                    ? walletConfig.rewards
+                    : DEFAULT_WALLET_CONFIG.slabs)));
+
+    const sortedMins = [...rawSlabs].map(s => {
+        return Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0;
+    }).filter(m => m > 0).sort((a, b) => a - b);
+
+    return sortedMins.length > 0 ? sortedMins[0] : 200;
+}
+window.getSlab1Threshold = getSlab1Threshold;
+
 function updateCartCashbackIncentiveBar(subtotal) {
     const bar = document.getElementById('cart-cashback-bar');
     const content = document.getElementById('cart-cashback-content');
@@ -4803,12 +4829,30 @@ function updateCartCashbackIncentiveBar(subtotal) {
         return;
     }
 
+    const slab1Threshold = getSlab1Threshold(customerWalletConfig);
+    const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0);
     const boundaries = getCashbackRewardBoundaries(subtotal);
     const isHindiCashback = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     bar.style.display = 'block';
 
-    if (boundaries.qualified && boundaries.max > 0) {
+    if (!isSlab1Qualified) {
+        const diff = Math.max(0, slab1Threshold - subtotal);
+        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 20;
+        bar.classList.remove('cashback-max-unlocked');
+
+        content.innerHTML = `
+            <div class="cashback-bar-left">
+                <i class="fa-solid fa-gift"></i>
+                <span class="cashback-bar-text">
+                    ${isHindiCashback 
+                        ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए <strong>${formatPrice(diff)}</strong> और जोड़ें!` 
+                        : `Add <strong>${formatPrice(diff)}</strong> more to unlock a cashback scratch card!`}
+                </span>
+            </div>
+            <span class="cashback-current-badge"><i class="fa-solid fa-lock"></i> ${isHindiCashback ? `न्यूनतम ₹${slab1Threshold}` : `Min ₹${slab1Threshold}`}</span>
+        `;
+    } else if (boundaries.qualified && boundaries.max > 0) {
         const reward = boundaries.max;
         const scratchText = isHindiCashback
             ? `₹${reward} कैशबैक अनलॉक! (स्क्रैच कार्ड तैयार)`
@@ -4839,21 +4883,6 @@ function updateCartCashbackIncentiveBar(subtotal) {
                 <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> ${isHindiCashback ? 'अधिकतम स्क्रैच कार्ड' : 'Max Scratch Card'}</span>
             `;
         }
-    } else if (boundaries.nextSlab) {
-        const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
-        const nextReward = Number(boundaries.nextSlab.cashback) || 0;
-        const diff = Math.max(0, nextMin - subtotal);
-        bar.classList.remove('cashback-max-unlocked');
-
-        content.innerHTML = `
-            <div class="cashback-bar-left">
-                <i class="fa-solid fa-coins"></i>
-                <span class="cashback-bar-text">
-                    ${isHindiCashback ? `<strong>${formatPrice(diff)}</strong> और जोड़ें और <strong>₹${nextReward} का कैशबैक जीतें</strong> (स्क्रैच कार्ड अनलॉक!)` : `Add <strong>${formatPrice(diff)}</strong> more to <strong>Win ${formatPrice(nextReward)} Cashback</strong> (Scratch Card unlocked!)`}
-                </span>
-            </div>
-            <span class="cashback-current-badge"><i class="fa-solid fa-gift"></i> ${isHindiCashback ? 'स्क्रैच कार्ड' : 'Scratch Card'}</span>
-        `;
     } else {
         bar.style.display = 'none';
     }
@@ -4950,53 +4979,65 @@ function updateCheckoutCashbackTeaser(subtotal) {
         return;
     }
 
+    const slab1Threshold = getSlab1Threshold(customerWalletConfig);
+    const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0);
+    const isWalletApplied = Boolean(isWalletRedemptionSelected && appliedWalletDiscountAmount > 0);
     const boundaries = getCashbackRewardBoundaries(subtotal);
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
-    if (isWalletRedemptionSelected) {
-        teaserEl.style.display = 'block';
+    teaserEl.style.display = 'block';
+
+    if (!isSlab1Qualified) {
+        // Below Slab 1: standard upsell message regardless of payment method
+        const diff = Math.max(0, slab1Threshold - subtotal);
+        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 20;
+        teaserEl.classList.remove('teaser-wallet-applied');
+        if (teaserText) {
+            teaserText.textContent = isHindi
+                ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए ${formatPrice(diff)} और जोड़ें!`
+                : `Add ${formatPrice(diff)} more to unlock a cashback scratch card!`;
+        }
+        if (teaserSub) {
+            teaserSub.textContent = isHindi
+                ? `न्यूनतम ₹${slab1Threshold} ऑर्डर पर ₹${slab1Reward} तक का स्क्रैच कार्ड रिवॉर्ड अनलॉक होगा ✨`
+                : `Reach minimum order milestone of ₹${slab1Threshold} to unlock scratch card reward ✨`;
+        }
+    } else if (isWalletApplied) {
+        // Qualifying order (Slab 1+) + Wallet Applied: flat ₹10 Thank You scratch card confirmation
         teaserEl.classList.add('teaser-wallet-applied');
         if (teaserText) {
             teaserText.textContent = isHindi 
-                ? 'वॉलेट बैलेंस लागू! ऑर्डर पूरा होने पर आपको फ्लैट ₹10 थैंक यू कैशबैक स्क्रैच कार्ड मिलेगा।' 
-                : 'Wallet balance applied! You will still receive a flat ₹10 Thank You cashback scratch card upon order completion.';
+                ? 'वॉलेट कैश लागू! इस ऑर्डर के साथ आपको फ्लैट ₹10 का थैंक यू स्क्रैच कार्ड मिलेगा।' 
+                : 'Wallet cash applied! You will receive a flat ₹10 Thank You scratch card with this order.';
         }
         if (teaserSub) {
             teaserSub.textContent = isHindi 
-                ? 'ऑर्डर पूरा करने पर थैंक यू स्क्रैच कार्ड तुरंत अनलॉक होगा ✨' 
-                : 'Thank You cashback scratch card will be unlocked right after checkout ✨';
-        }
-    } else if (boundaries.qualified && boundaries.max > 0) {
-        teaserEl.style.display = 'block';
-        teaserEl.classList.remove('teaser-wallet-applied');
-        if (teaserText) {
-            teaserText.textContent = isHindi
-                ? `₹${boundaries.max} कैशबैक (स्क्रैच कार्ड अनलॉक!)`
-                : `₹${boundaries.max} Cashback (Scratch Card unlocked!)`;
-        }
-        if (teaserSub) {
-            teaserSub.textContent = isHindi
-                ? 'ऑर्डर करते ही तुरंत स्क्रैच करें और अपने वॉलेट में जोड़ें!'
-                : 'Scratch immediately after placing order and claim to your wallet!';
-        }
-    } else if (boundaries.nextSlab) {
-        const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
-        const nextReward = Number(boundaries.nextSlab.cashback) || 0;
-        const diff = Math.max(0, nextMin - subtotal);
-        teaserEl.style.display = 'block';
-        teaserEl.classList.remove('teaser-wallet-applied');
-        if (teaserText) {
-            teaserText.textContent = isHindi
-                ? `${formatPrice(diff)} और जोड़ें और ₹${nextReward} कैशबैक पाएं (स्क्रैच कार्ड अनलॉक!)`
-                : `Add ${formatPrice(diff)} more to earn ${formatPrice(nextReward)} Cashback (Scratch Card unlocked!)`;
-        }
-        if (teaserSub) {
-            teaserSub.textContent = isHindi
-                ? 'अगले स्तर का स्क्रैच कार्ड अनलॉक करने के लिए और सामान जोड़ें'
-                : 'Add more items to unlock a higher cashback scratch card!';
+                ? 'ऑर्डर पूरा करने पर फ्लैट ₹10 थैंक यू स्क्रैच कार्ड तुरंत अनलॉक होगा ✨' 
+                : 'Flat ₹10 Thank You reward card unlocks upon order placement ✨';
         }
     } else {
-        teaserEl.style.display = 'none';
+        // Qualifying order (Slab 1+) + Wallet Unchecked: dynamic unlocked milestone reward banner
+        teaserEl.classList.remove('teaser-wallet-applied');
+        const reward = boundaries.max || calculateOrderCashback(subtotal);
+        if (teaserText) {
+            teaserText.textContent = isHindi
+                ? `₹${reward} कैशबैक अनलॉक! (स्क्रैच कार्ड तैयार)`
+                : `₹${reward} Cashback Unlocked! (Scratch Card ready)`;
+        }
+        if (teaserSub) {
+            if (boundaries.nextSlab) {
+                const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
+                const nextReward = Number(boundaries.nextSlab.cashback) || 0;
+                const diff = Math.max(0, nextMin - subtotal);
+                teaserSub.textContent = isHindi
+                    ? `${formatPrice(diff)} और जोड़ें (₹${nextReward} रिवॉर्ड पाएं) ✨`
+                    : `Add ${formatPrice(diff)} more to reach next milestone for ${formatPrice(nextReward)} Cashback ✨`;
+            } else {
+                teaserSub.textContent = isHindi
+                    ? 'ऑर्डर करते ही तुरंत स्क्रैच करें और अपने वॉलेट में जोड़ें!'
+                    : 'Scratch immediately after placing order and claim to your wallet!';
+            }
+        }
     }
 }
 window.updateCheckoutCashbackTeaser = updateCheckoutCashbackTeaser;
@@ -6306,12 +6347,59 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const baseGrandTotal = subtotal + deliveryFee;
     const walletDiscountToApply = isWalletRedemptionSelected ? Math.min(appliedWalletDiscountAmount, baseGrandTotal) : 0;
     const grandTotal = Math.max(0, baseGrandTotal - walletDiscountToApply);
-    // Hybrid Reward System:
-    // When wallet balance is applied: guaranteed flat ₹10 "Thank You Cashback Reward" scratch card.
-    // When wallet is NOT applied: full dynamic tier reward based on order milestone value.
+    // Hybrid Reward System & Minimum Milestone Qualification Engine:
+    // Minimum Qualification Check:
+    // Cart Subtotal < Slab 1 Threshold: Do not issue any scratch card. (earnedCashback = 0, scratchCard = null, rewardStatus = 'none')
+    // Qualifying Orders (Subtotal >= Slab 1 Threshold):
+    //   - SCENARIO A: Wallet Cash UNCHECKED -> full dynamic tier reward matching reached milestone.
+    //   - SCENARIO B: Wallet Cash APPLIED (any amount from ₹1 up to 100%) -> guaranteed flat ₹10 "Thank You Cashback Reward" scratch card.
+    const slab1Threshold = getSlab1Threshold(customerWalletConfig);
+    const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && customerWalletConfig && customerWalletConfig.enabled !== false);
     const isWalletApplied = (walletDiscountToApply > 0);
-    const earnedCashback = isWalletApplied ? 10 : calculateOrderCashback(subtotal);
-    const rewardTitle = isWalletApplied ? 'Thank You Cashback Reward' : 'Cashback Reward';
+
+    const now = new Date();
+    const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    let earnedCashback = 0;
+    let wonCashback = 0;
+    let rewardTitle = '';
+    let rewardStatus = 'none';
+    let scratchCardObj = null;
+    let scratchExpiresAt = null;
+    const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+
+    if (isSlab1Qualified) {
+        if (isWalletApplied) {
+            earnedCashback = 10;
+            wonCashback = 10;
+            rewardTitle = 'Thank You Cashback Reward';
+            rewardStatus = 'unscratched';
+        } else {
+            earnedCashback = calculateOrderCashback(subtotal);
+            wonCashback = earnedCashback;
+            rewardTitle = 'Cashback Reward';
+            rewardStatus = earnedCashback > 0 ? 'unscratched' : 'none';
+        }
+
+        if (earnedCashback > 0) {
+            const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
+            scratchExpiresAt = expMs;
+            scratchCardObj = {
+                title: rewardTitle,
+                amount: Math.round(earnedCashback),
+                wonAmount: Math.round(earnedCashback),
+                revealed: false,
+                claimed: false,
+                status: 'unscratched',
+                claimedAt: null,
+                createdAt: now.toISOString(),
+                expiresAt: expMs,
+                expiresAtISO: new Date(expMs).toISOString(),
+                expiryDays: activeDays,
+                cashbackExpiryDays: activeDays
+            };
+        }
+    }
 
     const resolvedPaymentMethod = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Wallet Cash' : paymentMethod;
     const resolvedPaymentStatus = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Paid via Wallet' : paymentStatus;
@@ -6327,9 +6415,6 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         notes: (item.addons && item.addons.length > 0) ? item.addons.map(a => a.name).join(', ') : '',
         addons: item.addons || []
     }));
-
-    const now = new Date();
-    const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
     const newOrder = {
         orderId: orderId,
@@ -6365,36 +6450,16 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         walletDiscount: Math.round(walletDiscountToApply),
         usedWalletCash: Math.round(walletDiscountToApply),
         earnedCashback: Math.round(earnedCashback),
-        wonCashback: Math.round(earnedCashback),
+        wonCashback: Math.round(wonCashback),
         rewardTitle: rewardTitle,
-        rewardStatus: 'unscratched',
+        rewardStatus: rewardStatus,
         scratchRevealed: false,
         scratchClaimed: false,
         scratchExpired: false,
-        scratchExpiresAt: (function() {
-            const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
-            return Date.now() + activeDays * 24 * 60 * 60 * 1000;
-        })(),
-        scratchExpiryDays: getClampedCashbackExpiryDays(customerWalletConfig),
-        cashbackExpiryDays: getClampedCashbackExpiryDays(customerWalletConfig),
-        scratchCard: (function() {
-            const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
-            const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
-            return {
-                title: rewardTitle,
-                amount: Math.round(earnedCashback),
-                wonAmount: Math.round(earnedCashback),
-                revealed: false,
-                claimed: false,
-                status: 'unscratched',
-                claimedAt: null,
-                createdAt: now.toISOString(),
-                expiresAt: expMs,
-                expiresAtISO: new Date(expMs).toISOString(),
-                expiryDays: activeDays,
-                cashbackExpiryDays: activeDays
-            };
-        })(),
+        scratchExpiresAt: scratchExpiresAt,
+        scratchExpiryDays: scratchCardObj ? activeDays : 0,
+        cashbackExpiryDays: scratchCardObj ? activeDays : 0,
+        scratchCard: scratchCardObj,
         total: Math.round(grandTotal),
         paymentMethod: resolvedPaymentMethod,
         paymentStatus: resolvedPaymentStatus,
@@ -6442,8 +6507,14 @@ async function saveOrderToBackendAPI(order) {
     const finalOrderId = String(order.orderId || order.id || Date.now());
     const cleanCustomerPhone = String(order.customerPhone || (order.customer && order.customer.phone) || order.phone || '').replace(/[^0-9]/g, '').slice(-10);
 
-    const activeOrderDays = order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)) || getClampedCashbackExpiryDays(customerWalletConfig);
-    const scratchExpiryTimestamp = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeOrderDays * 24 * 60 * 60 * 1000);
+    const hasScratchReward = Boolean(order.scratchCard && (Number(order.earnedCashback || order.wonCashback || 0) > 0));
+    const activeOrderDays = hasScratchReward
+        ? (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)) || getClampedCashbackExpiryDays(customerWalletConfig))
+        : 0;
+    const scratchExpiryTimestamp = hasScratchReward
+        ? (order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeOrderDays * 24 * 60 * 60 * 1000))
+        : null;
+
     const firestoreOrderPayload = {
         ...order,
         id: finalOrderId,
@@ -6452,27 +6523,29 @@ async function saveOrderToBackendAPI(order) {
         phone: cleanCustomerPhone,
         status: order.status || 'pending',
         createdAt: order.createdAt || new Date().toISOString(),
-        rewardStatus: order.rewardStatus || 'pending_delivery',
-        wonCashback: order.wonCashback !== undefined ? order.wonCashback : Math.round(Number(order.earnedCashback || 0)),
-        scratchRevealed: order.scratchRevealed !== undefined ? order.scratchRevealed : false,
-        scratchClaimed: order.scratchClaimed !== undefined ? order.scratchClaimed : false,
-        scratchExpired: order.scratchExpired !== undefined ? order.scratchExpired : false,
+        rewardStatus: hasScratchReward ? (order.rewardStatus || 'unscratched') : 'none',
+        earnedCashback: hasScratchReward ? Math.round(Number(order.earnedCashback || 0)) : 0,
+        wonCashback: hasScratchReward ? Math.round(Number(order.wonCashback !== undefined ? order.wonCashback : order.earnedCashback)) : 0,
+        scratchRevealed: hasScratchReward ? Boolean(order.scratchRevealed) : false,
+        scratchClaimed: hasScratchReward ? Boolean(order.scratchClaimed) : false,
+        scratchExpired: hasScratchReward ? Boolean(order.scratchExpired) : false,
         scratchExpiresAt: scratchExpiryTimestamp,
         scratchExpiryDays: activeOrderDays,
         cashbackExpiryDays: activeOrderDays,
-        scratchCard: order.scratchCard || {
+        scratchCard: hasScratchReward ? (order.scratchCard || {
+            title: order.rewardTitle || 'Cashback Reward',
             amount: Math.round(Number(order.earnedCashback || 0)),
             wonAmount: Math.round(Number(order.wonCashback || order.earnedCashback || 0)),
-            revealed: order.scratchRevealed !== undefined ? order.scratchRevealed : false,
+            revealed: Boolean(order.scratchRevealed),
             claimed: false,
-            status: order.rewardStatus || 'pending_delivery',
+            status: order.rewardStatus || 'unscratched',
             claimedAt: null,
             createdAt: order.createdAt || new Date().toISOString(),
             expiresAt: scratchExpiryTimestamp,
-            expiresAtISO: new Date(scratchExpiryTimestamp).toISOString(),
+            expiresAtISO: scratchExpiryTimestamp ? new Date(scratchExpiryTimestamp).toISOString() : null,
             expiryDays: activeOrderDays,
             cashbackExpiryDays: activeOrderDays
-        },
+        }) : null,
         serverTimestamp: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue) 
             ? firebase.firestore.FieldValue.serverTimestamp() 
             : new Date().toISOString()
@@ -6742,18 +6815,32 @@ function openOrderOtpSuccessModal(order) {
 
     if (cashbackCard) {
         if (earnedCashback > 0) {
+            const isWalletUsed = Boolean(Number(order.usedWalletCash || order.walletDiscount || order.appliedWalletDiscount) > 0);
+            const isThankYouReward = isWalletUsed || (order.rewardTitle === 'Thank You Cashback Reward') || (earnedCashback === 10 && order.rewardTitle && order.rewardTitle.includes('Thank You'));
             const boundaries = getCashbackRewardBoundaries(order.subtotal || 0);
             const rewardAmount = earnedCashback || boundaries.max;
             cashbackCard.style.display = 'flex';
             if (cashbackText) {
-                cashbackText.textContent = `🎁 Scratch & Win Cashback! (₹${rewardAmount} Reward)`;
+                if (isThankYouReward) {
+                    cashbackText.textContent = isHindiModal 
+                        ? '🎁 थैंक यू कैशबैक स्क्रैच कार्ड! (₹10 रिवॉर्ड)' 
+                        : '🎁 Thank You Cashback Reward! (₹10 Reward)';
+                } else {
+                    cashbackText.textContent = isHindiModal
+                        ? `🎁 स्क्रैच एंड विन कैशबैक! (₹${rewardAmount} रिवॉर्ड)`
+                        : `🎁 Scratch & Win Cashback! (₹${rewardAmount} Reward)`;
+                }
             }
             if (cashbackExpiry) {
                 cashbackExpiry.textContent = isHindiModal 
                     ? `अपनी उंगली से स्क्रैच करें • ${expiryLabel} ✨` 
                     : `Tap to scratch now • ${expiryLabel} ✨`;
             }
-            showToast(`🎁 Scratch & Win Cashback unlocked! ₹${rewardAmount} reward ready!`, 5000);
+            if (isThankYouReward) {
+                showToast(isHindiModal ? '🎁 थैंक यू कैशबैक स्क्रैच कार्ड तैयार! ₹10 रिवॉर्ड!' : '🎁 Thank You Cashback scratch card unlocked! ₹10 reward ready!', 5000);
+            } else {
+                showToast(isHindiModal ? `🎁 स्क्रैच एंड विन कैशबैक अनलॉक! ₹${rewardAmount} रिवॉर्ड तैयार!` : `🎁 Scratch & Win Cashback unlocked! ₹${rewardAmount} reward ready!`, 5000);
+            }
         } else {
             cashbackCard.style.display = 'none';
         }
@@ -7054,8 +7141,9 @@ function setupScratchCanvas(order, rewardAmount) {
 
     // 6. Central Badge & Guidance Text
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    const isWalletUsed = Boolean(order && (Number(order.usedWallet || order.walletDiscount || order.appliedWalletDiscount) > 0));
-    let targetAmount = isWalletUsed ? 10 : Math.max(0, Math.round(Number(rewardAmount || (order && (order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)))) || 0)));
+    const isWalletUsed = Boolean(order && (Number(order.usedWallet || order.usedWalletCash || order.walletDiscount || order.appliedWalletDiscount) > 0));
+    const isThankYouReward = isWalletUsed || (order && order.rewardTitle === 'Thank You Cashback Reward') || (rewardAmount === 10 && (order && order.rewardTitle && order.rewardTitle.includes('Thank You')));
+    let targetAmount = isThankYouReward ? 10 : Math.max(0, Math.round(Number(rewardAmount || (order && (order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)))) || 0)));
     if (targetAmount <= 0) {
         const subtotal = Number(order && order.subtotal) || 0;
         const boundaries = (typeof getCashbackRewardBoundaries === 'function') ? getCashbackRewardBoundaries(subtotal) : { max: 10 };
@@ -7092,7 +7180,10 @@ function setupScratchCanvas(order, rewardAmount) {
 
     ctx.font = '800 17px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#fffae0';
-    ctx.fillText(isHindi ? `जीतें ₹${dynamicTargetAmount} तक 🎁` : `Win up to ₹${dynamicTargetAmount} 🎁`, width / 2, badgeY + 42);
+    const foilWinText = isThankYouReward
+        ? (isHindi ? 'जीतें ₹10 🎁' : 'Win ₹10 🎁')
+        : (isHindi ? `जीतें ₹${dynamicTargetAmount} तक 🎁` : `Win up to ₹${dynamicTargetAmount} 🎁`);
+    ctx.fillText(foilWinText, width / 2, badgeY + 42);
 
     ctx.font = '500 11px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -7765,6 +7856,18 @@ function openScratchCardModal(order, demoAmount) {
     const modal = document.getElementById('scratch-card-modal');
     if (!modal) return;
 
+    if (order) {
+        const slab1Threshold = getSlab1Threshold(customerWalletConfig);
+        const orderSubtotal = Number(order.subtotal || 0);
+        const orderCashback = Number(order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)) || 0);
+        if (orderSubtotal > 0 && orderSubtotal < slab1Threshold && orderCashback <= 0 && demoAmount === undefined) {
+            showToast(typeof getAppLanguage === 'function' && getAppLanguage() === 'hi' 
+                ? `यह ऑर्डर न्यूनतम रिवॉर्ड सीमा (₹${slab1Threshold}) से कम है। कोई स्क्रैच कार्ड उपलब्ध नहीं है।` 
+                : `This order does not meet the minimum milestone of ₹${slab1Threshold}. No scratch card available.`);
+            return;
+        }
+    }
+
     activeScratchOrder = order || {
         id: 'DEMO-' + Math.floor(1000 + Math.random() * 9000),
         orderId: 'DEMO-' + Math.floor(1000 + Math.random() * 9000),
@@ -7773,21 +7876,36 @@ function openScratchCardModal(order, demoAmount) {
         earnedCashback: demoAmount !== undefined ? demoAmount : calculateOrderCashback(500)
     };
 
-    // Calculate or resolve exact rupee reward amount matching active admin settings
-    const isWalletUsedOnOrder = Boolean(activeScratchOrder && (Number(activeScratchOrder.usedWallet || activeScratchOrder.walletDiscount || activeScratchOrder.appliedWalletDiscount) > 0));
+    const slab1Threshold = getSlab1Threshold(customerWalletConfig);
+    const orderSubtotal = Number(activeScratchOrder.subtotal || 0);
+    const isSlab1Qualified = (orderSubtotal >= slab1Threshold) || (orderSubtotal === 0);
+    const isWalletUsedOnOrder = Boolean(activeScratchOrder && (Number(activeScratchOrder.usedWallet || activeScratchOrder.usedWalletCash || activeScratchOrder.walletDiscount || activeScratchOrder.appliedWalletDiscount) > 0));
+
     let rewardAmount = Number(activeScratchOrder.earnedCashback || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.wonAmount || activeScratchOrder.scratchCard.amount)) || activeScratchOrder.wonCashback || 0);
-    if (isWalletUsedOnOrder && rewardAmount <= 0) {
+
+    if (isWalletUsedOnOrder && isSlab1Qualified) {
         rewardAmount = 10;
         activeScratchOrder.earnedCashback = 10;
         activeScratchOrder.wonCashback = 10;
         activeScratchOrder.rewardTitle = 'Thank You Cashback Reward';
-    } else if (rewardAmount <= 0) {
-        const subtotal = Number(activeScratchOrder.subtotal) || 0;
-        rewardAmount = subtotal > 0 ? calculateOrderCashback(subtotal) : (demoAmount !== undefined ? demoAmount : calculateOrderCashback(500));
+    } else if (rewardAmount <= 0 && isSlab1Qualified) {
+        rewardAmount = orderSubtotal > 0 ? calculateOrderCashback(orderSubtotal) : (demoAmount !== undefined ? demoAmount : calculateOrderCashback(500));
         activeScratchOrder.earnedCashback = rewardAmount;
         activeScratchOrder.wonCashback = rewardAmount;
+    } else if (!isSlab1Qualified && demoAmount === undefined) {
+        rewardAmount = 0;
+        activeScratchOrder.earnedCashback = 0;
+        activeScratchOrder.wonCashback = 0;
     }
+
     activeScratchRewardAmount = Math.max(0, Math.round(rewardAmount));
+
+    if (activeScratchRewardAmount <= 0 && demoAmount === undefined) {
+        showToast(typeof getAppLanguage === 'function' && getAppLanguage() === 'hi' 
+            ? 'इस ऑर्डर के लिए कोई स्क्रैच कार्ड उपलब्ध नहीं है।' 
+            : 'No scratch card available for this order.');
+        return;
+    }
 
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const isAlreadyClaimed = !!(activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed));
@@ -7804,11 +7922,16 @@ function openScratchCardModal(order, demoAmount) {
     const claimBtn = document.getElementById('btn-scratch-claim');
     const claimText = document.getElementById('scratch-claim-btn-text');
 
+    const isThankYouReward = (activeScratchOrder && activeScratchOrder.rewardTitle === 'Thank You Cashback Reward') || (isWalletUsedOnOrder && activeScratchRewardAmount === 10);
     if (titleEl) {
-        titleEl.textContent = 'Scratch & Win Cashback';
+        titleEl.textContent = isThankYouReward 
+            ? (isHindi ? 'थैंक यू कैशबैक रिवॉर्ड' : 'Thank You Cashback Reward') 
+            : 'Scratch & Win Cashback';
     }
     if (subtitleEl) {
-        subtitleEl.textContent = 'अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!';
+        subtitleEl.textContent = isThankYouReward
+            ? (isHindi ? 'अपनी उंगली से स्क्रैच करें और ₹10 थैंक यू रिवॉर्ड पाएं!' : 'Scratch with finger or mouse to reveal ₹10 Thank You reward!')
+            : 'अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!';
     }
 
     const orderDisplayId = activeScratchOrder.id || activeScratchOrder.orderId || '--';
@@ -9761,12 +9884,12 @@ function renderOrderHistoryDetails() {
                                             <i class="fa-solid fa-gift fa-bounce"></i>
                                         </div>
                                         <div>
-                                            <div class="scratch-promo-title">🎁 Scratch Card Available / स्क्रैच कार्ड उपलब्ध</div>
+                                            <div class="scratch-promo-title">${(o.rewardTitle === 'Thank You Cashback Reward' || (Number(o.usedWalletCash || o.walletDiscount || o.appliedWalletDiscount) > 0 && orderCashback === 10)) ? (isHindi ? '🎁 थैंक यू स्क्रैच कार्ड उपलब्ध' : '🎁 Thank You Scratch Card Available') : (isHindi ? '🎁 स्क्रैच कार्ड उपलब्ध' : '🎁 Scratch Card Available / स्क्रैच कार्ड उपलब्ध')}</div>
                                             <div class="scratch-promo-sub">
                                                 <span class="scratch-countdown-pill">
                                                     <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
                                                 </span>
-                                                <span class="scratch-card-amount-hint">Win up to ₹${orderCashback}</span>
+                                                <span class="scratch-card-amount-hint">${(o.rewardTitle === 'Thank You Cashback Reward' || (Number(o.usedWalletCash || o.walletDiscount || o.appliedWalletDiscount) > 0 && orderCashback === 10)) ? (isHindi ? 'फ्लैट ₹10 थैंक यू रिवॉर्ड' : 'Flat ₹10 Thank You Reward') : `Win up to ₹${orderCashback}`}</span>
                                             </div>
                                         </div>
                                     </div>
