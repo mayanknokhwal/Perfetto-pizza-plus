@@ -14,7 +14,7 @@ const SPRING_ROLLS_ITEMS = [
         isMultiSize: false,
         price: 129,
         available: true,
-        img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg",
+        img: "https://i.ibb.co/yTdMCFt/Chilly-Paneer-Kathi-Roll.webp",
         desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll"
     },
     {
@@ -24,7 +24,7 @@ const SPRING_ROLLS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg",
+        img: "https://i.ibb.co/fVmT741g/Crispy-Spring-Roll.webp",
         desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs"
     },
     {
@@ -34,7 +34,7 @@ const SPRING_ROLLS_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg",
+        img: "https://i.ibb.co/93TJzr27/Paneer-Kathi-Roll.webp",
         desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap"
     },
     {
@@ -44,7 +44,7 @@ const SPRING_ROLLS_ITEMS = [
         isMultiSize: false,
         price: 89,
         available: true,
-        img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg",
+        img: "https://i.ibb.co/3yr30fgZ/Spring-Roll.webp",
         desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce"
     },
     {
@@ -54,7 +54,7 @@ const SPRING_ROLLS_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg",
+        img: "https://i.ibb.co/FZFJy7L/Veg-Kathi-Roll.webp",
         desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha"
     }
 ];

@@ -221,8 +221,9 @@ function getCategoryDisplayTitle(itemOrName, category) {
     const isRice = normCat === 'rice';
     const isMomos = normCat === 'momos' || normCat === 'momo';
     const isPizza = normCat === 'pizza' || normCat === 'pizzas';
+    const isRolls = normCat === 'spring rolls' || normCat === 'spring roll' || normCat === 'rolls' || normCat === 'roll' || normCat.includes('roll') || normCat.includes('रोल');
 
-    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice && !isMomos && !isPizza) {
+    if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice && !isMomos && !isPizza && !isRolls) {
         return name;
     }
 
@@ -243,6 +244,8 @@ function getCategoryDisplayTitle(itemOrName, category) {
         title = title.replace(/\s+(momos?|मोमोज़|मोमो)$/i, '');
     } else if (isPizza) {
         title = title.replace(/\s+(pizza|पिज़्ज़ा|पिज्जा)$/i, '');
+    } else if (isRolls) {
+        title = title.replace(/\s+(rolls?|रोल्स|रोल)$/i, '');
     }
 
     return title || name;
@@ -1318,22 +1321,22 @@ const categorySubItems = {
         { id: "sde-zingy-parcel", name: "Zingy Parcel", category: "Side Orders", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/jkKQt3hC/Zingy-Parcel-side.webp", desc: "Warm oven-baked parcel stuffed with zingy spiced filling and melted cheese" }
     ],
     "Spring Rolls": [
-        { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
-        { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
-        { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
-        { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
-        { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
+        { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/yTdMCFt/Chilly-Paneer-Kathi-Roll.webp", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+        { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/fVmT741g/Crispy-Spring-Roll.webp", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+        { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/93TJzr27/Paneer-Kathi-Roll.webp", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+        { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/3yr30fgZ/Spring-Roll.webp", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+        { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/FZFJy7L/Veg-Kathi-Roll.webp", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
     ]
 };
 
 const MENU_STORAGE_KEY = 'menuData';
 
 const NEW_SPRING_ROLLS_MENU_ITEMS = [
-    { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
-    { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
-    { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
-    { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
-    { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
+    { id: "spr-chilly-paneer-kathi-roll", name: "Chilly Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/yTdMCFt/Chilly-Paneer-Kathi-Roll.webp", desc: "Spicy tossed paneer cubes with crunchy bell peppers wrapped in a soft kathi roll" },
+    { id: "spr-crispy-spring-roll", name: "Crispy Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/fVmT741g/Crispy-Spring-Roll.webp", desc: "Golden fried crispy rolls stuffed with seasoned shredded vegetables and herbs" },
+    { id: "spr-paneer-kathi-roll", name: "Paneer Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/93TJzr27/Paneer-Kathi-Roll.webp", desc: "Marinated tender paneer pieces layered with sliced onions and rich sauces in a kathi wrap" },
+    { id: "spr-spring-roll", name: "Spring Roll", category: "Spring Rolls", isMultiSize: false, price: 89, available: true, img: "https://i.ibb.co/3yr30fgZ/Spring-Roll.webp", desc: "Classic golden fried rolls packed with savory spiced vegetables and dipping sauce" },
+    { id: "spr-veg-kathi-roll", name: "Veg Kathi Roll", category: "Spring Rolls", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/FZFJy7L/Veg-Kathi-Roll.webp", desc: "A hearty medley of spiced garden vegetables rolled into a fresh kathi paratha" }
 ];
 
 const NEW_CHINESE_FOOD_MENU_ITEMS = [
@@ -1827,11 +1830,11 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const SPRING_ROLLS_IMAGE_MAP = {
-        "spr-chilly-paneer-kathi-roll": "https://i.ibb.co/vxh5Htcf/Chilly-Paneer-Kathi-Roll.jpg",
-        "spr-crispy-spring-roll": "https://i.ibb.co/Ngzq7HDS/Crispy-Spring-Roll.jpg",
-        "spr-paneer-kathi-roll": "https://i.ibb.co/4wRYJtFg/Paneer-Kathi-Roll.jpg",
-        "spr-spring-roll": "https://i.ibb.co/ZzYLkLfn/Spring-Roll.jpg",
-        "spr-veg-kathi-roll": "https://i.ibb.co/YKVjDfb/Veg-Kathi-Roll.jpg"
+        "spr-chilly-paneer-kathi-roll": "https://i.ibb.co/yTdMCFt/Chilly-Paneer-Kathi-Roll.webp",
+        "spr-crispy-spring-roll": "https://i.ibb.co/fVmT741g/Crispy-Spring-Roll.webp",
+        "spr-paneer-kathi-roll": "https://i.ibb.co/93TJzr27/Paneer-Kathi-Roll.webp",
+        "spr-spring-roll": "https://i.ibb.co/3yr30fgZ/Spring-Roll.webp",
+        "spr-veg-kathi-roll": "https://i.ibb.co/FZFJy7L/Veg-Kathi-Roll.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Spring Rolls' && item.id && SPRING_ROLLS_IMAGE_MAP[item.id]) {
@@ -2727,7 +2730,7 @@ function refreshActiveCustomerView(freshItems) {
                             <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
                         </div>
                         <div class="spring-rolls-card-body">
-                            <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
+                            <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                             <div class="spring-rolls-action-row">
                                 ${boxesMarkup}
                                 <div class="spring-rolls-price-row">
@@ -3856,7 +3859,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
                     </div>
                     <div class="spring-rolls-card-body">
-                        <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
+                        <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="spring-rolls-action-row">
                             ${boxesMarkup}
                             <div class="spring-rolls-price-row">
