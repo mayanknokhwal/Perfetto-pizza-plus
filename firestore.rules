@@ -92,6 +92,18 @@ service cloud.firestore {
         || isNonEmptyString(data.image);
     }
 
+    // Validates whether request originates from an authenticated administrator
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.role == 'Admin' ||
+        request.auth.token.role == 'Master Admin' ||
+        request.auth.token.phone_number == '+919414503886' ||
+        request.auth.token.email == 'mayanknokhwal94145@gmail.com'
+      );
+    }
+
     // =========================================================================
     // 2. LIVE ORDERS & REAL-TIME QUEUE
     // - Customer: Place validated orders, query orders by customerPhone, live tracking.
@@ -160,59 +172,90 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 6. STORE SETTINGS & CONFIGURATION
-    // - Includes:
-    //   * 'settings/storeSettings' (Store open/close, operating hours, delivery radius,
-    //     free delivery limit, minimum order value, customer care phone)
-    //   * 'settings/store_config' (Secondary store configuration fallback)
-    //   * 'settings/menu' (Combined high-performance cached menu catalog)
-    //   * 'settings/category_addons' (Addon rates for Cheese, Spicy, Mayo, Ice Cream)
-    //   * 'settings/daily_banners' (Hero carousel banner slides)
-    //   * 'settings/wallet_config' (Cashback reward tiers, expiry days, redemption limits)
-    //   * 'settings/store_notice' (Emergency customer store notice announcement)
+    // 6. GLOBAL APPLICATION SETTINGS & STORE CONFIGURATION
+    // - Public: Unrestricted live read for customer clients to retrieve store status,
+    //   delivery parameters, live reward slabs, menu cache, category addons, and active configs.
+    // - Admin: Strictly restricted write access for authenticated administrators.
     // =========================================================================
     match /settings/{settingDoc} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
 
       match /{subcollection=**} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isAdmin();
       }
     }
 
     // Explicit path guarantees for critical configuration documents
     match /settings/storeSettings {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /settings/store_config {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /settings/menu {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /settings/category_addons {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /settings/daily_banners {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /settings/wallet_config {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
-    // Store Notice: Public read for customer app realtime sync; admin and client write
+    match /settings/rewards {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Store Notice: Public read for customer app realtime sync; admin write
     match /settings/store_notice {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     // =========================================================================
-    // 7. COUPONS & PROMO CODES
+    // 7. REWARDS & STORE CONFIGURATION (STANDALONE PATHS)
+    // - Public: Unrestricted reading for customer clients to retrieve live reward slabs and configs.
+    // - Admin: Strictly restricted write access for authenticated administrators.
+    // =========================================================================
+    match /rewards/{rewardDoc} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /{subcollection=**} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    match /store_config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /{subcollection=**} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // =========================================================================
+    // 8. COUPONS & PROMO CODES
     // - Public: Read coupon codes and validate discounts during checkout.
     // - Admin: Create and manage promotional discount vouchers.
     // =========================================================================
@@ -226,19 +269,22 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 8. WALLET CONFIGURATION & CASHBACK TIERS
+    // 9. WALLET CONFIGURATION & CASHBACK TIERS
+    // - Public: Unrestricted live read for customer clients to evaluate cashback tiers and limits.
+    // - Admin: Strictly restricted write access for authenticated administrators.
     // =========================================================================
     match /wallet_config/{configId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
 
       match /{subcollection=**} {
-        allow read, write: if true;
+        allow read: if true;
+        allow write: if isAdmin();
       }
     }
 
     // =========================================================================
-    // 9. CUSTOMER PROFILES, ADDRESSES & REWARDS
+    // 10. CUSTOMER PROFILES, ADDRESSES & REWARDS
     // - Keyed by customer mobile number (e.g. 'phone_9876543210' or '9876543210')
     // - Stores verified profiles, GPS coordinates, saved addresses, and reward states.
     // =========================================================================
@@ -269,7 +315,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 10. CUSTOMER WALLETS & DEDICATED BALANCES
+    // 11. CUSTOMER WALLETS & DEDICATED BALANCES
     // - Stores customer cashback wallet balances, expiry dates, and transaction ledger.
     // =========================================================================
     match /wallets/{walletId} {
@@ -289,7 +335,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 11. IMMUTABLE FINANCIAL & CASHBACK LEDGER
+    // 12. IMMUTABLE FINANCIAL & CASHBACK LEDGER
     // - Records append-only cashback credits, order payment debits, and balance transitions.
     // =========================================================================
     match /ledger/{ledgerId} {
@@ -303,7 +349,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 12. TEAM & STAFF ACCESS MANAGEMENT
+    // 13. TEAM & STAFF ACCESS MANAGEMENT
     // - Registration, role authorization (admin, kitchen, driver), and approval queues.
     // =========================================================================
     match /team/{phone} {
@@ -325,7 +371,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 13. AUDIT & ACTIVITY LOGS
+    // 14. AUDIT & ACTIVITY LOGS
     // - Real-time audit trail of admin logins, order cancellations, and settings changes.
     // =========================================================================
     match /activity_logs/{logId} {
@@ -339,7 +385,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 14. STAFF NOTIFICATION TOKENS & DEVICE REGISTRY
+    // 15. STAFF NOTIFICATION TOKENS & DEVICE REGISTRY
     // =========================================================================
     match /staff_tokens/{tokenId} {
       allow read, write: if true;
@@ -354,7 +400,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 15. GLOBAL RESILIENT FALLBACK READ RULE
+    // 16. GLOBAL RESILIENT FALLBACK READ RULE
     // =========================================================================
     match /{document=**} {
       allow read: if true;
