@@ -1044,15 +1044,15 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
 // --------------------------------------------------------------------------
 const categorySubItems = {
     "Burger": [
-        { id: "bgr-acharri", name: "Acharri Burger", price: 99.00, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-aloo-patty", name: "Aloo Patty Burger", price: 99.00, img: "https://i.ibb.co/Df2JH9fb/Aloo-Patty-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-cheese-spicy", name: "Cheese Spicy", price: 99.00, img: "https://i.ibb.co/WvX6jhYM/Cheese-Spicy.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-cheesy", name: "Cheesy Burger", price: 99.00, img: "https://i.ibb.co/v6vK86T1/Cheesy-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-crispy-paneer", name: "Crispy Paneer", price: 99.00, img: "https://i.ibb.co/DD26cbg3/Crispy-Paneer.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-peri-peri", name: "Peri Peri Burger", price: 99.00, img: "https://i.ibb.co/xqST9xJT/Peri-Peri-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-special", name: "Special Burger", price: 99.00, img: "https://i.ibb.co/CKF4Vqw0/Special-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-tandoori", name: "Tandoori Burger", price: 99.00, img: "https://i.ibb.co/kVsYKYhJ/Tandoori-Burger.jpg", category: "Burger", available: true, isMultiSize: false },
-        { id: "bgr-veggie", name: "Veggie Burger", price: 99.00, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", category: "Burger", available: true, isMultiSize: false }
+        { id: "bgr-acharri", name: "Acharri Burger", price: 99.00, img: "https://i.ibb.co/MDKQycZL/Acharri-Burger.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-aloo-patty", name: "Aloo Patty Burger", price: 99.00, img: "https://i.ibb.co/4np6D7KW/Aloo-Patty-Burger.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-cheese-spicy", name: "Cheese Spicy", price: 99.00, img: "https://i.ibb.co/6J4fSQ69/Cheese-Spicy.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-cheesy", name: "Cheesy Burger", price: 99.00, img: "https://i.ibb.co/Df2FkPwj/Cheesy-Burger.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-crispy-paneer", name: "Crispy Paneer", price: 99.00, img: "https://i.ibb.co/pYrWHYV/Crispy-Paneer.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-peri-peri", name: "Peri Peri Burger", price: 99.00, img: "https://i.ibb.co/rfKv2m35/Peri-Peri-Burger.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-special", name: "Special Burger", price: 99.00, img: "https://i.ibb.co/Kpqt4r2f/Special-Burger.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-tandoori", name: "Tandoori Burger", price: 99.00, img: "https://i.ibb.co/Z16PfSzj/Tandoori-Burger.webp", category: "Burger", available: true, isMultiSize: false },
+        { id: "bgr-veggie", name: "Veggie Burger", price: 99.00, img: "https://i.ibb.co/Q3XGcwBN/Veggie-Burger.webp", category: "Burger", available: true, isMultiSize: false }
     ],
     "Pizza": [
         {
@@ -1235,25 +1235,25 @@ const categorySubItems = {
         { id: "pst-baked-makhani", name: "Baked Makhani Pasta", category: "Pasta", isMultiSize: false, price: 149, available: true, img: "https://i.ibb.co/1f41Gz6R/Baked-Makhani-Pasta.webp", desc: "Rich butter makhani gravy pasta baked with melted mozzarella" }
     ],
     "Wrap": [
-        { id: "wrp-tandoori", name: "Tandoori Wrap", price: 99.00, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
-        { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", price: 99.00, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
-        { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", price: 99.00, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
-        { id: "wrp-cheesy", name: "Cheesy Wrap", price: 99.00, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
-        { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", price: 99.00, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", category: "Wrap", available: true, isMultiSize: false },
-        { id: "wrp-spicy", name: "Spicy Wrap", price: 99.00, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", category: "Wrap", available: true, isMultiSize: false }
+        { id: "wrp-tandoori", name: "Tandoori Wrap", price: 99.00, img: "https://i.ibb.co/b5w7z0C8/Tandoori-Wrap.webp", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", price: 99.00, img: "https://i.ibb.co/BHMF407g/Aloo-Patty-Wrap.webp", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", price: 99.00, img: "https://i.ibb.co/9HS3bc0t/Cheesy-Saucy-Wrap.webp", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-cheesy", name: "Cheesy Wrap", price: 99.00, img: "https://i.ibb.co/R4Bdy8V9/Cheesy-Wrap.webp", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", price: 99.00, img: "https://i.ibb.co/7NdLCHF7/Crispy-Paneer-Wrap.webp", category: "Wrap", available: true, isMultiSize: false },
+        { id: "wrp-spicy", name: "Spicy Wrap", price: 99.00, img: "https://i.ibb.co/gLrNz3f2/Spicy-Wrap.webp", category: "Wrap", available: true, isMultiSize: false }
     ],
     "Bread": [
-        { id: "brd-cheese-corn", name: "Cheese Corn Bread", price: 99.00, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
-        { id: "brd-garlic", name: "Garlic Bread", price: 99.00, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
-        { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", price: 99.00, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", category: "Bread", available: true, isMultiSize: false },
-        { id: "brd-stuffed", name: "Stuffed Bread", price: 99.00, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", category: "Bread", available: true, isMultiSize: false }
+        { id: "brd-cheese-corn", name: "Cheese Corn Bread", price: 99.00, img: "https://i.ibb.co/pBYrtH6T/Cheese-Corn-Bread.webp", category: "Bread", available: true, isMultiSize: false },
+        { id: "brd-garlic", name: "Garlic Bread", price: 99.00, img: "https://i.ibb.co/ynzr3xD5/Garlic-Bread.webp", category: "Bread", available: true, isMultiSize: false },
+        { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", price: 99.00, img: "https://i.ibb.co/B5F66nQK/Perfetto-Stuffed-Bread.webp", category: "Bread", available: true, isMultiSize: false },
+        { id: "brd-stuffed", name: "Stuffed Bread", price: 99.00, img: "https://i.ibb.co/jPcgttxg/Stuffed-Bread.webp", category: "Bread", available: true, isMultiSize: false }
     ],
     "Sandwich": [
-        { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "" },
-        { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg", desc: "" },
-        { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "" },
-        { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "" },
-        { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "" }
+        { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/fYtFGP8P/Double-Decker-Sandwich.webp", desc: "" },
+        { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Z1pPfbXN/Grilled-Sandwich.webp", desc: "" },
+        { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/Xfx80sdt/Paneer-Sandwich.webp", desc: "" },
+        { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/VWVvjzQq/Spicy-Sandwich.webp", desc: "" },
+        { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/7xqBz0CV/Cheesy-Sandwich.webp", desc: "" }
     ],
     "Momos": [
         { id: "mom-chilly-paneer", name: "Chilly Paneer Momos", category: "Momos", isMultiSize: false, price: 129, available: true, img: "https://i.ibb.co/TMypswPg/Chilly-Paneer-Momos.webp", desc: "Crispy paneer momos tossed in spicy chilli garlic sauce" },
@@ -1415,39 +1415,39 @@ const NEW_MOMOS_MENU_ITEMS = [
 ];
 
 const NEW_SANDWICH_MENU_ITEMS = [
-    { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg", desc: "" },
-    { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg", desc: "" },
-    { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg", desc: "" },
-    { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg", desc: "" },
-    { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg", desc: "" }
+    { id: "sdw-double-decker", name: "Double Decker Sandwich", category: "Sandwich", isMultiSize: false, price: 119, available: true, img: "https://i.ibb.co/fYtFGP8P/Double-Decker-Sandwich.webp", desc: "" },
+    { id: "sdw-grilled", name: "Grilled Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Z1pPfbXN/Grilled-Sandwich.webp", desc: "" },
+    { id: "sdw-paneer", name: "Paneer Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/Xfx80sdt/Paneer-Sandwich.webp", desc: "" },
+    { id: "sdw-spicy", name: "Spicy Sandwich", category: "Sandwich", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/VWVvjzQq/Spicy-Sandwich.webp", desc: "" },
+    { id: "sdw-cheesy", name: "Cheesy Sandwich", category: "Sandwich", isMultiSize: false, price: 109, available: true, img: "https://i.ibb.co/7xqBz0CV/Cheesy-Sandwich.webp", desc: "" }
 ];
 
 const NEW_BURGER_MENU_ITEMS = [
-    { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/W44mjwxN/Acharri-Burger.jpg", desc: "" },
-    { id: "bgr-aloo-patty", name: "Aloo Patty Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Df2JH9fb/Aloo-Patty-Burger.jpg", desc: "" },
-    { id: "bgr-cheese-spicy", name: "Cheese Spicy", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/WvX6jhYM/Cheese-Spicy.jpg", desc: "" },
-    { id: "bgr-cheesy", name: "Cheesy Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/v6vK86T1/Cheesy-Burger.jpg", desc: "" },
-    { id: "bgr-crispy-paneer", name: "Crispy Paneer", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/DD26cbg3/Crispy-Paneer.jpg", desc: "" },
-    { id: "bgr-peri-peri", name: "Peri Peri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/xqST9xJT/Peri-Peri-Burger.jpg", desc: "" },
-    { id: "bgr-special", name: "Special Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/CKF4Vqw0/Special-Burger.jpg", desc: "" },
-    { id: "bgr-tandoori", name: "Tandoori Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/kVsYKYhJ/Tandoori-Burger.jpg", desc: "" },
-    { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/840Qp6qQ/Veggie-Burger.jpg", desc: "" }
+    { id: "bgr-acharri", name: "Acharri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/MDKQycZL/Acharri-Burger.webp", desc: "" },
+    { id: "bgr-aloo-patty", name: "Aloo Patty Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/4np6D7KW/Aloo-Patty-Burger.webp", desc: "" },
+    { id: "bgr-cheese-spicy", name: "Cheese Spicy", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6J4fSQ69/Cheese-Spicy.webp", desc: "" },
+    { id: "bgr-cheesy", name: "Cheesy Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Df2FkPwj/Cheesy-Burger.webp", desc: "" },
+    { id: "bgr-crispy-paneer", name: "Crispy Paneer", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/pYrWHYV/Crispy-Paneer.webp", desc: "" },
+    { id: "bgr-peri-peri", name: "Peri Peri Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/rfKv2m35/Peri-Peri-Burger.webp", desc: "" },
+    { id: "bgr-special", name: "Special Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Kpqt4r2f/Special-Burger.webp", desc: "" },
+    { id: "bgr-tandoori", name: "Tandoori Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Z16PfSzj/Tandoori-Burger.webp", desc: "" },
+    { id: "bgr-veggie", name: "Veggie Burger", category: "Burger", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Q3XGcwBN/Veggie-Burger.webp", desc: "" }
 ];
 
 const NEW_WRAP_MENU_ITEMS = [
-    { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/vx34djt8/Tandoori-Wrap.jpg", desc: "" },
-    { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/MDpP2m0Q/Aloo-Patty-Wrap.jpg", desc: "" },
-    { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/NkgGphz/Cheesy-Saucy-Wrap.jpg", desc: "" },
-    { id: "wrp-cheesy", name: "Cheesy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JRZWfVvX/Cheesy-Wrap.jpg", desc: "" },
-    { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/Tx8G92GX/Crispy-Paneer-Wrap.jpg", desc: "" },
-    { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/0jx7P4sj/Spicy-Wrap.png", desc: "" }
+    { id: "wrp-tandoori", name: "Tandoori Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/b5w7z0C8/Tandoori-Wrap.webp", desc: "" },
+    { id: "wrp-aloo-patty", name: "Aloo Patty Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/BHMF407g/Aloo-Patty-Wrap.webp", desc: "" },
+    { id: "wrp-cheesy-saucy", name: "Cheesy Saucy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/9HS3bc0t/Cheesy-Saucy-Wrap.webp", desc: "" },
+    { id: "wrp-cheesy", name: "Cheesy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/R4Bdy8V9/Cheesy-Wrap.webp", desc: "" },
+    { id: "wrp-crispy-paneer", name: "Crispy Paneer Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/7NdLCHF7/Crispy-Paneer-Wrap.webp", desc: "" },
+    { id: "wrp-spicy", name: "Spicy Wrap", category: "Wrap", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/gLrNz3f2/Spicy-Wrap.webp", desc: "" }
 ];
 
 const NEW_BREAD_MENU_ITEMS = [
-    { id: "brd-cheese-corn", name: "Cheese Corn Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/d4sByypr/Cheese-Corn-Bread.jpg", desc: "" },
-    { id: "brd-garlic", name: "Garlic Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/JFRG0cD0/Garlic-Bread.jpg", desc: "" },
-    { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/j2ZXJWh/Perfetto-Stuffed-Bread.jpg", desc: "" },
-    { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/6c66XWJn/Stuffed-Bread.jpg", desc: "" }
+    { id: "brd-cheese-corn", name: "Cheese Corn Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/pBYrtH6T/Cheese-Corn-Bread.webp", desc: "" },
+    { id: "brd-garlic", name: "Garlic Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/ynzr3xD5/Garlic-Bread.webp", desc: "" },
+    { id: "brd-perfetto-stuffed", name: "Perfetto Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/B5F66nQK/Perfetto-Stuffed-Bread.webp", desc: "" },
+    { id: "brd-stuffed", name: "Stuffed Bread", category: "Bread", isMultiSize: false, price: 99, available: true, img: "https://i.ibb.co/jPcgttxg/Stuffed-Bread.webp", desc: "" }
 ];
 
 const NEW_PIZZA_MENU_IMAGES = {
@@ -1535,16 +1535,68 @@ function sanitizeStoredMenuItems(items) {
     }
 
     const SANDWICH_IMAGE_MAP = {
-        "sdw-double-decker": "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg",
-        "sdw-grilled": "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg",
-        "sdw-paneer": "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg",
-        "sdw-spicy": "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg",
-        "sdw-cheesy": "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg"
+        "sdw-double-decker": "https://i.ibb.co/fYtFGP8P/Double-Decker-Sandwich.webp",
+        "sdw-grilled": "https://i.ibb.co/Z1pPfbXN/Grilled-Sandwich.webp",
+        "sdw-paneer": "https://i.ibb.co/Xfx80sdt/Paneer-Sandwich.webp",
+        "sdw-spicy": "https://i.ibb.co/VWVvjzQq/Spicy-Sandwich.webp",
+        "sdw-cheesy": "https://i.ibb.co/7xqBz0CV/Cheesy-Sandwich.webp"
     };
     updated.forEach(item => {
         if (item.category === 'Sandwich' && item.id && SANDWICH_IMAGE_MAP[item.id]) {
             if (item.img !== SANDWICH_IMAGE_MAP[item.id]) {
                 item.img = SANDWICH_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    const BURGER_IMAGE_MAP = {
+        "bgr-acharri": "https://i.ibb.co/MDKQycZL/Acharri-Burger.webp",
+        "bgr-aloo-patty": "https://i.ibb.co/4np6D7KW/Aloo-Patty-Burger.webp",
+        "bgr-cheese-spicy": "https://i.ibb.co/6J4fSQ69/Cheese-Spicy.webp",
+        "bgr-cheesy": "https://i.ibb.co/Df2FkPwj/Cheesy-Burger.webp",
+        "bgr-crispy-paneer": "https://i.ibb.co/pYrWHYV/Crispy-Paneer.webp",
+        "bgr-peri-peri": "https://i.ibb.co/rfKv2m35/Peri-Peri-Burger.webp",
+        "bgr-special": "https://i.ibb.co/Kpqt4r2f/Special-Burger.webp",
+        "bgr-tandoori": "https://i.ibb.co/Z16PfSzj/Tandoori-Burger.webp",
+        "bgr-veggie": "https://i.ibb.co/Q3XGcwBN/Veggie-Burger.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Burger' && item.id && BURGER_IMAGE_MAP[item.id]) {
+            if (item.img !== BURGER_IMAGE_MAP[item.id]) {
+                item.img = BURGER_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    const WRAP_IMAGE_MAP = {
+        "wrp-tandoori": "https://i.ibb.co/b5w7z0C8/Tandoori-Wrap.webp",
+        "wrp-aloo-patty": "https://i.ibb.co/BHMF407g/Aloo-Patty-Wrap.webp",
+        "wrp-cheesy-saucy": "https://i.ibb.co/9HS3bc0t/Cheesy-Saucy-Wrap.webp",
+        "wrp-cheesy": "https://i.ibb.co/R4Bdy8V9/Cheesy-Wrap.webp",
+        "wrp-crispy-paneer": "https://i.ibb.co/7NdLCHF7/Crispy-Paneer-Wrap.webp",
+        "wrp-spicy": "https://i.ibb.co/gLrNz3f2/Spicy-Wrap.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Wrap' && item.id && WRAP_IMAGE_MAP[item.id]) {
+            if (item.img !== WRAP_IMAGE_MAP[item.id]) {
+                item.img = WRAP_IMAGE_MAP[item.id];
+                modified = true;
+            }
+        }
+    });
+
+    const BREAD_IMAGE_MAP = {
+        "brd-cheese-corn": "https://i.ibb.co/pBYrtH6T/Cheese-Corn-Bread.webp",
+        "brd-garlic": "https://i.ibb.co/ynzr3xD5/Garlic-Bread.webp",
+        "brd-perfetto-stuffed": "https://i.ibb.co/B5F66nQK/Perfetto-Stuffed-Bread.webp",
+        "brd-stuffed": "https://i.ibb.co/jPcgttxg/Stuffed-Bread.webp"
+    };
+    updated.forEach(item => {
+        if (item.category === 'Bread' && item.id && BREAD_IMAGE_MAP[item.id]) {
+            if (item.img !== BREAD_IMAGE_MAP[item.id]) {
+                item.img = BREAD_IMAGE_MAP[item.id];
                 modified = true;
             }
         }

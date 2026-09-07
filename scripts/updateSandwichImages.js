@@ -14,7 +14,7 @@ const SANDWICH_ITEMS = [
         isMultiSize: false,
         price: 119,
         available: true,
-        img: "https://i.ibb.co/CsVRK0p0/Double-Decker-Sandwich.jpg",
+        img: "https://i.ibb.co/fYtFGP8P/Double-Decker-Sandwich.webp",
         desc: "Layered grilled sandwich packed with fresh veggies, sauces & spices"
     },
     {
@@ -24,7 +24,7 @@ const SANDWICH_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/rGDgsJbM/Grilled-Sandwich.jpg",
+        img: "https://i.ibb.co/Z1pPfbXN/Grilled-Sandwich.webp",
         desc: "Crispy golden grilled sandwich with house seasoning & herb filling"
     },
     {
@@ -34,7 +34,7 @@ const SANDWICH_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/dsw5G4Kk/Paneer-Sandwich.jpg",
+        img: "https://i.ibb.co/Xfx80sdt/Paneer-Sandwich.webp",
         desc: "Rich paneer chunks tossed with aromatic spices & fresh veggies"
     },
     {
@@ -44,7 +44,7 @@ const SANDWICH_ITEMS = [
         isMultiSize: false,
         price: 99,
         available: true,
-        img: "https://i.ibb.co/YTb1G6fh/Spicy-Sandwich.jpg",
+        img: "https://i.ibb.co/VWVvjzQq/Spicy-Sandwich.webp",
         desc: "Zesty spicy spread with crunchy vegetable filling & hot seasonings"
     },
     {
@@ -54,7 +54,7 @@ const SANDWICH_ITEMS = [
         isMultiSize: false,
         price: 109,
         available: true,
-        img: "https://i.ibb.co/XZKVpGT8/Cheesy-Sandwich.jpg",
+        img: "https://i.ibb.co/7xqBz0CV/Cheesy-Sandwich.webp",
         desc: "Melted gooey cheese blend seasoned with Italian herbs"
     }
 ];
