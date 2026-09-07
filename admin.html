@@ -3739,14 +3739,14 @@
                             <div class="wallet-slab-card" id="card-slab-1">
                                 <div class="slab-card-header">
                                     <span class="slab-badge">Slab 1</span>
-                                    <span class="slab-percent-pill" id="slab1-rate-tag">10% Return</span>
+                                    <span class="slab-percent-pill" id="slab1-rate-tag">3% Return</span>
                                 </div>
                                 <div class="slab-card-body">
                                     <div class="slab-field-group">
                                         <label class="slab-field-label">Min Order Amount (₹)</label>
                                         <div class="slab-input-wrapper">
                                             <i class="fa-solid fa-cart-arrow-down"></i>
-                                            <input type="number" id="input-slab1-min" class="slab-num-input" value="200" min="0" placeholder="200" oninput="onSlabInputChange(1)" onchange="onSlabMinChange(1)" onblur="onSlabMinBlur(1)">
+                                            <input type="number" id="input-slab1-min" class="slab-num-input" value="350" min="0" placeholder="350" oninput="onSlabInputChange(1)" onchange="onSlabMinChange(1)" onblur="onSlabMinBlur(1)">
                                         </div>
                                     </div>
                                     <div class="slab-arrow-divider">
@@ -3756,12 +3756,12 @@
                                         <label class="slab-field-label">Cashback Amount (₹)</label>
                                         <div class="slab-input-wrapper slab-cashback-highlight">
                                             <i class="fa-solid fa-coins" style="color: #f59e0b;"></i>
-                                            <input type="number" id="input-slab1-cashback" class="slab-num-input" value="20" min="0" placeholder="20" oninput="onSlabInputChange(1)" onchange="onSlabCashbackChange(1)" onblur="onSlabCashbackBlur(1)">
+                                            <input type="number" id="input-slab1-cashback" class="slab-num-input" value="10" min="0" placeholder="10" oninput="onSlabInputChange(1)" onchange="onSlabCashbackChange(1)" onblur="onSlabCashbackBlur(1)">
                                         </div>
                                     </div>
                                 </div>
                                 <div class="slab-card-summary" id="slab1-summary-text">
-                                    Earn <strong>₹20</strong> on orders ≥ <strong>₹200</strong>
+                                    Earn <strong>₹10</strong> on orders ≥ <strong>₹350</strong>
                                 </div>
                             </div>
 
@@ -7741,9 +7741,9 @@
             minRedemptionOrder: 0,
             minOrderToRedeem: 0,
             slabs: [
-                { minOrder: 200, cashback: 20 },
-                { minOrder: 500, cashback: 50 },
-                { minOrder: 1000, cashback: 100 },
+                { minOrder: 350, cashback: 10 },
+                { minOrder: 450, cashback: 40 },
+                { minOrder: 700, cashback: 80 },
                 { minOrder: 2000, cashback: 200 },
                 { minOrder: 3000, cashback: 300 }
             ]

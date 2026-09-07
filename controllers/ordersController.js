@@ -181,9 +181,9 @@ async function handleOrdersRequest(req, res) {
             const rawSlabs = (Array.isArray(global.__perfettoWalletConfig?.slabs) && global.__perfettoWalletConfig.slabs.length > 0)
                 ? global.__perfettoWalletConfig.slabs
                 : [
-                    { minOrder: 200, cashback: 20 },
-                    { minOrder: 500, cashback: 50 },
-                    { minOrder: 1000, cashback: 100 },
+                    { minOrder: 350, cashback: 10 },
+                    { minOrder: 450, cashback: 40 },
+                    { minOrder: 700, cashback: 80 },
                     { minOrder: 2000, cashback: 200 },
                     { minOrder: 3000, cashback: 300 }
                 ];
@@ -192,7 +192,7 @@ async function handleOrdersRequest(req, res) {
                 cashback: Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount))) || 0
             })).filter(s => s.minOrder > 0).sort((a, b) => a.minOrder - b.minOrder);
 
-            const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : 200;
+            const slab1Threshold = sortedSlabs.length > 0 ? sortedSlabs[0].minOrder : 350;
             const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && global.__perfettoWalletConfig?.enabled !== false);
 
             let verifiedCashback = 0;
@@ -285,6 +285,7 @@ async function handleOrdersRequest(req, res) {
                 scratchCard: hasScratchReward ? {
                     ...(body.scratchCard || {}),
                     title: rewardTitle,
+                    isThankYouReward: (rewardTitle === 'Thank You Cashback Reward'),
                     amount: verifiedCashback,
                     wonAmount: verifiedCashback,
                     status: body.rewardStatus || 'pending_delivery',

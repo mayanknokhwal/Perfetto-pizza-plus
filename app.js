@@ -4470,9 +4470,9 @@ const DEFAULT_WALLET_CONFIG = {
     minRedemptionOrder: 0,
     minOrderToRedeem: 0,
     slabs: [
-        { minOrder: 200, cashback: 20 },
-        { minOrder: 500, cashback: 50 },
-        { minOrder: 1000, cashback: 100 },
+        { minOrder: 350, cashback: 10 },
+        { minOrder: 450, cashback: 40 },
+        { minOrder: 700, cashback: 80 },
         { minOrder: 2000, cashback: 200 },
         { minOrder: 3000, cashback: 300 }
     ]
@@ -4501,6 +4501,13 @@ let customerWalletConfig = (function() {
         if (stored) {
             const parsed = JSON.parse(stored);
             if (parsed && typeof parsed === 'object') {
+                // Purge any stale legacy default where Slab 1 was 200 / 20
+                if (Array.isArray(parsed.slabs) && parsed.slabs.length > 0) {
+                    const firstMin = Number(parsed.slabs[0].minOrder || 0);
+                    if (firstMin < 350) {
+                        parsed.slabs = JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG.slabs));
+                    }
+                }
                 const days = getClampedCashbackExpiryDays(parsed);
                 parsed.expiryDays = days;
                 parsed.cashbackExpiryDays = days;
@@ -4511,6 +4518,35 @@ let customerWalletConfig = (function() {
     return JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG));
 })();
 window.customerWalletConfig = customerWalletConfig;
+
+// Proactively fetch live 5-slab wallet config from Backend API / Firestore on boot
+async function fetchAndApplyLiveWalletConfig() {
+    try {
+        const targetUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/wallet') : '/api/settings/wallet';
+        const res = await fetch(targetUrl);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.config) {
+                const conf = data.config;
+                if (Array.isArray(conf.slabs) && conf.slabs.length > 0) {
+                    customerWalletConfig = {
+                        ...DEFAULT_WALLET_CONFIG,
+                        ...conf,
+                        slabs: conf.slabs
+                    };
+                    window.customerWalletConfig = customerWalletConfig;
+                    safeStorage.setJSON('perfetto_wallet_config', customerWalletConfig);
+                    if (typeof updateCartUI === 'function') updateCartUI();
+                    if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+                    if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
+                }
+            }
+        }
+    } catch (e) {
+        // Network offline / fallback
+    }
+}
+fetchAndApplyLiveWalletConfig();
 
 let currentCustomerWallet = (function() {
     let directBal = 0;
@@ -4800,7 +4836,7 @@ window.getCashbackRewardBoundaries = getCashbackRewardBoundaries;
  * @returns {number}
  */
 function getSlab1Threshold(walletConfig = customerWalletConfig) {
-    if (!walletConfig || walletConfig.enabled === false) return 200;
+    if (!walletConfig || walletConfig.enabled === false) return 350;
     const rawSlabs = (Array.isArray(walletConfig.slabs) && walletConfig.slabs.length > 0)
         ? walletConfig.slabs
         : ((Array.isArray(walletConfig.rewardTiers) && walletConfig.rewardTiers.length > 0)
@@ -4815,7 +4851,7 @@ function getSlab1Threshold(walletConfig = customerWalletConfig) {
         return Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0;
     }).filter(m => m > 0).sort((a, b) => a - b);
 
-    return sortedMins.length > 0 ? sortedMins[0] : 200;
+    return sortedMins.length > 0 ? sortedMins[0] : 350;
 }
 window.getSlab1Threshold = getSlab1Threshold;
 
@@ -4838,7 +4874,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
 
     if (!isSlab1Qualified) {
         const diff = Math.max(0, slab1Threshold - subtotal);
-        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 20;
+        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 10;
         bar.classList.remove('cashback-max-unlocked');
 
         content.innerHTML = `
@@ -4846,8 +4882,8 @@ function updateCartCashbackIncentiveBar(subtotal) {
                 <i class="fa-solid fa-gift"></i>
                 <span class="cashback-bar-text">
                     ${isHindiCashback 
-                        ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए <strong>${formatPrice(diff)}</strong> और जोड़ें!` 
-                        : `Add <strong>${formatPrice(diff)}</strong> more to unlock a cashback scratch card!`}
+                        ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए <strong>${formatPrice(diff)}</strong> और जोड़ें! | न्यूनतम ₹${slab1Threshold}` 
+                        : `Add <strong>${formatPrice(diff)}</strong> more to unlock a cashback scratch card! | Min ₹${slab1Threshold}`}
                 </span>
             </div>
             <span class="cashback-current-badge"><i class="fa-solid fa-lock"></i> ${isHindiCashback ? `न्यूनतम ₹${slab1Threshold}` : `Min ₹${slab1Threshold}`}</span>
@@ -4990,16 +5026,16 @@ function updateCheckoutCashbackTeaser(subtotal) {
     if (!isSlab1Qualified) {
         // Below Slab 1: standard upsell message regardless of payment method
         const diff = Math.max(0, slab1Threshold - subtotal);
-        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 20;
+        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 10;
         teaserEl.classList.remove('teaser-wallet-applied');
         if (teaserText) {
             teaserText.textContent = isHindi
-                ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए ${formatPrice(diff)} और जोड़ें!`
-                : `Add ${formatPrice(diff)} more to unlock a cashback scratch card!`;
+                ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए ${formatPrice(diff)} और जोड़ें! | न्यूनतम ₹${slab1Threshold}`
+                : `Add ${formatPrice(diff)} more to unlock a cashback scratch card! | Min ₹${slab1Threshold}`;
         }
         if (teaserSub) {
             teaserSub.textContent = isHindi
-                ? `न्यूनतम ₹${slab1Threshold} ऑर्डर पर ₹${slab1Reward} तक का स्क्रैच कार्ड रिवॉर्ड अनलॉक होगा ✨`
+                ? `न्यूनतम ₹${slab1Threshold} ऑर्डर पर ₹${slab1Reward} स्क्रैच कार्ड रिवॉर्ड अनलॉक होगा ✨`
                 : `Reach minimum order milestone of ₹${slab1Threshold} to unlock scratch card reward ✨`;
         }
     } else if (isWalletApplied) {
@@ -5440,9 +5476,7 @@ function renderProfileWalletTxList() {
     const now = Date.now();
 
     if (txList.length === 0) {
-        const firstSlabMin = (customerWalletConfig?.slabs && customerWalletConfig.slabs.length > 0)
-            ? Math.min(...customerWalletConfig.slabs.map(s => Number(s.minOrder) || 0).filter(m => m > 0))
-            : 200;
+        const firstSlabMin = getSlab1Threshold(customerWalletConfig);
         container.innerHTML = `
             <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
                 ${typeof t === 'function' ? t('wallet_no_transactions') : `No wallet transactions yet. Place an order of ₹${firstSlabMin}+ to earn cashback!`}
