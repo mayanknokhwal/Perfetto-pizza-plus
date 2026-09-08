@@ -5457,36 +5457,26 @@ function updateCheckoutCashbackTeaser(subtotal) {
         teaserEl.classList.add('teaser-wallet-applied');
         if (teaserText) {
             teaserText.textContent = isHindi 
-                ? 'वॉलेट कैश लागू! इस ऑर्डर के साथ आपको फ्लैट ₹10 का थैंक यू स्क्रैच कार्ड मिलेगा।' 
-                : 'Wallet cash applied! You will receive a flat ₹10 Thank You scratch card with this order.';
+                ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' 
+                : '🎉 Mystery Reward Unlocked!';
         }
         if (teaserSub) {
             teaserSub.textContent = isHindi 
-                ? 'ऑर्डर पूरा करने पर फ्लैट ₹10 थैंक यू स्क्रैच कार्ड तुरंत अनलॉक होगा ✨' 
-                : 'Flat ₹10 Thank You reward card unlocks upon order placement ✨';
+                ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' 
+                : 'Scratch the card to reveal your cashback reward';
         }
     } else {
         // Qualifying order (Slab 1+) + Wallet Unchecked: dynamic unlocked milestone reward banner
         teaserEl.classList.remove('teaser-wallet-applied');
-        const reward = boundaries.max || calculateOrderCashback(subtotal);
         if (teaserText) {
             teaserText.textContent = isHindi
-                ? `₹${reward} कैशबैक अनलॉक! (स्क्रैच कार्ड तैयार)`
-                : `₹${reward} Cashback Unlocked! (Scratch Card ready)`;
+                ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!'
+                : '🎉 Mystery Reward Unlocked!';
         }
         if (teaserSub) {
-            if (boundaries.nextSlab) {
-                const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
-                const nextReward = Number(boundaries.nextSlab.cashback) || 0;
-                const diff = Math.max(0, nextMin - subtotal);
-                teaserSub.textContent = isHindi
-                    ? `${formatPrice(diff)} और जोड़ें (₹${nextReward} रिवॉर्ड पाएं) ✨`
-                    : `Add ${formatPrice(diff)} more to reach next milestone for ${formatPrice(nextReward)} Cashback ✨`;
-            } else {
-                teaserSub.textContent = isHindi
-                    ? 'ऑर्डर करते ही तुरंत स्क्रैच करें और अपने वॉलेट में जोड़ें!'
-                    : 'Scratch immediately after placing order and claim to your wallet!';
-            }
+            teaserSub.textContent = isHindi
+                ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें'
+                : 'Scratch the card to reveal your cashback reward';
         }
     }
 }
@@ -5828,6 +5818,11 @@ function updateProfileWalletUI() {
         const unclaimedOrder = getFirstUnclaimedDeliveredOrder();
         if (unclaimedOrder) {
             unclaimedBanner.style.display = 'flex';
+            const bannerTitle = document.getElementById('profile-scratch-banner-title');
+            const bannerSub = document.getElementById('profile-scratch-banner-sub');
+            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+            if (bannerTitle) bannerTitle.textContent = isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!';
+            if (bannerSub) bannerSub.textContent = isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' : 'Scratch the card to reveal your cashback reward';
         } else {
             unclaimedBanner.style.display = 'none';
         }
@@ -7344,37 +7339,40 @@ function openOrderOtpSuccessModal(order) {
     const cashbackCard = document.getElementById('otp-modal-cashback-card');
     const cashbackText = document.getElementById('otp-modal-cashback-text');
     const cashbackExpiry = document.getElementById('otp-modal-cashback-expiry');
-    const earnedCashback = (order && order.earnedCashback) ? Number(order.earnedCashback) : 0;
+    const earnedCashback = (order && (order.earnedCashback || order.wonCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)))) ? Number(order.earnedCashback || order.wonCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount))) : 0;
+    const isCardRevealed = Boolean(order && (order.scratchRevealed || (order.scratchCard && order.scratchCard.revealed)));
     const activeOrderDays = (order && (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
     const expiryLabel = formatExpiryDaysLabel(activeOrderDays, isHindiModal);
 
     if (cashbackCard) {
         if (earnedCashback > 0) {
-            const isWalletUsed = Boolean(Number(order.usedWalletCash || order.walletDiscount || order.appliedWalletDiscount) > 0);
-            const isThankYouReward = isWalletUsed || (order.rewardTitle === 'Thank You Cashback Reward') || (earnedCashback === 10 && order.rewardTitle && order.rewardTitle.includes('Thank You'));
-            const boundaries = getCashbackRewardBoundaries(order.subtotal || 0);
-            const rewardAmount = earnedCashback || boundaries.max;
             cashbackCard.style.display = 'flex';
-            if (cashbackText) {
-                if (isThankYouReward) {
-                    cashbackText.textContent = isHindiModal 
-                        ? '🎁 थैंक यू कैशबैक स्क्रैच कार्ड! (₹10 रिवॉर्ड)' 
-                        : '🎁 Thank You Cashback Reward! (₹10 Reward)';
-                } else {
+            if (isCardRevealed) {
+                if (cashbackText) {
                     cashbackText.textContent = isHindiModal
-                        ? `🎁 स्क्रैच एंड विन कैशबैक! (₹${rewardAmount} रिवॉर्ड)`
-                        : `🎁 Scratch & Win Cashback! (₹${rewardAmount} Reward)`;
+                        ? `🎉 आपने ₹${earnedCashback} कैशबैक जीता!`
+                        : `🎉 You Won ₹${earnedCashback} Cashback!`;
                 }
-            }
-            if (cashbackExpiry) {
-                cashbackExpiry.textContent = isHindiModal 
-                    ? `अपनी उंगली से स्क्रैच करें • ${expiryLabel} ✨` 
-                    : `Tap to scratch now • ${expiryLabel} ✨`;
-            }
-            if (isThankYouReward) {
-                showToast(isHindiModal ? '🎁 थैंक यू कैशबैक स्क्रैच कार्ड तैयार! ₹10 रिवॉर्ड!' : '🎁 Thank You Cashback scratch card unlocked! ₹10 reward ready!', 5000);
+                if (cashbackExpiry) {
+                    cashbackExpiry.textContent = isHindiModal
+                        ? `ऑर्डर सफलतापूर्वक डिलीवर होने पर वॉलेट में जुड़ेगा • ${expiryLabel} ✨`
+                        : `Credited to wallet upon successful delivery • ${expiryLabel} ✨`;
+                }
             } else {
-                showToast(isHindiModal ? `🎁 स्क्रैच एंड विन कैशबैक अनलॉक! ₹${rewardAmount} रिवॉर्ड तैयार!` : `🎁 Scratch & Win Cashback unlocked! ₹${rewardAmount} reward ready!`, 5000);
+                // Strict suspense pre-scratch: never leak numerical amount
+                if (cashbackText) {
+                    cashbackText.textContent = isHindiModal 
+                        ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' 
+                        : '🎉 Mystery Reward Unlocked!';
+                }
+                if (cashbackExpiry) {
+                    cashbackExpiry.textContent = isHindiModal 
+                        ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' 
+                        : 'Scratch the card to reveal your cashback reward';
+                }
+                showToast(isHindiModal 
+                    ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ! रिवॉर्ड देखने के लिए स्क्रैच करें!' 
+                    : '🎉 Mystery Reward Unlocked! Scratch the card to reveal your cashback reward', 5000);
             }
         } else {
             cashbackCard.style.display = 'none';
@@ -7717,14 +7715,12 @@ function setupScratchCanvas(order, rewardAmount) {
 
     ctx.font = '800 17px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = '#fffae0';
-    const foilWinText = isThankYouReward
-        ? (isHindi ? 'जीतें ₹10 🎁' : 'Win ₹10 🎁')
-        : (isHindi ? `जीतें ₹${dynamicTargetAmount} तक 🎁` : `Win up to ₹${dynamicTargetAmount} 🎁`);
+    const foilWinText = isHindi ? 'मिस्ट्री कैशबैक जीतें 🎁' : 'Win Mystery Cashback 🎁';
     ctx.fillText(foilWinText, width / 2, badgeY + 42);
 
     ctx.font = '500 11px "Outfit", "Inter", sans-serif';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillText(isHindi ? 'उंगली या माउस से स्क्रैच करें ✨' : 'Scratch with finger or mouse ✨', width / 2, badgeY + 61);
+    ctx.fillText(isHindi ? 'रिवॉर्ड देखने के लिए स्क्रैच करें ✨' : 'Scratch the card to reveal ✨', width / 2, badgeY + 61);
 
     initScratchCardCanvasEvents();
 }
@@ -7889,8 +7885,8 @@ function checkScratchCompletion() {
         }
 
         const percentage = total > 0 ? (transparent / total) * 100 : 0;
-        // Require customer to scratch at least 25% of the card area for effortless and smooth reveal
-        if (percentage >= 25) {
+        // Require customer to scratch at least 40% of the card area
+        if (percentage >= 40) {
             revealScratchCardReward();
         }
     } catch (e) {
@@ -8024,6 +8020,8 @@ function revealScratchCardReward() {
     const claimBtn = document.getElementById('btn-scratch-claim');
     const hintText = document.getElementById('scratch-instruction-text');
     const hintIcon = document.getElementById('scratch-hint-icon');
+    const titleEl = document.getElementById('scratch-modal-title');
+    const subtitleEl = document.getElementById('scratch-modal-subtitle');
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     if (canvas) {
@@ -8044,6 +8042,32 @@ function revealScratchCardReward() {
 
     const isDelivered = activeScratchOrder && (activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered');
     const isRejected = activeScratchOrder && (activeScratchOrder.status === 'rejected' || activeScratchOrder.status === 'cancelled');
+
+    // Update modal celebration banner with revealed cashback amount
+    if (titleEl) {
+        titleEl.textContent = isHindi 
+            ? `🎉 बधाई हो! आपने ₹${activeScratchRewardAmount} कैशबैक जीता!`
+            : `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
+    }
+    if (subtitleEl) {
+        subtitleEl.textContent = isDelivered
+            ? (isHindi ? 'यह कैशबैक आपके वॉलेट में जोड़ दिया गया है!' : 'Cashback credited directly to your active wallet!')
+            : (isHindi ? 'यह कैशबैक डिलीवरी पर आपके वॉलेट में जोड़ दिया जाएगा।' : 'This will be credited to your wallet upon successful delivery');
+    }
+
+    // Synchronize OTP success modal cards if open
+    const otpCashbackText = document.getElementById('otp-modal-cashback-text');
+    const otpCashbackExpiry = document.getElementById('otp-modal-cashback-expiry');
+    if (otpCashbackText) {
+        otpCashbackText.textContent = isHindi 
+            ? `🎉 आपने ₹${activeScratchRewardAmount} कैशबैक जीता!` 
+            : `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
+    }
+    if (otpCashbackExpiry) {
+        otpCashbackExpiry.textContent = isDelivered
+            ? (isHindi ? 'वॉलेट में जुड़ गया ✨' : 'Credited to your wallet ✨')
+            : (isHindi ? 'ऑर्डर सफलतापूर्वक डिलीवर होने पर वॉलेट में जुड़ेगा ✨' : 'Will be credited to your wallet upon successful delivery ✨');
+    }
 
     if (isDelivered) {
         // Order was ALREADY delivered by staff: Scratching it immediately transfers the balance to the active wallet!
@@ -8473,16 +8497,27 @@ function openScratchCardModal(order, demoAmount) {
     const claimBtn = document.getElementById('btn-scratch-claim');
     const claimText = document.getElementById('scratch-claim-btn-text');
 
-    const isThankYouReward = (activeScratchOrder && activeScratchOrder.rewardTitle === 'Thank You Cashback Reward') || (isWalletUsedOnOrder && activeScratchRewardAmount === 10);
+    const isCardAlreadyRevealed = Boolean(activeScratchOrder && (activeScratchOrder.scratchRevealed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.revealed)));
     if (titleEl) {
-        titleEl.textContent = isThankYouReward 
-            ? (isHindi ? 'थैंक यू कैशबैक रिवॉर्ड' : 'Thank You Cashback Reward') 
-            : 'Scratch & Win Cashback';
+        if (isCardAlreadyRevealed) {
+            titleEl.textContent = isHindi 
+                ? `🎉 बधाई हो! आपने ₹${activeScratchRewardAmount} कैशबैक जीता!` 
+                : `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
+        } else {
+            titleEl.textContent = isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!';
+        }
     }
     if (subtitleEl) {
-        subtitleEl.textContent = isThankYouReward
-            ? (isHindi ? 'अपनी उंगली से स्क्रैच करें और ₹10 थैंक यू रिवॉर्ड पाएं!' : 'Scratch with finger or mouse to reveal ₹10 Thank You reward!')
-            : 'अपनी उंगली से स्क्रैच करें और कैशबैक जीतें!';
+        if (isCardAlreadyRevealed) {
+            const isDeliveredOrder = Boolean(activeScratchOrder && (activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered'));
+            subtitleEl.textContent = isDeliveredOrder
+                ? (isHindi ? 'यह कैशबैक आपके वॉलेट में जोड़ दिया गया है!' : 'Cashback credited directly to your active wallet!')
+                : (isHindi ? 'यह कैशबैक डिलीवरी पर आपके वॉलेट में जोड़ दिया जाएगा।' : 'This will be credited to your wallet upon successful delivery');
+        } else {
+            subtitleEl.textContent = isHindi 
+                ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' 
+                : 'Scratch the card to reveal your cashback reward';
+        }
     }
 
     const orderDisplayId = activeScratchOrder.id || activeScratchOrder.orderId || '--';
@@ -8612,8 +8647,8 @@ function openScratchCardModal(order, demoAmount) {
         }
         if (hintText) {
             hintText.textContent = isHindi 
-                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 25%)' 
-                : 'Scratch the card using your finger or mouse! (25% required)';
+                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 40%)' 
+                : 'Scratch the card using your finger or mouse! (40% required)';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-hand-pointer fa-bounce';
 
@@ -10454,12 +10489,12 @@ function renderOrderHistoryDetails() {
                                             <i class="fa-solid fa-gift fa-bounce"></i>
                                         </div>
                                         <div>
-                                            <div class="scratch-promo-title">${(o.rewardTitle === 'Thank You Cashback Reward' || (Number(o.usedWalletCash || o.walletDiscount || o.appliedWalletDiscount) > 0 && orderCashback === 10)) ? (isHindi ? '🎁 थैंक यू स्क्रैच कार्ड उपलब्ध' : '🎁 Thank You Scratch Card Available') : (isHindi ? '🎁 स्क्रैच कार्ड उपलब्ध' : '🎁 Scratch Card Available / स्क्रैच कार्ड उपलब्ध')}</div>
+                                            <div class="scratch-promo-title">${isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!'}</div>
                                             <div class="scratch-promo-sub">
                                                 <span class="scratch-countdown-pill">
                                                     <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
                                                 </span>
-                                                <span class="scratch-card-amount-hint">${(o.rewardTitle === 'Thank You Cashback Reward' || (Number(o.usedWalletCash || o.walletDiscount || o.appliedWalletDiscount) > 0 && orderCashback === 10)) ? (isHindi ? 'फ्लैट ₹10 थैंक यू रिवॉर्ड' : 'Flat ₹10 Thank You Reward') : `Win up to ₹${orderCashback}`}</span>
+                                                <span class="scratch-card-amount-hint">${isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' : 'Scratch the card to reveal your cashback reward'}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -10470,7 +10505,7 @@ function renderOrderHistoryDetails() {
                             ` : `
                                 <div class="order-history-scratch-pending" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
                                     <i class="fa-solid fa-truck-fast"></i>
-                                    <span>${isHindi ? `🎁 ₹${orderCashback} कैशबैक जीता • ऑर्डर डिलीवर होने पर वॉलेट में जुड़ेगा` : `🎁 ₹${orderCashback} Cashback Won • Credited once order is delivered`}</span>
+                                    <span>${isHindi ? `🎉 आपने ₹${orderCashback} कैशबैक जीता • ऑर्डर डिलीवर होने पर वॉलेट में जुड़ेगा` : `🎉 You Won ₹${orderCashback} Cashback • Credited once order is delivered`}</span>
                                 </div>
                             `}
                         ` : ''}
