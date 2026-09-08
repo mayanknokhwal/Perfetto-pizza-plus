@@ -42,13 +42,13 @@
                         <img id="app-logo" src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Pizza Logo"
                             class="brand-logo">
                     </div>
-                    <!-- Customer Care Phone Call Button (Native Direct Dialer) -->
-                    <a href="tel:+919414503886" class="header-call-btn" id="header-call-btn" aria-label="Customer Care Call"
+                    <!-- Customer Care Phone Call Button (Interactive Confirmation Dialog) -->
+                    <button type="button" class="header-call-btn" id="header-call-btn" aria-label="Customer Care Call"
                         title="Customer Care Support">
                         <div class="toggle-icon-wrapper">
                             <i class="fa-solid fa-phone"></i>
                         </div>
-                    </a>
+                    </button>
                 </div>
 
                 <div class="header-center-title" id="header-center-title">
@@ -1297,27 +1297,32 @@
             </div>
         </div>
 
-        <!-- CUSTOMER CARE CALL MODAL -->
+        <!-- CUSTOMER CARE CONFIRMATION MODAL -->
         <div class="customer-care-modal-overlay" id="customer-care-modal" aria-hidden="true">
             <div class="customer-care-modal-card" role="dialog" aria-labelledby="care-modal-title">
-                <button class="customer-care-close-btn" id="customer-care-close-btn" aria-label="Close Dialog">
+                <button type="button" class="customer-care-close-btn" id="customer-care-close-btn" aria-label="Close Dialog">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
                 <div class="customer-care-icon-badge">
                     <i class="fa-solid fa-headset"></i>
                 </div>
-                <h3 class="customer-care-title" id="care-modal-title">Customer Care Support</h3>
-                <p class="customer-care-message">
-                    अगर आपको कोई भी दिक्कत आ रही है तो आप कस्टमर केयर से बात कर सकते हैं
+                <h3 class="customer-care-title" id="care-modal-title">Customer Support</h3>
+                <p class="customer-care-message" id="care-modal-message">
+                    अगर आपको कोई भी समस्या है या किसी भी प्रकार की सहायता चाहिए, तो आप सीधे हमारे कस्टमर केयर से बात कर सकते हैं।
                 </p>
                 <div class="customer-care-phone-display" id="customer-care-phone-display">
                     <i class="fa-solid fa-phone-volume"></i>
-                    <span id="care-phone-number-text">9876543210</span>
+                    <span id="care-phone-number-text">+91 94145 03886</span>
                 </div>
-                <a href="tel:9876543210" class="customer-care-action-btn" id="customer-care-call-link">
-                    <i class="fa-solid fa-phone"></i>
-                    <span>कॉल करने के लिए यहां पर टैप करें</span>
-                </a>
+                <div class="customer-care-actions-row">
+                    <button type="button" class="customer-care-cancel-btn" id="customer-care-cancel-btn">
+                        Cancel
+                    </button>
+                    <button type="button" class="customer-care-action-btn" id="customer-care-call-link">
+                        <i class="fa-solid fa-phone"></i>
+                        <span>Call Now</span>
+                    </button>
+                </div>
             </div>
         </div>
 

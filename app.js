@@ -10937,8 +10937,8 @@ function updateCustomerCareModalUI() {
     if (headerCallBtn) {
         headerCallBtn.style.display = isEnabled ? 'inline-flex' : 'none';
         headerCallBtn.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
-        headerCallBtn.href = `tel:${targetPhone}`;
-        headerCallBtn.title = `Call Customer Care (${targetPhone})`;
+        headerCallBtn.setAttribute('data-phone', targetPhone);
+        headerCallBtn.title = `Customer Support (+91 ${targetPhone.slice(0, 5)} ${targetPhone.slice(5)})`;
     }
 
     const phoneTextEl = document.getElementById('care-phone-number-text');
@@ -10953,7 +10953,10 @@ function updateCustomerCareModalUI() {
         }
     }
     if (callLinkEl) {
-        callLinkEl.href = `tel:${targetPhone}`;
+        callLinkEl.setAttribute('data-phone', targetPhone);
+        if (callLinkEl.tagName.toLowerCase() === 'a') {
+            callLinkEl.href = `tel:+91${targetPhone}`;
+        }
     }
 
     checkCustomerCareVisibilityUI();
@@ -10963,6 +10966,8 @@ function initCustomerCareModal() {
     const headerCallBtn = document.getElementById('header-call-btn');
     const careModal = document.getElementById('customer-care-modal');
     const closeBtn = document.getElementById('customer-care-close-btn');
+    const cancelBtn = document.getElementById('customer-care-cancel-btn');
+    const callLinkEl = document.getElementById('customer-care-call-link');
 
     // Set initial visibility of call button in header
     checkCustomerCareVisibilityUI();
@@ -10974,7 +10979,9 @@ function initCustomerCareModal() {
         careModal.classList.add('active');
         careModal.setAttribute('aria-hidden', 'false');
         if (!isPopState) {
-            history.pushState({ page: 'care-modal' }, '', '#customer-care');
+            try {
+                history.pushState({ page: 'care-modal' }, '', '#customer-care');
+            } catch (e) {}
         }
     }
 
@@ -10983,25 +10990,45 @@ function initCustomerCareModal() {
         careModal.classList.remove('active');
         careModal.setAttribute('aria-hidden', 'true');
         if (!isPopState && history.state && history.state.page === 'care-modal') {
-            history.back();
+            try {
+                history.back();
+            } catch (e) {}
         }
     }
 
-    if (headerCallBtn) {
-        // Tapping the header call button directly triggers direct phone dialer protocol
+    if (headerCallBtn && !headerCallBtn.__careBound) {
+        headerCallBtn.__careBound = true;
+        // Intercept header call button click: prevent direct dialer and open confirmation modal
         headerCallBtn.addEventListener('click', (e) => {
-            const phone = getCustomerCarePhone();
-            const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
-            const targetPhone = cleanPhone || '9414503886';
-            headerCallBtn.href = `tel:${targetPhone}`;
-            if (headerCallBtn.tagName.toLowerCase() !== 'a' || !headerCallBtn.href) {
-                e.preventDefault();
-                window.location.href = `tel:${targetPhone}`;
-            }
+            e.preventDefault();
+            e.stopPropagation();
+            openCareModal();
         });
     }
 
-    if (closeBtn) {
+    if (callLinkEl && !callLinkEl.__careBound) {
+        callLinkEl.__careBound = true;
+        callLinkEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const phone = getCustomerCarePhone();
+            const cleanPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+            const targetPhone = cleanPhone || '9414503886';
+            window.location.href = `tel:+91${targetPhone}`;
+            closeCareModal();
+        });
+    }
+
+    if (cancelBtn && !cancelBtn.__careBound) {
+        cancelBtn.__careBound = true;
+        cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeCareModal();
+        });
+    }
+
+    if (closeBtn && !closeBtn.__careBound) {
+        closeBtn.__careBound = true;
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             closeCareModal();
@@ -12029,8 +12056,8 @@ function applyRealtimeStoreSettings() {
         if (headerCallBtn) {
             headerCallBtn.style.display = careEnabled ? 'inline-flex' : 'none';
             headerCallBtn.setAttribute('aria-hidden', careEnabled ? 'false' : 'true');
-            headerCallBtn.href = `tel:${targetPhone}`;
-            headerCallBtn.title = `Call Customer Care (${targetPhone})`;
+            headerCallBtn.setAttribute('data-phone', targetPhone);
+            headerCallBtn.title = `Customer Support (+91 ${targetPhone.slice(0, 5)} ${targetPhone.slice(5)})`;
         }
 
         // If care is disabled and care modal is currently open, close it immediately
@@ -12049,7 +12076,10 @@ function applyRealtimeStoreSettings() {
             }
         }
         if (callLinkEl) {
-            callLinkEl.href = `tel:${targetPhone}`;
+            callLinkEl.setAttribute('data-phone', targetPhone);
+            if (callLinkEl.tagName.toLowerCase() === 'a') {
+                callLinkEl.href = `tel:+91${targetPhone}`;
+            }
         }
 
         // Backward-compatible updates for any legacy references
