@@ -200,6 +200,7 @@ async function handleOrdersRequest(req, res) {
             const activeSlab1Amount = (rawSlabs[0] && (rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min)))
                 ? Number(rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min))
                 : Number(DEFAULT_WALLET_CONFIG?.slabs?.[0]?.minOrder || 0);
+            const slab1Threshold = activeSlab1Amount;
 
             const isSystemEnabled = global.__perfettoWalletConfig?.enabled !== false;
             const isSlab1Qualified = Boolean(isSystemEnabled && subtotal >= slab1Threshold && subtotal > 0);
@@ -537,7 +538,7 @@ async function handleOrdersRequest(req, res) {
                         // 1B. Credit cashback reward strictly once (idempotent)
                         const creditAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === String(targetId));
 
-                        if (isCardScratched && wonAmt > 0 && !wasAlreadyCredited && !creditAlreadyLogged) {
+                        if (wonAmt > 0 && !creditAlreadyLogged) {
                             const claimTime = Date.now();
                             const activeExpiryDays = Math.min(30, Math.max(1, Number(targetOrder.scratchExpiryDays || targetOrder.cashbackExpiryDays || global.__perfettoWalletConfig?.expiryDays || 15)));
                             const expiresAt = new Date(claimTime + activeExpiryDays * 24 * 60 * 60 * 1000).toISOString();

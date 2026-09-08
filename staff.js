@@ -3462,7 +3462,6 @@ async function handleAdminDeleteOrder(orderId) {
             console.warn('Firestore order deletion notice:', e.message);
         }
     }
-
     // 3. Dispatch backend API DELETE to synchronize server memory & secondary storage
     try {
         await apiCall(`/orders?orderId=${encodeURIComponent(orderId)}`, {
@@ -3499,6 +3498,7 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
     if (isDelivered) {
         patchPayload.rewardStatus = 'active_credited';
         patchPayload.scratchClaimed = true;
+        patchPayload.scratchRevealed = true;
     } else if (isRejected) {
         patchPayload.rewardStatus = 'voided';
         patchPayload.wonCashback = 0;
@@ -3523,33 +3523,152 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 ? firebase.firestore.FieldValue.serverTimestamp()
                 : new Date().toISOString();
 
+            const FieldValue = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue
+                : null;
+
             const fsUpdate = {
                 status: effectiveStatus,
                 updatedAt: serverTs
             };
 
             if (isDelivered) {
+                const cashbackAmount = Math.max(0, Math.round(
+                    Number(
+                        order?.cashbackReward ??
+                        order?.scratchCardAmount ??
+                        order?.wonCashback ??
+                        order?.earnedCashback ??
+                        order?.scratchCard?.wonAmount ??
+                        order?.scratchCard?.amount ??
+                        extraPayload?.cashbackReward ??
+                        extraPayload?.scratchCardAmount ??
+                        extraPayload?.wonCashback ??
+                        extraPayload?.earnedCashback ??
+                        0
+                    )
+                ));
+
+                const wasAlreadyClaimed = Boolean(
+                    order?.scratchClaimed ||
+                    order?.rewardStatus === 'active_credited' ||
+                    order?.rewardStatus === 'credited' ||
+                    order?.scratchCard?.claimed ||
+                    order?.scratchCard?.status === 'active_credited'
+                );
+
+                const rawPhone = order?.customerPhone || order?.phone || order?.customer?.phone || extraPayload?.customerPhone || '';
+                const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+
+                const shouldCreditCashback = (cashbackAmount > 0 && !wasAlreadyClaimed && order?.rewardStatus !== 'voided');
+
                 fsUpdate.status = 'delivered';
                 fsUpdate.deliveredAt = serverTs;
                 fsUpdate.completedAt = serverTs;
-                fsUpdate.rewardStatus = 'active_credited';
-                fsUpdate.scratchClaimed = true;
-            } else if (isRejected) {
-                fsUpdate.status = 'rejected';
-                fsUpdate.rejectedAt = serverTs;
-                fsUpdate.rewardStatus = 'voided';
-                fsUpdate.wonCashback = 0;
-                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
-                if (rejectReason) fsUpdate.rejectionReason = rejectReason;
+
+                if (cashbackAmount > 0) {
+                    fsUpdate.rewardStatus = 'active_credited';
+                    fsUpdate.scratchClaimed = true;
+                    fsUpdate.scratchRevealed = true;
+                    fsUpdate.wonCashback = cashbackAmount;
+                    fsUpdate.earnedCashback = cashbackAmount;
+                    fsUpdate['scratchCard.status'] = 'active_credited';
+                    fsUpdate['scratchCard.claimed'] = true;
+                    fsUpdate['scratchCard.revealed'] = true;
+                    fsUpdate['scratchCard.claimedAt'] = new Date().toISOString();
+                }
+
+                console.log(`[STAFF OTP] Executing atomic delivery batch for Order #${rawId} (Cashback: ₹${cashbackAmount}, Credit Eligible: ${shouldCreditCashback})...`);
+                const batch = db.batch();
+                const orderRef = db.collection('orders').doc(exactDocId);
+                batch.set(orderRef, fsUpdate, { merge: true });
+
+                if (shouldCreditCashback && cleanPhone && FieldValue) {
+                    const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                    const ledgerRecord = {
+                        id: txId,
+                        amount: cashbackAmount,
+                        type: "CREDIT",
+                        title: `Cashback for Order #${rawId}`,
+                        description: `Cashback for Order #${rawId}`,
+                        orderId: String(rawId),
+                        timestamp: serverTs,
+                        createdAt: serverTs,
+                        status: "completed"
+                    };
+
+                    const inDocTxEntry = {
+                        id: txId,
+                        type: 'credit',
+                        amount: cashbackAmount,
+                        originalAmount: cashbackAmount,
+                        remainingAmount: cashbackAmount,
+                        orderId: String(rawId),
+                        title: `Cashback for Order #${rawId}`,
+                        description: `Cashback for Order #${rawId}`,
+                        createdAt: new Date().toISOString(),
+                        status: 'completed'
+                    };
+
+                    // 1. Wallets collection: wallets/{cleanPhone}
+                    const walletRef = db.collection('wallets').doc(cleanPhone);
+                    batch.set(walletRef, {
+                        phone: cleanPhone,
+                        balance: FieldValue.increment(cashbackAmount),
+                        transactions: FieldValue.arrayUnion(inDocTxEntry),
+                        lastCreditedAt: new Date().toISOString(),
+                        updatedAt: serverTs
+                    }, { merge: true });
+
+                    const walletTxRef = walletRef.collection('transactions').doc(txId);
+                    batch.set(walletTxRef, ledgerRecord);
+
+                    // 2. Users collection: users/phone_{cleanPhone}
+                    const userPhoneRef = db.collection('users').doc(`phone_${cleanPhone}`);
+                    batch.set(userPhoneRef, {
+                        phone: cleanPhone,
+                        walletBalance: FieldValue.increment(cashbackAmount),
+                        balance: FieldValue.increment(cashbackAmount),
+                        walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
+                        lastCreditedAt: new Date().toISOString(),
+                        updatedAt: serverTs
+                    }, { merge: true });
+
+                    const userPhoneTxRef = userPhoneRef.collection('transactions').doc(txId);
+                    batch.set(userPhoneTxRef, ledgerRecord);
+
+                    // 3. Users collection: users/{cleanPhone}
+                    const userRawRef = db.collection('users').doc(cleanPhone);
+                    batch.set(userRawRef, {
+                        phone: cleanPhone,
+                        walletBalance: FieldValue.increment(cashbackAmount),
+                        balance: FieldValue.increment(cashbackAmount),
+                        walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
+                        lastCreditedAt: new Date().toISOString(),
+                        updatedAt: serverTs
+                    }, { merge: true });
+
+                    const userRawTxRef = userRawRef.collection('transactions').doc(txId);
+                    batch.set(userRawTxRef, ledgerRecord);
+                }
+
+                await batch.commit();
+                firestoreSucceeded = true;
+                console.log(`✅ [STAFF OTP] Atomic delivery batch committed for Order #${exactDocId}`);
+            } else {
+                if (isRejected) {
+                    fsUpdate.status = 'rejected';
+                    fsUpdate.rejectedAt = serverTs;
+                    fsUpdate.rewardStatus = 'voided';
+                    fsUpdate.wonCashback = 0;
+                    const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
+                    if (rejectReason) fsUpdate.rejectionReason = rejectReason;
+                }
+                console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
+                await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
+                firestoreSucceeded = true;
+                console.log(`Firestore order ${exactDocId} successfully updated to "${effectiveStatus}"`);
             }
-
-            console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
-            await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
-            firestoreSucceeded = true;
-            console.log(`Firestore order ${exactDocId} successfully updated to "${effectiveStatus}"`);
-
-            // Note: Wallet settlement and cashback crediting are authoritatively handled
-            // by the backend /api/orders endpoint to ensure strict idempotency and zero double-crediting.
         } catch (e) {
             firestoreError = e;
             console.error('Firestore live order update error:', e);

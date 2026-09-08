@@ -1062,6 +1062,16 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
 
     if (tabName === 'profile') {
         updateProfileTotalsUI();
+        const savedP = getSavedDeliveryProfile();
+        if (savedP && savedP.phone) {
+            listenToCustomerWalletRealtime(savedP.phone);
+        }
+    }
+    if (tabName === 'cart') {
+        const savedP = getSavedDeliveryProfile();
+        if (savedP && savedP.phone) {
+            listenToCustomerWalletRealtime(savedP.phone);
+        }
     }
     if (tabName === 'profile' || tabName === 'home') {
         updateStoreNoticeUI();
@@ -5036,8 +5046,62 @@ async function fetchCustomerWallet(phone) {
 }
 window.fetchCustomerWallet = fetchCustomerWallet;
 
+function getCustomerFirestore() {
+    if (customerFirestore) return customerFirestore;
+    if (window.db) {
+        customerFirestore = window.db;
+        return customerFirestore;
+    }
+    if (typeof firebase !== 'undefined') {
+        if (!firebase.apps || !firebase.apps.length) {
+            const config = window.FIREBASE_CONFIG || firebaseConfig || FIREBASE_CONFIG;
+            try { firebase.initializeApp(config); } catch (e) {}
+        }
+        if (firebase.firestore) {
+            customerFirestore = firebase.firestore();
+            window.db = customerFirestore;
+            return customerFirestore;
+        }
+    }
+    return null;
+}
+
+let customerUserRealtimeUnsubscribe = null;
+
+function applyLiveWalletData(data) {
+    if (!data) return;
+    const rawBalance = (data.walletBalance !== undefined && data.walletBalance !== null)
+        ? Number(data.walletBalance)
+        : ((data.balance !== undefined && data.balance !== null) ? Number(data.balance) : 0);
+    const valid = calculateValidWalletBalance({ ...data, balance: rawBalance });
+    const incomingTx = Array.isArray(data.walletTransactions) && data.walletTransactions.length > 0
+        ? data.walletTransactions
+        : (Array.isArray(data.transactions) && data.transactions.length > 0 ? data.transactions : (currentCustomerWallet?.transactions || []));
+
+    currentCustomerWallet = {
+        ...(currentCustomerWallet || {}),
+        ...data,
+        ...valid,
+        balance: valid.balance,
+        nonExpiredBalance: valid.nonExpiredBalance,
+        transactions: incomingTx
+    };
+    reconcileWalletTranches(currentCustomerWallet);
+    try {
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+        localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
+    } catch (e) {}
+
+    // Instantly reflect in Profile, Checkout and Cart UI without refresh
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    updateCheckoutWalletUI();
+    updateCartUI();
+}
+
 function listenToCustomerWalletRealtime(phone) {
-    if (!phone || !customerFirestore) return;
+    const fs = getCustomerFirestore() || customerFirestore;
+    if (!phone || !fs) return;
     const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
     if (!cleanPhone) return;
 
@@ -5045,28 +5109,34 @@ function listenToCustomerWalletRealtime(phone) {
         try { customerWalletRealtimeUnsubscribe(); } catch (e) {}
         customerWalletRealtimeUnsubscribe = null;
     }
+    if (customerUserRealtimeUnsubscribe) {
+        try { customerUserRealtimeUnsubscribe(); } catch (e) {}
+        customerUserRealtimeUnsubscribe = null;
+    }
 
     try {
-        customerWalletRealtimeUnsubscribe = customerFirestore.collection('wallets').doc(cleanPhone).onSnapshot((doc) => {
+        // 1. Listen to dedicated wallets/{cleanPhone}
+        customerWalletRealtimeUnsubscribe = fs.collection('wallets').doc(cleanPhone).onSnapshot((doc) => {
             if (doc.exists && doc.data()) {
-                const valid = calculateValidWalletBalance(doc.data());
-                currentCustomerWallet = {
-                    ...doc.data(),
-                    ...valid
-                };
-                reconcileWalletTranches(currentCustomerWallet);
-                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
-                localStorage.setItem('perfetto_wallet_balance', currentCustomerWallet.balance);
-                updateProfileWalletUI();
-                updateCheckoutWalletUI();
+                applyLiveWalletData(doc.data());
             }
         }, (err) => {
             console.warn('Real-time wallet listener notice:', err.message);
+        });
+
+        // 2. Also listen to users/phone_{cleanPhone}
+        customerUserRealtimeUnsubscribe = fs.collection('users').doc(`phone_${cleanPhone}`).onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                applyLiveWalletData(doc.data());
+            }
+        }, (err) => {
+            console.warn('Real-time user wallet listener notice:', err.message);
         });
     } catch (e) {
         console.warn('Error setting up customer wallet listener:', e);
     }
 }
+window.listenToCustomerWalletRealtime = listenToCustomerWalletRealtime;
 
 /**
  * Resolves the qualified cashback slab and its fair [min, max] reward boundaries for a given subtotal.
@@ -9651,6 +9721,9 @@ function handleSaveProfile(event) {
     renderProfileHeaderAndInputs(profile);
     updateProfileTotalsUI();
     updateCartUI();
+    if (profile && profile.phone) {
+        listenToCustomerWalletRealtime(profile.phone);
+    }
     closeEditProfileModal();
 
     showToast('✅ Profile & Custom Delivery Address saved successfully!');
@@ -9935,6 +10008,9 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             renderOrderHistoryDetails();
             updateCheckoutWalletUI();
             updateCartUI();
+            if (targetPhone) {
+                listenToCustomerWalletRealtime(targetPhone);
+            }
 
             // Session restoration and wallet synchronizations run silently in the background without UI interruptions
             console.log('✅ User profile, wallet (₹' + restoredBalance + ') & orders successfully restored from Firestore:', restoredProfile.fullName);
@@ -11984,11 +12060,13 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
                     : false;
 
-                if (isPendingDelivery && !isScratchClaimed && !isCardExpired && target.rewardStatus !== 'active_credited' && !alreadyCreditedInWallet && orderCashback > 0) {
+                if (!isScratchClaimed && !isCardExpired && target.rewardStatus !== 'active_credited' && !alreadyCreditedInWallet && orderCashback > 0) {
                     target.scratchClaimed = true;
+                    target.scratchRevealed = true;
                     target.rewardStatus = 'active_credited';
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
+                        target.scratchCard.revealed = true;
                         target.scratchCard.status = 'active_credited';
                         target.scratchCard.claimedAt = new Date().toISOString();
                     }
@@ -11999,11 +12077,13 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                         ? `🎉 बधाई हो! ऑर्डर #${orderId} डिलीवर हो गया - ₹${orderCashback} कैशबैक आपके वॉलेट में जोड़ दिया गया है!` 
                         : `🎉 Order #${orderId} Delivered! ₹${orderCashback} Cashback has been credited to your wallet!`);
                     updated = true;
-                } else if (alreadyCreditedInWallet || target.rewardStatus === 'active_credited') {
+                } else if (alreadyCreditedInWallet || target.rewardStatus === 'active_credited' || freshOrderData.rewardStatus === 'active_credited') {
                     target.scratchClaimed = true;
+                    target.scratchRevealed = true;
                     target.rewardStatus = 'active_credited';
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
+                        target.scratchCard.revealed = true;
                         target.scratchCard.status = 'active_credited';
                     }
                     updated = true;
@@ -12238,6 +12318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const effectiveSyncPhone = (savedProfile && savedProfile.phone) || getStoredVerifiedPhone();
     if (effectiveSyncPhone) {
         restoreUserProfileFromFirestore(effectiveSyncPhone, { silent: true });
+        listenToCustomerWalletRealtime(effectiveSyncPhone);
     }
 
     const phoneInput = document.getElementById('customer-phone');
