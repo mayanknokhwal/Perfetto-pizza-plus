@@ -173,6 +173,11 @@ service cloud.firestore {
       }
     }
 
+    // Universal settings read access for customer app real-time onSnapshot listeners
+    match /settings/{document=**} {
+      allow read, write: if true;
+    }
+
     // Explicit path guarantees for critical configuration documents
     match /settings/storeSettings {
       allow read, write: if true;

@@ -20,6 +20,9 @@ const cartContainer = document.getElementById('cart-items-container');
 const toast = document.getElementById('toast');
 const toastMessage = document.getElementById('toast-message');
 
+// Centralized Real-time Firestore & Network Listener Unsubscribe Handles
+let bannersRealtimeUnsubscribe = null;
+
 // Price Formatter Helper: Whole numbers only (e.g. ₹299), with strict zero-NaN & non-negative guards
 function formatPrice(amount) {
     const num = Number(amount);
@@ -2912,22 +2915,22 @@ async function fetchLiveSettingsFromBackend() {
     try {
         const res = await fetch(resolveApiUrl('/api/settings'));
         const data = await res.json();
-        if (data && data.success && data.settings) {
+        if (data && data.success && data.settings && typeof data.settings === 'object') {
             const s = data.settings;
-            if (s.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(s.minOrderValue));
-            if (s.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(s.freeDeliveryLimit));
-            if (s.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(s.customerCarePhone));
-            if (s.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(s.customerCareEnabled));
-            if (s.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(s.restaurantLat));
-            if (s.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(s.restaurantLng));
-            if (s.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(s.deliveryRadius));
-            if (s.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(s.zoneCharges));
-            if (s.shopStatus !== undefined) localStorage.setItem(SHOP_STATUS_KEY, String(s.shopStatus));
-            if (s.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(s.openingTime));
-            if (s.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(s.closingTime));
-            if (s.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(s.autoScheduleEnabled));
-            if (s.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(s.manualOverride));
-            if (s.manualCloseDate !== undefined) {
+            if (s.minOrderValue !== undefined && s.minOrderValue !== null) localStorage.setItem(MIN_ORDER_KEY, String(s.minOrderValue));
+            if (s.freeDeliveryLimit !== undefined && s.freeDeliveryLimit !== null) localStorage.setItem(FREE_DELIVERY_KEY, String(s.freeDeliveryLimit));
+            if (s.customerCarePhone !== undefined && s.customerCarePhone !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(s.customerCarePhone));
+            if (s.customerCareEnabled !== undefined && s.customerCareEnabled !== null) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(s.customerCareEnabled));
+            if (s.restaurantLat !== undefined && s.restaurantLat !== null) localStorage.setItem(RESTAURANT_LAT_KEY, String(s.restaurantLat));
+            if (s.restaurantLng !== undefined && s.restaurantLng !== null) localStorage.setItem(RESTAURANT_LNG_KEY, String(s.restaurantLng));
+            if (s.deliveryRadius !== undefined && s.deliveryRadius !== null) localStorage.setItem(DELIVERY_RADIUS_KEY, String(s.deliveryRadius));
+            if (s.zoneCharges !== undefined && s.zoneCharges !== null) localStorage.setItem(ZONE_CHARGES_KEY, typeof s.zoneCharges === 'string' ? s.zoneCharges : JSON.stringify(s.zoneCharges));
+            if (s.shopStatus !== undefined && s.shopStatus !== null) localStorage.setItem(SHOP_STATUS_KEY, String(s.shopStatus));
+            if (s.openingTime !== undefined && s.openingTime !== null) localStorage.setItem(OPENING_TIME_KEY, String(s.openingTime));
+            if (s.closingTime !== undefined && s.closingTime !== null) localStorage.setItem(CLOSING_TIME_KEY, String(s.closingTime));
+            if (s.autoScheduleEnabled !== undefined && s.autoScheduleEnabled !== null) localStorage.setItem(AUTO_SCHEDULE_KEY, String(s.autoScheduleEnabled));
+            if (s.manualOverride !== undefined && s.manualOverride !== null) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(s.manualOverride));
+            if (s.manualCloseDate !== undefined && s.manualCloseDate !== null) {
                 if (s.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(s.manualCloseDate));
                 else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
             }
@@ -2939,29 +2942,44 @@ async function fetchLiveSettingsFromBackend() {
         // Graceful offline fallback
     }
 
-    // Also fetch dynamic daily banners & store notice
-    fetchLiveBannersFromBackend();
-    fetchLiveNoticeFromBackend();
+    // Also fetch dynamic daily banners & store notice safely without throwing unhandled rejections
+    try {
+        fetchLiveBannersFromBackend();
+    } catch (e) {
+        console.warn('fetchLiveBannersFromBackend notice:', e);
+    }
+    try {
+        fetchLiveNoticeFromBackend();
+    } catch (e) {
+        console.warn('fetchLiveNoticeFromBackend notice:', e);
+    }
 }
 
 async function fetchLiveBannersFromBackend() {
     // Quota optimization: Skip if real-time onSnapshot listener is already streaming daily_banners
-    if (bannersRealtimeUnsubscribe) {
-        return;
-    }
+    try {
+        if (typeof bannersRealtimeUnsubscribe === 'function' || bannersRealtimeUnsubscribe) {
+            return;
+        }
+    } catch (e) { }
 
     try {
         const res = await fetch(resolveApiUrl('/api/banners'));
         if (res.ok) {
             const data = await res.json();
             if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
-                const normalized = data.banners.slice(0, 4).map((b, i) => ({
-                    id: b.id || `b${i + 1}`,
-                    url: resolveBannerUrl(b.url),
-                    enabled: b.enabled !== false
-                }));
+                const normalized = data.banners.slice(0, 4).map((b, i) => {
+                    const bannerObj = (b && typeof b === 'object') ? b : {};
+                    return {
+                        id: bannerObj.id || `b${i + 1}`,
+                        url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
+                        enabled: bannerObj.enabled !== false
+                    };
+                });
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
-                renderDynamicOfferSlider(normalized);
+                if (typeof renderDynamicOfferSlider === 'function') {
+                    renderDynamicOfferSlider(normalized);
+                }
                 return;
             }
         }
@@ -2972,12 +2990,16 @@ async function fetchLiveBannersFromBackend() {
         try {
             const parsed = JSON.parse(local);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                renderDynamicOfferSlider(parsed);
+                if (typeof renderDynamicOfferSlider === 'function') {
+                    renderDynamicOfferSlider(parsed);
+                }
                 return;
             }
         } catch (e) { }
     }
-    renderDynamicOfferSlider(DEFAULT_DAILY_BANNERS);
+    if (typeof renderDynamicOfferSlider === 'function' && typeof DEFAULT_DAILY_BANNERS !== 'undefined') {
+        renderDynamicOfferSlider(DEFAULT_DAILY_BANNERS);
+    }
 }
 
 // Check if any items currently in customer's cart are marked unavailable in the latest menu
@@ -4550,6 +4572,14 @@ let customerWalletConfig = (function() {
                 const days = getClampedCashbackExpiryDays(parsed);
                 parsed.expiryDays = days;
                 parsed.cashbackExpiryDays = days;
+                if (Array.isArray(parsed.slabs)) {
+                    parsed.slabs = parsed.slabs.map(slab => {
+                        if (!slab || typeof slab !== 'object') return slab;
+                        const minOrder = Number(slab.minOrder ?? slab.min_order ?? slab.minAmount ?? slab.min ?? slab.threshold ?? 0);
+                        const cashback = Number(slab.cashback_amount ?? slab.cashbackAmount ?? slab.cashback ?? slab.reward ?? slab.amount ?? slab.wonAmount ?? 0);
+                        return { ...slab, minOrder, cashback, cashback_amount: cashback };
+                    });
+                }
                 return parsed;
             }
         }
@@ -4570,7 +4600,15 @@ function listenToWalletConfigRealtime() {
     } else if (typeof firebase !== 'undefined' && firebase.firestore) {
         try {
             if (!firebase.apps || !firebase.apps.length) {
-                const config = window.FIREBASE_CONFIG || window.firebaseConfig;
+                const config = window.FIREBASE_CONFIG || window.firebaseConfig || {
+                    apiKey: "AIzaSyBa17IqOPUOgmWPZ8wJeyzTiVdeX1lGVNg",
+                    authDomain: "website-fa79c.firebaseapp.com",
+                    projectId: "website-fa79c",
+                    storageBucket: "website-fa79c.firebasestorage.app",
+                    messagingSenderId: "1070276115284",
+                    appId: "1:1070276115284:web:ebcb37d56f3af2a2d326c1",
+                    measurementId: "G-DT7MRXDMZ0"
+                };
                 if (config) firebase.initializeApp(config);
             }
             if (firebase.apps && firebase.apps.length) {
@@ -4611,10 +4649,23 @@ function listenToWalletConfigRealtime() {
                             ? configData.rewards
                             : DEFAULT_WALLET_CONFIG.slabs)));
 
+            // Defensive slab parsing with fallbacks (e.g., slab.cashback_amount ?? slab.cashback ?? 0)
+            const normalizedSlabs = rawSlabs.map(slab => {
+                if (!slab || typeof slab !== 'object') return slab;
+                const minOrder = Number(slab.minOrder ?? slab.min_order ?? slab.minAmount ?? slab.min ?? slab.threshold ?? 0);
+                const cashback = Number(slab.cashback_amount ?? slab.cashbackAmount ?? slab.cashback ?? slab.reward ?? slab.amount ?? slab.wonAmount ?? 0);
+                return {
+                    ...slab,
+                    minOrder,
+                    cashback,
+                    cashback_amount: cashback
+                };
+            });
+
             customerWalletConfig = {
                 ...DEFAULT_WALLET_CONFIG,
                 ...configData,
-                slabs: rawSlabs,
+                slabs: normalizedSlabs,
                 cashbackExpiryDays: clampedDays,
                 expiryDays: clampedDays
             };
@@ -4692,10 +4743,16 @@ async function fetchAndApplyLiveWalletConfig() {
             if (data && data.success && data.config) {
                 const conf = data.config;
                 if (Array.isArray(conf.slabs) && conf.slabs.length > 0) {
+                    const normalizedSlabs = conf.slabs.map(slab => {
+                        if (!slab || typeof slab !== 'object') return slab;
+                        const minOrder = Number(slab.minOrder ?? slab.min_order ?? slab.minAmount ?? slab.min ?? slab.threshold ?? 0);
+                        const cashback = Number(slab.cashback_amount ?? slab.cashbackAmount ?? slab.cashback ?? slab.reward ?? slab.amount ?? slab.wonAmount ?? 0);
+                        return { ...slab, minOrder, cashback, cashback_amount: cashback };
+                    });
                     customerWalletConfig = {
                         ...DEFAULT_WALLET_CONFIG,
                         ...conf,
-                        slabs: conf.slabs
+                        slabs: normalizedSlabs
                     };
                     window.customerWalletConfig = customerWalletConfig;
                     safeStorage.setJSON('perfetto_wallet_config', customerWalletConfig);
@@ -5035,11 +5092,12 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
                     ? walletConfig.rewards
                     : DEFAULT_WALLET_CONFIG.slabs)));
 
-    // Slabs normalized and sorted ascending by minOrder
+    // Slabs normalized and sorted ascending by minOrder with defensive fallbacks
     const sorted = [...rawSlabs].map(s => {
-        const minOrder = Number(s.minOrder !== undefined ? s.minOrder : (s.min !== undefined ? s.min : (s.minAmount !== undefined ? s.minAmount : s.threshold))) || 0;
-        const cashback = Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount))) || 0;
-        return { ...s, minOrder, cashback };
+        if (!s || typeof s !== 'object') return { minOrder: 0, cashback: 0, cashback_amount: 0 };
+        const minOrder = Number(s.minOrder ?? s.min_order ?? s.minAmount ?? s.min ?? s.threshold ?? 0);
+        const cashback = Number(s.cashback_amount ?? s.cashbackAmount ?? s.cashback ?? s.reward ?? s.amount ?? s.wonAmount ?? 0);
+        return { ...s, minOrder, cashback, cashback_amount: cashback };
     }).sort((a, b) => a.minOrder - b.minOrder);
 
     if (sorted.length === 0) {
@@ -5063,12 +5121,12 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
     }
 
     const currentSlab = sorted[qualifiedIndex];
-    const currentMax = Number(currentSlab.cashback) || 0;
+    const currentMax = Number(currentSlab.cashback_amount ?? currentSlab.cashback ?? 0);
     let min = 1;
     let max = Math.max(1, currentMax);
 
     if (qualifiedIndex > 0) {
-        const prevMax = Number(sorted[qualifiedIndex - 1].cashback) || 1;
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback_amount ?? sorted[qualifiedIndex - 1].cashback ?? 1);
         min = Math.min(prevMax, currentMax);
         max = Math.max(prevMax, currentMax);
     }
@@ -5119,15 +5177,16 @@ function getSlab1Threshold(walletConfig = customerWalletConfig) {
                     : (DEFAULT_WALLET_CONFIG?.slabs || []))));
 
     const sortedMins = [...rawSlabs].map(s => {
-        return Number(s.minOrder !== undefined ? s.minOrder : (s.minAmount !== undefined ? s.minAmount : (s.min !== undefined ? s.min : s.threshold))) || 0;
+        if (!s || typeof s !== 'object') return 0;
+        return Number(s.minOrder ?? s.min_order ?? s.minAmount ?? s.min ?? s.threshold ?? 0);
     }).filter(m => m > 0).sort((a, b) => a - b);
 
     if (sortedMins.length > 0) {
         return sortedMins[0];
     }
 
-    const activeSlab1Amount = (rawSlabs[0] && (rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min)))
-        ? Number(rawSlabs[0].minAmount !== undefined ? rawSlabs[0].minAmount : (rawSlabs[0].minOrder !== undefined ? rawSlabs[0].minOrder : rawSlabs[0].min))
+    const activeSlab1Amount = (rawSlabs[0] && typeof rawSlabs[0] === 'object')
+        ? Number(rawSlabs[0].minOrder ?? rawSlabs[0].min_order ?? rawSlabs[0].minAmount ?? rawSlabs[0].min ?? 0)
         : Number(DEFAULT_WALLET_CONFIG?.slabs?.[0]?.minOrder || 0);
 
     return activeSlab1Amount;
@@ -5158,7 +5217,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
 
     if (!isSlab1Qualified) {
         const diff = Math.max(0, slab1Threshold - subtotal);
-        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 10;
+        const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback_amount ?? boundaries.nextSlab.cashback ?? 10) : 10;
         bar.classList.remove('cashback-max-unlocked');
 
         content.innerHTML = `
@@ -5179,8 +5238,8 @@ function updateCartCashbackIncentiveBar(subtotal) {
             : `₹${reward} Cashback Unlocked`;
 
         if (boundaries.nextSlab) {
-            const nextMin = Number(boundaries.nextSlab.minOrder) || 0;
-            const nextReward = Number(boundaries.nextSlab.cashback) || 0;
+            const nextMin = Number(boundaries.nextSlab.minOrder ?? boundaries.nextSlab.min_order ?? 0) || 0;
+            const nextReward = Number(boundaries.nextSlab.cashback_amount ?? boundaries.nextSlab.cashback ?? 0) || 0;
             const diff = Math.max(0, nextMin - subtotal);
             bar.classList.remove('cashback-max-unlocked');
 
@@ -6060,6 +6119,14 @@ window.addEventListener('storage', (e) => {
                 const days = getClampedCashbackExpiryDays(customerWalletConfig);
                 customerWalletConfig.cashbackExpiryDays = days;
                 customerWalletConfig.expiryDays = days;
+                if (Array.isArray(customerWalletConfig.slabs)) {
+                    customerWalletConfig.slabs = customerWalletConfig.slabs.map(slab => {
+                        if (!slab || typeof slab !== 'object') return slab;
+                        const minOrder = Number(slab.minOrder ?? slab.min_order ?? slab.minAmount ?? slab.min ?? slab.threshold ?? 0);
+                        const cashback = Number(slab.cashback_amount ?? slab.cashbackAmount ?? slab.cashback ?? slab.reward ?? slab.amount ?? slab.wonAmount ?? 0);
+                        return { ...slab, minOrder, cashback, cashback_amount: cashback };
+                    });
+                }
             }
             if (e.key === 'perfetto_customer_wallet') currentCustomerWallet = safeStorage.getJSON('perfetto_customer_wallet', {});
         } catch (err) {}
@@ -11570,20 +11637,20 @@ function listenToRealtimeMenuAndRates() {
     // B. Real-Time Store Settings & Service Rates (Delivery charge, Min order, Customer care)
     function applyIncomingSettingsData(data) {
         if (!data || typeof data !== 'object') return;
-        if (data.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
-        if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
-        if (data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
-        if (data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-        if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
-        if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
-        if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
-        if (data.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(data.zoneCharges));
-        if (data.shopStatus !== undefined) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-        if (data.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
-        if (data.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
-        if (data.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
-        if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
-        if (data.manualCloseDate !== undefined) {
+        if (data.minOrderValue !== undefined && data.minOrderValue !== null) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
+        if (data.freeDeliveryLimit !== undefined && data.freeDeliveryLimit !== null) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
+        if (data.customerCarePhone !== undefined && data.customerCarePhone !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
+        if (data.customerCareEnabled !== undefined && data.customerCareEnabled !== null) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
+        if (data.restaurantLat !== undefined && data.restaurantLat !== null) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
+        if (data.restaurantLng !== undefined && data.restaurantLng !== null) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
+        if (data.deliveryRadius !== undefined && data.deliveryRadius !== null) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
+        if (data.zoneCharges !== undefined && data.zoneCharges !== null) localStorage.setItem(ZONE_CHARGES_KEY, typeof data.zoneCharges === 'string' ? data.zoneCharges : JSON.stringify(data.zoneCharges));
+        if (data.shopStatus !== undefined && data.shopStatus !== null) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
+        if (data.openingTime !== undefined && data.openingTime !== null) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
+        if (data.closingTime !== undefined && data.closingTime !== null) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
+        if (data.autoScheduleEnabled !== undefined && data.autoScheduleEnabled !== null) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
+        if (data.manualOverride !== undefined && data.manualOverride !== null) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
+        if (data.manualCloseDate !== undefined && data.manualCloseDate !== null) {
             if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
             else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
         }
@@ -11625,16 +11692,21 @@ function listenToRealtimeMenuAndRates() {
     if (!bannersRealtimeUnsubscribe && customerFirestore) {
         try {
             bannersRealtimeUnsubscribe = customerFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
-                let banners = DEFAULT_DAILY_BANNERS;
+                let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
                 if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                    banners = doc.data().banners.slice(0, 4).map((b, i) => ({
-                        id: b.id || `b${i + 1}`,
-                        url: resolveBannerUrl(b.url),
-                        enabled: b.enabled !== false
-                    }));
+                    banners = doc.data().banners.slice(0, 4).map((b, i) => {
+                        const bannerObj = (b && typeof b === 'object') ? b : {};
+                        return {
+                            id: bannerObj.id || `b${i + 1}`,
+                            url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
+                            enabled: bannerObj.enabled !== false
+                        };
+                    });
                 }
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));
-                renderDynamicOfferSlider(banners);
+                if (typeof renderDynamicOfferSlider === 'function') {
+                    renderDynamicOfferSlider(banners);
+                }
             }, (err) => {
                 console.warn('Firestore daily banners real-time notice:', err.message);
             });
@@ -11654,11 +11726,17 @@ function listenToRealtimeMenuAndRates() {
             bc.onmessage = (event) => {
                 if (event.data && event.data.type === 'wallet_config_updated' && event.data.config) {
                     const conf = event.data.config;
-                    const incomingSlabs = (Array.isArray(conf.slabs) && conf.slabs.length > 0)
+                    const rawIncomingSlabs = (Array.isArray(conf.slabs) && conf.slabs.length > 0)
                         ? conf.slabs
                         : ((Array.isArray(conf.rewardTiers) && conf.rewardTiers.length > 0)
                             ? conf.rewardTiers
                             : customerWalletConfig.slabs);
+                    const incomingSlabs = rawIncomingSlabs.map(slab => {
+                        if (!slab || typeof slab !== 'object') return slab;
+                        const minOrder = Number(slab.minOrder ?? slab.min_order ?? slab.minAmount ?? slab.min ?? slab.threshold ?? 0);
+                        const cashback = Number(slab.cashback_amount ?? slab.cashbackAmount ?? slab.cashback ?? slab.reward ?? slab.amount ?? slab.wonAmount ?? 0);
+                        return { ...slab, minOrder, cashback, cashback_amount: cashback };
+                    });
                     customerWalletConfig = {
                         ...DEFAULT_WALLET_CONFIG,
                         ...conf,
