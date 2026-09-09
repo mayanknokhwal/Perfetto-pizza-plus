@@ -8094,10 +8094,10 @@
         // --------------------------------------------------------------------------
         const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
         const DEFAULT_DAILY_BANNERS = [
-            { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true },
-            { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
-            { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
-            { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
+            { id: 'b1', url: '', enabled: true, targetProductId: '', discountPercent: 0 },
+            { id: 'b2', url: '', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+            { id: 'b3', url: '', enabled: true },
+            { id: 'b4', url: '', enabled: true }
         ];
 
         window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
@@ -8140,7 +8140,8 @@
                     const rawSpend = parseInt(item.minSpend, 10);
                     bannerObj.minSpend = (!isNaN(rawSpend) && rawSpend > 0) ? rawSpend : 699;
                     bannerObj.rewardType = (item.rewardType === 'pizza') ? 'pizza' : 'category';
-                    bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+                    const catVal = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+                    bannerObj.rewardCategory = (catVal.toLowerCase() === 'pizza') ? 'Shake' : catVal;
                     bannerObj.rewardPizzaSize = (item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium';
                 }
                 normalized.push(bannerObj);
@@ -8360,9 +8361,20 @@
         }
 
         function renderRewardCategoryOptions(selectedCat = 'Shake') {
-            const availableCategories = ['Shake', 'Pizza', 'Burger', 'Cold Drinks', 'Mojito', 'Momos', 'Pasta', 'Chinese', 'Noodles', 'Sandwich', 'Wrap', 'Desserts', 'Salad', 'Spring Rolls'];
-            return availableCategories.map(cat => {
-                const isSel = cat.toLowerCase() === String(selectedCat || '').toLowerCase();
+            const baseCategories = ['Shake', 'Burger', 'Cold Drinks', 'Mojito', 'Momos', 'Pasta', 'Chinese', 'Noodles', 'Sandwich', 'Wrap', 'Desserts', 'Salad', 'Spring Rolls'];
+            const customCategories = (Array.isArray(adminMenuItemsList) && adminMenuItemsList.length > 0)
+                ? [...new Set(adminMenuItemsList.map(i => i.category).filter(Boolean))]
+                : [];
+            const merged = [...new Set([...baseCategories, ...customCategories])]
+                .filter(cat => cat && cat.trim().toLowerCase() !== 'pizza');
+
+            let currentSelected = selectedCat || 'Shake';
+            if (String(currentSelected).trim().toLowerCase() === 'pizza') {
+                currentSelected = 'Shake';
+            }
+
+            return merged.map(cat => {
+                const isSel = cat.toLowerCase() === String(currentSelected || '').toLowerCase();
                 return `<option value="${cat}" ${isSel ? 'selected' : ''}>${cat}</option>`;
             }).join('');
         }
@@ -8402,7 +8414,8 @@
 
         function onBannerRewardCategoryChange(val) {
             if (!adminDailyBannersList[1]) return;
-            adminDailyBannersList[1].rewardCategory = val || 'Shake';
+            const sanitized = (String(val).toLowerCase() === 'pizza') ? 'Shake' : (val || 'Shake');
+            adminDailyBannersList[1].rewardCategory = sanitized;
         }
         window.onBannerRewardCategoryChange = onBannerRewardCategoryChange;
 

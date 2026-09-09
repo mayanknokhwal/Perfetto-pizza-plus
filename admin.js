@@ -222,10 +222,10 @@ export function normalizeStoreNotice(raw) {
 export const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
 
 export const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
-    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
-    { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
+    { id: 'b1', url: '', enabled: true, targetProductId: '', discountPercent: 0 },
+    { id: 'b2', url: '', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: '', enabled: true },
+    { id: 'b4', url: '', enabled: true }
 ];
 
 /**
@@ -256,7 +256,8 @@ export function normalizeDailyBanners(raw) {
             const rawSpend = parseInt(item.minSpend, 10);
             bannerObj.minSpend = (!isNaN(rawSpend) && rawSpend > 0) ? rawSpend : 699;
             bannerObj.rewardType = (item.rewardType === 'pizza') ? 'pizza' : 'category';
-            bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+            const catVal = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+            bannerObj.rewardCategory = (catVal.toLowerCase() === 'pizza') ? 'Shake' : catVal;
             bannerObj.rewardPizzaSize = (item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium';
         }
         normalized.push(bannerObj);
