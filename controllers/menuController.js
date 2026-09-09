@@ -223,6 +223,9 @@ if (!global.__perfettoMenuState) {
 if (!global.__perfettoCategoryAddons) {
     global.__perfettoCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
 }
+if (!global.__perfettoCategoryDiscounts) {
+    global.__perfettoCategoryDiscounts = {};
+}
 
 async function getLiveMenuFromFirestore() {
     try {
@@ -232,21 +235,32 @@ async function getLiveMenuFromFirestore() {
             if (doc.categoryAddons) {
                 global.__perfettoCategoryAddons = doc.categoryAddons;
             }
-            return { items: doc.items, categoryAddons: doc.categoryAddons || global.__perfettoCategoryAddons };
+            if (doc.categoryDiscounts) {
+                global.__perfettoCategoryDiscounts = doc.categoryDiscounts;
+            }
+            return {
+                items: doc.items,
+                categoryAddons: doc.categoryAddons || global.__perfettoCategoryAddons,
+                categoryDiscounts: doc.categoryDiscounts || global.__perfettoCategoryDiscounts || {}
+            };
         }
     } catch (e) {
         console.warn('Firestore menu read note:', e.message);
     }
-    return { items: global.__perfettoMenuState, categoryAddons: global.__perfettoCategoryAddons };
+    return {
+        items: global.__perfettoMenuState,
+        categoryAddons: global.__perfettoCategoryAddons,
+        categoryDiscounts: global.__perfettoCategoryDiscounts || {}
+    };
 }
 
 async function handleMenuRequest(req, res) {
     try {
-        // 1. GET: Fetch Live Menu Items & Category Addons
+        // 1. GET: Fetch Live Menu Items & Category Addons & Category Discounts
         if (req.method === 'GET') {
             const { category } = req.query || {};
 
-            const { items: allItems, categoryAddons } = await getLiveMenuFromFirestore();
+            const { items: allItems, categoryAddons, categoryDiscounts } = await getLiveMenuFromFirestore();
             let items = allItems;
             if (category) {
                 items = items.filter(i => i.category === category);
@@ -256,7 +270,8 @@ async function handleMenuRequest(req, res) {
                 success: true,
                 count: items.length,
                 items: items,
-                categoryAddons: categoryAddons || DEFAULT_CATEGORY_ADDONS
+                categoryAddons: categoryAddons || DEFAULT_CATEGORY_ADDONS,
+                categoryDiscounts: categoryDiscounts || global.__perfettoCategoryDiscounts || {}
             });
         }
 
@@ -266,14 +281,14 @@ async function handleMenuRequest(req, res) {
             if (typeof body === 'string') {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
-            const { id, available, price, prices, name, desc, img, isMultiSize } = body || {};
+            const { id, available, price, prices, name, desc, img, isMultiSize, isDiscountActive, appliedDiscountPercent } = body || {};
 
             if (!id) {
                 return res.status(400).json({ success: false, message: 'Missing required field: id' });
             }
 
             const targetId = String(id);
-            const { items: allItems, categoryAddons } = await getLiveMenuFromFirestore();
+            const { items: allItems, categoryAddons, categoryDiscounts } = await getLiveMenuFromFirestore();
             let items = [...allItems];
             let itemIndex = items.findIndex(i => i.id === targetId);
 
@@ -285,6 +300,8 @@ async function handleMenuRequest(req, res) {
                 if (desc !== undefined) items[itemIndex].desc = desc;
                 if (img !== undefined) items[itemIndex].img = img;
                 if (isMultiSize !== undefined) items[itemIndex].isMultiSize = Boolean(isMultiSize);
+                if (isDiscountActive !== undefined) items[itemIndex].isDiscountActive = Boolean(isDiscountActive);
+                if (appliedDiscountPercent !== undefined) items[itemIndex].appliedDiscountPercent = Number(appliedDiscountPercent);
             } else {
                 items.push({
                     id: targetId,
@@ -294,6 +311,8 @@ async function handleMenuRequest(req, res) {
                     price: Number(price || 0),
                     prices: prices || { S: 199, M: 299, L: 399 },
                     available: available !== undefined ? Boolean(available) : true,
+                    isDiscountActive: Boolean(isDiscountActive),
+                    appliedDiscountPercent: Number(appliedDiscountPercent || 0),
                     img: img || '',
                     desc: desc || '',
                     tag: '',
@@ -309,6 +328,7 @@ async function handleMenuRequest(req, res) {
                 await setFirestoreDoc('settings', 'menu', {
                     items: items,
                     categoryAddons: categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS,
+                    categoryDiscounts: categoryDiscounts || global.__perfettoCategoryDiscounts || {},
                     updatedAt: new Date().toISOString()
                 });
                 await setFirestoreDoc('menu', targetId, updatedItem);
@@ -332,6 +352,7 @@ async function handleMenuRequest(req, res) {
             const isReset = body?.reset === true || req.query?.reset === 'true';
             const rawItems = isReset ? DEFAULT_MENU_ITEMS : (Array.isArray(body) ? body : (body?.items || []));
             const newAddons = body?.categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS;
+            const newDiscounts = body?.categoryDiscounts || global.__perfettoCategoryDiscounts || {};
 
             if (!Array.isArray(rawItems) || rawItems.length === 0) {
                 return res.status(400).json({ success: false, message: 'Missing or invalid items array' });
@@ -340,15 +361,18 @@ async function handleMenuRequest(req, res) {
             try {
                 global.__perfettoMenuState = JSON.parse(JSON.stringify(rawItems));
                 global.__perfettoCategoryAddons = JSON.parse(JSON.stringify(newAddons));
+                global.__perfettoCategoryDiscounts = JSON.parse(JSON.stringify(newDiscounts));
             } catch (cloneErr) {
                 global.__perfettoMenuState = Array.isArray(rawItems) ? [...rawItems] : [];
                 global.__perfettoCategoryAddons = newAddons;
+                global.__perfettoCategoryDiscounts = newDiscounts;
             }
 
             // Sync to Firestore
             await setFirestoreDoc('settings', 'menu', {
                 items: global.__perfettoMenuState,
                 categoryAddons: global.__perfettoCategoryAddons,
+                categoryDiscounts: global.__perfettoCategoryDiscounts,
                 updatedAt: new Date().toISOString()
             });
 
@@ -358,6 +382,7 @@ async function handleMenuRequest(req, res) {
                 count: global.__perfettoMenuState.length,
                 items: global.__perfettoMenuState,
                 categoryAddons: global.__perfettoCategoryAddons,
+                categoryDiscounts: global.__perfettoCategoryDiscounts,
             });
         }
 

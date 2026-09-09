@@ -2357,6 +2357,52 @@ html[lang="hi"] .nav-label {
     opacity: 0.92;
 }
 
+/* ITEM LEVEL MASTER DISCOUNT STYLING */
+.item-discount-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(220, 38, 38, 0.4);
+    z-index: 6;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-family: var(--font-heading, inherit);
+    pointer-events: none;
+}
+
+.original-price-strike {
+    text-decoration: line-through;
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-right: 6px;
+    opacity: 0.75;
+}
+
+.pizza-card-price-container,
+.card-price-container {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.summary-line.item-discount-row,
+.checkout-summary-row.item-discount-row {
+    color: #10b981 !important;
+    font-weight: 700;
+}
+
+.summary-line.item-discount-row span,
+.checkout-summary-row.item-discount-row span {
+    color: #10b981 !important;
+}
+
 /* 5. Fixed "ADD TO CART" Button at Absolute Bottom */
 .pizza-add-cart-btn,
 .add-cart-btn,

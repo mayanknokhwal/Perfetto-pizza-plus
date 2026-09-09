@@ -117,6 +117,11 @@
             clear_orders_desc: "This will remove only completed, delivered, and cancelled orders from your history. Any active and in-progress orders will remain safely preserved and tracked.",
             clear_cart: "Clear All",
             items_count: "Items ({count} items)",
+            item_discount: "Item Discount",
+            item_discount_savings: "Item Discount Savings",
+            category_discount: "Category Discount",
+            discount_active: "Discount Active",
+            off: "OFF",
 
             // Order Success OTP Modal
             order_placed_success: "ORDER PLACED SUCCESSFULLY! 🎉",
@@ -275,6 +280,11 @@
             clear_orders_desc: "यह आपके इतिहास से केवल पूरे, डिलीवर और रद्द किए गए ऑर्डर हटाएगा। सभी सक्रिय ऑर्डर सुरक्षित रहेंगे और ट्रैक होते रहेंगे।",
             clear_cart: "सब हटाएं",
             items_count: "सामान ({count} आइटम)",
+            item_discount: "आइटम छूट",
+            item_discount_savings: "आइटम छूट बचत",
+            category_discount: "श्रेणी छूट",
+            discount_active: "छूट सक्रिय",
+            off: "की छूट",
 
             // Order Success OTP Modal
             order_placed_success: "ऑर्डर सफलतापूर्वक दर्ज हुआ! 🎉",

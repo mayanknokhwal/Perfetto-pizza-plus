@@ -316,11 +316,19 @@ async function handleOrdersRequest(req, res) {
             }
 
             const deliveryOtp = String(body.deliveryOtp || body.otp || Math.floor(1000 + Math.random() * 9000));
-            const subtotal = Number(body.subtotal || body.costs?.subtotal || 0);
+            const rawSubtotal = Number(body.subtotal || body.costs?.subtotal || 0);
+            let verifiedSubtotal = rawSubtotal;
+            if (Array.isArray(body.items) && body.items.length > 0) {
+                const itemsSum = body.items.reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.qty || 1)), 0);
+                if (itemsSum > 0) {
+                    verifiedSubtotal = Math.round(itemsSum);
+                }
+            }
+            const subtotal = verifiedSubtotal;
             const deliveryFee = Number(body.deliveryFee || body.costs?.deliveryFee || 0);
-            const total = Number(body.total || body.costs?.total || subtotal + deliveryFee);
-
             const usedWallet = Number(body.walletDiscount || body.usedWalletCash || 0);
+            const total = Math.max(0, Math.round(subtotal + deliveryFee - usedWallet));
+
 
             // Dynamically read the minimum qualification amount for Slab 1 from global.__perfettoWalletConfig
             if (!global.__walletConfigLoadedFromFirestore) {

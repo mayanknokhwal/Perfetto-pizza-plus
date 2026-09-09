@@ -393,6 +393,7 @@ const DEFAULT_CATEGORY_ADDONS = {
 };
 
 let customerCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+let customerCategoryDiscounts = {};
 
 function getCustomerCategoryAddons(categoryName) {
     try {
@@ -406,6 +407,44 @@ function getCustomerCategoryAddons(categoryName) {
     } catch (e) { }
 
     return customerCategoryAddons[categoryName] || DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
+}
+
+function getCustomerCategoryDiscounts() {
+    try {
+        const saved = localStorage.getItem('perfetto_category_discounts');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object') {
+                customerCategoryDiscounts = { ...parsed };
+            }
+        }
+    } catch (e) { }
+    return customerCategoryDiscounts;
+}
+
+function getItemEffectiveDiscount(item) {
+    if (!item) return { isDiscountActive: false, discountPercent: 0 };
+    const discounts = getCustomerCategoryDiscounts();
+    const catDiscount = (item.category && discounts[item.category] !== undefined)
+        ? Number(discounts[item.category])
+        : 0;
+
+    const isDiscountActive = Boolean(item.isDiscountActive);
+    // Inherit active category discount percentage or item appliedDiscountPercent
+    const discountPercent = isDiscountActive
+        ? Math.min(90, Math.max(0, catDiscount || item.appliedDiscountPercent || 0))
+        : 0;
+
+    return {
+        isDiscountActive: isDiscountActive && discountPercent > 0,
+        discountPercent: discountPercent
+    };
+}
+
+function calculateDiscountedPrice(basePrice, discountPercent) {
+    if (!discountPercent || discountPercent <= 0) return Math.round(Number(basePrice) || 0);
+    const clamped = Math.min(90, Math.max(0, Number(discountPercent) || 0));
+    return Math.round((Number(basePrice) || 0) * (1 - clamped / 100));
 }
 
 function getPizzaSizeAddonRates(size = 'M') {
@@ -460,14 +499,29 @@ function toggleCardAddon(categoryName, itemId, addonType, event) {
 
     const allItems = getAllCustomerMenuItems();
     const itemObj = allItems.find(i => i.id === itemId);
-    const basePrice = (itemObj && itemObj.price) ? itemObj.price : 99;
+    const origBasePrice = (itemObj && itemObj.price) ? itemObj.price : 99;
+    const discInfo = getItemEffectiveDiscount(itemObj);
+    const effectiveBasePrice = discInfo.isDiscountActive
+        ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+        : origBasePrice;
 
-    let total = basePrice;
-    if (cardSelectedAddons[itemId].cheese) total += cheeseRate;
-    if (cardSelectedAddons[itemId].spicy) total += spicyRate;
-    if (cardSelectedAddons[itemId].mayo) total += mayoRate;
+    let total = effectiveBasePrice;
+    let originalTotal = origBasePrice;
+    if (cardSelectedAddons[itemId].cheese) { total += cheeseRate; originalTotal += cheeseRate; }
+    if (cardSelectedAddons[itemId].spicy) { total += spicyRate; originalTotal += spicyRate; }
+    if (cardSelectedAddons[itemId].mayo) { total += mayoRate; originalTotal += mayoRate; }
 
     const priceEl = document.getElementById(`card-price-${itemId}`) || document.getElementById(`price-${itemId}`);
+    const strikeEl = document.getElementById(`card-strike-${itemId}`);
+    if (strikeEl) {
+        if (discInfo.isDiscountActive) {
+            strikeEl.textContent = formatPrice(originalTotal);
+            strikeEl.style.display = 'inline';
+        } else {
+            strikeEl.style.display = 'none';
+        }
+    }
+
     if (priceEl) {
         priceEl.textContent = formatPrice(total);
         priceEl.classList.add('price-pop-active');
@@ -532,19 +586,36 @@ function recalculatePizzaCardPrice(pizzaId) {
     const selectedSize = card.getAttribute('data-selected-size') || 'M';
     const pizzaList = getSubItems("Pizza");
     const item = pizzaList.find(p => p.id === pizzaId);
-    const basePrice = (item && item.prices && item.prices[selectedSize]) || 299;
+    const origBasePrice = (item && item.prices && item.prices[selectedSize]) || 299;
 
     const rates = getPizzaSizeAddonRates(selectedSize);
     const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false, mayo: false };
 
-    let total = basePrice;
-    if (sel.cheese) total += rates.extraCheese;
-    if (sel.spicy) total += rates.extraSpicy;
-    if (sel.mayo) total += rates.extraMayo;
+    const discInfo = getItemEffectiveDiscount(item);
+    const effectiveBasePrice = discInfo.isDiscountActive
+        ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+        : origBasePrice;
+
+    let total = effectiveBasePrice;
+    let originalTotal = origBasePrice;
+    if (sel.cheese) { total += rates.extraCheese; originalTotal += rates.extraCheese; }
+    if (sel.spicy) { total += rates.extraSpicy; originalTotal += rates.extraSpicy; }
+    if (sel.mayo) { total += rates.extraMayo; originalTotal += rates.extraMayo; }
 
     card.setAttribute('data-current-price', total);
+    card.setAttribute('data-original-price', originalTotal);
 
     const priceEl = card.querySelector('.pizza-card-price') || document.getElementById(`price-${pizzaId}`);
+    const strikeEl = card.querySelector('.original-price-strike') || document.getElementById(`strike-${pizzaId}`);
+    if (strikeEl) {
+        if (discInfo.isDiscountActive) {
+            strikeEl.textContent = formatPrice(originalTotal);
+            strikeEl.style.display = 'inline';
+        } else {
+            strikeEl.style.display = 'none';
+        }
+    }
+
     if (priceEl) {
         priceEl.textContent = formatPrice(total);
         priceEl.classList.add('price-pop-active');
@@ -582,12 +653,27 @@ function toggleShakeIceCreamAddon(itemId, event) {
 
     const allItems = getAllCustomerMenuItems();
     const itemObj = allItems.find(i => i.id === itemId);
-    const basePrice = (itemObj && itemObj.price) ? itemObj.price : 119;
+    const origBasePrice = (itemObj && itemObj.price) ? itemObj.price : 119;
+    const discInfo = getItemEffectiveDiscount(itemObj);
+    const effectiveBasePrice = discInfo.isDiscountActive
+        ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+        : origBasePrice;
 
-    let total = basePrice;
-    if (cardSelectedAddons[itemId].iceCream) total += iceCreamRate;
+    let total = effectiveBasePrice;
+    let originalTotal = origBasePrice;
+    if (cardSelectedAddons[itemId].iceCream) { total += iceCreamRate; originalTotal += iceCreamRate; }
 
     const priceEl = document.getElementById(`card-price-${itemId}`) || document.getElementById(`price-${itemId}`);
+    const strikeEl = document.getElementById(`card-strike-${itemId}`);
+    if (strikeEl) {
+        if (discInfo.isDiscountActive) {
+            strikeEl.textContent = formatPrice(originalTotal);
+            strikeEl.style.display = 'inline';
+        } else {
+            strikeEl.style.display = 'none';
+        }
+    }
+
     if (priceEl) {
         priceEl.textContent = formatPrice(total);
         priceEl.classList.add('price-pop-active');
@@ -605,14 +691,24 @@ function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, item
     const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false, iceCream: false };
     const catAddons = getCustomerCategoryAddons(categoryName);
     
+    const allItems = getAllCustomerMenuItems();
+    const itemObj = allItems.find(i => i.id === itemId || i.name === itemName);
+    const origBasePrice = (itemObj && itemObj.price) ? itemObj.price : basePrice;
+    const discInfo = getItemEffectiveDiscount(itemObj);
+    const effectiveBasePrice = discInfo.isDiscountActive
+        ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+        : origBasePrice;
+
     const addons = [];
-    let calculatedPrice = basePrice;
+    let calculatedPrice = effectiveBasePrice;
+    let originalCalculatedPrice = origBasePrice;
 
     if (categoryName === 'Shake') {
         const iceCreamRate = catAddons.withIceCream !== undefined ? catAddons.withIceCream : 30;
         if (sel.iceCream) {
             addons.push({ name: '🍨 With Ice Cream', price: iceCreamRate });
             calculatedPrice += iceCreamRate;
+            originalCalculatedPrice += iceCreamRate;
         }
     } else {
         const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (categoryName === 'Wrap' ? 30 : 25);
@@ -622,18 +718,21 @@ function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, item
         if (sel.cheese) {
             addons.push({ name: 'Extra Cheese', price: cheeseRate });
             calculatedPrice += cheeseRate;
+            originalCalculatedPrice += cheeseRate;
         }
         if (sel.spicy) {
             addons.push({ name: 'Extra Spicy', price: spicyRate });
             calculatedPrice += spicyRate;
+            originalCalculatedPrice += spicyRate;
         }
         if (sel.mayo) {
             addons.push({ name: '🍥 Extra Mayo', price: mayoRate });
             calculatedPrice += mayoRate;
+            originalCalculatedPrice += mayoRate;
         }
     }
 
-    addToCart(itemName, calculatedPrice, itemImg, addons);
+    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice);
 }
 window.addCardWithAddonsToCart = addCardWithAddonsToCart;
 window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
@@ -2047,851 +2146,7 @@ function refreshActiveCustomerView(freshItems) {
     if (!Array.isArray(freshItems)) return;
 
     if (activeTabName === 'category-detail' && lastCategoryState.categoryName) {
-        const subItemsGrid = document.getElementById('sub-items-grid');
-        const heroCountEl = document.getElementById('category-hero-count');
-        const categoryName = lastCategoryState.categoryName;
-        const categoryImg = lastCategoryState.categoryImg;
-
-        const items = getSubItems(categoryName, categoryImg);
-        if (heroCountEl) heroCountEl.textContent = `${items.length} options available`;
-
-        if (subItemsGrid) {
-            if (categoryName === "Pizza") {
-                subItemsGrid.classList.add('pizza-grid-container');
-                subItemsGrid.innerHTML = items.map(item => {
-                    const ingredients = item.desc ? item.desc.split(/[,&]/).map(s => s.trim()).filter(Boolean) : [];
-                    const hasMoreThanFive = ingredients.length > 5;
-
-                    let descMarkup = '';
-                    if (hasMoreThanFive) {
-                        const shortText = ingredients.slice(0, 5).join(', ') + '...';
-                        const escFull = item.desc.replace(/"/g, '&quot;');
-                        const escShort = shortText.replace(/"/g, '&quot;');
-                        descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
-                            <span class="desc-text truncated" data-full="${escFull}" data-short="${escShort}">${shortText}</span>
-                            <button class="more-btn" onclick="toggleIngredients('${item.id}', event)">More</button>
-                           </p>`;
-                    } else {
-                        descMarkup = `<p class="pizza-card-desc" id="desc-${item.id}">
-                            <span class="desc-text">${item.desc}</span>
-                           </p>`;
-                    }
-
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="pizza-add-cart-btn" onclick="addPizzaToCart('${item.id}', event)"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="pizza-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    const prices = item.prices || { S: 199, M: 299, L: 399 };
-                    
-                    // Check if card currently has a selected size (e.g. S or L) to preserve user selection
-                    const existingCard = document.querySelector(`.pizza-card[data-pizza-id="${item.id}"]`);
-                    const selectedSize = (existingCard && existingCard.getAttribute('data-selected-size')) || 'M';
-                    const basePrice = (prices && prices[selectedSize]) || (prices && prices.M) || 299;
-
-                    const rates = getPizzaSizeAddonRates(selectedSize);
-                    const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false, mayo: false };
-                    const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
-
-                    const addonsMarkup = isAvailable ? `
-                        <div class="burger-addon-selector pizza-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="burger-addon-options">
-                                <button type="button" class="burger-addon-box ${selectedAddons.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${item.id}" data-addon="cheese" title="Extra Cheese (+₹${rates.extraCheese})" onclick="togglePizzaAddon('${item.id}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="burger-addon-box ${selectedAddons.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${item.id}" data-addon="spicy" title="Extra Spicy (${rates.extraSpicy > 0 ? `+₹${rates.extraSpicy}` : 'Free'})" onclick="togglePizzaAddon('${item.id}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="burger-addon-box ${selectedAddons.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${item.id}" data-addon="mayo" title="Extra Mayo (+₹${rates.extraMayo})" onclick="togglePizzaAddon('${item.id}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    return `
-                    <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="${selectedSize}" data-current-price="${currentTotal}">
-                        ${outOfStockBadge}
-                        <div class="pizza-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
-                        </div>
-                        <div class="pizza-card-body">
-                            <h4 class="pizza-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            ${descMarkup}
-                            
-                            <div class="pizza-size-selector">
-                                <span class="size-label">Size:</span>
-                                <div class="size-options">
-                                    <button class="size-btn ${selectedSize === 'S' ? 'selected' : ''}" data-size="S" onclick="changePizzaSize('${item.id}', 'S', ${prices.S}, event)">S</button>
-                                    <button class="size-btn ${selectedSize === 'M' ? 'selected' : ''}" data-size="M" onclick="changePizzaSize('${item.id}', 'M', ${prices.M}, event)">M</button>
-                                    <button class="size-btn ${selectedSize === 'L' ? 'selected' : ''}" data-size="L" onclick="changePizzaSize('${item.id}', 'L', ${prices.L}, event)">L</button>
-                                </div>
-                            </div>
-
-                            ${addonsMarkup}
-                            
-                            <div class="pizza-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Burger" || categoryName === "Wrap") {
-                const isWrap = categoryName === "Wrap";
-                const prefix = isWrap ? 'wrap' : 'burger';
-                const catAddons = getCustomerCategoryAddons(categoryName);
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : (isWrap ? 30 : 25);
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 99) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="burger-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="burger-addon-options">
-                                <button type="button" class="burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('${categoryName}', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="${prefix}-add-cart-btn" onclick="addCardWithAddonsToCart('${categoryName}', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="${prefix}-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="${prefix}-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="${prefix}-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
-                        </div>
-                        <div class="${prefix}-card-body">
-                            <h4 class="${prefix}-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            ${boxesMarkup}
-                            <div class="${prefix}-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="${prefix}-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Bread") {
-                const catAddons = getCustomerCategoryAddons('Bread');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid bread-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 99) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="bread-addon-selector burger-addon-selector">
-                            <div class="addon-label bread-addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="bread-addon-options burger-addon-options">
-                                <button type="button" class="bread-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="bread-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Bread', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="bread-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Bread', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="bread-add-cart-btn" onclick="addCardWithAddonsToCart('Bread', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="bread-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="bread-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="bread-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
-                        </div>
-                        <div class="bread-card-body">
-                            <h4 class="bread-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            ${boxesMarkup}
-                            <div class="bread-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="bread-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Sandwich") {
-                const catAddons = getCustomerCategoryAddons('Sandwich');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid sandwich-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 99) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="sandwich-addon-selector burger-addon-selector">
-                            <div class="addon-label sandwich-addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="sandwich-addon-options burger-addon-options">
-                                <button type="button" class="sandwich-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="sandwich-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="sandwich-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Sandwich', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="sandwich-add-cart-btn" onclick="addCardWithAddonsToCart('Sandwich', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="sandwich-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="sandwich-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="sandwich-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
-                        </div>
-                        <div class="sandwich-card-body">
-                            <h4 class="sandwich-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            ${boxesMarkup}
-                            <div class="sandwich-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Momos") {
-                const catAddons = getCustomerCategoryAddons('Momos');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid momos-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 99) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="momos-addon-selector burger-addon-selector">
-                            <div class="addon-label momos-addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="momos-addon-options burger-addon-options">
-                                <button type="button" class="momos-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="momos-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Momos', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="momos-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Momos', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="momos-add-cart-btn" onclick="addCardWithAddonsToCart('Momos', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="momos-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="momos-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="momos-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
-                        </div>
-                        <div class="momos-card-body">
-                            <h4 class="momos-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            ${boxesMarkup}
-                            <div class="momos-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Pasta") {
-                const catAddons = getCustomerCategoryAddons('Pasta');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid pasta-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 129) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="pasta-addon-selector burger-addon-selector">
-                            <div class="addon-label pasta-addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="pasta-addon-options burger-addon-options">
-                                <button type="button" class="pasta-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="pasta-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Pasta', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="pasta-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Pasta', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="pasta-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Pasta', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="pasta-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="pasta-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="pasta-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="pasta-card-body burger-card-body">
-                            <h4 class="pasta-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            ${boxesMarkup}
-                            <div class="pasta-price-row burger-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="pasta-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Chinese Food" || categoryName === "Chinese") {
-                const catAddons = getCustomerCategoryAddons('Chinese Food');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid chinese-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 129) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="chinese-addon-selector burger-addon-selector">
-                            <div class="addon-label chinese-addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="chinese-addon-options burger-addon-options">
-                                <button type="button" class="chinese-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="chinese-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="chinese-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Chinese Food', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="chinese-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Chinese Food', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 129}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="chinese-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="chinese-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="chinese-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="chinese-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="chinese-card-body burger-card-body">
-                            <h4 class="chinese-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            ${boxesMarkup}
-                            <div class="chinese-price-row burger-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="chinese-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Shake") {
-                const catAddons = getCustomerCategoryAddons('Shake');
-                const iceCreamPrice = catAddons.withIceCream !== undefined ? catAddons.withIceCream : 30;
-
-                subItemsGrid.className = 'sub-items-grid shake-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { iceCream: false };
-
-                    const currentTotal = (item.price || 119) + (selected.iceCream ? iceCreamPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="shake-addon-selector burger-addon-selector">
-                            <div class="addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="shake-addon-options">
-                                <button type="button" class="shake-icecream-chip ${selected.iceCream ? 'selected active' : ''}" id="box-icecream-${itemId}" onclick="toggleShakeIceCreamAddon('${itemId}', event)" title="With Ice Cream (+₹${iceCreamPrice})">
-                                    🍨 With Ice Cream
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="shake-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Shake', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="shake-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="shake-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="shake-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="shake-card-body burger-card-body">
-                            <h4 class="shake-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            ${boxesMarkup}
-                            <div class="shake-price-row burger-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="shake-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Rice") {
-                subItemsGrid.className = 'sub-items-grid rice-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="rice-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="rice-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="rice-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="rice-card-body burger-card-body">
-                            <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Hot Cold Coffee" || categoryName === "Hot & Cold Coffee" || categoryName === "Coffee") {
-                subItemsGrid.className = 'sub-items-grid coffee-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="coffee-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="coffee-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="coffee-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="coffee-card-body burger-card-body">
-                            <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Noodles") {
-                const catAddons = getCustomerCategoryAddons('Noodles');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid noodles-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 119) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="noodles-addon-selector burger-addon-selector">
-                            <div class="addon-label noodles-addon-label burger-addon-label">ADD-<br>ONS:</div>
-                            <div class="noodles-addon-options burger-addon-options">
-                                <button type="button" class="noodles-addon-box burger-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="noodles-addon-box burger-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Noodles', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="noodles-addon-box burger-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Noodles', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="noodles-add-cart-btn burger-add-cart-btn" onclick="addCardWithAddonsToCart('Noodles', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="noodles-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="noodles-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="noodles-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="noodles-card-body burger-card-body">
-                            <h4 class="noodles-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            ${boxesMarkup}
-                            <div class="noodles-price-row burger-price-row">
-                                <span class="price-prefix">Price:</span>
-                                <span class="noodles-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Desserts") {
-                subItemsGrid.className = 'sub-items-grid desserts-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="desserts-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="desserts-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="desserts-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="desserts-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="desserts-card-body burger-card-body">
-                            <h4 class="desserts-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            <div class="desserts-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="desserts-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Salad") {
-                subItemsGrid.className = 'sub-items-grid salad-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="salad-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 69}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="salad-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="salad-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="salad-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="salad-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="salad-card-body burger-card-body">
-                            <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            <div class="salad-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="salad-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 69)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Side Orders") {
-                subItemsGrid.className = 'sub-items-grid side-orders-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="side-orders-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 89}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="side-orders-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="side-orders-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="side-orders-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="side-orders-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="side-orders-card-body burger-card-body">
-                            <h4 class="side-orders-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            <div class="side-orders-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="side-orders-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 89)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Colo Drinks" || categoryName === "Cold Drinks") {
-                subItemsGrid.className = 'sub-items-grid cold-drinks-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="cold-drinks-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 40}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="cold-drinks-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="cold-drinks-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="cold-drinks-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="cold-drinks-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="cold-drinks-card-body burger-card-body">
-                            <h4 class="cold-drinks-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            <div class="cold-drinks-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="cold-drinks-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 40)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Mojito") {
-                subItemsGrid.className = 'sub-items-grid mojito-grid-container grid grid-cols-2 gap-3';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="mojito-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 79}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="mojito-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="mojito-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
-                        ${outOfStockBadge}
-                        <div class="mojito-card-image-wrapper burger-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="mojito-card-img burger-card-img" loading="lazy">
-                        </div>
-                        <div class="mojito-card-body burger-card-body">
-                            <h4 class="mojito-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${item.name}</span></h4>
-                            <div class="mojito-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
-                                <span class="price-prefix">Price:</span>
-                                <span class="mojito-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 79)}</span>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else if (categoryName === "Spring Rolls") {
-                const catAddons = getCustomerCategoryAddons('Spring Rolls');
-                const cheesePrice = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
-                const spicyPrice = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
-                const mayoPrice = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
-
-                subItemsGrid.className = 'sub-items-grid spring-rolls-grid-container';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
-                    const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
-
-                    const currentTotal = (item.price || 99) +
-                        (selected.cheese ? cheesePrice : 0) +
-                        (selected.spicy ? spicyPrice : 0) +
-                        (selected.mayo ? mayoPrice : 0);
-
-                    const boxesMarkup = isAvailable ? `
-                        <div class="spring-rolls-addon-selector">
-                            <span class="spring-rolls-addon-label">ADD-ONS:</span>
-                            <div class="spring-rolls-addon-options">
-                                <button type="button" class="spring-rolls-addon-box ${selected.cheese ? 'selected active active-cheese' : ''}" id="box-cheese-${itemId}" data-addon="cheese" title="Extra Cheese (+₹${cheesePrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'cheese', event)">
-                                    🧀
-                                </button>
-                                <button type="button" class="spring-rolls-addon-box ${selected.spicy ? 'selected active active-spicy' : ''}" id="box-spicy-${itemId}" data-addon="spicy" title="Extra Spicy (${spicyPrice > 0 ? `+₹${spicyPrice}` : 'Free'})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'spicy', event)">
-                                    🌶️
-                                </button>
-                                <button type="button" class="spring-rolls-addon-box ${selected.mayo ? 'selected active active-mayo' : ''}" id="box-mayo-${itemId}" data-addon="mayo" title="Extra Mayo (+₹${mayoPrice})" onclick="toggleCardAddon('Spring Rolls', '${itemId}', 'mayo', event)">
-                                    🍥
-                                </button>
-                            </div>
-                        </div>
-                    ` : '';
-
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="spring-rolls-add-cart-btn" onclick="addCardWithAddonsToCart('Spring Rolls', '${itemId}', '${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ADD TO CART</button>`
-                        : `<button class="spring-rolls-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> OUT OF STOCK</button>`;
-
-                    return `
-                    <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}" data-category="Spring Rolls">
-                        ${outOfStockBadge}
-                        <div class="spring-rolls-card-image-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
-                        </div>
-                        <div class="spring-rolls-card-body">
-                            <h4 class="spring-rolls-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
-                            <div class="spring-rolls-action-row">
-                                ${boxesMarkup}
-                                <div class="spring-rolls-price-row">
-                                    <span class="price-prefix">Price:</span>
-                                    <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
-                                </div>
-                            </div>
-                        </div>
-                        ${addBtnMarkup}
-                    </div>
-                    `;
-                }).join('');
-            } else {
-                subItemsGrid.className = 'sub-items-grid';
-                subItemsGrid.innerHTML = items.map(item => {
-                    const isAvailable = item.available !== false;
-                    const outOfStockClass = isAvailable ? '' : 'out-of-stock';
-                    const outOfStockBadge = isAvailable ? '' : '<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> This time product is not available</div>';
-                    const addBtnMarkup = isAvailable
-                        ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')"><i class="fa-solid fa-plus"></i> Add</button>`
-                        : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> Out of Stock</button>`;
-
-                    return `
-                    <div class="sub-item-card ${outOfStockClass}">
-                        ${outOfStockBadge}
-                        <div class="sub-item-img-wrapper">
-                            <img src="${item.img}" alt="${item.name}" class="sub-item-img" loading="lazy">
-                        </div>
-                        <div class="sub-item-details">
-                            <div class="sub-item-top-row">
-                                <span class="sub-item-name">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span>
-                                ${item.tag ? `<span class="sub-item-tag">${item.tag}</span>` : ''}
-                            </div>
-                            <p class="sub-item-desc">${item.desc}</p>
-                            <div class="sub-item-bottom-row">
-                                <span class="sub-item-price">${formatPrice(item.price)}</span>
-                                ${addBtnMarkup}
-                            </div>
-                        </div>
-                    </div>
-                    `;
-                }).join('');
-            }
-        }
+        openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
     } else if (activeTabName === 'search-results') {
         const searchInput = document.getElementById('customer-search-input');
         if (searchInput && searchInput.value.trim() !== '') {
@@ -3147,28 +2402,37 @@ function addPizzaToCart(pizzaId, event) {
     }
 
     const selectedSize = (card && card.getAttribute('data-selected-size')) || 'M';
-    const basePrice = (item.prices && item.prices[selectedSize]) || 299;
+    const origBasePrice = (item.prices && item.prices[selectedSize]) || 299;
+    const discInfo = getItemEffectiveDiscount(item);
+    const effectiveBasePrice = discInfo.isDiscountActive
+        ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+        : origBasePrice;
+
     const rates = getPizzaSizeAddonRates(selectedSize);
     const sel = cardSelectedAddons[pizzaId] || { cheese: false, spicy: false, mayo: false };
 
     const addons = [];
-    let calculatedPrice = basePrice;
+    let calculatedPrice = effectiveBasePrice;
+    let originalCalculatedPrice = origBasePrice;
 
     if (sel.cheese) {
         addons.push({ name: 'Extra Cheese', price: rates.extraCheese });
         calculatedPrice += rates.extraCheese;
+        originalCalculatedPrice += rates.extraCheese;
     }
     if (sel.spicy) {
         addons.push({ name: 'Extra Spicy', price: rates.extraSpicy });
         calculatedPrice += rates.extraSpicy;
+        originalCalculatedPrice += rates.extraSpicy;
     }
     if (sel.mayo) {
         addons.push({ name: '🍥 Extra Mayo', price: rates.extraMayo });
         calculatedPrice += rates.extraMayo;
+        originalCalculatedPrice += rates.extraMayo;
     }
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
-    addToCart(cartItemTitle, calculatedPrice, item.img, addons);
+    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice);
 }
 
 function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
@@ -3241,7 +2505,12 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const basePrice = (prices && prices.M) || 299;
                 const rates = getPizzaSizeAddonRates(selectedSize);
                 const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false, mayo: false };
-                const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(basePrice, discInfo.discountPercent)
+                    : basePrice;
+                const currentTotalOrig = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
+                const currentTotal = effectiveBasePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
 
                 const addonsMarkup = isAvailable ? `
                     <div class="burger-addon-selector pizza-addon-selector">
@@ -3261,9 +2530,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 ` : '';
 
                 return `
-                <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}">
+                <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}" data-original-price="${currentTotalOrig}">
                     ${outOfStockBadge}
                     <div class="pizza-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="pizza-card-img" loading="lazy">
                     </div>
                     <div class="pizza-card-body">
@@ -3283,7 +2553,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         
                         <div class="pizza-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="strike-${item.id}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3305,8 +2578,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
+                const origBasePrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
 
-                const currentTotal = (item.price || 99) +
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3336,6 +2619,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="${prefix}-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="${prefix}-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="${prefix}-card-img" loading="lazy">
                     </div>
                     <div class="${prefix}-card-body">
@@ -3343,7 +2627,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="${prefix}-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="${prefix}-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="${prefix}-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3364,7 +2651,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 99) +
+                const origBasePrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3394,6 +2692,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="bread-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="bread-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="bread-card-img" loading="lazy">
                     </div>
                     <div class="bread-card-body">
@@ -3401,7 +2700,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="bread-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="bread-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="bread-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3422,7 +2724,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 99) +
+                const origBasePrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3452,6 +2765,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="sandwich-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="sandwich-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="sandwich-card-img" loading="lazy">
                     </div>
                     <div class="sandwich-card-body">
@@ -3459,7 +2773,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="sandwich-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="sandwich-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3480,7 +2797,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 99) +
+                const origBasePrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3510,6 +2838,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="momos-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="momos-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="momos-card-img" loading="lazy">
                     </div>
                     <div class="momos-card-body">
@@ -3517,7 +2846,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="momos-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="momos-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3538,7 +2870,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 129) +
+                const origBasePrice = item.price || 129;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3568,6 +2911,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="pasta-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="pasta-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="pasta-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="pasta-card-body burger-card-body">
@@ -3575,7 +2919,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="pasta-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="pasta-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="pasta-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3596,7 +2943,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 129) +
+                const origBasePrice = item.price || 129;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3626,6 +2984,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="chinese-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="chinese-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="chinese-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="chinese-card-body burger-card-body">
@@ -3633,7 +2992,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="chinese-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="chinese-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="chinese-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3651,8 +3013,14 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { iceCream: false };
+                const origBasePrice = item.price || 119;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
 
-                const currentTotal = (item.price || 119) + (selected.iceCream ? iceCreamPrice : 0);
+                const currentTotalOrig = origBasePrice + (selected.iceCream ? iceCreamPrice : 0);
+                const currentTotal = effectiveBasePrice + (selected.iceCream ? iceCreamPrice : 0);
 
                 const boxesMarkup = isAvailable ? `
                     <div class="shake-addon-selector burger-addon-selector">
@@ -3673,6 +3041,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="shake-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="shake-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="shake-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="shake-card-body burger-card-body">
@@ -3680,7 +3049,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="shake-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="shake-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="shake-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3694,22 +3066,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 119;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 119}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="rice-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="rice-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="rice-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="rice-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="rice-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="rice-card-body burger-card-body">
                         <h4 class="rice-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="rice-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 119)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="rice-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3723,22 +3104,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="coffee-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="coffee-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="coffee-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="coffee-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="coffee-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="coffee-card-body burger-card-body">
                         <h4 class="coffee-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="coffee-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="coffee-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3759,7 +3149,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 119) +
+                const origBasePrice = item.price || 119;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3789,6 +3190,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="noodles-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="noodles-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="noodles-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="noodles-card-body burger-card-body">
@@ -3796,7 +3198,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         ${boxesMarkup}
                         <div class="noodles-price-row burger-price-row">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="noodles-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            <span class="card-price-container">
+                                <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                <span class="noodles-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3810,22 +3215,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 99}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="desserts-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="desserts-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="desserts-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="desserts-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="desserts-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="desserts-card-body burger-card-body">
                         <h4 class="desserts-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="desserts-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="desserts-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 99)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="desserts-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3839,22 +3253,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 69;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="salad-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 69}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="salad-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="salad-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="salad-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="salad-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="salad-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="salad-card-body burger-card-body">
                         <h4 class="salad-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${getCategoryDisplayTitle(typeof tItem === 'function' ? tItem(item.name) : item.name, categoryName)}</span></h4>
                         <div class="salad-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="salad-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 69)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="salad-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3868,22 +3291,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 89;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="side-orders-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 89}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="side-orders-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="side-orders-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="side-orders-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="side-orders-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="side-orders-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="side-orders-card-body burger-card-body">
                         <h4 class="side-orders-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="side-orders-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="side-orders-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 89)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="side-orders-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3897,22 +3329,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 40;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="cold-drinks-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 40}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="cold-drinks-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="cold-drinks-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="cold-drinks-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="cold-drinks-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="cold-drinks-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="cold-drinks-card-body burger-card-body">
                         <h4 class="cold-drinks-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="cold-drinks-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="cold-drinks-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 40)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="cold-drinks-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3926,22 +3367,31 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
+                const origPrice = item.price || 79;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
 
                 const addBtnMarkup = isAvailable
-                    ? `<button class="mojito-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price || 79}, '${item.img}')"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
+                    ? `<button class="mojito-add-cart-btn burger-add-cart-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-cart-shopping"></i> ${typeof t === 'function' ? t('add_to_cart') : 'ADD TO CART'}</button>`
                     : `<button class="mojito-add-cart-btn burger-add-cart-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'OUT OF STOCK'}</button>`;
 
                 return `
                 <div class="mojito-card burger-card ${outOfStockClass}" data-item-id="${itemId}">
                     ${outOfStockBadge}
                     <div class="mojito-card-image-wrapper burger-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="mojito-card-img burger-card-img" loading="lazy">
                     </div>
                     <div class="mojito-card-body burger-card-body">
                         <h4 class="mojito-card-title burger-card-title" title="${item.name.replace(/"/g, '&quot;')}"><span class="card-title-text">${typeof tItem === 'function' ? tItem(item.name) : item.name}</span></h4>
                         <div class="mojito-price-row burger-price-row" style="margin-top: auto; padding-top: 6px;">
                             <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                            <span class="mojito-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(item.price || 79)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="mojito-card-price burger-card-price" id="card-price-${itemId}">${formatPrice(effectivePrice)}</span>
+                            </span>
                         </div>
                     </div>
                     ${addBtnMarkup}
@@ -3962,7 +3412,18 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
                 const selected = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false };
 
-                const currentTotal = (item.price || 99) +
+                const origBasePrice = item.price || 99;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectiveBasePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origBasePrice, discInfo.discountPercent)
+                    : origBasePrice;
+
+                const currentTotalOrig = origBasePrice +
+                    (selected.cheese ? cheesePrice : 0) +
+                    (selected.spicy ? spicyPrice : 0) +
+                    (selected.mayo ? mayoPrice : 0);
+
+                const currentTotal = effectiveBasePrice +
                     (selected.cheese ? cheesePrice : 0) +
                     (selected.spicy ? spicyPrice : 0) +
                     (selected.mayo ? mayoPrice : 0);
@@ -3992,6 +3453,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 <div class="spring-rolls-card ${outOfStockClass}" data-item-id="${itemId}" data-category="Spring Rolls">
                     ${outOfStockBadge}
                     <div class="spring-rolls-card-image-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="spring-rolls-card-img" loading="lazy">
                     </div>
                     <div class="spring-rolls-card-body">
@@ -4000,7 +3462,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                             ${boxesMarkup}
                             <div class="spring-rolls-price-row">
                                 <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                                <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                                <span class="card-price-container">
+                                    <span class="original-price-strike" id="card-strike-${itemId}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                                    <span class="spring-rolls-card-price" id="card-price-${itemId}">${formatPrice(currentTotal)}</span>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -4014,14 +3479,21 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                 const isAvailable = item.available !== false;
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
+                const origPrice = Number(item.price) || 0;
+                const discInfo = getItemEffectiveDiscount(item);
+                const effectivePrice = discInfo.isDiscountActive
+                    ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                    : origPrice;
+
                 const addBtnMarkup = isAvailable
-                    ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${item.price}, '${item.img}')"><i class="fa-solid fa-plus"></i> ${typeof t === 'function' ? t('add_to_cart') : 'Add'}</button>`
+                    ? `<button class="add-subitem-btn" onclick="addToCart('${item.name.replace(/'/g, "\\'")}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-plus"></i> ${typeof t === 'function' ? t('add_to_cart') : 'Add'}</button>`
                     : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'Out of Stock'}</button>`;
 
                 return `
                 <div class="sub-item-card ${outOfStockClass}">
                     ${outOfStockBadge}
                     <div class="sub-item-img-wrapper">
+                        ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                         <img src="${item.img}" alt="${item.name}" class="sub-item-img" loading="lazy">
                     </div>
                     <div class="sub-item-details">
@@ -4031,7 +3503,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                         </div>
                         <p class="sub-item-desc">${item.desc}</p>
                         <div class="sub-item-bottom-row">
-                            <span class="sub-item-price">${formatPrice(item.price)}</span>
+                            <span class="card-price-container">
+                                ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                                <span class="sub-item-price">${formatPrice(effectivePrice)}</span>
+                            </span>
                             ${addBtnMarkup}
                         </div>
                     </div>
@@ -6319,7 +5794,7 @@ function setupFastFoodCards() {
 // --------------------------------------------------------------------------
 // 6. CART MANAGEMENT & CALCULATIONS
 // --------------------------------------------------------------------------
-function addToCart(name, price, img, addons = []) {
+function addToCart(name, price, img, addons = [], originalPrice = null) {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
@@ -6334,6 +5809,9 @@ function addToCart(name, price, img, addons = []) {
         return;
     }
 
+    const effPrice = Math.round(Number(price) || 0);
+    const origPrice = originalPrice !== null ? Math.round(Number(originalPrice) || 0) : effPrice;
+
     // Build item name and identifier taking add-ons into account
     const addonNames = Array.isArray(addons)
         ? addons.map(a => typeof a === 'string' ? a : a.name).filter(Boolean)
@@ -6345,11 +5823,14 @@ function addToCart(name, price, img, addons = []) {
     const existingIndex = cart.findIndex(item => item.name === fullItemName);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
+        cart[existingIndex].price = effPrice;
+        cart[existingIndex].originalPrice = origPrice;
     } else {
         cart.push({
             name: fullItemName,
             baseName: name,
-            price: Number(price),
+            price: effPrice,
+            originalPrice: origPrice,
             qty: 1,
             img: img || '',
             addons: addons
@@ -6420,13 +5901,18 @@ function updateCartUI() {
                 }).join('')}</div>`
                 : '';
 
+            const hasDiscount = Boolean(item.originalPrice && item.originalPrice > item.price);
+            const priceMarkup = hasDiscount
+                ? `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span>${formatPrice(item.price * item.qty)}</span>`
+                : `<span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>`;
+
             return `
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
                     <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}</h5>
                     ${addonTagsMarkup}
-                    <span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>
+                    ${priceMarkup}
                 </div>
                 <div class="qty-control">
                     <button class="qty-btn" onclick="updateQuantity(${index}, -1)">-</button>
@@ -6443,6 +5929,26 @@ function updateCartUI() {
     const freeDeliveryLim = getFreeDeliveryLimit();
 
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+
+    let totalItemDiscountSavings = 0;
+    cart.forEach(item => {
+        const origP = Number(item.originalPrice !== undefined ? item.originalPrice : item.price) || 0;
+        const effP = Number(item.price) || 0;
+        if (origP > effP) {
+            totalItemDiscountSavings += Math.round((origP - effP) * (item.qty || 1));
+        }
+    });
+
+    const itemDiscRow = document.getElementById('cart-item-discount-row');
+    const itemDiscVal = document.getElementById('cart-item-discount-val');
+    if (itemDiscRow && itemDiscVal) {
+        if (totalItemDiscountSavings > 0) {
+            itemDiscRow.style.display = 'flex';
+            itemDiscVal.textContent = `-${formatPrice(totalItemDiscountSavings)}`;
+        } else {
+            itemDiscRow.style.display = 'none';
+        }
+    }
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
 
     const deliveryFee = (cart.length > 0 && subtotal > 0)
@@ -6706,6 +6212,26 @@ function openCheckoutModal(profile) {
             deliveryEl.textContent = formatPrice(Number(deliveryFee));
         }
     }
+
+    const checkoutItemDiscRow = document.getElementById('checkout-item-discount-row');
+    const checkoutItemDiscVal = document.getElementById('checkout-item-discount-val');
+    if (checkoutItemDiscRow && checkoutItemDiscVal) {
+        let checkoutSavings = 0;
+        cart.forEach(item => {
+            const origP = Number(item.originalPrice !== undefined ? item.originalPrice : item.price) || 0;
+            const effP = Number(item.price) || 0;
+            if (origP > effP) {
+                checkoutSavings += Math.round((origP - effP) * (item.qty || 1));
+            }
+        });
+        if (checkoutSavings > 0) {
+            checkoutItemDiscRow.style.display = 'flex';
+            checkoutItemDiscVal.textContent = `-${formatPrice(checkoutSavings)}`;
+        } else {
+            checkoutItemDiscRow.style.display = 'none';
+        }
+    }
+
     if (totalEl) totalEl.textContent = formatPrice(grandTotal);
 
     // 2. Render Saved Address Summary Card inside Checkout
@@ -11876,7 +11402,12 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
             const basePrice = (prices && prices.M) || 299;
             const rates = getPizzaSizeAddonRates(selectedSize);
             const selectedAddons = cardSelectedAddons[item.id] || { cheese: false, spicy: false, mayo: false };
-            const currentTotal = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
+            const discInfo = getItemEffectiveDiscount(item);
+            const effectiveBasePrice = discInfo.isDiscountActive
+                ? calculateDiscountedPrice(basePrice, discInfo.discountPercent)
+                : basePrice;
+            const currentTotalOrig = basePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
+            const currentTotal = effectiveBasePrice + (selectedAddons.cheese ? rates.extraCheese : 0) + (selectedAddons.spicy ? rates.extraSpicy : 0) + (selectedAddons.mayo ? rates.extraMayo : 0);
 
             const addonsMarkup = isAvailable ? `
                 <div class="burger-addon-selector pizza-addon-selector">
@@ -11896,9 +11427,10 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
             ` : '';
 
             return `
-            <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}">
+            <div class="pizza-card ${outOfStockClass}" data-pizza-id="${item.id}" data-selected-size="M" data-current-price="${currentTotal}" data-original-price="${currentTotalOrig}">
                 ${outOfStockBadge}
                 <div class="pizza-card-image-wrapper">
+                    ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                     <img src="${item.img}" alt="${escapeHtml(item.name)}" class="pizza-card-img" loading="lazy">
                 </div>
                 <div class="pizza-card-body">
@@ -11918,7 +11450,10 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                     
                     <div class="pizza-price-row">
                         <span class="price-prefix">${typeof t === 'function' ? t('price_label') : 'Price:'}</span>
-                        <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
+                        <span class="card-price-container">
+                            <span class="original-price-strike" id="strike-${item.id}" style="${discInfo.isDiscountActive ? 'display:inline;' : 'display:none;'}">${formatPrice(currentTotalOrig)}</span>
+                            <span class="pizza-card-price" id="price-${item.id}">${formatPrice(currentTotal)}</span>
+                        </span>
                     </div>
                 </div>
                 ${addBtnMarkup}
@@ -11937,15 +11472,21 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
             const isAvailable = item.available !== false;
             const outOfStockClass = isAvailable ? '' : 'out-of-stock';
             const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${typeof t === 'function' ? t('product_not_available') : 'This time product is not available'}</div>`;
+            const origPrice = Number(item.price) || 199;
+            const discInfo = getItemEffectiveDiscount(item);
+            const effectivePrice = discInfo.isDiscountActive
+                ? calculateDiscountedPrice(origPrice, discInfo.discountPercent)
+                : origPrice;
 
             const addBtnMarkup = isAvailable
-                ? `<button class="add-subitem-btn" onclick="addToCart('${escapeHtml(item.name)}', ${item.price || 199}, '${item.img}')"><i class="fa-solid fa-plus"></i> ${typeof t === 'function' ? t('add_to_cart') : 'Add'}</button>`
+                ? `<button class="add-subitem-btn" onclick="addToCart('${escapeHtml(item.name)}', ${effectivePrice}, '${item.img}', [], ${origPrice})"><i class="fa-solid fa-plus"></i> ${typeof t === 'function' ? t('add_to_cart') : 'Add'}</button>`
                 : `<button class="add-subitem-btn disabled" disabled><i class="fa-solid fa-ban"></i> ${typeof t === 'function' ? t('out_of_stock') : 'Out of Stock'}</button>`;
 
             return `
             <div class="sub-item-card ${outOfStockClass}">
                 ${outOfStockBadge}
                 <div class="sub-item-img-wrapper">
+                    ${discInfo.isDiscountActive ? `<div class="item-discount-badge">${discInfo.discountPercent}% ${typeof t === 'function' ? t('off') : 'OFF'}</div>` : ''}
                     <img src="${item.img}" alt="${escapeHtml(item.name)}" class="sub-item-img" loading="lazy">
                 </div>
                 <div class="sub-item-details">
@@ -11955,7 +11496,10 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
                     </div>
                     <p class="sub-item-desc">${escapeHtml(item.desc || '')}</p>
                     <div class="sub-item-bottom-row">
-                        <span class="sub-item-price">${formatPrice(item.price || 199)}</span>
+                        <span class="card-price-container">
+                            ${discInfo.isDiscountActive ? `<span class="original-price-strike">${formatPrice(origPrice)}</span>` : ''}
+                            <span class="sub-item-price">${formatPrice(effectivePrice)}</span>
+                        </span>
                         ${addBtnMarkup}
                     </div>
                 </div>

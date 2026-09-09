@@ -255,3 +255,68 @@ export function normalizeDailyBanners(raw) {
     return normalized;
 }
 
+// --------------------------------------------------------------------------
+// CATEGORY-LEVEL MASTER DISCOUNT CONFIGURATION & PRICE CALCULATIONS
+// --------------------------------------------------------------------------
+export const DEFAULT_CATEGORY_DISCOUNTS = {
+    "Pizza": 0,
+    "Bread": 0,
+    "Burger": 0,
+    "Chinese Food": 0,
+    "Colo Drinks": 0,
+    "Pasta": 0,
+    "Desserts": 0,
+    "Shake": 0,
+    "Hot Cold Coffee": 0,
+    "Mojito": 0,
+    "Momos": 0,
+    "Noodles": 0,
+    "Rice": 0,
+    "Salad": 0,
+    "Sandwich": 0,
+    "Side Orders": 0,
+    "Spring Rolls": 0,
+    "Wrap": 0
+};
+
+/**
+ * Clamps discount percentage between 0% and 90% (integer only).
+ * @param {number|string} val 
+ * @returns {number}
+ */
+export function clampDiscountPercent(val) {
+    if (val === undefined || val === null || val === '') return 0;
+    const num = parseInt(val, 10);
+    if (isNaN(num) || num <= 0) return 0;
+    return Math.min(90, Math.max(1, num));
+}
+
+/**
+ * Calculates discounted price strictly rounded to an integer (Math.round).
+ * Add-ons must never be passed to this function as add-ons are strictly non-discountable.
+ * @param {number} basePrice 
+ * @param {number} discountPercent 
+ * @returns {number}
+ */
+export function calculateDiscountedPrice(basePrice, discountPercent) {
+    const orig = Number(basePrice) || 0;
+    if (orig <= 0) return 0;
+    const clampedPct = clampDiscountPercent(discountPercent);
+    if (clampedPct <= 0) return Math.round(orig);
+    return Math.max(0, Math.round(orig * (1 - (clampedPct / 100))));
+}
+
+/**
+ * Normalizes category discount percentages object, ensuring 0% to 90% clamping.
+ * @param {Object} raw 
+ * @returns {Object}
+ */
+export function normalizeCategoryDiscounts(raw) {
+    const res = { ...DEFAULT_CATEGORY_DISCOUNTS };
+    if (!raw || typeof raw !== 'object') return res;
+    Object.keys(raw).forEach(cat => {
+        res[cat] = clampDiscountPercent(raw[cat]);
+    });
+    return res;
+}
+

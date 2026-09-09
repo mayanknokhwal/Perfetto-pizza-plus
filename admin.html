@@ -1042,9 +1042,130 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 2px;
+        }
+
+        /* Category Master Discount Bar in Admin Subview */
+        .category-master-discount-bar {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(22, 32, 54, 0.95) 100%);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            padding: 16px 24px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .category-discount-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .category-discount-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-discount-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .category-discount-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .discount-field-box {
+            display: flex;
+            align-items: center;
+            background: #0b0f19;
+            border: 1.5px solid rgba(255, 107, 0, 0.35);
+            border-radius: 10px;
+            padding: 6px 12px;
             gap: 6px;
+            width: 130px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .discount-field-box:focus-within {
+            border-color: #ff6b00;
+            box-shadow: 0 0 12px rgba(255, 107, 0, 0.3);
+        }
+
+        .discount-num-input {
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 1.05rem;
+            font-weight: 700;
+            width: 100%;
+            outline: none;
+            font-family: var(--font-body);
+        }
+
+        .discount-percent-symbol {
+            color: #ff6b00;
+            font-weight: 800;
+            font-size: 1rem;
+        }
+
+        /* Discount Table Cell & Toggle Switch */
+        .discount-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .discount-toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .slider-discount {
+            background-color: rgba(148, 163, 184, 0.25);
+        }
+
+        input:checked + .slider-discount {
+            background-color: #ff6b00 !important;
+            box-shadow: 0 0 10px rgba(255, 107, 0, 0.4);
+        }
+
+        .discount-active-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(255, 107, 0, 0.15);
+            color: #ff6b00;
+            border: 1px solid rgba(255, 107, 0, 0.35);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .discount-off-text {
+            color: var(--text-subtle);
+            font-size: 0.78rem;
+            font-style: italic;
+        }
+
+        .discount-preview-sub {
+            font-size: 0.72rem;
+            color: #10b981;
+            font-weight: 600;
+            margin-top: 2px;
         }
 
         .table-container {
@@ -4040,6 +4161,24 @@
                         </div>
                     </div>
 
+                    <!-- CATEGORY MASTER DISCOUNT BAR -->
+                    <div id="category-master-discount-bar" class="category-master-discount-bar">
+                        <div class="category-discount-info">
+                            <div class="category-discount-title">
+                                <i class="fa-solid fa-percent" style="color: #ff6b00;"></i> Category Master Discount (<span id="discount-cat-name">Category</span>)
+                                <span class="draft-badge" id="category-discount-draft-badge" style="display: none;"><i class="fa-solid fa-pen"></i> Unsaved Draft</span>
+                            </div>
+                            <div class="category-discount-desc">Set master discount % (1% – 90%). Items with "Discount Active" enabled automatically inherit this discount.</div>
+                        </div>
+                        <div class="category-discount-input-wrapper">
+                            <label for="category-discount-input" style="font-size: 0.82rem; font-weight: 700; color: #cbd5e1;">Master Discount:</label>
+                            <div class="discount-field-box">
+                                <input type="number" id="category-discount-input" min="0" max="90" step="1" placeholder="0" class="discount-num-input" oninput="handleCategoryDiscountInputChange()" onchange="handleCategoryDiscountInputChange()">
+                                <span class="discount-percent-symbol">% OFF</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- CATEGORY LEVEL ADD-ONS PRICING BAR (Burger, Wrap & Pizza) -->
                     <div id="category-addons-bar" class="category-addons-bar" style="display: none;">
                         <div class="category-addons-info">
@@ -4181,6 +4320,7 @@
                                     <th>Image</th>
                                     <th>Item Name</th>
                                     <th>Price / Size Prices (₹)</th>
+                                    <th>Discount</th>
                                     <th>Availability</th>
                                 </tr>
                             </thead>
@@ -4229,6 +4369,7 @@
                                         <th>Image</th>
                                         <th>Item Name & Category</th>
                                         <th>Price / Size Prices (₹)</th>
+                                        <th>Discount</th>
                                         <th>Availability</th>
                                     </tr>
                                 </thead>
@@ -4612,6 +4753,7 @@
 
         const STORAGE_KEY = 'menuData';
         const CATEGORY_ADDONS_STORAGE_KEY = 'perfetto_category_addons';
+        const CATEGORY_DISCOUNTS_STORAGE_KEY = 'perfetto_category_discounts';
 
         const DEFAULT_CATEGORY_ADDONS = {
             "Burger": {
@@ -4675,7 +4817,9 @@
         let committedMenuItems = []; // Cloud-synced pristine snapshot
         let categoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
         let committedCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
-        let pendingMenuUpdates = {}; // Map of itemId / category_addon_* -> update payload
+        let categoryDiscounts = {};
+        let committedCategoryDiscounts = {};
+        let pendingMenuUpdates = {}; // Map of itemId / category_addon_* / category_discount_* -> update payload
         let activeCategory = null; // null = Step 1 Grid, string = Step 2 Category Sub-view
 
         // HELPER TO REFRESH UNSAVED CHANGES BADGES & PULSING SAVE BUTTON
@@ -4703,12 +4847,18 @@
                 }
             }
 
-            // Update addons bar draft badge
+            // Update addons bar draft badge & category discount draft badge
             if (activeCategory) {
                 const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${activeCategory}`]);
                 const draftBadge = document.getElementById('addons-draft-badge');
                 if (draftBadge) {
                     draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                }
+
+                const isDiscountModified = Boolean(pendingMenuUpdates[`category_discount_${activeCategory}`]);
+                const discountDraftBadge = document.getElementById('category-discount-draft-badge');
+                if (discountDraftBadge) {
+                    discountDraftBadge.style.display = isDiscountModified ? 'inline-flex' : 'none';
                 }
             }
 
@@ -4993,6 +5143,18 @@
                             categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...docSnap.data().categoryAddons };
                             committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
                         }
+                        if (docSnap.data().categoryDiscounts) {
+                            categoryDiscounts = { ...docSnap.data().categoryDiscounts };
+                            committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
+                        } else {
+                            try {
+                                const storedDisc = localStorage.getItem(CATEGORY_DISCOUNTS_STORAGE_KEY);
+                                if (storedDisc) {
+                                    categoryDiscounts = JSON.parse(storedDisc);
+                                    committedCategoryDiscounts = JSON.parse(storedDisc);
+                                }
+                            } catch (e) {}
+                        }
                         pendingMenuUpdates = {};
                         saveToLocalStorage();
                         isMenuInitialLoading = false;
@@ -5022,6 +5184,18 @@
                     if (data.categoryAddons) {
                         categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons };
                         committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                    }
+                    if (data.categoryDiscounts) {
+                        categoryDiscounts = { ...data.categoryDiscounts };
+                        committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
+                    } else {
+                        try {
+                            const storedDisc = localStorage.getItem(CATEGORY_DISCOUNTS_STORAGE_KEY);
+                            if (storedDisc) {
+                                categoryDiscounts = JSON.parse(storedDisc);
+                                committedCategoryDiscounts = JSON.parse(storedDisc);
+                            }
+                        } catch (e) {}
                     }
                     pendingMenuUpdates = {};
                     saveToLocalStorage();
@@ -5072,6 +5246,7 @@
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(menuItems));
                 localStorage.setItem(CATEGORY_ADDONS_STORAGE_KEY, JSON.stringify(categoryAddons));
+                localStorage.setItem(CATEGORY_DISCOUNTS_STORAGE_KEY, JSON.stringify(categoryDiscounts));
             } catch (e) {
                 console.error('Failed to save to localStorage:', e);
             }
@@ -5163,6 +5338,22 @@
             const imgEl = document.getElementById('subview-cat-img');
             if (titleEl) titleEl.textContent = `${catMeta.name} Menu`;
             if (imgEl) imgEl.src = catMeta.img;
+
+            // Handle Category Master Discount Control Bar
+            const discountBar = document.getElementById('category-master-discount-bar');
+            if (discountBar) {
+                discountBar.style.display = 'flex';
+                const discountCatName = document.getElementById('discount-cat-name');
+                const discountInput = document.getElementById('category-discount-input');
+                const discountDraftBadge = document.getElementById('category-discount-draft-badge');
+
+                if (discountCatName) discountCatName.textContent = catMeta.name;
+                const activeDiscount = categoryDiscounts[categoryName] || 0;
+                if (discountInput) discountInput.value = activeDiscount;
+
+                const isDiscountModified = Boolean(pendingMenuUpdates[`category_discount_${categoryName}`]);
+                if (discountDraftBadge) discountDraftBadge.style.display = isDiscountModified ? 'inline-flex' : 'none';
+            }
 
             // Handle Category Add-ons Pricing Bar (Burger, Wrap, Bread, Sandwich, Momos, Pasta, Shake, Chinese Food, Noodles & Spring Rolls)
             const addonsBar = document.getElementById('category-addons-bar');
@@ -5375,6 +5566,153 @@
 
             updateUnsavedChangesUI();
         }
+
+        // HANDLE CATEGORY-LEVEL MASTER DISCOUNT CHANGE (1% - 90% clamped)
+        function handleCategoryDiscountInputChange() {
+            if (!activeCategory) return;
+            const input = document.getElementById('category-discount-input');
+            if (!input) return;
+
+            let val = parseInt(input.value, 10);
+            if (isNaN(val) || val < 0) val = 0;
+            if (val > 90) val = 90;
+            input.value = val;
+
+            categoryDiscounts[activeCategory] = val;
+
+            const origVal = committedCategoryDiscounts[activeCategory] || 0;
+            const isModified = val !== origVal;
+            const updateKey = `category_discount_${activeCategory}`;
+
+            if (isModified) {
+                pendingMenuUpdates[updateKey] = { category: activeCategory, masterDiscountPercent: val };
+            } else {
+                delete pendingMenuUpdates[updateKey];
+            }
+
+            // Sync all items in this category that have isDiscountActive: true
+            menuItems.forEach(item => {
+                if (item.category === activeCategory && item.isDiscountActive) {
+                    item.appliedDiscountPercent = val;
+                    if (!pendingMenuUpdates[item.id]) pendingMenuUpdates[item.id] = { id: item.id };
+                    pendingMenuUpdates[item.id].isDiscountActive = true;
+                    pendingMenuUpdates[item.id].appliedDiscountPercent = val;
+                }
+            });
+
+            const draftBadge = document.getElementById('category-discount-draft-badge');
+            if (draftBadge) {
+                draftBadge.style.display = isModified ? 'inline-flex' : 'none';
+            }
+
+            renderCategoryItemsTable();
+            updateUnsavedChangesUI();
+        }
+        window.handleCategoryDiscountInputChange = handleCategoryDiscountInputChange;
+
+        // HELPER TO UPDATE DISCOUNT PREVIEW TEXT IN TABLE ROW
+        function updateDiscountPricePreviewInRow(item) {
+            const discountPercent = categoryDiscounts[item.category] || 0;
+            const previewEls = [
+                document.getElementById(`discount-preview-${item.id}`),
+                document.getElementById(`search-discount-preview-${item.id}`)
+            ];
+            previewEls.forEach(el => {
+                if (!el) return;
+                if (item.isDiscountActive && discountPercent > 0) {
+                    if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
+                        const p = item.prices || { S: 199, M: 299, L: 399 };
+                        const sDisc = Math.round(p.S * (1 - discountPercent / 100));
+                        const mDisc = Math.round(p.M * (1 - discountPercent / 100));
+                        const lDisc = Math.round(p.L * (1 - discountPercent / 100));
+                        el.innerHTML = `<span style="color:#10b981;font-weight:700;">S: ₹${sDisc} | M: ₹${mDisc} | L: ₹${lDisc}</span>`;
+                    } else {
+                        const baseP = item.price || 0;
+                        const discP = Math.round(baseP * (1 - discountPercent / 100));
+                        el.innerHTML = `<span style="color:#10b981;font-weight:700;">₹${discP}</span> <span style="text-decoration:line-through;opacity:0.6;font-size:0.75rem;">₹${baseP}</span>`;
+                    }
+                    el.style.display = 'block';
+                } else {
+                    el.innerHTML = '';
+                    el.style.display = 'none';
+                }
+            });
+        }
+
+        // TOGGLE PER-ITEM DISCOUNT IN TABLE (LOCAL DRAFT MODE)
+        function toggleItemDiscount(id, fromSearch = false) {
+            const mainToggle = document.getElementById(`discount-toggle-${id}`);
+            const searchToggle = document.getElementById(`search-discount-toggle-${id}`);
+            const sourceToggle = fromSearch ? (searchToggle || mainToggle) : (mainToggle || searchToggle);
+            if (!sourceToggle) return;
+
+            const isDiscountActive = sourceToggle.checked;
+            if (mainToggle && mainToggle !== sourceToggle) mainToggle.checked = isDiscountActive;
+            if (searchToggle && searchToggle !== sourceToggle) searchToggle.checked = isDiscountActive;
+
+            const item = menuItems.find(i => String(i.id) === String(id));
+            if (!item) return;
+
+            const catDiscount = categoryDiscounts[item.category] || 0;
+            item.isDiscountActive = isDiscountActive;
+            item.appliedDiscountPercent = isDiscountActive ? catDiscount : 0;
+
+            const orig = committedMenuItems.find(i => String(i.id) === String(id));
+            const origActive = orig ? Boolean(orig.isDiscountActive) : false;
+            const origPercent = orig ? (orig.appliedDiscountPercent || 0) : 0;
+
+            const isModified = (item.isDiscountActive !== origActive) || (item.appliedDiscountPercent !== origPercent);
+
+            if (!pendingMenuUpdates[item.id]) {
+                pendingMenuUpdates[item.id] = { id: item.id };
+            }
+            pendingMenuUpdates[item.id].isDiscountActive = item.isDiscountActive;
+            pendingMenuUpdates[item.id].appliedDiscountPercent = item.appliedDiscountPercent;
+
+            const priceDiff = (item.isMultiSize || item.prices)
+                ? JSON.stringify(item.prices) !== JSON.stringify(orig ? orig.prices : null)
+                : item.price !== (orig ? orig.price : null);
+            const availDiff = orig ? item.available !== orig.available : false;
+
+            if (!isModified && !priceDiff && !availDiff) {
+                delete pendingMenuUpdates[item.id];
+            }
+
+            const mainRow = document.getElementById(`row-${item.id}`);
+            const searchRow = document.getElementById(`search-row-${item.id}`);
+            const hasPending = Boolean(pendingMenuUpdates[item.id]);
+
+            [mainRow, searchRow].forEach(row => {
+                if (row) {
+                    if (hasPending) row.classList.add('row-has-unsaved-changes');
+                    else row.classList.remove('row-has-unsaved-changes');
+                }
+            });
+
+            const mainBadge = document.getElementById(`draft-badge-${item.id}`);
+            const searchBadge = document.getElementById(`search-draft-badge-${item.id}`);
+            if (mainBadge) mainBadge.style.display = hasPending ? 'inline-flex' : 'none';
+            if (searchBadge) searchBadge.style.display = hasPending ? 'inline-flex' : 'none';
+
+            const discountPercent = categoryDiscounts[item.category] || 0;
+            const discountStatusEl = document.getElementById(`discount-status-${item.id}`);
+            const searchDiscountStatusEl = document.getElementById(`search-discount-status-${item.id}`);
+            const discountText = isDiscountActive ? (discountPercent > 0 ? `${discountPercent}% OFF` : 'Active') : 'No Discount';
+            const discountClass = `discount-off-text ${isDiscountActive ? 'active' : 'inactive'}`;
+
+            if (discountStatusEl) {
+                discountStatusEl.textContent = discountText;
+                discountStatusEl.className = discountClass;
+            }
+            if (searchDiscountStatusEl) {
+                searchDiscountStatusEl.textContent = discountText;
+                searchDiscountStatusEl.className = discountClass;
+            }
+
+            updateDiscountPricePreviewInRow(item);
+            updateUnsavedChangesUI();
+        }
+        window.toggleItemDiscount = toggleItemDiscount;
 
         // RETURN TO STEP 1 CATEGORIES
         function showCategoryStep1(isPopState = false) {
@@ -5678,6 +6016,23 @@
 
                 const catNameDisplay = (CATEGORY_META[item.category] && CATEGORY_META[item.category].name) || item.category;
 
+                const discountPercent = categoryDiscounts[item.category] || 0;
+                const isDiscActive = Boolean(item.isDiscountActive);
+                let discountPreviewHtml = '';
+                if (isDiscActive && discountPercent > 0) {
+                    if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
+                        const p = item.prices || { S: 199, M: 299, L: 399 };
+                        const sDisc = Math.round(p.S * (1 - discountPercent / 100));
+                        const mDisc = Math.round(p.M * (1 - discountPercent / 100));
+                        const lDisc = Math.round(p.L * (1 - discountPercent / 100));
+                        discountPreviewHtml = `<span style="color:#10b981;font-weight:700;">S: ₹${sDisc} | M: ₹${mDisc} | L: ₹${lDisc}</span>`;
+                    } else {
+                        const baseP = item.price || 0;
+                        const discP = Math.round(baseP * (1 - discountPercent / 100));
+                        discountPreviewHtml = `<span style="color:#10b981;font-weight:700;">₹${discP}</span> <span style="text-decoration:line-through;opacity:0.6;font-size:0.75rem;">₹${baseP}</span>`;
+                    }
+                }
+
                 tr.innerHTML = `
                     <td>
                         <img src="${item.img}" alt="${item.name}" class="item-thumb">
@@ -5694,6 +6049,25 @@
                     </td>
                     <td>
                         ${priceHtml}
+                    </td>
+                    <td>
+                        <div class="discount-cell">
+                            <label class="switch">
+                                <input 
+                                    type="checkbox" 
+                                    id="search-discount-toggle-${item.id}" 
+                                    ${isDiscActive ? 'checked' : ''} 
+                                    onchange="toggleItemDiscount('${item.id}', true)"
+                                >
+                                <span class="slider slider-discount"></span>
+                            </label>
+                            <span class="discount-off-text ${isDiscActive ? 'active' : 'inactive'}" id="search-discount-status-${item.id}">
+                                ${isDiscActive ? (discountPercent > 0 ? `${discountPercent}% OFF` : 'Active') : 'No Discount'}
+                            </span>
+                            <div class="discount-preview-sub" id="search-discount-preview-${item.id}" style="${isDiscActive && discountPercent > 0 ? 'display:block;' : 'display:none;'}">
+                                ${discountPreviewHtml}
+                            </div>
+                        </div>
                     </td>
                     <td>
                         <div class="status-cell">
@@ -5751,7 +6125,7 @@
             if (categoryItems.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 40px;">
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 40px;">
                             No items found in this category.
                         </td>
                     </tr>
@@ -5793,6 +6167,23 @@
                     `;
                 }
 
+                const discountPercent = categoryDiscounts[item.category] || 0;
+                const isDiscActive = Boolean(item.isDiscountActive);
+                let discountPreviewHtml = '';
+                if (isDiscActive && discountPercent > 0) {
+                    if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
+                        const p = item.prices || { S: 199, M: 299, L: 399 };
+                        const sDisc = Math.round(p.S * (1 - discountPercent / 100));
+                        const mDisc = Math.round(p.M * (1 - discountPercent / 100));
+                        const lDisc = Math.round(p.L * (1 - discountPercent / 100));
+                        discountPreviewHtml = `<span style="color:#10b981;font-weight:700;">S: ₹${sDisc} | M: ₹${mDisc} | L: ₹${lDisc}</span>`;
+                    } else {
+                        const baseP = item.price || 0;
+                        const discP = Math.round(baseP * (1 - discountPercent / 100));
+                        discountPreviewHtml = `<span style="color:#10b981;font-weight:700;">₹${discP}</span> <span style="text-decoration:line-through;opacity:0.6;font-size:0.75rem;">₹${baseP}</span>`;
+                    }
+                }
+
                 tr.innerHTML = `
                     <td>
                         <img src="${item.img}" alt="${item.name}" class="item-thumb">
@@ -5808,6 +6199,25 @@
                     </td>
                     <td>
                         ${priceHtml}
+                    </td>
+                    <td>
+                        <div class="discount-cell">
+                            <label class="switch">
+                                <input 
+                                    type="checkbox" 
+                                    id="discount-toggle-${item.id}" 
+                                    ${isDiscActive ? 'checked' : ''} 
+                                    onchange="toggleItemDiscount('${item.id}', false)"
+                                >
+                                <span class="slider slider-discount"></span>
+                            </label>
+                            <span class="discount-off-text ${isDiscActive ? 'active' : 'inactive'}" id="discount-status-${item.id}">
+                                ${isDiscActive ? (discountPercent > 0 ? `${discountPercent}% OFF` : 'Active') : 'No Discount'}
+                            </span>
+                            <div class="discount-preview-sub" id="discount-preview-${item.id}" style="${isDiscActive && discountPercent > 0 ? 'display:block;' : 'display:none;'}">
+                                ${discountPreviewHtml}
+                            </div>
+                        </div>
                     </td>
                     <td>
                         <div class="status-cell">
@@ -5984,11 +6394,31 @@
             if (saveBtnText) saveBtnText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving All...';
 
             try {
-                // 1. Flush all active DOM inputs into menuItems and pendingMenuUpdates
+                // 1. Flush active category discount input if in category view
+                if (activeCategory) {
+                    const discountInput = document.getElementById('category-discount-input');
+                    if (discountInput) {
+                        let dVal = parseInt(discountInput.value, 10);
+                        if (isNaN(dVal) || dVal < 0) dVal = 0;
+                        if (dVal > 90) dVal = 90;
+                        categoryDiscounts[activeCategory] = dVal;
+                        if (dVal !== (committedCategoryDiscounts[activeCategory] || 0)) {
+                            pendingMenuUpdates[`category_discount_${activeCategory}`] = { category: activeCategory, masterDiscountPercent: dVal };
+                        }
+                    }
+                }
+
+                // 2. Flush all active DOM inputs into menuItems and pendingMenuUpdates
                 menuItems.forEach(item => {
                     const toggleInput = document.getElementById(`toggle-${item.id}`) || document.getElementById(`search-toggle-${item.id}`);
                     if (toggleInput) {
                         item.available = toggleInput.checked;
+                    }
+
+                    const discountToggle = document.getElementById(`discount-toggle-${item.id}`) || document.getElementById(`search-discount-toggle-${item.id}`);
+                    if (discountToggle) {
+                        item.isDiscountActive = discountToggle.checked;
+                        item.appliedDiscountPercent = item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0;
                     }
 
                     if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
@@ -6013,10 +6443,14 @@
                         const priceDiff = (item.isMultiSize || item.prices)
                             ? JSON.stringify(item.prices) !== JSON.stringify(orig.prices)
                             : item.price !== orig.price;
+                        const discountDiff = (Boolean(item.isDiscountActive) !== Boolean(orig.isDiscountActive)) ||
+                                             ((item.appliedDiscountPercent || 0) !== (orig.appliedDiscountPercent || 0));
 
-                        if (availDiff || priceDiff) {
+                        if (availDiff || priceDiff || discountDiff) {
                             if (!pendingMenuUpdates[item.id]) pendingMenuUpdates[item.id] = { id: item.id };
                             pendingMenuUpdates[item.id].available = item.available;
+                            pendingMenuUpdates[item.id].isDiscountActive = Boolean(item.isDiscountActive);
+                            pendingMenuUpdates[item.id].appliedDiscountPercent = item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0;
                             if (item.isMultiSize || item.prices) pendingMenuUpdates[item.id].prices = { ...item.prices };
                             else pendingMenuUpdates[item.id].price = item.price;
                         }
@@ -6075,6 +6509,8 @@
                                         name: item.name,
                                         category: item.category,
                                         available: item.available !== false,
+                                        isDiscountActive: Boolean(item.isDiscountActive),
+                                        appliedDiscountPercent: item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0,
                                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                                     };
                                     if (item.isMultiSize || item.prices) {
@@ -6088,10 +6524,21 @@
                                 }
                             });
 
+                            // Save category-level master discounts to categories/{catId}
+                            Object.keys(categoryDiscounts).forEach(catId => {
+                                const catDocRef = adminFirestore.collection('categories').doc(catId);
+                                batch.set(catDocRef, {
+                                    id: catId,
+                                    masterDiscountPercent: categoryDiscounts[catId] || 0,
+                                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                                }, { merge: true });
+                            });
+
                             const settingsMenuRef = adminFirestore.collection('settings').doc('menu');
                             batch.set(settingsMenuRef, {
                                 items: menuItems,
                                 categoryAddons: categoryAddons,
+                                categoryDiscounts: categoryDiscounts,
                                 lastUpdated: Date.now()
                             }, { merge: true });
 
@@ -6107,7 +6554,7 @@
                     try {
                         const res = await apiCall('/menu', {
                             method: 'PUT',
-                            body: JSON.stringify({ items: menuItems, categoryAddons: categoryAddons })
+                            body: JSON.stringify({ items: menuItems, categoryAddons: categoryAddons, categoryDiscounts: categoryDiscounts })
                         });
                         if (!res.ok) {
                             const errData = await res.json().catch(() => ({}));
@@ -6119,6 +6566,7 @@
 
                     committedMenuItems = JSON.parse(JSON.stringify(menuItems));
                     committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                    committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
                     pendingMenuUpdates = {};
                     saveToLocalStorage();
                     updateStats();
@@ -9795,6 +10243,11 @@
                         if (doc.data().categoryAddons) {
                             categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
                             committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                        }
+
+                        if (doc.data().categoryDiscounts) {
+                            categoryDiscounts = { ...doc.data().categoryDiscounts };
+                            committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
                         }
 
                         if (JSON.stringify(freshItems) !== JSON.stringify(committedMenuItems)) {
