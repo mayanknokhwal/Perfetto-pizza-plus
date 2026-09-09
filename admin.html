@@ -1334,6 +1334,20 @@
             outline: none;
         }
 
+        /* STRICT PRICE VALIDATION ERROR STYLING */
+        .price-field-invalid {
+            color: #ef4444 !important;
+        }
+
+        .size-input-group.price-group-invalid,
+        .single-price-wrapper.price-group-invalid,
+        .size-input-group:has(.price-field-invalid),
+        .single-price-wrapper:has(.price-field-invalid) {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+            background-color: rgba(239, 68, 68, 0.08) !important;
+        }
+
         /* HIDE NUMBER INPUT SPINNERS (ARROWS) ACROSS BROWSERS */
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
@@ -3103,6 +3117,23 @@
             .store-settings-card {
                 padding: 34px 40px;
             }
+        }
+
+        /* ADMIN MENU PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE LADDER) */
+        .price-field-invalid {
+            border-color: #ef4444 !important;
+            color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+            background-color: rgba(239, 68, 68, 0.08) !important;
+        }
+
+        .size-input-group.price-group-invalid,
+        .single-price-wrapper.price-group-invalid,
+        .size-input-group:has(.price-field-invalid),
+        .single-price-wrapper:has(.price-field-invalid) {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+            background-color: rgba(239, 68, 68, 0.08) !important;
         }
     </style>
 </head>
@@ -5993,15 +6024,15 @@
                         <div class="size-prices-grid">
                             <div class="size-input-group">
                                 <span class="size-tag tag-s">S</span>
-                                <input type="number" class="price-field-sm price-field-s" id="search-price-s-${item.id}" value="${p.S}" min="0" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                                <input type="number" class="price-field-sm price-field-s" id="search-price-s-${item.id}" value="${p.S}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                             </div>
                             <div class="size-input-group">
                                 <span class="size-tag tag-m">M</span>
-                                <input type="number" class="price-field-sm price-field-m" id="search-price-m-${item.id}" value="${p.M}" min="0" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                                <input type="number" class="price-field-sm price-field-m" id="search-price-m-${item.id}" value="${p.M}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                             </div>
                             <div class="size-input-group">
                                 <span class="size-tag tag-l">L</span>
-                                <input type="number" class="price-field-sm price-field-l" id="search-price-l-${item.id}" value="${p.L}" min="0" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                                <input type="number" class="price-field-sm price-field-l" id="search-price-l-${item.id}" value="${p.L}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                             </div>
                         </div>
                     `;
@@ -6009,7 +6040,7 @@
                     priceHtml = `
                         <div class="single-price-wrapper">
                             <span class="price-currency">₹</span>
-                            <input type="number" class="price-field-single price-field-val" id="search-price-single-${item.id}" value="${item.price || 0}" min="0" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                            <input type="number" class="price-field-single price-field-val" id="search-price-single-${item.id}" value="${item.price || 0}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                         </div>
                     `;
                 }
@@ -6146,15 +6177,15 @@
                         <div class="size-prices-grid">
                             <div class="size-input-group">
                                  <span class="size-tag tag-s">S</span>
-                                 <input type="number" class="price-field-sm price-field-s" id="price-s-${item.id}" value="${p.S}" min="0" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                                 <input type="number" class="price-field-sm price-field-s" id="price-s-${item.id}" value="${p.S}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                             </div>
                             <div class="size-input-group">
                                  <span class="size-tag tag-m">M</span>
-                                 <input type="number" class="price-field-sm price-field-m" id="price-m-${item.id}" value="${p.M}" min="0" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                                 <input type="number" class="price-field-sm price-field-m" id="price-m-${item.id}" value="${p.M}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                             </div>
                             <div class="size-input-group">
                                  <span class="size-tag tag-l">L</span>
-                                 <input type="number" class="price-field-sm price-field-l" id="price-l-${item.id}" value="${p.L}" min="0" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                                 <input type="number" class="price-field-sm price-field-l" id="price-l-${item.id}" value="${p.L}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                             </div>
                         </div>
                     `;
@@ -6162,7 +6193,7 @@
                     priceHtml = `
                         <div class="single-price-wrapper">
                             <span class="price-currency">₹</span>
-                            <input type="number" class="price-field-single price-field-val" id="price-single-${item.id}" value="${item.price || 0}" min="0" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                            <input type="number" class="price-field-single price-field-val" id="price-single-${item.id}" value="${item.price || 0}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                         </div>
                     `;
                 }
@@ -6381,8 +6412,114 @@
                 else pendingMenuUpdates[id].price = item.price;
             }
 
+            // Clear previous validation error highlights for this item
+            ['s', 'm', 'l', 'single'].forEach(k => {
+                const el = document.getElementById(`${prefix}price-${k}-${id}`) || document.getElementById(`price-${k}-${id}`);
+                if (el) {
+                    el.classList.remove('price-field-invalid');
+                    const grp = el.closest('.size-input-group, .single-price-wrapper');
+                    if (grp) grp.classList.remove('price-group-invalid');
+                }
+            });
+
             updateUnsavedChangesUI();
         }
+
+        // 5.1 STRICT PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE PRICE LADDER)
+        const MIN_MENU_ITEM_PRICE = 10;
+
+        function validateMenuPricesForSave() {
+            // Clear any prior validation highlights
+            document.querySelectorAll('.price-field-invalid').forEach(el => el.classList.remove('price-field-invalid'));
+            document.querySelectorAll('.price-group-invalid').forEach(el => el.classList.remove('price-group-invalid'));
+
+            let firstInvalidEl = null;
+            let firstErrorMsg = '';
+
+            for (const item of menuItems) {
+                // Category add-ons (Extra Cheese, Mayo, Spicy, etc.) are explicitly exempt
+                if (item.isAddon || item.category === 'Addons' || item.category === 'addon') continue;
+
+                const itemName = item.name || 'Item';
+                const isMulti = item.isMultiSize || item.category === 'Pizza' || (item.prices && typeof item.prices === 'object');
+
+                if (isMulti) {
+                    const p = item.prices || {};
+                    const pS = Number(p.S);
+                    const pM = Number(p.M);
+                    const pL = Number(p.L);
+
+                    let errorMsg = '';
+                    let invalidFieldKey = '';
+
+                    // 1. Universal minimum price constraint (>= ₹10)
+                    if (isNaN(pS) || pS < MIN_MENU_ITEM_PRICE) {
+                        errorMsg = `Error: ${itemName} Small price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                        invalidFieldKey = 's';
+                    } else if (isNaN(pM) || pM < MIN_MENU_ITEM_PRICE) {
+                        errorMsg = `Error: ${itemName} Medium price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                        invalidFieldKey = 'm';
+                    } else if (isNaN(pL) || pL < MIN_MENU_ITEM_PRICE) {
+                        errorMsg = `Error: ${itemName} Large price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                        invalidFieldKey = 'l';
+                    }
+                    // 2. Strict Pizza Size Price Ladder (Small < Medium < Large => Medium >= Small + 1, Large >= Medium + 1)
+                    else if (pM <= pS) {
+                        errorMsg = `Error: ${itemName} Medium price must be at least ₹1 higher than Small price`;
+                        invalidFieldKey = 'm';
+                    } else if (pL <= pM) {
+                        errorMsg = `Error: ${itemName} Large price must be at least ₹1 higher than Medium price`;
+                        invalidFieldKey = 'l';
+                    }
+
+                    if (errorMsg) {
+                        const el = document.getElementById(`price-${invalidFieldKey}-${item.id}`) ||
+                                   document.getElementById(`search-price-${invalidFieldKey}-${item.id}`);
+                        if (el) {
+                            el.classList.add('price-field-invalid');
+                            const grp = el.closest('.size-input-group');
+                            if (grp) grp.classList.add('price-group-invalid');
+                            if (!firstInvalidEl) firstInvalidEl = el;
+                        }
+                        if (!firstErrorMsg) firstErrorMsg = errorMsg;
+                    }
+                } else {
+                    const singlePrice = Number(item.price);
+                    if (isNaN(singlePrice) || singlePrice < MIN_MENU_ITEM_PRICE) {
+                        const errorMsg = `Error: ${itemName} price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                        const el = document.getElementById(`price-single-${item.id}`) ||
+                                   document.getElementById(`search-price-single-${item.id}`);
+                        if (el) {
+                            el.classList.add('price-field-invalid');
+                            const grp = el.closest('.single-price-wrapper');
+                            if (grp) grp.classList.add('price-group-invalid');
+                            if (!firstInvalidEl) firstInvalidEl = el;
+                        }
+                        if (!firstErrorMsg) firstErrorMsg = errorMsg;
+                    }
+                }
+            }
+
+            if (firstErrorMsg) {
+                showToast(firstErrorMsg);
+                if (firstInvalidEl) {
+                    firstInvalidEl.focus();
+                    firstInvalidEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                return false;
+            }
+
+            return true;
+        }
+
+        // Global live input listener to immediately remove error styling on user correction
+        document.addEventListener('input', function(e) {
+            if (e.target && e.target.classList && (e.target.classList.contains('price-field-invalid') || e.target.classList.contains('price-field-sm') || e.target.classList.contains('price-field-single'))) {
+                e.target.classList.remove('price-field-invalid');
+                const grp = e.target.closest('.size-input-group, .single-price-wrapper');
+                if (grp) grp.classList.remove('price-group-invalid');
+            }
+        });
 
         // 6. GLOBAL SAVE BUTTON (EXPLICIT BATCH COMMIT ON "SAVE ALL CHANGES")
         async function saveAllChanges() {
@@ -6456,6 +6593,13 @@
                         }
                     }
                 });
+
+                // 2.1 Enforce strict price validation (min ₹10 and pizza size ladder)
+                if (!validateMenuPricesForSave()) {
+                    if (saveBtn) saveBtn.disabled = false;
+                    if (saveBtnText) saveBtnText.innerHTML = origText;
+                    return;
+                }
 
                 // 2. Atomically validate and persist Store Settings
                 if (typeof saveOrderSettings === 'function') {

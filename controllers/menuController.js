@@ -287,6 +287,33 @@ async function handleMenuRequest(req, res) {
                 return res.status(400).json({ success: false, message: 'Missing required field: id' });
             }
 
+            // Strict price validation (min ₹10 rule and pizza size ladder)
+            if (prices !== undefined && typeof prices === 'object') {
+                const pS = Number(prices.S);
+                const pM = Number(prices.M);
+                const pL = Number(prices.L);
+                if (isNaN(pS) || pS < 10) {
+                    return res.status(400).json({ success: false, message: 'Small price cannot be less than ₹10' });
+                }
+                if (isNaN(pM) || pM < 10) {
+                    return res.status(400).json({ success: false, message: 'Medium price cannot be less than ₹10' });
+                }
+                if (isNaN(pL) || pL < 10) {
+                    return res.status(400).json({ success: false, message: 'Large price cannot be less than ₹10' });
+                }
+                if (pM <= pS) {
+                    return res.status(400).json({ success: false, message: 'Medium price must be at least ₹1 higher than Small price' });
+                }
+                if (pL <= pM) {
+                    return res.status(400).json({ success: false, message: 'Large price must be at least ₹1 higher than Medium price' });
+                }
+            } else if (price !== undefined) {
+                const numPrice = Number(price);
+                if (isNaN(numPrice) || numPrice < 10) {
+                    return res.status(400).json({ success: false, message: 'Price cannot be less than ₹10' });
+                }
+            }
+
             const targetId = String(id);
             const { items: allItems, categoryAddons, categoryDiscounts } = await getLiveMenuFromFirestore();
             let items = [...allItems];
@@ -356,6 +383,39 @@ async function handleMenuRequest(req, res) {
 
             if (!Array.isArray(rawItems) || rawItems.length === 0) {
                 return res.status(400).json({ success: false, message: 'Missing or invalid items array' });
+            }
+
+            // Strict price validation for all items when not resetting to defaults
+            if (!isReset) {
+                for (const item of rawItems) {
+                    const itemName = item.name || 'Item';
+                    if (item.isMultiSize || item.category === 'Pizza' || (item.prices && typeof item.prices === 'object')) {
+                        const p = item.prices || {};
+                        const pS = Number(p.S);
+                        const pM = Number(p.M);
+                        const pL = Number(p.L);
+                        if (isNaN(pS) || pS < 10) {
+                            return res.status(400).json({ success: false, message: `${itemName} Small price cannot be less than ₹10` });
+                        }
+                        if (isNaN(pM) || pM < 10) {
+                            return res.status(400).json({ success: false, message: `${itemName} Medium price cannot be less than ₹10` });
+                        }
+                        if (isNaN(pL) || pL < 10) {
+                            return res.status(400).json({ success: false, message: `${itemName} Large price cannot be less than ₹10` });
+                        }
+                        if (pM <= pS) {
+                            return res.status(400).json({ success: false, message: `${itemName} Medium price must be at least ₹1 higher than Small price` });
+                        }
+                        if (pL <= pM) {
+                            return res.status(400).json({ success: false, message: `${itemName} Large price must be at least ₹1 higher than Medium price` });
+                        }
+                    } else {
+                        const sPrice = Number(item.price);
+                        if (isNaN(sPrice) || sPrice < 10) {
+                            return res.status(400).json({ success: false, message: `${itemName} price cannot be less than ₹10` });
+                        }
+                    }
+                }
             }
 
             try {

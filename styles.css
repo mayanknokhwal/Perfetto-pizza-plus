@@ -8590,3 +8590,22 @@ html[lang="hi"] .nav-label {
         text-align: center;
     }
 }
+
+/* --------------------------------------------------------------------------
+   ADMIN MENU PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE LADDER)
+   -------------------------------------------------------------------------- */
+.price-field-invalid {
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+    background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+.size-input-group.price-group-invalid,
+.single-price-wrapper.price-group-invalid,
+.size-input-group:has(.price-field-invalid),
+.single-price-wrapper:has(.price-field-invalid) {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+    background-color: rgba(239, 68, 68, 0.08) !important;
+}

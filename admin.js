@@ -320,3 +320,121 @@ export function normalizeCategoryDiscounts(raw) {
     return res;
 }
 
+// --------------------------------------------------------------------------
+// STRICT MENU PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE LADDER)
+// --------------------------------------------------------------------------
+export const MIN_MENU_ITEM_PRICE = 10;
+
+/**
+ * Validates a single menu item's price against strict pricing rules:
+ * 1. Minimum price constraint: All core products must be >= ₹10.
+ * 2. Strict Pizza Size Price Ladder: Small < Medium < Large (Medium >= Small + 1, Large >= Medium + 1).
+ * Note: Category add-ons are strictly exempt and must not be validated by this function.
+ * @param {Object} item 
+ * @returns {{ isValid: boolean, error?: string, field?: string, itemId?: string }}
+ */
+export function validateMenuItemPrice(item) {
+    if (!item || typeof item !== 'object') {
+        return { isValid: false, error: 'Invalid item data' };
+    }
+
+    const itemName = item.name || 'Item';
+    const itemId = item.id || '';
+
+    // Check multi-size pizza/item pricing
+    if (item.isMultiSize || item.category === 'Pizza' || item.prices) {
+        const prices = item.prices || {};
+        const pS = Number(prices.S);
+        const pM = Number(prices.M);
+        const pL = Number(prices.L);
+
+        // 1. Universal minimum constraint (>= ₹10)
+        if (isNaN(pS) || pS < MIN_MENU_ITEM_PRICE) {
+            return {
+                isValid: false,
+                error: `${itemName} Small price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+                field: 'S',
+                itemId
+            };
+        }
+        if (isNaN(pM) || pM < MIN_MENU_ITEM_PRICE) {
+            return {
+                isValid: false,
+                error: `${itemName} Medium price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+                field: 'M',
+                itemId
+            };
+        }
+        if (isNaN(pL) || pL < MIN_MENU_ITEM_PRICE) {
+            return {
+                isValid: false,
+                error: `${itemName} Large price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+                field: 'L',
+                itemId
+            };
+        }
+
+        // 2. Strict pizza size ladder sequential constraint
+        if (pM <= pS) {
+            return {
+                isValid: false,
+                error: `${itemName} Medium price must be at least ₹1 higher than Small price`,
+                field: 'M',
+                itemId
+            };
+        }
+        if (pL <= pM) {
+            return {
+                isValid: false,
+                error: `${itemName} Large price must be at least ₹1 higher than Medium price`,
+                field: 'L',
+                itemId
+            };
+        }
+
+        return { isValid: true };
+    }
+
+    // Single-price item validation
+    const singlePrice = Number(item.price);
+    if (isNaN(singlePrice) || singlePrice < MIN_MENU_ITEM_PRICE) {
+        return {
+            isValid: false,
+            error: `${itemName} price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+            field: 'price',
+            itemId
+        };
+    }
+
+    return { isValid: true };
+}
+
+/**
+ * Validates an array of menu items against all pricing rules.
+ * @param {Array<Object>} items 
+ * @returns {{ isValid: boolean, errors: Array<{ error: string, field?: string, itemId?: string, itemName?: string }> }}
+ */
+export function validateAllMenuPrices(items) {
+    if (!Array.isArray(items)) {
+        return { isValid: true, errors: [] };
+    }
+
+    const errors = [];
+    for (const item of items) {
+        const res = validateMenuItemPrice(item);
+        if (!res.isValid) {
+            errors.push({
+                error: res.error,
+                field: res.field,
+                itemId: res.itemId || item.id,
+                itemName: item.name || 'Item'
+            });
+        }
+    }
+
+    return {
+        isValid: errors.length === 0,
+        errors
+    };
+}
+
