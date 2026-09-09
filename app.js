@@ -10817,15 +10817,15 @@ function renderOrderHistoryDetails() {
                         ` : ''}
 
                         <div style="display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 4px;">
-                            <span>Status: <span style="color: ${isDelivered ? '#22c55e' : isCancelled ? '#ef4444' : '#f59e0b'}; text-transform: uppercase;">${escapeHtml(o.status)}</span></span>
+                            <span>Status: <span class="order-status-val ${isDelivered ? 'status-delivered' : isCancelled ? 'status-cancelled' : 'status-pending'}">${escapeHtml(o.status)}</span></span>
                             <span style="color: var(--primary-orange);">₹${o.total || (o.costs && o.costs.total) || 0}</span>
                         </div>
                         ${isCancelled && o.rejectionReason ? `
-                        <div style="font-size: 0.76rem; color: #ef4444; margin-top: 4px; display: flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.08); padding: 4px 8px; border-radius: 6px; border-left: 3px solid #ef4444;">
+                        <div class="order-rejection-note">
                             <i class="fa-solid fa-triangle-exclamation"></i> <span>${escapeHtml(o.rejectionReason)}</span>
                         </div>` : ''}
                         ${isCancelled && (o.walletRefunded || o.walletRefundAmount > 0 || (Number(o.walletDiscount || o.usedWalletCash || 0) > 0)) ? `
-                        <div style="font-size: 0.74rem; color: #10b981; margin-top: 4px; display: flex; align-items: center; gap: 4px; background: rgba(16, 185, 129, 0.08); padding: 4px 8px; border-radius: 6px; border-left: 3px solid #10b981;">
+                        <div class="order-refund-note">
                             <i class="fa-solid fa-rotate-left"></i> <span>₹${o.walletRefundAmount || o.walletDiscount || o.usedWalletCash || 0} refunded to your wallet balance</span>
                         </div>` : ''}
                     </div>
