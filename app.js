@@ -7268,18 +7268,50 @@ function initEditProfileModal() {
     });
 }
 
+function getClearedOrderIds() {
+    let ids = [];
+    try {
+        const a = JSON.parse(localStorage.getItem('clearedOrderIds') || '[]');
+        if (Array.isArray(a)) ids.push(...a);
+    } catch (e) { }
+    try {
+        const b = safeStorage.getJSON('perfettoClearedOrderIds', []);
+        if (Array.isArray(b)) ids.push(...b);
+    } catch (e) { }
+    return Array.from(new Set(ids.map(id => String(id).trim()).filter(Boolean)));
+}
+
+function saveClearedOrderIds(ids) {
+    const unique = Array.from(new Set((ids || []).map(id => String(id).trim()).filter(Boolean)));
+    try { localStorage.setItem('clearedOrderIds', JSON.stringify(unique)); } catch (e) { }
+    try { safeStorage.setJSON('perfettoClearedOrderIds', unique); } catch (e) { }
+}
+
 function initClearHistoryModal() {
     const modal = document.getElementById('clear-history-confirm-modal');
-    if (!modal) return;
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeClearHistoryModal();
-        }
-    });
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeClearHistoryModal();
+            }
+        });
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.style.display === 'flex') {
-            closeClearHistoryModal();
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.style.display === 'flex') {
+                closeClearHistoryModal();
+            }
+        });
+    }
+
+    // Attach click listener for all clear completed orders buttons across dynamic re-renders
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('#btn-clear-history, #clear-completed-orders-btn, [data-id="clear-completed-orders-btn"], .btn-clear-history');
+        if (btn) {
+            if (btn.classList.contains('btn-dialog-confirm-danger')) {
+                return;
+            }
+            e.preventDefault();
+            clearCustomerOrderHistory();
         }
     });
 }
@@ -10061,12 +10093,7 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
 
                     if (remoteOrders.length > 0) {
                         const existingLocal = safeStorage.getJSON('perfettoCustomerOrders', []);
-                        let clearedIds = [];
-                        try {
-                            clearedIds = safeStorage.getJSON('perfettoClearedOrderIds', []);
-                            if (!Array.isArray(clearedIds)) clearedIds = [];
-                        } catch (e) { }
-                        const clearedSet = new Set(clearedIds);
+                        const clearedSet = new Set(getClearedOrderIds());
                         const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
 
                         const map = new Map();
@@ -10085,6 +10112,8 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                             const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
                             if (targetClean && p && p !== targetClean) return; // Strict isolation: drop orders belonging to other phone numbers
                             const id = String(o.id || o.orderId);
+                            const st = String(o.status || '').trim().toLowerCase();
+                            if (clearedSet.has(id) && terminalStatuses.has(st)) return;
                             if (!map.has(id)) map.set(id, o);
                         });
                         const merged = Array.from(map.values()).sort((a, b) => {
@@ -10300,6 +10329,13 @@ function updateProfileTotalsUI() {
                         return p === verifiedPhone;
                     });
                 }
+                const clearedSet = new Set(getClearedOrderIds());
+                const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
+                list = list.filter(o => {
+                    const id = String((o && (o.id || o.orderId)) || '');
+                    const st = String((o && o.status) || '').trim().toLowerCase();
+                    return !(clearedSet.has(id) && terminalStatuses.has(st));
+                });
                 orderCount = list.length;
             }
         }
@@ -10681,7 +10717,7 @@ async function autoRejectExpiredCustomerOrder(order) {
 
 function renderOrderHistoryDetails() {
     const listEl = document.getElementById('order-history-list');
-    const clearBtn = document.getElementById('btn-clear-history');
+    const clearBtn = document.getElementById('btn-clear-history') || document.getElementById('clear-completed-orders-btn') || document.querySelector('[data-id="clear-completed-orders-btn"]');
     if (!listEl) return;
 
     try {
@@ -10690,9 +10726,31 @@ function renderOrderHistoryDetails() {
         if (verifiedPhone && Array.isArray(orders)) {
             orders = orders.filter(o => {
                 const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
-                return p === verifiedPhone;
+                return !p || p === verifiedPhone;
             });
         }
+
+        const clearedSet = new Set(getClearedOrderIds());
+        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
+
+        // Filter out terminal orders that were explicitly cleared by customer
+        if (Array.isArray(orders)) {
+            orders = orders.filter(o => {
+                const id = String((o && (o.id || o.orderId)) || '');
+                const st = String((o && o.status) || '').trim().toLowerCase();
+                return !(clearedSet.has(id) && terminalStatuses.has(st));
+            });
+        }
+
+        const hasClearableOrders = Array.isArray(orders) && orders.some(o => {
+            const st = String((o && o.status) || '').trim().toLowerCase();
+            return terminalStatuses.has(st);
+        });
+
+        if (clearBtn) {
+            clearBtn.style.display = hasClearableOrders ? 'inline-flex' : 'none';
+        }
+
         if (Array.isArray(orders) && orders.length > 0) {
             // Evaluate and auto-reject any unfulfilled orders older than 3 hours
             orders.forEach(o => {
@@ -10701,7 +10759,6 @@ function renderOrderHistoryDetails() {
                 }
             });
 
-            if (clearBtn) clearBtn.style.display = 'inline-flex';
             listEl.innerHTML = orders.map(o => {
                 const otpCode = o.deliveryOtp || o.otp || '';
                 const isDelivered = o.status === 'completed' || o.status === 'delivered';
@@ -10835,18 +10892,15 @@ function renderOrderHistoryDetails() {
     } catch (e) { }
 
     if (clearBtn) clearBtn.style.display = 'none';
-    listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">No order history found yet.</span>`;
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+    const emptyMsg = typeof t === 'function' && t('no_recent_active_orders')
+        ? t('no_recent_active_orders')
+        : (isHindi ? 'कोई हालिया सक्रिय ऑर्डर नहीं' : 'No recent active orders');
+    listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(emptyMsg)}</span>`;
 }
 
 function clearCustomerOrderHistory() {
-    const modal = document.getElementById('clear-history-confirm-modal');
-    if (!modal) {
-        confirmClearCustomerOrderHistory();
-        return;
-    }
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('modal-open');
+    confirmClearCustomerOrderHistory();
 }
 
 function closeClearHistoryModal() {
@@ -10887,17 +10941,13 @@ function confirmClearCustomerOrderHistory() {
         const removedCount = removedOrders.length;
 
         // Remember user-cleared terminal order IDs so background remote sync does not re-add them
-        let clearedIds = [];
-        try {
-            clearedIds = safeStorage.getJSON('perfettoClearedOrderIds', []);
-            if (!Array.isArray(clearedIds)) clearedIds = [];
-        } catch (e) { }
+        const clearedIds = getClearedOrderIds();
         const clearedSet = new Set(clearedIds);
         removedOrders.forEach(o => {
             const id = String((o && (o.id || o.orderId)) || '');
             if (id) clearedSet.add(id);
         });
-        safeStorage.setJSON('perfettoClearedOrderIds', Array.from(clearedSet));
+        saveClearedOrderIds(Array.from(clearedSet));
 
         // Clean up Firestore snapshot listeners for removed terminal orders only
         if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
@@ -10915,7 +10965,9 @@ function confirmClearCustomerOrderHistory() {
 
         // Strictly update order list, preserving active orders, tokens, credentials, and session state
         safeStorage.setJSON('perfettoCustomerOrders', preservedOrders);
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(preservedOrders));
+        try {
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(preservedOrders));
+        } catch (e) { }
 
         closeClearHistoryModal();
         renderOrderHistoryDetails();
@@ -12240,9 +12292,7 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
         });
 
         const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
-        let clearedIds = safeStorage.getJSON('perfettoClearedOrderIds', []);
-        if (!Array.isArray(clearedIds)) clearedIds = [];
-        const clearedSet = new Set(clearedIds);
+        const clearedSet = new Set(getClearedOrderIds());
 
         const map = new Map();
         remoteOrders.forEach(o => {
@@ -12254,6 +12304,8 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
 
         storedOrders.forEach(o => {
             const id = String(o.id || o.orderId);
+            const st = String(o.status || '').trim().toLowerCase();
+            if (clearedSet.has(id) && terminalStatuses.has(st)) return;
             if (!map.has(id)) {
                 map.set(id, o);
             } else {
@@ -12840,6 +12892,8 @@ window.addEventListener('error', (event) => {
 window.openEditProfileModal = openEditProfileModal;
 window.closeEditProfileModal = closeEditProfileModal;
 window.toggleOrderHistoryView = toggleOrderHistoryView;
+window.getClearedOrderIds = getClearedOrderIds;
+window.saveClearedOrderIds = saveClearedOrderIds;
 window.clearCustomerOrderHistory = clearCustomerOrderHistory;
 window.closeClearHistoryModal = closeClearHistoryModal;
 window.confirmClearCustomerOrderHistory = confirmClearCustomerOrderHistory;
