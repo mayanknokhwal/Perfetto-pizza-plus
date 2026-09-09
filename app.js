@@ -267,28 +267,43 @@ window.onAppLanguageChanged = function (newLang) {
     if (typeof updateCartUI === 'function') {
         updateCartUI();
     }
-    // 3. Refresh Profile UI & Wallet
+    // 3. Refresh Profile UI, Name Fallback & Wallet
     if (typeof updateProfileWalletUI === 'function') {
         updateProfileWalletUI();
     }
     if (typeof updateProfileTotalsUI === 'function') {
         updateProfileTotalsUI();
     }
-    // 4. Refresh Checkout Wallet UI if modal is open
+    if (typeof loadSavedProfile === 'function') {
+        loadSavedProfile();
+    }
+    // 4. Refresh Customer Care Modal UI
+    if (typeof updateCustomerCareModalUI === 'function') {
+        updateCustomerCareModalUI();
+    }
+    // 5. Refresh Order History & Scratch Card Badges
+    if (typeof renderOrderHistoryDetails === 'function') {
+        renderOrderHistoryDetails();
+    }
+    // 6. Refresh Store Notice UI (preserving raw dynamic admin notice)
+    if (typeof updateStoreNoticeUI === 'function') {
+        updateStoreNoticeUI();
+    }
+    // 7. Refresh Checkout Wallet UI if modal is open
     const checkoutModal = document.getElementById('checkout-modal');
     if (checkoutModal && checkoutModal.style.display !== 'none' && typeof updateCheckoutWalletUI === 'function') {
         updateCheckoutWalletUI();
     }
-    // 5. Update header search input placeholder
+    // 8. Update header search input placeholder
     const searchInput = document.getElementById('customer-search-input');
     if (searchInput && typeof t === 'function') {
         searchInput.placeholder = t('search_placeholder');
     }
-    // 6. Update Sticky Floating Cart Bar
+    // 9. Update Sticky Floating Cart Bar
     if (typeof updateFloatingCartBar === 'function') {
         updateFloatingCartBar();
     }
-    // 7. Update Profile Language Pills & Subtitle
+    // 10. Update Profile Language Pills & Subtitle
     const pillEn = document.getElementById('profile-pill-en');
     if (pillEn) pillEn.classList.toggle('active', newLang === 'en');
     const pillHi = document.getElementById('profile-pill-hi');
@@ -297,7 +312,7 @@ window.onAppLanguageChanged = function (newLang) {
     if (profSub) {
         profSub.textContent = newLang === 'hi' ? 'हिंदी (सक्रिय)' : 'English (Active)';
     }
-    // 8. Update Notice preview chip if using default
+    // 11. Update Notice preview chip if using default
     const noticePreview = document.getElementById('home-notice-chip-preview');
     if (noticePreview) {
         const rawSaved = localStorage.getItem('perfetto_store_notice');
@@ -5781,10 +5796,12 @@ function updateProfileWalletUI() {
     if (statusPill) {
         if (!isSystemEnabled) {
             statusPill.classList.add('is-paused');
-            statusPill.textContent = typeof t === 'function' ? t('wallet_system_paused') : (isHindi ? 'कैशबैक सिस्टम अभी बंद है' : 'System Paused');
+            statusPill.textContent = typeof t === 'function' ? t('wallet_system_paused') : (isHindi ? 'सिस्टम बंद है' : 'SYSTEM PAUSED');
+            statusPill.setAttribute('data-i18n', 'wallet_system_paused');
         } else {
             statusPill.classList.remove('is-paused');
             statusPill.textContent = typeof t === 'function' ? t('wallet_active') : (isHindi ? 'एक्टिव' : 'Active');
+            statusPill.setAttribute('data-i18n', 'wallet_active');
         }
     }
 
@@ -5793,9 +5810,13 @@ function updateProfileWalletUI() {
     valEl.textContent = balance;
 
     if (rulesText) {
-        rulesText.textContent = isSystemEnabled
-            ? (typeof t === 'function' ? t('wallet_rules_default') : 'Auto-cashback on eligible orders • 100% usable on any order')
-            : (typeof t === 'function' ? t('wallet_paused') : 'Wallet rewards system is currently paused.');
+        if (isSystemEnabled) {
+            rulesText.textContent = typeof t === 'function' ? t('wallet_rules_default') : 'Auto-cashback on eligible orders • 100% usable on any order';
+            rulesText.setAttribute('data-i18n', 'wallet_rules_default');
+        } else {
+            rulesText.textContent = typeof t === 'function' ? t('wallet_paused') : 'Cashback rewards system is currently paused.';
+            rulesText.setAttribute('data-i18n', 'wallet_paused');
+        }
     }
 
     if (balance <= 0) {
@@ -6034,7 +6055,10 @@ function updateStoreNoticeUI() {
                 const cleanText = content.replace(/\s+/g, ' ').trim();
                 if (cleanText) {
                     previewEl.textContent = cleanText.length > 55 ? cleanText.substring(0, 52) + '...' : cleanText;
+                    previewEl.removeAttribute('data-i18n');
                 }
+            } else if (previewEl) {
+                previewEl.textContent = typeof t === 'function' ? t('store_notice_sub') : 'Important updates & announcements';
             }
         }
         if (profileNoticeInactiveRow) {
@@ -6050,7 +6074,7 @@ function updateStoreNoticeUI() {
             if (previewInactiveEl) {
                 previewInactiveEl.textContent = (content && content.trim().length > 0)
                     ? (content.replace(/\s+/g, ' ').trim().substring(0, 55) + '...')
-                    : 'Store guidelines, terms reference & updates';
+                    : (typeof t === 'function' ? t('store_policy_notice_sub') : 'Store guidelines, terms reference & updates');
             }
         }
     }
@@ -10149,7 +10173,13 @@ function renderProfileHeaderAndInputs(profile) {
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
-            nameEl.textContent = profile.fullName ? profile.fullName : 'Customer Name';
+            if (profile.fullName && profile.fullName.trim().length > 0) {
+                nameEl.textContent = profile.fullName;
+                nameEl.removeAttribute('data-i18n');
+            } else {
+                nameEl.textContent = typeof t === 'function' ? t('customer_name_fallback') : 'Customer Name';
+                nameEl.setAttribute('data-i18n', 'customer_name_fallback');
+            }
         }
         if (subtextEl) {
             subtextEl.textContent = profile.phone ? `+91 ${profile.phone}` : (storedVerifiedPhone ? `+91 ${storedVerifiedPhone}` : '+91 Mobile Number');
@@ -10217,13 +10247,19 @@ function renderProfileHeaderAndInputs(profile) {
     } else {
         if (storedVerifiedPhone) {
             isPhoneVerified = true;
-            if (nameEl) nameEl.textContent = 'Customer Name';
+            if (nameEl) {
+                nameEl.textContent = typeof t === 'function' ? t('customer_name_fallback') : 'Customer Name';
+                nameEl.setAttribute('data-i18n', 'customer_name_fallback');
+            }
             if (subtextEl) subtextEl.textContent = `+91 ${storedVerifiedPhone}`;
             applyPhoneVerifiedUI(true, storedVerifiedPhone);
         } else {
             isPhoneVerified = false;
             currentCustomerGps = null;
-            if (nameEl) nameEl.textContent = 'Customer Name';
+            if (nameEl) {
+                nameEl.textContent = typeof t === 'function' ? t('customer_name_fallback') : 'Customer Name';
+                nameEl.setAttribute('data-i18n', 'customer_name_fallback');
+            }
             if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
             applyPhoneVerifiedUI(false, '');
             if (statusBadge) {
@@ -10750,7 +10786,7 @@ function renderOrderHistoryDetails() {
                             ` : isScratchClaimed ? `
                                 <div class="order-history-scratch-claimed">
                                     <i class="fa-solid fa-circle-check"></i>
-                                    <span>${isHindi ? `स्क्रैच कार्ड क्लेम किया गया (+₹${orderCashback} वॉलेट में)` : `Scratch Card Claimed (+₹${orderCashback} in wallet)`}</span>
+                                    <span>${typeof t === 'function' ? t('scratch_claimed_status', { amount: orderCashback }) : (isHindi ? `क्लेम किया गया (+₹${orderCashback} वॉलेट में)` : `Claimed (+₹${orderCashback} in wallet)`)}</span>
                                 </div>
                             ` : !isScratchRevealed ? `
                                 <div class="order-history-scratch-promo unclaimed-glowing" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
@@ -10759,12 +10795,12 @@ function renderOrderHistoryDetails() {
                                             <i class="fa-solid fa-gift fa-bounce"></i>
                                         </div>
                                         <div>
-                                            <div class="scratch-promo-title">${isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!'}</div>
+                                            <div class="scratch-promo-title">${typeof t === 'function' ? t('scratch_card_title') : (isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!')}</div>
                                             <div class="scratch-promo-sub">
                                                 <span class="scratch-countdown-pill">
                                                     <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
                                                 </span>
-                                                <span class="scratch-card-amount-hint">${isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' : 'Scratch the card to reveal your cashback reward'}</span>
+                                                <span class="scratch-card-amount-hint">${typeof t === 'function' ? t('scratch_card_subtitle') : (isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड स्क्रैच करें' : 'Scratch the card to reveal your cashback reward')}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -10775,7 +10811,7 @@ function renderOrderHistoryDetails() {
                             ` : `
                                 <div class="order-history-scratch-pending" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
                                     <i class="fa-solid fa-truck-fast"></i>
-                                    <span>${isHindi ? `🎉 आपने ₹${orderCashback} कैशबैक जीता • ऑर्डर डिलीवर होने पर वॉलेट में जुड़ेगा` : `🎉 You Won ₹${orderCashback} Cashback • Credited once order is delivered`}</span>
+                                    <span>${typeof t === 'function' ? t('scratch_won_banner', { amount: orderCashback }) : (isHindi ? `आपने जीता ₹${orderCashback} कैशबैक!` : `You won ₹${orderCashback} Cashback!`)}</span>
                                 </div>
                             `}
                         ` : ''}
@@ -11328,6 +11364,18 @@ function updateCustomerCareModalUI() {
         headerCallBtn.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
         headerCallBtn.setAttribute('data-phone', targetPhone);
         headerCallBtn.title = `Customer Support (+91 ${targetPhone.slice(0, 5)} ${targetPhone.slice(5)})`;
+    }
+
+    const titleEl = document.getElementById('care-modal-title');
+    const msgEl = document.getElementById('care-modal-message');
+    const cancelBtn = document.getElementById('customer-care-cancel-btn');
+    const callBtnSpan = document.querySelector('#customer-care-call-link span');
+
+    if (typeof t === 'function') {
+        if (titleEl) titleEl.textContent = t('care_modal_title');
+        if (msgEl) msgEl.textContent = t('care_modal_msg');
+        if (cancelBtn) cancelBtn.textContent = t('cancel');
+        if (callBtnSpan) callBtnSpan.textContent = t('call_now');
     }
 
     const phoneTextEl = document.getElementById('care-phone-number-text');

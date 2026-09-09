@@ -291,7 +291,7 @@
                     <div class="profile-header-actions">
                         <button type="button" class="btn-toggle-edit-profile" id="btn-toggle-edit-profile"
                             onclick="openEditProfileModal()">
-                            <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+                            <i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_profile">Edit Profile</span>
                         </button>
                     </div>
                 </div>
@@ -335,8 +335,8 @@
                                     <i class="fa-solid fa-gift fa-bounce"></i>
                                 </div>
                                 <div class="scratch-unclaimed-text">
-                                    <strong id="profile-scratch-banner-title">🎉 Mystery Reward Unlocked!</strong>
-                                    <span id="profile-scratch-banner-sub">Scratch the card to reveal your cashback reward</span>
+                                    <strong id="profile-scratch-banner-title" data-i18n="scratch_card_title">🎉 Mystery Reward Unlocked!</strong>
+                                    <span id="profile-scratch-banner-sub" data-i18n="scratch_card_subtitle">Scratch the card to reveal your cashback reward</span>
                                 </div>
                             </div>
                             <button type="button" class="btn-scratch-banner-action" id="btn-scratch-banner-action">
@@ -376,7 +376,7 @@
                         </div>
                         <div class="menu-item-text">
                             <span class="item-title profile-notice-title" data-i18n="store_notice">Store Notice</span>
-                            <span class="item-subtitle profile-notice-subtitle" id="profile-notice-preview-text" data-i18n="store_notice_sub">Announcements, special offers &amp; store updates</span>
+                            <span class="item-subtitle profile-notice-subtitle" id="profile-notice-preview-text">Important updates &amp; announcements</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow profile-notice-arrow"></i>
                     </div>
@@ -451,8 +451,8 @@
                             <i class="fa-solid fa-circle-info"></i>
                         </div>
                         <div class="menu-item-text">
-                            <span class="item-title">Info & Legal Policies</span>
-                            <span class="item-subtitle">Terms, Privacy Policy & Cancellation rules</span>
+                            <span class="item-title" data-i18n="info_legal_policies">Info & Legal Policies</span>
+                            <span class="item-subtitle" data-i18n="info_legal_policies_sub">Terms, Privacy Policy & Cancellation rules</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow" id="arrow-legal-info"></i>
                     </div>
@@ -1171,8 +1171,8 @@
                             <i class="fa-solid fa-gift fa-bounce"></i>
                         </div>
                         <div class="otp-cashback-info">
-                            <div class="otp-cashback-title" id="otp-modal-cashback-text">🎉 Mystery Reward Unlocked!</div>
-                            <div class="otp-cashback-subtitle" id="otp-modal-cashback-expiry">Scratch the card to reveal your cashback reward</div>
+                            <div class="otp-cashback-title" id="otp-modal-cashback-text" data-i18n="scratch_card_title">🎉 Mystery Reward Unlocked!</div>
+                            <div class="otp-cashback-subtitle" id="otp-modal-cashback-expiry" data-i18n="scratch_card_subtitle">Scratch the card to reveal your cashback reward</div>
                         </div>
                         <span class="otp-scratch-cta-pill">
                             <i class="fa-solid fa-sparkles"></i> Scratch ✨
@@ -1306,21 +1306,21 @@
                 <div class="customer-care-icon-badge">
                     <i class="fa-solid fa-headset"></i>
                 </div>
-                <h3 class="customer-care-title" id="care-modal-title">Customer Support</h3>
-                <p class="customer-care-message" id="care-modal-message">
-                    अगर आपको कोई भी समस्या है या किसी भी प्रकार की सहायता चाहिए, तो आप सीधे हमारे कस्टमर केयर से बात कर सकते हैं।
+                <h3 class="customer-care-title" id="care-modal-title" data-i18n="care_modal_title">Customer Support</h3>
+                <p class="customer-care-message" id="care-modal-message" data-i18n="care_modal_msg">
+                    If you are facing any issue or need assistance, you can speak directly with our customer support.
                 </p>
                 <div class="customer-care-phone-display" id="customer-care-phone-display">
                     <i class="fa-solid fa-phone-volume"></i>
                     <span id="care-phone-number-text">+91 94145 03886</span>
                 </div>
                 <div class="customer-care-actions-row">
-                    <button type="button" class="customer-care-cancel-btn" id="customer-care-cancel-btn">
+                    <button type="button" class="customer-care-cancel-btn" id="customer-care-cancel-btn" data-i18n="cancel">
                         Cancel
                     </button>
                     <button type="button" class="customer-care-action-btn" id="customer-care-call-link">
                         <i class="fa-solid fa-phone"></i>
-                        <span>Call Now</span>
+                        <span data-i18n="call_now">Call Now</span>
                     </button>
                 </div>
             </div>
