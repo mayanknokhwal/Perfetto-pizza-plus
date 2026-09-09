@@ -2252,8 +2252,6 @@ async function fetchLiveBannersFromBackend() {
                     const bannerObj = (b && typeof b === 'object') ? b : {};
                     const slot1Data = (data.slot1 && typeof data.slot1 === 'object') ? data.slot1 : {};
                     const slot2Data = (data.slot2 && typeof data.slot2 === 'object') ? data.slot2 : {};
-                    const rawCat2 = bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake';
-                    const safeRewardCat2 = (String(rawCat2).toLowerCase() === 'pizza') ? 'Shake' : rawCat2;
                     return {
                         id: bannerObj.id || `b${i + 1}`,
                         url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
@@ -2262,7 +2260,7 @@ async function fetchLiveBannersFromBackend() {
                         discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0),
                         minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : (Number(bannerObj.minSpend) || 0),
                         rewardType: i === 1 ? (bannerObj.rewardType || slot2Data.rewardType || 'category') : (bannerObj.rewardType || ''),
-                        rewardCategory: i === 1 ? safeRewardCat2 : (bannerObj.rewardCategory || ''),
+                        rewardCategory: i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : (bannerObj.rewardCategory || ''),
                         rewardPizzaSize: i === 1 ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : (bannerObj.rewardPizzaSize || 'medium')
                     };
                 });
@@ -2280,16 +2278,15 @@ async function fetchLiveBannersFromBackend() {
         try {
             const parsed = JSON.parse(local);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                const hasObsolete = parsed.some(b => b && b.url && (b.url.includes('free-cold-drink') || b.url.includes('free-medium-pizza')));
-                if (!hasObsolete && typeof renderDynamicOfferSlider === 'function') {
+                if (typeof renderDynamicOfferSlider === 'function') {
                     renderDynamicOfferSlider(parsed);
-                    return;
                 }
+                return;
             }
         } catch (e) { }
     }
-    if (typeof renderDynamicOfferSlider === 'function') {
-        renderDynamicOfferSlider([]);
+    if (typeof renderDynamicOfferSlider === 'function' && typeof DEFAULT_DAILY_BANNERS !== 'undefined') {
+        renderDynamicOfferSlider(DEFAULT_DAILY_BANNERS);
     }
 }
 
@@ -5949,19 +5946,8 @@ function updateCartUI() {
                             </button>
                         </div>
                     `;
-                    // Reactive auto-open when user is viewing cart and crossed qualifying spend
-                    if (typeof activeTabName !== 'undefined' && activeTabName === 'cart' && !window.__freeGiftAutoOpened && typeof openFreeGiftSelectionModal === 'function') {
-                        window.__freeGiftAutoOpened = true;
-                        setTimeout(() => {
-                            const modalEl = document.getElementById('free-gift-modal');
-                            if (modalEl && modalEl.style.display !== 'flex') {
-                                openFreeGiftSelectionModal();
-                            }
-                        }, 250);
-                    }
                 }
             } else {
-                window.__freeGiftAutoOpened = false;
                 const diff = minSpend - qualifyingPaidTotal;
                 freeGiftContainer.style.display = 'block';
                 freeGiftContainer.innerHTML = `
@@ -10703,19 +10689,19 @@ function showToast(msg, duration = 2400) {
 // --------------------------------------------------------------------------
 const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: '', enabled: true, targetProductId: '', discountPercent: 0 },
-    { id: 'b2', url: '', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: '', enabled: true },
-    { id: 'b4', url: '', enabled: true }
+    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
+    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
+    { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
 ];
 
 window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
 window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
 
 function resolveBannerUrl(url) {
-    if (!url || typeof url !== 'string') return '';
+    if (!url || typeof url !== 'string') return DEFAULT_FALLBACK_BANNER_LOGO;
     const trimmed = url.trim();
-    if (!trimmed || trimmed.length < 4) return '';
+    if (!trimmed || trimmed.length < 4) return DEFAULT_FALLBACK_BANNER_LOGO;
     return trimmed;
 }
 window.resolveBannerUrl = resolveBannerUrl;
@@ -10728,27 +10714,6 @@ function handleBannerImgError(imgEl) {
 }
 window.handleBannerImgError = handleBannerImgError;
 
-function getCleanCachedBanners() {
-    try {
-        const saved = localStorage.getItem('perfetto_daily_banners');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                const hasObsolete = parsed.some(b => b && b.url && (b.url.includes('free-cold-drink') || b.url.includes('free-medium-pizza')));
-                if (hasObsolete) {
-                    localStorage.removeItem('perfetto_daily_banners');
-                    return null;
-                }
-                const hasValid = parsed.some(b => b && typeof b.url === 'string' && b.url.trim().length > 4 && b.enabled !== false);
-                if (hasValid) {
-                    return parsed;
-                }
-            }
-        }
-    } catch (e) { }
-    return null;
-}
-
 let offerSliderAutoScrollInterval = null;
 let offerSliderPauseTimeout = null;
 let currentOfferSlideIndex = 0;
@@ -10756,32 +10721,32 @@ let currentOfferSlideIndex = 0;
 function renderDynamicOfferSlider(customBanners = null) {
     let rawBanners = customBanners;
     if (!Array.isArray(rawBanners) || rawBanners.length === 0) {
-        rawBanners = getCleanCachedBanners();
+        try {
+            const saved = localStorage.getItem('perfetto_daily_banners');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    rawBanners = parsed;
+                }
+            }
+        } catch (e) { }
     }
+    if (!Array.isArray(rawBanners) || rawBanners.length === 0) {
+        rawBanners = DEFAULT_DAILY_BANNERS;
+    }
+
+    // Filter only currently enabled banners from the 4 slots
+    let activeBanners = rawBanners.slice(0, 4).filter(b => b && b.enabled !== false);
+    if (activeBanners.length === 0) {
+        // Fallback to slot 1 if all are somehow marked false
+        activeBanners = [rawBanners[0] || DEFAULT_DAILY_BANNERS[0]];
+    }
+
+    window.__currentActiveBanners = activeBanners;
 
     const track = document.getElementById('offer-slider-track');
     const dotsContainer = document.getElementById('offer-dots');
-    if (!track) return;
-
-    // Filter only currently enabled banners with valid URLs from the 4 slots
-    const validBanners = (Array.isArray(rawBanners) ? rawBanners : []).slice(0, 4).filter(b => b && b.enabled !== false && typeof b.url === 'string' && b.url.trim().length > 4);
-
-    // If no valid banners yet, render the unobtrusive skeleton placeholder while awaiting live Firestore snapshot
-    if (validBanners.length === 0) {
-        track.innerHTML = `
-            <div class="offer-slide offer-slide-skeleton">
-                <div class="banner-skeleton-loader"></div>
-            </div>
-        `;
-        track.style.display = 'block';
-        track.style.width = '100%';
-        track.style.transform = 'translateX(0%)';
-        if (dotsContainer) dotsContainer.style.display = 'none';
-        return;
-    }
-
-    let activeBanners = validBanners;
-    window.__currentActiveBanners = activeBanners;
+    if (!track || !dotsContainer) return;
 
     if (currentOfferSlideIndex >= activeBanners.length) {
         currentOfferSlideIndex = 0;
@@ -10793,15 +10758,14 @@ function renderDynamicOfferSlider(customBanners = null) {
         const isSlot1 = (banner.id === 'b1' || idx === 0);
         const hasSpotlight = isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0;
         const isSlot2 = (banner.id === 'b2' || idx === 1);
-        const minSpend = Number(banner.minSpend) || 699;
-        const hasSpendOffer = isSlot2;
-        const rewardTitle = banner.rewardType === 'pizza' ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${((banner.rewardCategory || 'Shake').toLowerCase() === 'pizza' ? 'Shake' : (banner.rewardCategory || 'Shake'))}`;
+        const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
+        const spendRewardLabel = hasSpendOffer ? (banner.rewardType === 'pizza' ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${banner.rewardCategory || 'Gift'}`) : '';
         return `
             <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''}" 
                  data-banner-id="${banner.id || ('b' + (idx + 1))}" 
                  data-slide-index="${idx}"
                  ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
-                 ${hasSpendOffer ? `data-min-spend="${minSpend}"` : ''}
+                 ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
                  onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')">
                 <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
                 ${hasSpotlight ? `
@@ -10811,7 +10775,7 @@ function renderDynamicOfferSlider(customBanners = null) {
                 ` : ''}
                 ${hasSpendOffer ? `
                     <div class="banner-spend-tap-hint">
-                        <i class="fa-solid fa-gift"></i> Tap to Unlock: ${escapeHtml(rewardTitle)} on ₹${minSpend}+
+                        <i class="fa-solid fa-gift"></i> Tap to Unlock: ${escapeHtml(spendRewardLabel)} on ₹${Number(banner.minSpend)}+
                     </div>
                 ` : ''}
             </div>
@@ -10982,7 +10946,7 @@ function initOfferSlider(activeBannerCount) {
     function onMove(clientX) {
         if (!isDragging) return;
         currentX = clientX;
-        if (Math.abs(currentX - startX) > 30) {
+        if (Math.abs(currentX - startX) > 10) {
             wasSwipeGesture = true;
         }
     }
@@ -10993,18 +10957,15 @@ function initOfferSlider(activeBannerCount) {
         wrapper.style.cursor = 'grab';
         const diffX = currentX - startX;
 
-        if (Math.abs(diffX) > 30) {
-            wasSwipeGesture = true;
+        if (Math.abs(diffX) > 35) {
             if (diffX < 0) {
                 nextSlide();
             } else {
                 prevSlide();
             }
-            setTimeout(() => { wasSwipeGesture = false; }, 200);
-        } else {
-            wasSwipeGesture = false;
         }
         handleUserInteractionEnd();
+        setTimeout(() => { wasSwipeGesture = false; }, 150);
     }
 
     wrapper.ontouchstart = (e) => {
@@ -11026,7 +10987,6 @@ function initOfferSlider(activeBannerCount) {
     wrapper.ontouchcancel = () => {
         if (isDragging) {
             isDragging = false;
-            wasSwipeGesture = false;
             wrapper.style.cursor = 'grab';
             handleUserInteractionEnd();
         }
@@ -11047,70 +11007,39 @@ function initOfferSlider(activeBannerCount) {
     wrapper.onmouseleave = () => {
         if (isDragging) {
             isDragging = false;
-            wasSwipeGesture = false;
             wrapper.style.cursor = 'grab';
             handleUserInteractionEnd();
         }
-    };
-
-    // Delegated click event listener on track for reliable interaction across all devices
-    track.onclick = (e) => {
-        if (wasSwipeGesture) return;
-        const slide = e.target.closest('.offer-slide');
-        if (!slide) return;
-        const idx = parseInt(slide.getAttribute('data-slide-index'), 10);
-        const bId = slide.getAttribute('data-banner-id');
-        handleBannerSlideClick(isNaN(idx) ? 0 : idx, bId);
     };
 
     // Start initial 3-second autoplay loop
     startAutoScroll();
 }
 
-let lastBannerClickTime = 0;
 function handleBannerSlideClick(slideIndex, bannerId) {
     if (typeof wasSwipeGesture !== 'undefined' && wasSwipeGesture) return;
-    const now = Date.now();
-    if (now - lastBannerClickTime < 250) return;
-    lastBannerClickTime = now;
-
     const activeBanners = window.__currentActiveBanners || [];
-    let banner = activeBanners[slideIndex];
-    if (!banner && bannerId) {
-        banner = activeBanners.find(b => b && (b.id === bannerId || b.id === `b${bannerId}`));
+    const banner = activeBanners[slideIndex];
+    if (!banner) return;
+    const isSlot1 = (banner.id === 'b1' || slideIndex === 0);
+    const isSlot2 = (banner.id === 'b2' || slideIndex === 1);
+
+    if (isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0) {
+        try {
+            sessionStorage.setItem('banner1OfferActive', 'true');
+        } catch (e) { }
+        openSpotlightBannerModal(banner.targetProductId, Number(banner.discountPercent));
+        return;
     }
 
-    const isSlot1 = (bannerId === 'b1' || (banner && banner.id === 'b1') || slideIndex === 0);
-    const isSlot2 = (bannerId === 'b2' || (banner && banner.id === 'b2') || slideIndex === 1);
-
-    if (isSlot1) {
-        const dPercent = Number(banner ? banner.discountPercent : 0);
-        const tProdId = banner ? banner.targetProductId : '';
-        if (tProdId && dPercent > 0) {
-            try {
-                sessionStorage.setItem('banner1OfferActive', 'true');
-            } catch (e) { }
-            openSpotlightBannerModal(tProdId, dPercent);
-            return;
-        }
-    }
-
-    if (isSlot2) {
-        const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : {};
-        const minSpend = Number(banner && banner.minSpend ? banner.minSpend : slot2Config.minSpend) || 699;
-        const rewardType = (banner && banner.rewardType) ? banner.rewardType : (slot2Config.rewardType || 'category');
-        const rawRewardCategory = (banner && banner.rewardCategory) ? banner.rewardCategory : (slot2Config.rewardCategory || 'Shake');
-        const rewardCategory = (String(rawRewardCategory).toLowerCase() === 'pizza') ? 'Shake' : rawRewardCategory;
-        const rewardPizzaSize = (banner && banner.rewardPizzaSize) ? banner.rewardPizzaSize : (slot2Config.rewardPizzaSize || 'medium');
-
+    if (isSlot2 && Number(banner.minSpend) > 0) {
         try {
             sessionStorage.setItem('banner2SpendOfferActive', 'true');
         } catch (e) { }
-
-        const rewardTitle = rewardType === 'pizza'
-            ? `${rewardPizzaSize.charAt(0).toUpperCase() + rewardPizzaSize.slice(1)} Pizza`
-            : rewardCategory;
-        showToast(`🎉 Offer Activated! Spend ₹${minSpend} on paid items to claim your Free ${rewardTitle}!`);
+        const rewardTitle = banner.rewardType === 'pizza'
+            ? `${(banner.rewardPizzaSize || 'medium').charAt(0).toUpperCase() + (banner.rewardPizzaSize || 'medium').slice(1)} Pizza`
+            : (banner.rewardCategory || 'Gift');
+        showToast(`🎉 Offer Activated! Spend ₹${banner.minSpend} on paid items to claim your Free ${rewardTitle}!`);
         if (typeof updateCartUI === 'function') {
             updateCartUI();
         }
@@ -12700,8 +12629,6 @@ function listenToRealtimeMenuAndRates() {
                     const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
                     banners = docData.banners.slice(0, 4).map((b, i) => {
                         const bannerObj = (b && typeof b === 'object') ? b : {};
-                        const rawCat2 = bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake';
-                        const safeRewardCat2 = (String(rawCat2).toLowerCase() === 'pizza') ? 'Shake' : rawCat2;
                         return {
                             id: bannerObj.id || `b${i + 1}`,
                             url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
@@ -12710,7 +12637,7 @@ function listenToRealtimeMenuAndRates() {
                             discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0),
                             minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : (Number(bannerObj.minSpend) || 0),
                             rewardType: i === 1 ? (bannerObj.rewardType || slot2Data.rewardType || 'category') : (bannerObj.rewardType || ''),
-                            rewardCategory: i === 1 ? safeRewardCat2 : (bannerObj.rewardCategory || ''),
+                            rewardCategory: i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : (bannerObj.rewardCategory || ''),
                             rewardPizzaSize: i === 1 ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : (bannerObj.rewardPizzaSize || 'medium')
                         };
                     });

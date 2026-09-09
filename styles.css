@@ -3503,45 +3503,6 @@ html[lang="hi"] .nav-label {
     justify-content: center;
     background-color: #0b0f19;
     overflow: hidden;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-}
-
-.offer-slide-skeleton {
-    width: 100%;
-    height: 100%;
-    background: #0f172a;
-    position: relative;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: default;
-}
-
-.banner-skeleton-loader {
-    width: 100%;
-    height: 100%;
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-}
-
-.banner-skeleton-loader::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 200%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
-    animation: bannerSkeletonShimmer 1.8s infinite ease-in-out;
-}
-
-@keyframes bannerSkeletonShimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
 }
 
 .offer-img {
@@ -3551,7 +3512,6 @@ html[lang="hi"] .nav-label {
     object-position: center;
     display: block;
     border-radius: 18px;
-    pointer-events: none;
 }
 
 .offer-dots {
