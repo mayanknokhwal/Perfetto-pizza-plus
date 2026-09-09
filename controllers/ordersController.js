@@ -536,9 +536,10 @@ async function handleOrdersRequest(req, res) {
                         }
 
                         // 1B. Credit cashback reward strictly once (idempotent)
+                        const isWalletSystemEnabled = global.__perfettoWalletConfig?.enabled !== false;
                         const creditAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === String(targetId));
 
-                        if (wonAmt > 0 && !creditAlreadyLogged) {
+                        if (isWalletSystemEnabled && wonAmt > 0 && !creditAlreadyLogged) {
                             const claimTime = Date.now();
                             const activeExpiryDays = Math.min(30, Math.max(1, Number(targetOrder.scratchExpiryDays || targetOrder.cashbackExpiryDays || global.__perfettoWalletConfig?.expiryDays || 15)));
                             const expiresAt = new Date(claimTime + activeExpiryDays * 24 * 60 * 60 * 1000).toISOString();
@@ -575,7 +576,7 @@ async function handleOrdersRequest(req, res) {
                             targetOrder.scratchCard.revealed = true;
                             targetOrder.scratchCard.claimed = true;
                             targetOrder.scratchCard.claimedAt = new Date().toISOString();
-                        } else if (creditAlreadyLogged || wasAlreadyCredited) {
+                        } else if (isWalletSystemEnabled && (creditAlreadyLogged || wasAlreadyCredited)) {
                             // Ensure order status reflects credited state without modifying balance again
                             targetOrder.rewardStatus = 'active_credited';
                             targetOrder.scratchRevealed = true;
@@ -585,7 +586,7 @@ async function handleOrdersRequest(req, res) {
                             }
                             targetOrder.scratchCard.status = 'active_credited';
                             targetOrder.scratchCard.claimed = true;
-                        } else if (!isCardScratched && wonAmt > 0) {
+                        } else if (isWalletSystemEnabled && !isCardScratched && wonAmt > 0) {
                             // Unrevealed fallback: keep card state as "unscratched" until customer reveals it
                             targetOrder.rewardStatus = 'unscratched';
                             targetOrder.scratchRevealed = false;
@@ -596,6 +597,13 @@ async function handleOrdersRequest(req, res) {
                             targetOrder.scratchCard.status = 'unscratched';
                             targetOrder.scratchCard.revealed = false;
                             targetOrder.scratchCard.claimed = false;
+                        } else if (!isWalletSystemEnabled) {
+                            targetOrder.rewardStatus = 'none';
+                            targetOrder.wonCashback = 0;
+                            targetOrder.earnedCashback = 0;
+                            if (targetOrder.scratchCard) {
+                                targetOrder.scratchCard.status = 'none';
+                            }
                         }
 
                         if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;

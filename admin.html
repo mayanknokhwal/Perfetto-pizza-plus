@@ -8298,11 +8298,20 @@
         window.saveWalletSettings = saveWalletSettings;
 
         async function handleSaveWalletSettingsClick() {
-            // Forward to master Save All Changes
-            if (typeof saveAllChanges === 'function') {
-                return saveAllChanges();
+            const btn = document.getElementById('btn-save-wallet-settings');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
             }
-            return saveWalletSettings(true);
+            try {
+                return await saveWalletSettings(true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            }
         }
         window.handleSaveWalletSettingsClick = handleSaveWalletSettingsClick;
 

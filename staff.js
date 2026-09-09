@@ -107,6 +107,8 @@ async function initStaffFirebase() {
 
 let staffSettingsUnsubscribe = null;
 let staffConfigUnsubscribe = null;
+let staffWalletUnsubscribe = null;
+let staffWalletConfig = { enabled: true };
 
 function listenToFirestoreStaffSettings() {
     const db = getStaffFirestore();
@@ -149,6 +151,24 @@ function listenToFirestoreStaffSettings() {
             staffConfigUnsubscribe = null;
         }
     }
+    if (!staffWalletUnsubscribe) {
+        try {
+            staffWalletUnsubscribe = db.collection('settings').doc('wallet_config')
+                .onSnapshot((doc) => {
+                    if (doc && doc.exists && doc.data()) {
+                        const data = doc.data();
+                        const cfg = data.wallet_config || data;
+                        staffWalletConfig = { ...staffWalletConfig, ...cfg, enabled: cfg.enabled !== false };
+                    }
+                }, (err) => {
+                    console.warn('Firestore staff wallet_config real-time notice:', err.message);
+                    staffWalletUnsubscribe = null;
+                });
+        } catch (e) {
+            console.warn('Error attaching Firestore staff wallet_config listener:', e);
+            staffWalletUnsubscribe = null;
+        }
+    }
 }
 
 async function fetchStaffSettingsFromBackend() {
@@ -160,9 +180,16 @@ async function fetchStaffSettingsFromBackend() {
                 applyStaffStoreSettings(data.settings);
             }
         }
-    } catch (err) {
-        console.warn('Backend staff settings fetch notice:', err.message);
-    }
+    } catch (e) {}
+    try {
+        const wRes = await fetch(resolveApiUrl('/api/wallet/config'));
+        if (wRes && wRes.ok) {
+            const wData = await wRes.json();
+            if (wData && wData.config) {
+                staffWalletConfig = { ...staffWalletConfig, ...wData.config, enabled: wData.config.enabled !== false };
+            }
+        }
+    } catch (e) {}
 }
 
 function applyStaffStoreSettings(settings) {
@@ -3160,25 +3187,33 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         if (isDelivered) {
             if (!order.deliveredAt) order.deliveredAt = nowIso;
             if (!order.completedAt) order.completedAt = nowIso;
-            const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
-            if (isCardScratched) {
-                order.rewardStatus = 'active_credited';
-                order.scratchRevealed = true;
-                order.scratchClaimed = true;
-                if (!order.scratchCard) order.scratchCard = {};
-                order.scratchCard.status = 'active_credited';
-                order.scratchCard.revealed = true;
-                order.scratchCard.claimed = true;
-                order.scratchCard.claimedAt = nowIso;
+            const isWalletSystemActive = (staffWalletConfig && staffWalletConfig.enabled !== false);
+            if (!isWalletSystemActive) {
+                // When system is disabled, skip rewards entirely
+                order.rewardStatus = 'none';
+                order.wonCashback = 0;
+                order.earnedCashback = 0;
             } else {
-                // Unrevealed fallback: card awaits user scratching in Order History
-                order.rewardStatus = 'unscratched';
-                order.scratchRevealed = false;
-                order.scratchClaimed = false;
-                if (!order.scratchCard) order.scratchCard = {};
-                order.scratchCard.status = 'unscratched';
-                order.scratchCard.revealed = false;
-                order.scratchCard.claimed = false;
+                const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
+                if (isCardScratched) {
+                    order.rewardStatus = 'active_credited';
+                    order.scratchRevealed = true;
+                    order.scratchClaimed = true;
+                    if (!order.scratchCard) order.scratchCard = {};
+                    order.scratchCard.status = 'active_credited';
+                    order.scratchCard.revealed = true;
+                    order.scratchCard.claimed = true;
+                    order.scratchCard.claimedAt = nowIso;
+                } else {
+                    // Unrevealed fallback: card awaits user scratching in Order History
+                    order.rewardStatus = 'unscratched';
+                    order.scratchRevealed = false;
+                    order.scratchClaimed = false;
+                    if (!order.scratchCard) order.scratchCard = {};
+                    order.scratchCard.status = 'unscratched';
+                    order.scratchCard.revealed = false;
+                    order.scratchCard.claimed = false;
+                }
             }
         }
 
@@ -3560,13 +3595,14 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 const rawPhone = order?.customerPhone || order?.phone || order?.customer?.phone || extraPayload?.customerPhone || '';
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
-                const shouldCreditCashback = (cashbackAmount > 0 && !wasAlreadyClaimed && order?.rewardStatus !== 'voided');
+                const isWalletSystemActive = (staffWalletConfig && staffWalletConfig.enabled !== false);
+                const shouldCreditCashback = (isWalletSystemActive && cashbackAmount > 0 && !wasAlreadyClaimed && order?.rewardStatus !== 'voided');
 
                 fsUpdate.status = 'delivered';
                 fsUpdate.deliveredAt = serverTs;
                 fsUpdate.completedAt = serverTs;
 
-                if (cashbackAmount > 0) {
+                if (isWalletSystemActive && cashbackAmount > 0) {
                     fsUpdate.rewardStatus = 'active_credited';
                     fsUpdate.scratchClaimed = true;
                     fsUpdate.scratchRevealed = true;
@@ -3576,6 +3612,11 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     fsUpdate['scratchCard.claimed'] = true;
                     fsUpdate['scratchCard.revealed'] = true;
                     fsUpdate['scratchCard.claimedAt'] = new Date().toISOString();
+                } else if (!isWalletSystemActive) {
+                    fsUpdate.rewardStatus = 'none';
+                    fsUpdate.wonCashback = 0;
+                    fsUpdate.earnedCashback = 0;
+                    fsUpdate['scratchCard.status'] = 'none';
                 }
 
                 console.log(`[STAFF OTP] Executing atomic delivery batch for Order #${rawId} (Cashback: ₹${cashbackAmount}, Credit Eligible: ${shouldCreditCashback})...`);

@@ -29,6 +29,7 @@ export function normalizeWalletConfig(raw) {
         return JSON.parse(JSON.stringify(DEFAULT_WALLET_CONFIG));
     }
 
+    // System Enable/Disable Toggle: defaults to true unless explicitly toggled false
     const enabled = raw.enabled !== false;
     const rawExpiry = raw.cashbackExpiryDays !== undefined ? raw.cashbackExpiryDays : raw.expiryDays;
     const expiryDays = Math.min(30, Math.max(1, parseInt(rawExpiry, 10) || DEFAULT_WALLET_CONFIG.expiryDays));

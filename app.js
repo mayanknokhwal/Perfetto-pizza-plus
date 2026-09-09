@@ -4582,6 +4582,7 @@ let customerWalletConfig = (function() {
                 const days = getClampedCashbackExpiryDays(parsed);
                 parsed.expiryDays = days;
                 parsed.cashbackExpiryDays = days;
+                parsed.enabled = (parsed.enabled !== false);
                 if (Array.isArray(parsed.slabs)) {
                     parsed.slabs = parsed.slabs.map(slab => {
                         if (!slab || typeof slab !== 'object') return slab;
@@ -4672,9 +4673,11 @@ function listenToWalletConfigRealtime() {
                 };
             });
 
+            const isEnabled = (configData.enabled !== false);
             customerWalletConfig = {
                 ...DEFAULT_WALLET_CONFIG,
                 ...configData,
+                enabled: isEnabled,
                 slabs: normalizedSlabs,
                 cashbackExpiryDays: clampedDays,
                 expiryDays: clampedDays
@@ -5398,8 +5401,23 @@ function updateCheckoutWalletUI() {
             ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
             : `Use ${formatPrice(maxRedeemable)} Cash`;
     }
-    if (hintEl) {
-        hintEl.style.display = 'none';
+    // Display gentle notice if system is disabled and customer is utilizing legacy balance
+    if (!isSystemEnabled) {
+        if (hintEl) {
+            hintEl.style.display = 'flex';
+            hintEl.classList.add('wallet-legacy-notice');
+        }
+        if (hintTextEl) {
+            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+            hintTextEl.textContent = typeof t === 'function'
+                ? t('wallet_legacy_balance_notice')
+                : (isHindi ? 'मौजूदा वॉलेट बैलेंस का उपयोग कर रहे हैं। नए कैशबैक रिवॉर्ड अभी रुके हुए हैं।' : 'Using existing wallet balance. New cashback rewards are currently paused.');
+        }
+    } else {
+        if (hintEl) {
+            hintEl.style.display = 'none';
+            hintEl.classList.remove('wallet-legacy-notice');
+        }
     }
 
     if (isWalletRedemptionSelected) {
@@ -5738,6 +5756,8 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
 window.creditCustomerWallet = creditCustomerWallet;
 
 function updateProfileWalletUI() {
+    const cardEl = document.getElementById('profile-wallet-card');
+    const statusPill = document.getElementById('profile-wallet-status-pill');
     const valEl = document.getElementById('profile-wallet-val');
     const expiryTag = document.getElementById('profile-wallet-expiry-tag');
     const expiryText = document.getElementById('profile-wallet-expiry-text');
@@ -5747,6 +5767,26 @@ function updateProfileWalletUI() {
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+
+    // Toggle card visual aesthetic: Muted grayscale when disabled
+    if (cardEl) {
+        if (!isSystemEnabled) {
+            cardEl.classList.add('is-paused');
+        } else {
+            cardEl.classList.remove('is-paused');
+        }
+    }
+
+    // Toggle status badge
+    if (statusPill) {
+        if (!isSystemEnabled) {
+            statusPill.classList.add('is-paused');
+            statusPill.textContent = typeof t === 'function' ? t('wallet_system_paused') : (isHindi ? 'कैशबैक सिस्टम अभी बंद है' : 'System Paused');
+        } else {
+            statusPill.classList.remove('is-paused');
+            statusPill.textContent = typeof t === 'function' ? t('wallet_active') : (isHindi ? 'एक्टिव' : 'Active');
+        }
+    }
 
     // Read updated cumulative balance dynamically
     const balance = getEffectiveWalletBalance();
@@ -5815,16 +5855,19 @@ function updateProfileWalletUI() {
     // Check for unclaimed scratch cards from delivered orders
     const unclaimedBanner = document.getElementById('profile-scratch-unclaimed-banner');
     if (unclaimedBanner) {
-        const unclaimedOrder = getFirstUnclaimedDeliveredOrder();
-        if (unclaimedOrder) {
-            unclaimedBanner.style.display = 'flex';
-            const bannerTitle = document.getElementById('profile-scratch-banner-title');
-            const bannerSub = document.getElementById('profile-scratch-banner-sub');
-            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-            if (bannerTitle) bannerTitle.textContent = isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!';
-            if (bannerSub) bannerSub.textContent = isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' : 'Scratch the card to reveal your cashback reward';
-        } else {
+        if (!isSystemEnabled && balance <= 0) {
             unclaimedBanner.style.display = 'none';
+        } else {
+            const unclaimedOrder = getFirstUnclaimedDeliveredOrder();
+            if (unclaimedOrder) {
+                unclaimedBanner.style.display = 'flex';
+                const bannerTitle = document.getElementById('profile-scratch-banner-title');
+                const bannerSub = document.getElementById('profile-scratch-banner-sub');
+                if (bannerTitle) bannerTitle.textContent = isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!';
+                if (bannerSub) bannerSub.textContent = isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' : 'Scratch the card to reveal your cashback reward';
+            } else {
+                unclaimedBanner.style.display = 'none';
+            }
         }
     }
 
@@ -6181,6 +6224,7 @@ window.addEventListener('storage', (e) => {
         try {
             if (e.key === 'perfetto_wallet_config') {
                 customerWalletConfig = safeStorage.getJSON('perfetto_wallet_config', {});
+                customerWalletConfig.enabled = (customerWalletConfig.enabled !== false);
                 const days = getClampedCashbackExpiryDays(customerWalletConfig);
                 customerWalletConfig.cashbackExpiryDays = days;
                 customerWalletConfig.expiryDays = days;
@@ -7345,7 +7389,8 @@ function openOrderOtpSuccessModal(order) {
     const expiryLabel = formatExpiryDaysLabel(activeOrderDays, isHindiModal);
 
     if (cashbackCard) {
-        if (earnedCashback > 0) {
+        const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
+        if (earnedCashback > 0 && isSystemEnabled) {
             cashbackCard.style.display = 'flex';
             if (isCardRevealed) {
                 if (cashbackText) {
@@ -8430,6 +8475,15 @@ const getFirstUnclaimedDeliveredOrder = getFirstUnclaimedOrder;
 function openScratchCardModal(order, demoAmount) {
     const modal = document.getElementById('scratch-card-modal');
     if (!modal) return;
+
+    const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
+    if (!isSystemEnabled && demoAmount === undefined) {
+        const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+        showToast(typeof t === 'function'
+            ? t('wallet_system_paused_modal_toast')
+            : (isHindi ? 'वॉलेट कैशबैक रिवॉर्ड अभी रोक दिए गए हैं।' : 'Wallet cashback rewards are currently paused.'));
+        return;
+    }
 
     if (order) {
         const slab1Threshold = getSlab1Threshold(customerWalletConfig);
@@ -11878,6 +11932,7 @@ function listenToRealtimeMenuAndRates() {
                     customerWalletConfig = {
                         ...DEFAULT_WALLET_CONFIG,
                         ...conf,
+                        enabled: conf.enabled !== false,
                         slabs: incomingSlabs
                     };
                     window.customerWalletConfig = customerWalletConfig;
