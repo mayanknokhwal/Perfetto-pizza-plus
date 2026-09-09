@@ -2251,12 +2251,17 @@ async function fetchLiveBannersFromBackend() {
                 const normalized = data.banners.slice(0, 4).map((b, i) => {
                     const bannerObj = (b && typeof b === 'object') ? b : {};
                     const slot1Data = (data.slot1 && typeof data.slot1 === 'object') ? data.slot1 : {};
+                    const slot2Data = (data.slot2 && typeof data.slot2 === 'object') ? data.slot2 : {};
                     return {
                         id: bannerObj.id || `b${i + 1}`,
                         url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
                         enabled: bannerObj.enabled !== false,
                         targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : (bannerObj.targetProductId || ''),
-                        discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0)
+                        discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0),
+                        minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : (Number(bannerObj.minSpend) || 0),
+                        rewardType: i === 1 ? (bannerObj.rewardType || slot2Data.rewardType || 'category') : (bannerObj.rewardType || ''),
+                        rewardCategory: i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : (bannerObj.rewardCategory || ''),
+                        rewardPizzaSize: i === 1 ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : (bannerObj.rewardPizzaSize || 'medium')
                     };
                 });
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
@@ -5859,6 +5864,10 @@ function updateQuantity(index, change) {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
     }
+    if (cart[index] && cart[index].isFreeGift && change > 0) {
+        showToast('Only 1 free gift allowed per order.');
+        return;
+    }
     cart[index].qty += change;
     if (cart[index].qty <= 0) {
         cart.splice(index, 1);
@@ -5875,6 +5884,90 @@ function clearCart() {
 }
 
 function updateCartUI() {
+    // 0. Banner Slot 2 Spend Target Check & Automatic Free Gift Revocation
+    const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : { minSpend: 699, rewardType: 'category', rewardCategory: 'Shake' };
+    const minSpend = Number(slot2Config.minSpend) || 699;
+    const isBanner2OfferActive = (function () {
+        try { return sessionStorage.getItem('banner2SpendOfferActive') === 'true'; } catch (e) { return false; }
+    })();
+
+    // Calculate qualifyingPaidTotal (sum of standard paid items in cart, strictly excluding free gifts)
+    const qualifyingPaidTotal = cart
+        .filter(item => !item.isFreeGift)
+        .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
+
+    // Revocation Rule: If cart has a free gift, but offer not activated OR paid cart items dropped below minSpend
+    const hasFreeGift = cart.some(item => item.isFreeGift);
+    if (hasFreeGift && (!isBanner2OfferActive || qualifyingPaidTotal < minSpend)) {
+        cart = cart.filter(item => !item.isFreeGift);
+        saveCartToStorage();
+        showToast(`⚠️ Free gift removed: Paid cart total must be at least ₹${minSpend}.`);
+    }
+
+    // Update Cart Free Gift Container (#cart-free-gift-container)
+    const freeGiftContainer = document.getElementById('cart-free-gift-container');
+    if (freeGiftContainer) {
+        if (isBanner2OfferActive && cart.length > 0) {
+            const rewardName = slot2Config.rewardType === 'pizza'
+                ? `${(slot2Config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (slot2Config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
+                : (slot2Config.rewardCategory || 'Reward');
+            const currentGiftItem = cart.find(item => item.isFreeGift);
+
+            if (qualifyingPaidTotal >= minSpend) {
+                if (currentGiftItem) {
+                    freeGiftContainer.style.display = 'block';
+                    freeGiftContainer.innerHTML = `
+                        <div class="cart-free-gift-unlock-banner claimed">
+                            <div class="gift-banner-left">
+                                <span class="gift-banner-icon">🎁</span>
+                                <div class="gift-banner-text">
+                                    <strong>Free ${escapeHtml(rewardName)} Claimed!</strong>
+                                    <span>${escapeHtml(currentGiftItem.name)} added to your order</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-change-free-gift" onclick="openFreeGiftSelectionModal()">
+                                Change Gift
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    freeGiftContainer.style.display = 'block';
+                    freeGiftContainer.innerHTML = `
+                        <div class="cart-free-gift-unlock-banner unlocked">
+                            <div class="gift-banner-left">
+                                <span class="gift-banner-icon">🎁</span>
+                                <div class="gift-banner-text">
+                                    <strong>🎉 Congratulations! Target Reached!</strong>
+                                    <span>Choose your Free ${escapeHtml(rewardName)} now!</span>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-claim-free-gift" onclick="openFreeGiftSelectionModal()">
+                                <i class="fa-solid fa-gift"></i> Claim Gift
+                            </button>
+                        </div>
+                    `;
+                }
+            } else {
+                const diff = minSpend - qualifyingPaidTotal;
+                freeGiftContainer.style.display = 'block';
+                freeGiftContainer.innerHTML = `
+                    <div class="cart-free-gift-unlock-banner in-progress">
+                        <div class="gift-banner-left">
+                            <span class="gift-banner-icon">🎯</span>
+                            <div class="gift-banner-text">
+                                <strong>Free ${escapeHtml(rewardName)} Offer Active!</strong>
+                                <span>Add ₹${diff} more in paid items to claim your gift</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        } else {
+            freeGiftContainer.style.display = 'none';
+            freeGiftContainer.innerHTML = '';
+        }
+    }
+
     // 1. Update Cart Badge Count & Clear All Button Visibility
     const totalCount = cart.reduce((sum, item) => sum + item.qty, 0);
     cartBadge.textContent = totalCount;
@@ -5911,17 +6004,29 @@ function updateCartUI() {
                 }).join('')}</div>`
                 : '';
 
-            const hasDiscount = Boolean(item.originalPrice && item.originalPrice > item.price);
-            const priceMarkup = hasDiscount
-                ? `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span>${formatPrice(item.price * item.qty)}</span>`
-                : `<span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>`;
+            const isGift = Boolean(item.isFreeGift);
+            let priceMarkup = '';
+            if (isGift) {
+                if (item.price > 0) {
+                    priceMarkup = `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span>${formatPrice(item.price * item.qty)} <span style="font-size:0.72rem; color:#10b981; font-weight:700;">(Add-on only)</span></span>`;
+                } else {
+                    priceMarkup = `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span><span style="color:#10b981; font-weight:800;">FREE</span></span>`;
+                }
+            } else {
+                const hasDiscount = Boolean(item.originalPrice && item.originalPrice > item.price);
+                priceMarkup = hasDiscount
+                    ? `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span>${formatPrice(item.price * item.qty)}</span>`
+                    : `<span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>`;
+            }
 
             const bannerBadgeMarkup = item.isBannerDeal
                 ? `<span class="cart-banner-deal-badge" style="font-size:0.68rem; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.12); border:1px solid rgba(234,88,12,0.3); border-radius:999px; padding:2px 8px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-fire"></i> Banner Deal</span>`
-                : '';
+                : (isGift
+                    ? `<span class="cart-free-gift-badge"><i class="fa-solid fa-gift"></i> Free Gift</span>`
+                    : '');
 
             return `
-            <div class="cart-item-card">
+            <div class="cart-item-card ${isGift ? 'cart-item-free-gift' : ''}">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
                     <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
@@ -5931,7 +6036,7 @@ function updateCartUI() {
                 <div class="qty-control">
                     <button class="qty-btn" onclick="updateQuantity(${index}, -1)">-</button>
                     <span class="qty-val">${item.qty}</span>
-                    <button class="qty-btn" onclick="updateQuantity(${index}, 1)">+</button>
+                    <button class="qty-btn" onclick="updateQuantity(${index}, 1)" ${isGift ? 'disabled style="opacity:0.4; cursor:not-allowed;" title="Max 1 Free Gift"' : ''}>+</button>
                 </div>
             </div>
             `;
@@ -10585,7 +10690,7 @@ function showToast(msg, duration = 2400) {
 const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
 const DEFAULT_DAILY_BANNERS = [
     { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
-    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
+    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
     { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
     { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
 ];
@@ -10652,16 +10757,25 @@ function renderDynamicOfferSlider(customBanners = null) {
         const safeUrl = resolveBannerUrl(banner.url);
         const isSlot1 = (banner.id === 'b1' || idx === 0);
         const hasSpotlight = isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0;
+        const isSlot2 = (banner.id === 'b2' || idx === 1);
+        const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
+        const spendRewardLabel = hasSpendOffer ? (banner.rewardType === 'pizza' ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${banner.rewardCategory || 'Gift'}`) : '';
         return `
-            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''}" 
+            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''}" 
                  data-banner-id="${banner.id || ('b' + (idx + 1))}" 
                  data-slide-index="${idx}"
                  ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
+                 ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
                  onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')">
                 <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
                 ${hasSpotlight ? `
                     <div class="banner-spotlight-tap-hint">
                         <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
+                    </div>
+                ` : ''}
+                ${hasSpendOffer ? `
+                    <div class="banner-spend-tap-hint">
+                        <i class="fa-solid fa-gift"></i> Tap to Unlock: ${escapeHtml(spendRewardLabel)} on ₹${Number(banner.minSpend)}+
                     </div>
                 ` : ''}
             </div>
@@ -10908,11 +11022,28 @@ function handleBannerSlideClick(slideIndex, bannerId) {
     const banner = activeBanners[slideIndex];
     if (!banner) return;
     const isSlot1 = (banner.id === 'b1' || slideIndex === 0);
+    const isSlot2 = (banner.id === 'b2' || slideIndex === 1);
+
     if (isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0) {
         try {
             sessionStorage.setItem('banner1OfferActive', 'true');
         } catch (e) { }
         openSpotlightBannerModal(banner.targetProductId, Number(banner.discountPercent));
+        return;
+    }
+
+    if (isSlot2 && Number(banner.minSpend) > 0) {
+        try {
+            sessionStorage.setItem('banner2SpendOfferActive', 'true');
+        } catch (e) { }
+        const rewardTitle = banner.rewardType === 'pizza'
+            ? `${(banner.rewardPizzaSize || 'medium').charAt(0).toUpperCase() + (banner.rewardPizzaSize || 'medium').slice(1)} Pizza`
+            : (banner.rewardCategory || 'Gift');
+        showToast(`🎉 Offer Activated! Spend ₹${banner.minSpend} on paid items to claim your Free ${rewardTitle}!`);
+        if (typeof updateCartUI === 'function') {
+            updateCartUI();
+        }
+        return;
     }
 }
 window.handleBannerSlideClick = handleBannerSlideClick;
@@ -11267,6 +11398,346 @@ function closeSpotlightDealModal() {
     document.body.style.overflow = '';
 }
 window.closeSpotlightDealModal = closeSpotlightDealModal;
+
+// --------------------------------------------------------------------------
+// BANNER SLOT 2 SPEND TARGET & FREE GIFT REWARD ENGINE
+// --------------------------------------------------------------------------
+let currentFreeGiftState = {
+    selectedItem: null,
+    selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false },
+    eligibleItems: [],
+    slotConfig: null
+};
+
+function getBannerSlot2Config() {
+    let banners = [];
+    try {
+        const saved = localStorage.getItem('perfetto_daily_banners');
+        if (saved) {
+            banners = JSON.parse(saved);
+        }
+    } catch (e) { }
+    if (!Array.isArray(banners) || banners.length < 2) {
+        banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
+    }
+    const b2 = banners[1] || {};
+    return {
+        id: 'b2',
+        url: b2.url || 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png',
+        minSpend: Number(b2.minSpend) || 699,
+        rewardType: b2.rewardType || 'category',
+        rewardCategory: b2.rewardCategory || 'Shake',
+        rewardPizzaSize: b2.rewardPizzaSize || 'medium',
+        enabled: b2.enabled !== false
+    };
+}
+window.getBannerSlot2Config = getBannerSlot2Config;
+
+function openFreeGiftSelectionModal() {
+    const modal = document.getElementById('free-gift-modal');
+    if (!modal) return;
+
+    const config = getBannerSlot2Config();
+    currentFreeGiftState.slotConfig = config;
+    currentFreeGiftState.selectedAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
+
+    const titleEl = document.getElementById('free-gift-modal-title');
+    const subtitleEl = document.getElementById('free-gift-modal-subtitle');
+    const badgeTextEl = document.getElementById('free-gift-badge-text');
+
+    const rewardName = config.rewardType === 'pizza'
+        ? `${(config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
+        : (config.rewardCategory || 'Gift');
+
+    if (badgeTextEl) badgeTextEl.textContent = `Free ${rewardName} Reward`;
+    if (titleEl) titleEl.textContent = `Choose Your Free ${rewardName}`;
+    if (subtitleEl) subtitleEl.textContent = `Unlocked for spending ₹${config.minSpend}+ on paid items! Pick any 1 below:`;
+
+    // Fetch eligible items
+    const allItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
+    let eligible = [];
+
+    if (config.rewardType === 'pizza') {
+        eligible = allItems.filter(item => (item.category || '').toLowerCase() === 'pizza' && item.available !== false);
+        if (eligible.length === 0 && typeof categorySubItems !== 'undefined' && categorySubItems['Pizza']) {
+            eligible = categorySubItems['Pizza'].filter(i => i.available !== false);
+        }
+    } else {
+        const catTarget = (config.rewardCategory || 'Shake').toLowerCase();
+        eligible = allItems.filter(item => (item.category || '').toLowerCase() === catTarget && item.available !== false);
+        if (eligible.length === 0 && typeof categorySubItems !== 'undefined') {
+            const matchedKey = Object.keys(categorySubItems).find(k => k.toLowerCase() === catTarget);
+            if (matchedKey) {
+                eligible = categorySubItems[matchedKey].filter(i => i.available !== false);
+            }
+        }
+    }
+
+    currentFreeGiftState.eligibleItems = eligible;
+
+    // Check if user already had a free gift in cart to preselect
+    const existingGift = cart.find(i => i.isFreeGift);
+    if (existingGift) {
+        const found = eligible.find(i => i.name === existingGift.baseName || i.name === existingGift.name);
+        currentFreeGiftState.selectedItem = found || eligible[0] || null;
+    } else {
+        currentFreeGiftState.selectedItem = eligible[0] || null;
+    }
+
+    renderFreeGiftItemsGrid();
+    renderFreeGiftAddonsAndPricing();
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+window.openFreeGiftSelectionModal = openFreeGiftSelectionModal;
+
+function closeFreeGiftModal() {
+    const modal = document.getElementById('free-gift-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.style.overflow = '';
+}
+window.closeFreeGiftModal = closeFreeGiftModal;
+
+function renderFreeGiftItemsGrid() {
+    const grid = document.getElementById('free-gift-items-grid');
+    if (!grid) return;
+
+    const { eligibleItems, selectedItem, slotConfig } = currentFreeGiftState;
+    if (!eligibleItems || eligibleItems.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No eligible reward items found at this time.</div>';
+        return;
+    }
+
+    const pizzaSize = (slotConfig && slotConfig.rewardPizzaSize) ? slotConfig.rewardPizzaSize.toLowerCase() : 'medium';
+    const pizzaSizeKey = pizzaSize.startsWith('s') ? 'S' : (pizzaSize.startsWith('l') ? 'L' : 'M');
+
+    grid.innerHTML = eligibleItems.map(item => {
+        const isSelected = selectedItem && (selectedItem.id === item.id || selectedItem.name === item.name);
+        let origP = item.price;
+        if (slotConfig && slotConfig.rewardType === 'pizza') {
+            origP = (item.prices && item.prices[pizzaSizeKey]) ? item.prices[pizzaSizeKey] : (item.price || 249);
+        }
+
+        const safeImg = item.img || 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png';
+        const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
+
+        return `
+            <div class="free-gift-item-card ${isSelected ? 'selected' : ''}" onclick="onSelectFreeGiftItem('${escapeHtml(item.id || item.name)}')">
+                ${isSelected ? '<div class="free-gift-selected-check"><i class="fa-solid fa-check"></i></div>' : ''}
+                <div class="free-gift-item-thumb-wrapper">
+                    <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="free-gift-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                </div>
+                <div class="free-gift-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
+                <div class="free-gift-price-line">
+                    <span class="free-gift-strike">${formatPrice(origP)}</span>
+                    <span class="free-gift-free-tag">FREE</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function onSelectFreeGiftItem(itemIdOrName) {
+    const found = currentFreeGiftState.eligibleItems.find(i => (i.id === itemIdOrName || i.name === itemIdOrName));
+    if (!found) return;
+    currentFreeGiftState.selectedItem = found;
+    currentFreeGiftState.selectedAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
+    renderFreeGiftItemsGrid();
+    renderFreeGiftAddonsAndPricing();
+}
+window.onSelectFreeGiftItem = onSelectFreeGiftItem;
+
+function renderFreeGiftAddonsAndPricing() {
+    const { selectedItem, slotConfig, selectedAddons } = currentFreeGiftState;
+    const addonsBox = document.getElementById('free-gift-addons-box');
+    const addonsChipsContainer = document.getElementById('free-gift-addon-chips');
+    const strikePriceEl = document.getElementById('free-gift-strike-price');
+    const finalPriceEl = document.getElementById('free-gift-final-price');
+    const breakdownTagEl = document.getElementById('free-gift-breakdown-tag');
+    const confirmBtn = document.getElementById('btn-confirm-free-gift');
+
+    if (!selectedItem) {
+        if (confirmBtn) confirmBtn.disabled = true;
+        return;
+    }
+    if (confirmBtn) confirmBtn.disabled = false;
+
+    // Calculate base original price
+    let origBasePrice = Number(selectedItem.price) || 0;
+    const isPizza = (slotConfig && slotConfig.rewardType === 'pizza') || (selectedItem.category || '').toLowerCase() === 'pizza';
+    let pizzaSizeKey = 'M';
+    if (isPizza) {
+        const pSize = (slotConfig && slotConfig.rewardPizzaSize) ? slotConfig.rewardPizzaSize.toLowerCase() : 'medium';
+        pizzaSizeKey = pSize.startsWith('s') ? 'S' : (pSize.startsWith('l') ? 'L' : 'M');
+        if (selectedItem.prices && selectedItem.prices[pizzaSizeKey]) {
+            origBasePrice = Number(selectedItem.prices[pizzaSizeKey]);
+        }
+    }
+
+    // Determine available add-ons for the item's category
+    const catName = selectedItem.category || (isPizza ? 'Pizza' : 'Shake');
+    let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
+    if (isPizza && addonConfig.sizes && addonConfig.sizes[pizzaSizeKey]) {
+        addonConfig = addonConfig.sizes[pizzaSizeKey];
+    }
+
+    const availableAddons = [];
+    if (addonConfig.withIceCream !== undefined && Number(addonConfig.withIceCream) > 0) {
+        availableAddons.push({ key: 'iceCream', label: '🍨 With Ice Cream', price: Number(addonConfig.withIceCream) });
+    }
+    if (addonConfig.extraCheese !== undefined && Number(addonConfig.extraCheese) > 0) {
+        availableAddons.push({ key: 'cheese', label: '🧀 Extra Cheese', price: Number(addonConfig.extraCheese) });
+    }
+    if (addonConfig.extraMayo !== undefined && Number(addonConfig.extraMayo) > 0) {
+        availableAddons.push({ key: 'mayo', label: '🍥 Extra Mayo', price: Number(addonConfig.extraMayo) });
+    }
+    if (addonConfig.extraSpicy !== undefined) {
+        availableAddons.push({ key: 'spicy', label: '🌶️ Extra Spicy', price: Number(addonConfig.extraSpicy) });
+    }
+
+    // Render addon chips if available
+    if (availableAddons.length > 0 && addonsBox && addonsChipsContainer) {
+        addonsBox.style.display = 'block';
+        addonsChipsContainer.innerHTML = availableAddons.map(a => {
+            const isChecked = Boolean(selectedAddons[a.key]);
+            const priceTag = a.price > 0 ? ` (+${formatPrice(a.price)})` : ' (FREE)';
+            return `
+                <button type="button" class="spotlight-addon-chip ${isChecked ? 'active' : ''}" onclick="onToggleFreeGiftAddon('${a.key}')">
+                    <i class="fa-solid ${isChecked ? 'fa-square-check' : 'fa-square'}"></i>
+                    ${a.label}${priceTag}
+                </button>
+            `;
+        }).join('');
+    } else if (addonsBox) {
+        addonsBox.style.display = 'none';
+    }
+
+    // Calculate total add-ons cost (100% full rate - Add-on Protection)
+    let totalAddonsPrice = 0;
+    availableAddons.forEach(a => {
+        if (selectedAddons[a.key]) {
+            totalAddonsPrice += a.price;
+        }
+    });
+
+    const origTotal = origBasePrice + totalAddonsPrice;
+    const finalPayable = totalAddonsPrice; // Base is ₹0
+
+    if (strikePriceEl) strikePriceEl.textContent = formatPrice(origTotal);
+    if (finalPriceEl) {
+        if (finalPayable === 0) {
+            finalPriceEl.textContent = 'FREE';
+            finalPriceEl.style.color = '#10b981';
+        } else {
+            finalPriceEl.textContent = formatPrice(finalPayable);
+            finalPriceEl.style.color = '#ffffff';
+        }
+    }
+    if (breakdownTagEl) {
+        if (finalPayable === 0) {
+            breakdownTagEl.textContent = `Save ${formatPrice(origBasePrice)} (100% FREE)`;
+        } else {
+            breakdownTagEl.textContent = `Base ₹0 (FREE) + Add-ons ${formatPrice(totalAddonsPrice)}`;
+        }
+    }
+}
+
+function onToggleFreeGiftAddon(addonKey) {
+    if (!currentFreeGiftState.selectedAddons) {
+        currentFreeGiftState.selectedAddons = {};
+    }
+    currentFreeGiftState.selectedAddons[addonKey] = !currentFreeGiftState.selectedAddons[addonKey];
+    renderFreeGiftAddonsAndPricing();
+}
+window.onToggleFreeGiftAddon = onToggleFreeGiftAddon;
+
+function confirmClaimFreeGift() {
+    const { selectedItem, slotConfig, selectedAddons } = currentFreeGiftState;
+    if (!selectedItem) return;
+
+    // Check that qualifying paid total in cart is still >= minSpend
+    const minSpend = Number(slotConfig.minSpend) || 699;
+    const qualifyingPaidTotal = cart
+        .filter(item => !item.isFreeGift)
+        .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
+
+    if (qualifyingPaidTotal < minSpend) {
+        showToast(`⚠️ Paid cart total must be at least ₹${minSpend} to claim your free gift.`);
+        closeFreeGiftModal();
+        return;
+    }
+
+    // Determine base price and size
+    let origBasePrice = Number(selectedItem.price) || 0;
+    const isPizza = (slotConfig && slotConfig.rewardType === 'pizza') || (selectedItem.category || '').toLowerCase() === 'pizza';
+    let pizzaSizeKey = 'M';
+    if (isPizza) {
+        const pSize = (slotConfig && slotConfig.rewardPizzaSize) ? slotConfig.rewardPizzaSize.toLowerCase() : 'medium';
+        pizzaSizeKey = pSize.startsWith('s') ? 'S' : (pSize.startsWith('l') ? 'L' : 'M');
+        if (selectedItem.prices && selectedItem.prices[pizzaSizeKey]) {
+            origBasePrice = Number(selectedItem.prices[pizzaSizeKey]);
+        }
+    }
+
+    // Build add-ons list & calculate add-on price
+    const catName = selectedItem.category || (isPizza ? 'Pizza' : 'Shake');
+    let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
+    if (isPizza && addonConfig.sizes && addonConfig.sizes[pizzaSizeKey]) {
+        addonConfig = addonConfig.sizes[pizzaSizeKey];
+    }
+
+    const addonsList = [];
+    let addonsPrice = 0;
+    if (selectedAddons.iceCream && addonConfig.withIceCream !== undefined) {
+        addonsList.push({ name: 'With Ice Cream', price: Number(addonConfig.withIceCream) });
+        addonsPrice += Number(addonConfig.withIceCream);
+    }
+    if (selectedAddons.cheese && addonConfig.extraCheese !== undefined) {
+        addonsList.push({ name: 'Extra Cheese', price: Number(addonConfig.extraCheese) });
+        addonsPrice += Number(addonConfig.extraCheese);
+    }
+    if (selectedAddons.mayo && addonConfig.extraMayo !== undefined) {
+        addonsList.push({ name: 'Extra Mayo', price: Number(addonConfig.extraMayo) });
+        addonsPrice += Number(addonConfig.extraMayo);
+    }
+    if (selectedAddons.spicy && addonConfig.extraSpicy !== undefined) {
+        addonsList.push({ name: 'Extra Spicy', price: Number(addonConfig.extraSpicy) });
+        addonsPrice += Number(addonConfig.extraSpicy);
+    }
+
+    const baseItemName = isPizza ? `${selectedItem.name} (${pizzaSizeKey})` : selectedItem.name;
+    const addonNames = addonsList.map(a => a.name);
+    const fullItemName = addonNames.length > 0 ? `${baseItemName} (+${addonNames.join(', ')})` : baseItemName;
+
+    // Remove any previous free gift in cart (strictly 1 free gift per order)
+    cart = cart.filter(item => !item.isFreeGift);
+
+    // Add free gift item
+    // Add-on Protection: Base is ₹0, add-ons charged at 100% full rate
+    cart.push({
+        name: fullItemName,
+        baseName: baseItemName,
+        price: addonsPrice,
+        basePrice: 0,
+        originalPrice: origBasePrice + addonsPrice,
+        qty: 1,
+        img: selectedItem.img || 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png',
+        addons: addonsList,
+        isFreeGift: true
+    });
+
+    saveCartToStorage();
+    closeFreeGiftModal();
+    updateCartUI();
+
+    showToast(`🎁 Claimed Free ${baseItemName}!`);
+}
+window.confirmClaimFreeGift = confirmClaimFreeGift;
 
 // --------------------------------------------------------------------------
 // 9. WHATSAPP DP STYLE LOGO POPUP MODAL
@@ -12155,6 +12626,7 @@ function listenToRealtimeMenuAndRates() {
                 if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
                     const docData = doc.data() || {};
                     const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
+                    const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
                     banners = docData.banners.slice(0, 4).map((b, i) => {
                         const bannerObj = (b && typeof b === 'object') ? b : {};
                         return {
@@ -12162,7 +12634,11 @@ function listenToRealtimeMenuAndRates() {
                             url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
                             enabled: bannerObj.enabled !== false,
                             targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : (bannerObj.targetProductId || ''),
-                            discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0)
+                            discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0),
+                            minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : (Number(bannerObj.minSpend) || 0),
+                            rewardType: i === 1 ? (bannerObj.rewardType || slot2Data.rewardType || 'category') : (bannerObj.rewardType || ''),
+                            rewardCategory: i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : (bannerObj.rewardCategory || ''),
+                            rewardPizzaSize: i === 1 ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : (bannerObj.rewardPizzaSize || 'medium')
                         };
                     });
                 }
@@ -12624,6 +13100,7 @@ function setupGlobalCustomerModalDismissals() {
         { id: 'order-otp-success-modal', dismiss: () => { if (typeof closeOrderOtpSuccessModal === 'function') closeOrderOtpSuccessModal(); } },
         { id: 'clear-history-confirm-modal', dismiss: () => { if (typeof closeClearHistoryModal === 'function') closeClearHistoryModal(); } },
         { id: 'spotlight-deal-modal', dismiss: () => { if (typeof closeSpotlightDealModal === 'function') closeSpotlightDealModal(); } },
+        { id: 'free-gift-modal', dismiss: () => { if (typeof closeFreeGiftModal === 'function') closeFreeGiftModal(); } },
         { id: 'logo-modal', dismiss: () => { if (typeof window.closeLogoModal === 'function') window.closeLogoModal(); } },
         { id: 'customer-care-modal', dismiss: () => { if (typeof window.closeCustomerCareModal === 'function') window.closeCustomerCareModal(); } }
     ];

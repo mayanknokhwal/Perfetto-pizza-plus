@@ -532,6 +532,9 @@
                     <button class="clear-cart-btn" id="clear-cart-btn" onclick="clearCart()" data-i18n="clear_cart">Clear All</button>
                 </div>
 
+                <!-- DYNAMIC FREE GIFT UNLOCK / PROGRESS BANNER CONTAINER -->
+                <div id="cart-free-gift-container" style="display: none; margin-bottom: 12px;"></div>
+
                 <div id="cart-items-container" class="cart-items-list">
                     <!-- Dynamic cart items rendered here -->
                 </div>
@@ -800,6 +803,58 @@
                                 <i class="fa-solid fa-cart-shopping"></i> Claim Deal & Add to Cart
                             </button>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BANNER SLOT 2 FREE GIFT UNLOCK SELECTION MODAL -->
+        <div class="checkout-modal-overlay free-gift-modal-overlay" id="free-gift-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card free-gift-modal-card" role="dialog" aria-labelledby="free-gift-modal-title">
+                <!-- MODAL HEADER -->
+                <div class="checkout-modal-header free-gift-modal-header">
+                    <div class="free-gift-badge-pill">
+                        <i class="fa-solid fa-gift"></i> <span id="free-gift-badge-text">Free Gift Reward</span>
+                    </div>
+                    <button type="button" class="checkout-modal-close-btn" onclick="closeFreeGiftModal()" aria-label="Close Free Gift Modal">
+                        &times;
+                    </button>
+                </div>
+
+                <!-- MODAL BODY -->
+                <div class="checkout-modal-body free-gift-modal-body">
+                    <h3 class="section-title-bold" id="free-gift-modal-title" style="margin-bottom: 4px;">Choose Your Free Reward</h3>
+                    <p class="free-gift-subheading" id="free-gift-modal-subtitle">Spend target unlocked! Select any 1 eligible item below as your free gift.</p>
+
+                    <!-- Items Grid -->
+                    <div class="free-gift-items-grid" id="free-gift-items-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+
+                    <!-- Add-ons Section (Billed at 100% full rate - Add-on Protection) -->
+                    <div class="free-gift-addons-box" id="free-gift-addons-box" style="display: none;">
+                        <div class="spotlight-section-title">
+                            <span>Customize with Add-ons:</span>
+                            <span class="spotlight-addon-hint">(Billed at standard rate)</span>
+                        </div>
+                        <div class="spotlight-addon-chips" id="free-gift-addon-chips">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Pricing & Confirmation Footer -->
+                    <div class="free-gift-pricing-card">
+                        <div class="spotlight-deal-price-col">
+                            <span class="spotlight-price-label">Reward Total:</span>
+                            <div class="spotlight-deal-price-display">
+                                <span class="spotlight-strike-price" id="free-gift-strike-price">₹0</span>
+                                <span class="spotlight-final-price" id="free-gift-final-price" style="color: #10b981;">FREE</span>
+                            </div>
+                            <span class="spotlight-savings-tag" id="free-gift-breakdown-tag">Base Price: ₹0 (FREE)</span>
+                        </div>
+                        <button type="button" class="btn-confirm-free-gift" id="btn-confirm-free-gift" onclick="confirmClaimFreeGift()">
+                            <i class="fa-solid fa-gift"></i> Claim Free Gift
+                        </button>
                     </div>
                 </div>
             </div>

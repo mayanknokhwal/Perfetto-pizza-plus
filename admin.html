@@ -8136,6 +8136,13 @@
                     const rawDisc = parseInt(item.discountPercent, 10);
                     bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
                 }
+                if (i === 1 || item.minSpend !== undefined || item.rewardType !== undefined) {
+                    const rawSpend = parseInt(item.minSpend, 10);
+                    bannerObj.minSpend = (!isNaN(rawSpend) && rawSpend > 0) ? rawSpend : 699;
+                    bannerObj.rewardType = (item.rewardType === 'pizza') ? 'pizza' : 'category';
+                    bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+                    bannerObj.rewardPizzaSize = (item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium';
+                }
                 normalized.push(bannerObj);
             }
             if (!normalized.some(b => b.enabled)) {
@@ -8159,6 +8166,12 @@
                                 normalized[0].discountPercent = doc.data().slot1.discountPercent;
                             }
                         }
+                        if (doc.data().slot2 && normalized[1]) {
+                            if (doc.data().slot2.minSpend !== undefined) normalized[1].minSpend = Number(doc.data().slot2.minSpend) || 699;
+                            if (doc.data().slot2.rewardType) normalized[1].rewardType = doc.data().slot2.rewardType;
+                            if (doc.data().slot2.rewardCategory) normalized[1].rewardCategory = doc.data().slot2.rewardCategory;
+                            if (doc.data().slot2.rewardPizzaSize) normalized[1].rewardPizzaSize = doc.data().slot2.rewardPizzaSize;
+                        }
                         return normalized;
                     }
                 } catch (e) {
@@ -8178,6 +8191,12 @@
                             if (!normalized[0].discountPercent && data.slot1.discountPercent) {
                                 normalized[0].discountPercent = data.slot1.discountPercent;
                             }
+                        }
+                        if (data.slot2 && normalized[1]) {
+                            if (data.slot2.minSpend !== undefined) normalized[1].minSpend = Number(data.slot2.minSpend) || 699;
+                            if (data.slot2.rewardType) normalized[1].rewardType = data.slot2.rewardType;
+                            if (data.slot2.rewardCategory) normalized[1].rewardCategory = data.slot2.rewardCategory;
+                            if (data.slot2.rewardPizzaSize) normalized[1].rewardPizzaSize = data.slot2.rewardPizzaSize;
                         }
                         return normalized;
                     }
@@ -8210,6 +8229,18 @@
                     bannerItem.targetProductId = targetProd || '';
                     bannerItem.discountPercent = targetProd ? disc : 0;
                 }
+                if (i === 1) {
+                    const minSpendInput = document.getElementById('banner-min-spend');
+                    const rewardTypeSelect = document.getElementById('banner-reward-type');
+                    const rewardCatSelect = document.getElementById('banner-reward-category');
+                    const rewardSizeSelect = document.getElementById('banner-reward-pizza-size');
+                    let minSpend = minSpendInput ? parseInt(minSpendInput.value, 10) : (current.minSpend || 699);
+                    if (isNaN(minSpend) || minSpend < 1) minSpend = 699;
+                    bannerItem.minSpend = minSpend;
+                    bannerItem.rewardType = (rewardTypeSelect && rewardTypeSelect.value === 'pizza') ? 'pizza' : 'category';
+                    bannerItem.rewardCategory = (rewardCatSelect && rewardCatSelect.value) ? rewardCatSelect.value : (current.rewardCategory || 'Shake');
+                    bannerItem.rewardPizzaSize = (rewardSizeSelect && rewardSizeSelect.value) ? rewardSizeSelect.value.toLowerCase() : (current.rewardPizzaSize || 'medium');
+                }
                 slots.push(bannerItem);
             }
 
@@ -8227,9 +8258,21 @@
                 enabled: slots[0].enabled !== false
             };
 
+            const slot2Data = {
+                imageUrl: slots[1].url,
+                url: slots[1].url,
+                minSpend: Number(slots[1].minSpend) || 699,
+                rewardType: slots[1].rewardType || 'category',
+                rewardCategory: slots[1].rewardCategory || 'Shake',
+                rewardPizzaSize: slots[1].rewardPizzaSize || 'medium',
+                active: slots[1].enabled !== false,
+                enabled: slots[1].enabled !== false
+            };
+
             const docPayload = {
                 banners: slots,
                 slot1: slot1Data,
+                slot2: slot2Data,
                 count: 4,
                 activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),
@@ -8241,6 +8284,7 @@
                     await adminFirestore.collection('settings').doc('daily_banners').set(docPayload);
                     try {
                         await adminFirestore.collection('banners').doc('slot1').set(slot1Data);
+                        await adminFirestore.collection('banners').doc('slot2').set(slot2Data);
                     } catch (subErr) {}
                 } catch (e) {
                     console.warn('Firestore admin banner save note:', e.message);
@@ -8257,7 +8301,7 @@
 
             adminDailyBannersList = slots;
             renderAdminBannersUI();
-            return { success: true, banners: slots, slot1: slot1Data };
+            return { success: true, banners: slots, slot1: slot1Data, slot2: slot2Data };
         }
         window.saveAdminDailyBanners = saveAdminDailyBanners;
 
@@ -8315,6 +8359,14 @@
             }).join('');
         }
 
+        function renderRewardCategoryOptions(selectedCat = 'Shake') {
+            const availableCategories = ['Shake', 'Pizza', 'Burger', 'Cold Drinks', 'Mojito', 'Momos', 'Pasta', 'Chinese', 'Noodles', 'Sandwich', 'Wrap', 'Desserts', 'Salad', 'Spring Rolls'];
+            return availableCategories.map(cat => {
+                const isSel = cat.toLowerCase() === String(selectedCat || '').toLowerCase();
+                return `<option value="${cat}" ${isSel ? 'selected' : ''}>${cat}</option>`;
+            }).join('');
+        }
+
         function onBannerSpotlightChange(val) {
             if (!adminDailyBannersList[0]) return;
             adminDailyBannersList[0].targetProductId = val || '';
@@ -8330,6 +8382,36 @@
         }
         window.onBannerDiscountChange = onBannerDiscountChange;
 
+        function onBannerMinSpendChange(val) {
+            if (!adminDailyBannersList[1]) return;
+            let num = parseInt(val, 10);
+            if (isNaN(num) || num < 1) num = 699;
+            adminDailyBannersList[1].minSpend = num;
+        }
+        window.onBannerMinSpendChange = onBannerMinSpendChange;
+
+        function onBannerRewardTypeChange(val) {
+            if (!adminDailyBannersList[1]) return;
+            adminDailyBannersList[1].rewardType = val === 'pizza' ? 'pizza' : 'category';
+            const catBox = document.getElementById('banner-reward-cat-box');
+            const pizzaBox = document.getElementById('banner-reward-pizza-box');
+            if (catBox) catBox.style.display = val === 'category' ? 'block' : 'none';
+            if (pizzaBox) pizzaBox.style.display = val === 'pizza' ? 'block' : 'none';
+        }
+        window.onBannerRewardTypeChange = onBannerRewardTypeChange;
+
+        function onBannerRewardCategoryChange(val) {
+            if (!adminDailyBannersList[1]) return;
+            adminDailyBannersList[1].rewardCategory = val || 'Shake';
+        }
+        window.onBannerRewardCategoryChange = onBannerRewardCategoryChange;
+
+        function onBannerRewardPizzaSizeChange(val) {
+            if (!adminDailyBannersList[1]) return;
+            adminDailyBannersList[1].rewardPizzaSize = (val || 'medium').toLowerCase();
+        }
+        window.onBannerRewardPizzaSizeChange = onBannerRewardPizzaSizeChange;
+
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
             if (!listContainer) return;
@@ -8344,6 +8426,7 @@
                 const rawUrl = (banner.url || '').trim();
                 const isEnabled = banner.enabled !== false;
                 const isSlot1 = idx === 0;
+                const isSlot2 = idx === 1;
 
                 let slot1ExtraHtml = '';
                 if (isSlot1) {
@@ -8389,6 +8472,69 @@
                     `;
                 }
 
+                let slot2ExtraHtml = '';
+                if (isSlot2) {
+                    const minSpendVal = banner.minSpend || 699;
+                    const rewardTypeVal = banner.rewardType || 'category';
+                    const rewardCatVal = banner.rewardCategory || 'Shake';
+                    const rewardSizeVal = banner.rewardPizzaSize || 'medium';
+                    slot2ExtraHtml = `
+                        <div class="banner-spend-config-card" style="margin-top: 10px; padding: 12px 14px; background: rgba(59, 130, 246, 0.08); border: 1px dashed rgba(59, 130, 246, 0.4); border-radius: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 0.85rem; font-weight: 700; color: #3b82f6; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-gift"></i> Tap-to-Activate Spend Target & Free Gift Unlock
+                                </span>
+                                <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">Exclusive to Banner Slot 2</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 130px 150px 1fr; gap: 10px; align-items: center;">
+                                <div>
+                                    <label for="banner-min-spend" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Min Spend (₹):
+                                    </label>
+                                    <div style="position: relative; display: flex; align-items: center;">
+                                        <span style="position: absolute; left: 10px; font-weight: 800; font-size: 0.85rem; color: #3b82f6;">₹</span>
+                                        <input type="number" 
+                                               id="banner-min-spend" 
+                                               class="search-input" 
+                                               min="1" 
+                                               value="${minSpendVal}" 
+                                               placeholder="699" 
+                                               oninput="onBannerMinSpendChange(this.value)"
+                                               style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.88rem; font-weight: 700; background: var(--bg-card); color: #3b82f6; border: 1px solid var(--border-color); padding: 0 10px 0 24px;">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="banner-reward-type" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Free Reward Type:
+                                    </label>
+                                    <select id="banner-reward-type" class="search-input" onchange="onBannerRewardTypeChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        <option value="category" ${rewardTypeVal === 'category' ? 'selected' : ''}>Specific Category</option>
+                                        <option value="pizza" ${rewardTypeVal === 'pizza' ? 'selected' : ''}>Pizza Menu</option>
+                                    </select>
+                                </div>
+                                <div id="banner-reward-cat-box" style="display: ${rewardTypeVal === 'pizza' ? 'none' : 'block'};">
+                                    <label for="banner-reward-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Eligible Category:
+                                    </label>
+                                    <select id="banner-reward-category" class="search-input" onchange="onBannerRewardCategoryChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        ${renderRewardCategoryOptions(rewardCatVal)}
+                                    </select>
+                                </div>
+                                <div id="banner-reward-pizza-box" style="display: ${rewardTypeVal === 'pizza' ? 'block' : 'none'};">
+                                    <label for="banner-reward-pizza-size" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Pizza Size:
+                                    </label>
+                                    <select id="banner-reward-pizza-size" class="search-input" onchange="onBannerRewardPizzaSizeChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        <option value="small" ${rewardSizeVal === 'small' || rewardSizeVal === 's' ? 'selected' : ''}>Small (Regular)</option>
+                                        <option value="medium" ${rewardSizeVal === 'medium' || rewardSizeVal === 'm' ? 'selected' : ''}>Medium</option>
+                                        <option value="large" ${rewardSizeVal === 'large' || rewardSizeVal === 'l' ? 'selected' : ''}>Large</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 html += `
                     <div class="banner-row-item ${isEnabled ? 'is-active' : 'is-disabled'}" data-index="${idx}" id="banner-row-${idx}">
                         <div class="banner-toggle-col" title="Toggle Banner Slot #${idx + 1}">
@@ -8427,6 +8573,7 @@
                                        spellcheck="false">
                             </div>
                             ${slot1ExtraHtml}
+                            ${slot2ExtraHtml}
                         </div>
                     </div>
                 `;

@@ -100,10 +100,21 @@ async function handleBannersRequest(req, res) {
                 active: banners[0].enabled !== false,
                 enabled: banners[0].enabled !== false
             } : null;
+            const slot2 = (banners && banners[1]) ? {
+                imageUrl: banners[1].url,
+                url: banners[1].url,
+                minSpend: Number(banners[1].minSpend) || 699,
+                rewardType: banners[1].rewardType || 'category',
+                rewardCategory: banners[1].rewardCategory || 'Shake',
+                rewardPizzaSize: banners[1].rewardPizzaSize || 'medium',
+                active: banners[1].enabled !== false,
+                enabled: banners[1].enabled !== false
+            } : null;
             return res.status(200).json({
                 success: true,
                 banners: banners,
                 slot1: slot1,
+                slot2: slot2,
                 count: banners.length,
                 activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
@@ -124,6 +135,7 @@ async function handleBannersRequest(req, res) {
                 message: result.message,
                 banners: result.banners,
                 slot1: result.slot1 || null,
+                slot2: result.slot2 || null,
                 count: result.banners.length,
                 activeCount: result.banners.filter(b => b.enabled).length
             });
