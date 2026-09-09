@@ -242,6 +242,7 @@ function listenToFirestoreStaffOrders() {
         });
         // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
         mergeLiveOrdersIntoStaff(liveOrders);
+        sweepAutoExpiredOrders();
     }
 
     try {
@@ -280,6 +281,196 @@ function listenToFirestoreStaffOrders() {
     }
 }
 const listenToStaffLiveOrders = listenToFirestoreStaffOrders;
+
+// --------------------------------------------------------------------------
+// 3-HOUR TIMEOUT EXPIRATION SWEEPER & ATOMIC WALLET REFUND ENGINE
+// --------------------------------------------------------------------------
+const THREE_HOURS_EXPIRATION_MS = 3 * 60 * 60 * 1000; // 180 mins / 10,800,000 ms
+const autoRejectInFlightOrderIds = new Set();
+let staffAutoExpireInterval = null;
+
+function isOrderThreeHoursExpired(order) {
+    if (!order) return false;
+    const status = String(order.status || '').toLowerCase().trim();
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    if (terminalStatuses.includes(status)) return false;
+    if (order.autoExpired === true || order.isAutoExpired === true) return false;
+
+    const createdMs = getOrderCreationTimeMs(order);
+    if (!createdMs) return false;
+    return (Date.now() - createdMs) >= THREE_HOURS_EXPIRATION_MS;
+}
+
+async function autoRejectExpiredOrder(order) {
+    if (!order) return;
+    const orderId = String(order.id || order.orderId || order.firestoreDocId || '').trim();
+    if (!orderId || autoRejectInFlightOrderIds.has(orderId)) return;
+    autoRejectInFlightOrderIds.add(orderId);
+
+    console.log(`[STAFF SWEEPER] Auto-rejecting 3-hour expired order #${orderId}...`);
+
+    const customerPhone = String(order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+
+    const refundAmount = Math.round(Number(
+        order.walletDeductedAmount ||
+        order.walletUsed ||
+        order.walletDiscount ||
+        order.usedWalletCash ||
+        order.appliedWalletDiscount ||
+        order.usedWallet ||
+        0
+    ));
+
+    const nowIso = new Date().toISOString();
+    order.status = 'rejected';
+    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.autoExpired = true;
+    order.rejectedAt = nowIso;
+    order.rewardStatus = 'voided';
+    order.cashbackStatus = 'VOID';
+    order.wonCashback = 0;
+    order.earnedCashback = 0;
+    if (order.scratchCard) {
+        order.scratchCard.status = 'CANCELLED';
+        order.scratchCard.voided = true;
+        order.scratchCard.wonAmount = 0;
+        order.scratchCard.amount = 0;
+    }
+    if (refundAmount > 0) {
+        order.walletRefunded = true;
+        order.walletRefundAmount = refundAmount;
+        order.walletRefundedAt = nowIso;
+    }
+
+    // 1. Direct atomic Firestore update
+    const db = getStaffFirestore();
+    if (db) {
+        try {
+            const batch = db.batch();
+            const exactDocId = order.firestoreDocId || order.docId || orderId;
+            const orderRef = db.collection('orders').doc(exactDocId);
+
+            const serverTs = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : nowIso;
+
+            const orderUpdate = {
+                status: 'rejected',
+                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                autoExpired: true,
+                rejectedAt: serverTs,
+                rewardStatus: 'voided',
+                cashbackStatus: 'VOID',
+                wonCashback: 0,
+                earnedCashback: 0,
+                updatedAt: serverTs
+            };
+
+            if (order.scratchCard) {
+                orderUpdate['scratchCard.status'] = 'CANCELLED';
+                orderUpdate['scratchCard.voided'] = true;
+                orderUpdate['scratchCard.wonAmount'] = 0;
+                orderUpdate['scratchCard.amount'] = 0;
+            }
+
+            if (refundAmount > 0 && customerPhone) {
+                orderUpdate.walletRefunded = true;
+                orderUpdate.walletRefundAmount = refundAmount;
+                orderUpdate.walletRefundedAt = serverTs;
+
+                const incrementFn = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.increment(refundAmount)
+                    : refundAmount;
+
+                const txId = `tx_refund_${orderId}`;
+                const refundTxLog = {
+                    id: txId,
+                    orderId: orderId,
+                    amount: refundAmount,
+                    type: 'REFUND',
+                    title: `Refund for Auto-Expired Order #${orderId}`,
+                    description: `Auto-refund ₹${refundAmount} for expired order #${orderId}`,
+                    status: 'completed',
+                    timestamp: serverTs,
+                    createdAt: serverTs
+                };
+
+                // 1. Increment users/phone_{customerPhone}
+                const userPrefixedRef = db.collection('users').doc(`phone_${customerPhone}`);
+                batch.set(userPrefixedRef, {
+                    balance: incrementFn,
+                    walletBalance: incrementFn,
+                    updatedAt: serverTs
+                }, { merge: true });
+                batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
+                batch.set(userPrefixedRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                // 2. Increment users/{customerPhone}
+                const userRawRef = db.collection('users').doc(customerPhone);
+                batch.set(userRawRef, {
+                    balance: incrementFn,
+                    walletBalance: incrementFn,
+                    updatedAt: serverTs
+                }, { merge: true });
+                batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
+                batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                // 3. Increment wallets/{customerPhone}
+                const walletRef = db.collection('wallets').doc(customerPhone);
+                batch.set(walletRef, {
+                    phone: customerPhone,
+                    balance: incrementFn,
+                    updatedAt: serverTs
+                }, { merge: true });
+                batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
+                batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+            }
+
+            batch.set(orderRef, orderUpdate, { merge: true });
+            await batch.commit();
+            console.log(`✅ [STAFF SWEEPER] Firestore atomic batch committed for expired Order #${orderId}`);
+        } catch (fsErr) {
+            console.warn(`[STAFF SWEEPER] Firestore write error for expired Order #${orderId}:`, fsErr);
+        }
+    }
+
+    // 2. Sync to Backend API
+    try {
+        await apiCall('/orders', {
+            method: 'PATCH',
+            body: JSON.stringify({
+                orderId: orderId,
+                status: 'rejected',
+                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                autoExpired: true,
+                walletRefunded: refundAmount > 0,
+                walletRefundAmount: refundAmount,
+                customerPhone: customerPhone
+            })
+        });
+    } catch (apiErr) {
+        console.warn(`[STAFF SWEEPER] Backend API sync note for Order #${orderId}:`, apiErr.message);
+    }
+}
+
+async function sweepAutoExpiredOrders() {
+    if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
+    const expiredOrders = staffOrders.filter(isOrderThreeHoursExpired);
+    if (expiredOrders.length === 0) return;
+
+    console.log(`[STAFF SWEEPER] Sweeper running: found ${expiredOrders.length} expired unfulfilled order(s). Processing rejections...`);
+    for (const order of expiredOrders) {
+        try {
+            await autoRejectExpiredOrder(order);
+        } catch (err) {
+            console.error(`[STAFF SWEEPER] Error rejecting expired order #${order.id}:`, err);
+        }
+    }
+    try {
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+    } catch (e) { }
+    renderOrders();
+}
 
 // --------------------------------------------------------------------------
 // AUTHENTICATION & ACCESS REQUEST WORKFLOW (PHONE & FULL NAME)
@@ -1658,6 +1849,9 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     // Auto-accept any online payment orders
     processAutoAcceptanceForOnlineOrders();
 
+    // Auto-expire unfulfilled orders older than 3 hours
+    sweepAutoExpiredOrders();
+
     try {
         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
     } catch (e) { }
@@ -1929,24 +2123,37 @@ window.checkAndShowStaffAudioBanner = checkAndShowStaffAudioBanner;
 // --------------------------------------------------------------------------
 function getOrderCreationTimeMs(order) {
     if (!order) return Date.now();
-    const raw = order.createdAt || order.timestamp || order.date || order.prepStartedAt;
-    if (!raw) return Date.now();
-    if (typeof raw === 'number') {
-        return raw < 1e11 ? raw * 1000 : raw;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    if (raw) {
+        if (typeof raw === 'number') {
+            return raw < 1e11 ? raw * 1000 : raw;
+        }
+        if (typeof raw === 'object') {
+            if (typeof raw.toMillis === 'function') {
+                return raw.toMillis();
+            }
+            if (typeof raw.toDate === 'function') {
+                return raw.toDate().getTime();
+            }
+            if (raw.seconds) {
+                return raw.seconds * 1000;
+            }
+            if (raw._seconds) {
+                return raw._seconds * 1000;
+            }
+        }
+        const parsed = new Date(raw).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
     }
-    if (typeof raw === 'object') {
-        if (typeof raw.toDate === 'function') {
-            return raw.toDate().getTime();
-        }
-        if (raw.seconds) {
-            return raw.seconds * 1000;
-        }
-        if (raw._seconds) {
-            return raw._seconds * 1000;
+    const idStr = String(order.id || order.orderId || order.firestoreDocId || '');
+    const match = idStr.match(/(\d{10,13})/);
+    if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > 1500000000 && num < 2500000000000) {
+            return num < 1e11 ? num * 1000 : num;
         }
     }
-    const parsed = new Date(raw).getTime();
-    return isNaN(parsed) ? Date.now() : parsed;
+    return Date.now();
 }
 
 /**
@@ -2223,11 +2430,18 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchOrdersFromBackend();
         }
     }, 60000);
+
+    // 60-second recurring sweeper for auto-expiring unfulfilled orders older than 3 hours
+    if (staffAutoExpireInterval) clearInterval(staffAutoExpireInterval);
+    staffAutoExpireInterval = setInterval(() => {
+        sweepAutoExpiredOrders();
+    }, 60000);
 });
 
 // Re-acquire Screen Wake Lock, auto-resume audio context, and re-verify orders listener on visibility
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+        sweepAutoExpiredOrders();
         if (isStaffSoundEnabled) {
             requestStaffWakeLock();
             const ctx = getStaffAudioContext();
@@ -2713,6 +2927,15 @@ function buildCompletedOrderCardHTML(order) {
                 <div class="items-list">
                     ${itemsHTML || '<div class="item-row"><span class="item-name">Standard Items</span></div>'}
                 </div>
+
+                ${isRejected && order.rejectionReason ? `
+                <div style="font-size: 0.76rem; color: #ef4444; margin: 6px 0 2px; display: flex; align-items: center; gap: 5px; background: rgba(239, 68, 68, 0.08); padding: 5px 8px; border-radius: 6px; border-left: 3px solid #ef4444;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> <span>${escapeHtml(order.rejectionReason)}</span>
+                </div>` : ''}
+                ${isRejected && (order.walletRefunded || order.walletRefundAmount > 0) ? `
+                <div style="font-size: 0.74rem; color: #10b981; margin: 2px 0 6px; display: flex; align-items: center; gap: 5px; background: rgba(16, 185, 129, 0.08); padding: 5px 8px; border-radius: 6px; border-left: 3px solid #10b981;">
+                    <i class="fa-solid fa-rotate-left"></i> <span>₹${order.walletRefundAmount || order.walletDiscount || order.usedWalletCash} refunded to customer wallet</span>
+                </div>` : ''}
 
                 <div class="completed-summary-bar">
                     <span class="completed-total-label">Total Amount:</span>

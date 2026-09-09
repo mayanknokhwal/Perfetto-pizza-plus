@@ -22,6 +22,147 @@ function isValidOrder(order) {
     return true;
 }
 
+const THREE_HOURS_EXPIRATION_MS = 3 * 60 * 60 * 1000; // 3 hours = 10,800,000 ms
+
+function getOrderCreationTimeMs(order) {
+    if (!order) return 0;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    if (raw) {
+        if (typeof raw === 'number') {
+            return raw < 1e11 ? raw * 1000 : raw;
+        }
+        if (typeof raw === 'object') {
+            if (typeof raw.toMillis === 'function') return raw.toMillis();
+            if (typeof raw.toDate === 'function') return raw.toDate().getTime();
+            if (raw.seconds) return raw.seconds * 1000;
+            if (raw._seconds) return raw._seconds * 1000;
+        }
+        const parsed = new Date(raw).getTime();
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    const idStr = String(order.orderId || order.id || '');
+    const match = idStr.match(/(\d{10,13})/);
+    if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > 1500000000 && num < 2500000000000) {
+            return num < 1e11 ? num * 1000 : num;
+        }
+    }
+    return 0;
+}
+
+function isOrderThreeHoursExpired(order) {
+    if (!order) return false;
+    const st = String(order.status || '').toLowerCase().trim();
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    if (terminalStatuses.includes(st)) return false;
+    if (order.autoExpired === true || order.isAutoExpired === true) return false;
+    const createdMs = getOrderCreationTimeMs(order);
+    if (!createdMs) return false;
+    return (Date.now() - createdMs) >= THREE_HOURS_EXPIRATION_MS;
+}
+
+async function autoRejectExpiredOrderBackend(order) {
+    if (!order) return;
+    const orderId = String(order.orderId || order.id || '').trim();
+    if (!orderId) return;
+
+    order.status = 'rejected';
+    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.autoExpired = true;
+    order.rejectedAt = new Date().toISOString();
+    order.rewardStatus = 'voided';
+    order.cashbackStatus = 'VOID';
+    order.wonCashback = 0;
+    order.earnedCashback = 0;
+    if (order.scratchCard) {
+        order.scratchCard.status = 'CANCELLED';
+        order.scratchCard.voided = true;
+        order.scratchCard.wonAmount = 0;
+        order.scratchCard.amount = 0;
+    }
+
+    const refundAmount = Math.round(Number(
+        order.walletDeductedAmount ||
+        order.walletUsed ||
+        order.walletDiscount ||
+        order.usedWalletCash ||
+        order.appliedWalletDiscount ||
+        order.usedWallet ||
+        0
+    ));
+
+    const rawPhone = order.customerPhone || order.phone || order.customer?.phone || '';
+    const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+
+    if (refundAmount > 0 && cleanPhone && !order.walletRefunded) {
+        order.walletRefunded = true;
+        order.walletRefundAmount = refundAmount;
+        order.walletRefundedAt = new Date().toISOString();
+
+        try {
+            let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`) || await getFirestoreDoc('users', cleanPhone);
+            if (!userDoc) {
+                userDoc = { phone: cleanPhone, balance: 0, walletBalance: 0, walletTransactions: [] };
+            }
+            const curBal = Number(userDoc.walletBalance ?? userDoc.balance ?? 0);
+            const newBal = curBal + refundAmount;
+            userDoc.walletBalance = newBal;
+            userDoc.balance = newBal;
+            userDoc.updatedAt = new Date().toISOString();
+
+            const refundTx = {
+                id: `tx_refund_${orderId}`,
+                orderId: String(orderId),
+                amount: refundAmount,
+                type: 'REFUND',
+                title: `Refund for Auto-Expired Order #${orderId}`,
+                description: `Auto-refund ₹${refundAmount} for expired order #${orderId}`,
+                timestamp: new Date().toISOString(),
+                createdAt: new Date().toISOString()
+            };
+
+            if (!Array.isArray(userDoc.walletTransactions)) userDoc.walletTransactions = [];
+            const alreadyLogged = userDoc.walletTransactions.some(tx => tx && (tx.id === refundTx.id || (tx.type === 'REFUND' && String(tx.orderId) === String(orderId))));
+            if (!alreadyLogged) {
+                userDoc.walletTransactions.unshift(refundTx);
+            }
+
+            await setFirestoreDoc('users', `phone_${cleanPhone}`, userDoc);
+            await setFirestoreDoc('users', cleanPhone, userDoc);
+            await setFirestoreDoc('wallets', cleanPhone, {
+                phone: cleanPhone,
+                balance: newBal,
+                updatedAt: new Date().toISOString()
+            });
+            console.log(`✅ [BACKEND SWEEP REFUND] Refunded ₹${refundAmount} to user ${cleanPhone} for expired Order #${orderId}`);
+        } catch (refErr) {
+            console.warn('Notice processing sweeper backend wallet refund:', refErr.message);
+        }
+    }
+
+    order.updatedAt = new Date().toISOString();
+    try {
+        await setFirestoreDoc('orders', orderId, order);
+    } catch (e) {
+        console.warn(`Error persisting auto-expired order #${orderId}:`, e.message);
+    }
+}
+
+async function sweepExpiredOrdersBackend(ordersList) {
+    if (!Array.isArray(ordersList) || ordersList.length === 0) return;
+    const expired = ordersList.filter(isOrderThreeHoursExpired);
+    if (expired.length === 0) return;
+    console.log(`[BACKEND SWEEPER] Found ${expired.length} auto-expired unfulfilled order(s). Processing rejections...`);
+    for (const order of expired) {
+        try {
+            await autoRejectExpiredOrderBackend(order);
+        } catch (e) {
+            console.error(`[BACKEND SWEEPER] Error auto-rejecting order #${order.id || order.orderId}:`, e.message);
+        }
+    }
+}
+
 async function fetchOrdersFromFirestore(forceFresh = false) {
     const now = Date.now();
     if (!forceFresh && global.__perfettoOrdersList && global.__perfettoOrdersList.length > 0 && (now - (global.__lastOrdersFetchTime || 0) < 60000)) {
@@ -65,6 +206,9 @@ async function fetchOrdersFromFirestore(forceFresh = false) {
                 return tb - ta;
             });
             global.__lastOrdersFetchTime = Date.now();
+
+            // Run backend sweep for unfulfilled orders exceeding 3 hours
+            await sweepExpiredOrdersBackend(global.__perfettoOrdersList);
         }
     } catch (e) {
         console.warn('Firestore orders read note:', e.message);
@@ -457,16 +601,19 @@ async function handleOrdersRequest(req, res) {
             }
 
             if (status === 'rejected' || status === 'cancelled') {
-                const liveSettings = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config');
-                const validMasterOtp = String(liveSettings?.masterDeliveryOtp || global.__perfettoStoreSettings?.masterDeliveryOtp || '9999').replace(/[^0-9]/g, '').slice(0, 4);
-                const providedOtp = String(body?.masterOtp || req.headers['x-master-otp'] || '').replace(/[^0-9]/g, '').slice(0, 4);
+                const isAutoExpired = Boolean(body?.autoExpired || isOrderThreeHoursExpired(targetOrder));
+                if (!isAutoExpired) {
+                    const liveSettings = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config');
+                    const validMasterOtp = String(liveSettings?.masterDeliveryOtp || global.__perfettoStoreSettings?.masterDeliveryOtp || '9999').replace(/[^0-9]/g, '').slice(0, 4);
+                    const providedOtp = String(body?.masterOtp || req.headers['x-master-otp'] || '').replace(/[^0-9]/g, '').slice(0, 4);
 
-                const isMasterAdminAuth = req.staffUser && (req.staffUser.isMasterAdmin || req.staffUser.role === 'Master Admin');
-                if (!isMasterAdminAuth && (!providedOtp || providedOtp !== validMasterOtp)) {
-                    return res.status(403).json({
-                        success: false,
-                        message: 'Invalid Admin Master Cancellation OTP. Order cancellation unauthorized.'
-                    });
+                    const isMasterAdminAuth = req.staffUser && (req.staffUser.isMasterAdmin || req.staffUser.role === 'Master Admin');
+                    if (!isMasterAdminAuth && (!providedOtp || providedOtp !== validMasterOtp)) {
+                        return res.status(403).json({
+                            success: false,
+                            message: 'Invalid Admin Master Cancellation OTP. Order cancellation unauthorized.'
+                        });
+                    }
                 }
             }
 
@@ -634,18 +781,77 @@ async function handleOrdersRequest(req, res) {
             } else if (isRejected) {
                 // 2. REJECTION / CANCELLATION: Atomically update reward status to "voided" with ₹0 credited
                 targetOrder.rewardStatus = 'voided';
+                targetOrder.cashbackStatus = 'VOID';
                 targetOrder.wonCashback = 0;
                 targetOrder.earnedCashback = 0;
                 if (targetOrder.scratchCard) {
-                    targetOrder.scratchCard.status = 'voided';
+                    targetOrder.scratchCard.status = 'CANCELLED';
                     targetOrder.scratchCard.wonAmount = 0;
                     targetOrder.scratchCard.amount = 0;
                     targetOrder.scratchCard.voided = true;
                 }
 
-                // Also atomically sync voided status to customer profile in users/{phone}
+                // Automatic wallet deduction refund for expired or rejected orders
+                const refundAmount = Math.round(Number(
+                    targetOrder.walletDeductedAmount ||
+                    targetOrder.walletUsed ||
+                    targetOrder.walletDiscount ||
+                    targetOrder.usedWalletCash ||
+                    targetOrder.appliedWalletDiscount ||
+                    targetOrder.usedWallet ||
+                    0
+                ));
+
                 const rawPhone = targetOrder.customerPhone || targetOrder.phone || targetOrder.customer?.phone || '';
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+
+                if (refundAmount > 0 && cleanPhone && !targetOrder.walletRefunded) {
+                    targetOrder.walletRefunded = true;
+                    targetOrder.walletRefundAmount = refundAmount;
+                    targetOrder.walletRefundedAt = new Date().toISOString();
+
+                    try {
+                        let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`) || await getFirestoreDoc('users', cleanPhone);
+                        if (!userDoc) {
+                            userDoc = { phone: cleanPhone, balance: 0, walletBalance: 0, walletTransactions: [] };
+                        }
+                        const curBal = Number(userDoc.walletBalance ?? userDoc.balance ?? 0);
+                        const newBal = curBal + refundAmount;
+                        userDoc.walletBalance = newBal;
+                        userDoc.balance = newBal;
+                        userDoc.updatedAt = new Date().toISOString();
+
+                        const refundTx = {
+                            id: `tx_refund_${targetId}`,
+                            orderId: String(targetId),
+                            amount: refundAmount,
+                            type: 'REFUND',
+                            title: `Refund for Auto-Expired Order #${targetId}`,
+                            description: `Refund ₹${refundAmount} for Auto-Expired Order #${targetId}`,
+                            timestamp: new Date().toISOString(),
+                            createdAt: new Date().toISOString()
+                        };
+
+                        if (!Array.isArray(userDoc.walletTransactions)) userDoc.walletTransactions = [];
+                        const alreadyLogged = userDoc.walletTransactions.some(tx => tx && (tx.id === refundTx.id || (tx.type === 'REFUND' && String(tx.orderId) === String(targetId))));
+                        if (!alreadyLogged) {
+                            userDoc.walletTransactions.unshift(refundTx);
+                        }
+
+                        await setFirestoreDoc('users', `phone_${cleanPhone}`, userDoc);
+                        await setFirestoreDoc('users', cleanPhone, userDoc);
+                        await setFirestoreDoc('wallets', cleanPhone, {
+                            phone: cleanPhone,
+                            balance: newBal,
+                            updatedAt: new Date().toISOString()
+                        });
+                        console.log(`✅ [BACKEND REFUND] Successfully refunded ₹${refundAmount} to user ${cleanPhone} for Order #${targetId}`);
+                    } catch (refErr) {
+                        console.warn('Notice processing backend wallet refund:', refErr.message);
+                    }
+                }
+
+                // Also atomically sync voided status to customer profile in users/{phone}
                 if (cleanPhone) {
                     try {
                         let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`) || await getFirestoreDoc('users', cleanPhone);

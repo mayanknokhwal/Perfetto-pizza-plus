@@ -286,6 +286,11 @@ service cloud.firestore {
         allow update, delete: if true;
       }
 
+      // Customer wallet transactions subcollection
+      match /wallet_transactions/{transactionId} {
+        allow read, write: if true;
+      }
+
       match /{subcollection=**} {
         allow read, write: if true;
       }
@@ -304,6 +309,10 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isValidTransaction(request.resource.data) || isNonNegativeNumber(request.resource.data.amount) || true;
         allow update, delete: if true;
+      }
+
+      match /wallet_transactions/{transactionId} {
+        allow read, write: if true;
       }
 
       match /{subcollection=**} {
