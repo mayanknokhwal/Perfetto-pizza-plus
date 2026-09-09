@@ -2250,10 +2250,13 @@ async function fetchLiveBannersFromBackend() {
             if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
                 const normalized = data.banners.slice(0, 4).map((b, i) => {
                     const bannerObj = (b && typeof b === 'object') ? b : {};
+                    const slot1Data = (data.slot1 && typeof data.slot1 === 'object') ? data.slot1 : {};
                     return {
                         id: bannerObj.id || `b${i + 1}`,
                         url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
-                        enabled: bannerObj.enabled !== false
+                        enabled: bannerObj.enabled !== false,
+                        targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : (bannerObj.targetProductId || ''),
+                        discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0)
                     };
                 });
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
@@ -5794,7 +5797,7 @@ function setupFastFoodCards() {
 // --------------------------------------------------------------------------
 // 6. CART MANAGEMENT & CALCULATIONS
 // --------------------------------------------------------------------------
-function addToCart(name, price, img, addons = [], originalPrice = null) {
+function addToCart(name, price, img, addons = [], originalPrice = null, options = {}) {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
@@ -5811,6 +5814,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null) {
 
     const effPrice = Math.round(Number(price) || 0);
     const origPrice = originalPrice !== null ? Math.round(Number(originalPrice) || 0) : effPrice;
+    const isBannerDeal = Boolean(options && options.isBannerDeal);
 
     // Build item name and identifier taking add-ons into account
     const addonNames = Array.isArray(addons)
@@ -5820,11 +5824,15 @@ function addToCart(name, price, img, addons = [], originalPrice = null) {
         ? `${name} (+${addonNames.join(', ')})`
         : name;
 
-    const existingIndex = cart.findIndex(item => item.name === fullItemName);
+    const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal) === isBannerDeal);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
         cart[existingIndex].price = effPrice;
         cart[existingIndex].originalPrice = origPrice;
+        if (isBannerDeal) {
+            cart[existingIndex].isBannerDeal = true;
+            cart[existingIndex].appliedPrice = effPrice;
+        }
     } else {
         cart.push({
             name: fullItemName,
@@ -5833,7 +5841,9 @@ function addToCart(name, price, img, addons = [], originalPrice = null) {
             originalPrice: origPrice,
             qty: 1,
             img: img || '',
-            addons: addons
+            addons: addons,
+            isBannerDeal: isBannerDeal,
+            appliedPrice: isBannerDeal ? effPrice : undefined
         });
     }
     saveCartToStorage();
@@ -5906,11 +5916,15 @@ function updateCartUI() {
                 ? `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span>${formatPrice(item.price * item.qty)}</span>`
                 : `<span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>`;
 
+            const bannerBadgeMarkup = item.isBannerDeal
+                ? `<span class="cart-banner-deal-badge" style="font-size:0.68rem; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.12); border:1px solid rgba(234,88,12,0.3); border-radius:999px; padding:2px 8px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-fire"></i> Banner Deal</span>`
+                : '';
+
             return `
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
-                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}</h5>
+                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
                     ${addonTagsMarkup}
                     ${priceMarkup}
                 </div>
@@ -10570,7 +10584,7 @@ function showToast(msg, duration = 2400) {
 // --------------------------------------------------------------------------
 const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true },
+    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
     { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
     { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
     { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
@@ -10623,6 +10637,8 @@ function renderDynamicOfferSlider(customBanners = null) {
         activeBanners = [rawBanners[0] || DEFAULT_DAILY_BANNERS[0]];
     }
 
+    window.__currentActiveBanners = activeBanners;
+
     const track = document.getElementById('offer-slider-track');
     const dotsContainer = document.getElementById('offer-dots');
     if (!track || !dotsContainer) return;
@@ -10634,9 +10650,20 @@ function renderDynamicOfferSlider(customBanners = null) {
     // Render track slides dynamically for active banners
     track.innerHTML = activeBanners.map((banner, idx) => {
         const safeUrl = resolveBannerUrl(banner.url);
+        const isSlot1 = (banner.id === 'b1' || idx === 0);
+        const hasSpotlight = isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0;
         return `
-            <div class="offer-slide" data-banner-id="${banner.id || ('b' + (idx + 1))}" data-slide-index="${idx}">
+            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''}" 
+                 data-banner-id="${banner.id || ('b' + (idx + 1))}" 
+                 data-slide-index="${idx}"
+                 ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
+                 onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')">
                 <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
+                ${hasSpotlight ? `
+                    <div class="banner-spotlight-tap-hint">
+                        <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
+                    </div>
+                ` : ''}
             </div>
         `;
     }).join('');
@@ -10790,6 +10817,7 @@ function initOfferSlider(activeBannerCount) {
     let startX = 0;
     let currentX = 0;
     let isDragging = false;
+    let wasSwipeGesture = false;
 
     function onStart(clientX) {
         stopAutoScroll();
@@ -10797,12 +10825,16 @@ function initOfferSlider(activeBannerCount) {
         startX = clientX;
         currentX = startX;
         isDragging = true;
+        wasSwipeGesture = false;
         wrapper.style.cursor = 'grabbing';
     }
 
     function onMove(clientX) {
         if (!isDragging) return;
         currentX = clientX;
+        if (Math.abs(currentX - startX) > 10) {
+            wasSwipeGesture = true;
+        }
     }
 
     function onEnd() {
@@ -10819,6 +10851,7 @@ function initOfferSlider(activeBannerCount) {
             }
         }
         handleUserInteractionEnd();
+        setTimeout(() => { wasSwipeGesture = false; }, 150);
     }
 
     wrapper.ontouchstart = (e) => {
@@ -10868,6 +10901,358 @@ function initOfferSlider(activeBannerCount) {
     // Start initial 3-second autoplay loop
     startAutoScroll();
 }
+
+function handleBannerSlideClick(slideIndex, bannerId) {
+    if (typeof wasSwipeGesture !== 'undefined' && wasSwipeGesture) return;
+    const activeBanners = window.__currentActiveBanners || [];
+    const banner = activeBanners[slideIndex];
+    if (!banner) return;
+    const isSlot1 = (banner.id === 'b1' || slideIndex === 0);
+    if (isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0) {
+        try {
+            sessionStorage.setItem('banner1OfferActive', 'true');
+        } catch (e) { }
+        openSpotlightBannerModal(banner.targetProductId, Number(banner.discountPercent));
+    }
+}
+window.handleBannerSlideClick = handleBannerSlideClick;
+
+// --------------------------------------------------------------------------
+// BANNER SLOT 1 TAP-TO-ACTIVATE SPOTLIGHT PRODUCT DEAL ENGINE
+// --------------------------------------------------------------------------
+let currentSpotlightState = {
+    product: null,
+    discountPercent: 0,
+    selectedSize: 'M',
+    selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
+};
+
+function openSpotlightBannerModal(targetProductId, discountPercent) {
+    try {
+        sessionStorage.setItem('banner1OfferActive', 'true');
+    } catch (e) { }
+
+    const allItems = getAllCustomerMenuItems();
+    const cleanTargetId = String(targetProductId || '').trim().toLowerCase();
+    const product = allItems.find(i => {
+        const idMatch = String(i.id || '').toLowerCase() === cleanTargetId;
+        const nameMatch = String(i.name || '').toLowerCase() === cleanTargetId;
+        const slugMatch = String(i.name || '').toLowerCase().replace(/\s+/g, '-') === cleanTargetId;
+        return idMatch || nameMatch || slugMatch;
+    });
+
+    if (!product) {
+        showToast('Special banner offer item is currently unavailable.');
+        return;
+    }
+
+    if (product.available === false) {
+        showToast(`⚠️ "${product.name}" is currently out of stock.`);
+        return;
+    }
+
+    const dPercent = Math.min(90, Math.max(1, Math.round(Number(discountPercent) || 0)));
+
+    let initialSize = 'M';
+    if (product.prices && typeof product.prices === 'object') {
+        if (product.prices.M !== undefined) initialSize = 'M';
+        else if (product.prices.S !== undefined) initialSize = 'S';
+        else if (product.prices.L !== undefined) initialSize = 'L';
+        else initialSize = Object.keys(product.prices)[0] || 'M';
+    }
+
+    currentSpotlightState = {
+        product: product,
+        discountPercent: dPercent,
+        selectedSize: initialSize,
+        selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
+    };
+
+    const modal = document.getElementById('spotlight-deal-modal');
+    if (!modal) return;
+
+    const badgeText = document.getElementById('spotlight-deal-badge-text');
+    if (badgeText) {
+        badgeText.textContent = `${dPercent}% OFF (Banner Exclusive Deal)`;
+    }
+
+    const imgEl = document.getElementById('spotlight-deal-img');
+    if (imgEl) {
+        imgEl.src = product.img || DEFAULT_FALLBACK_BANNER_LOGO;
+        imgEl.alt = product.name;
+    }
+
+    const catEl = document.getElementById('spotlight-deal-cat');
+    if (catEl) {
+        catEl.textContent = product.category || 'Special Deal';
+    }
+
+    const titleEl = document.getElementById('spotlight-deal-title');
+    if (titleEl) {
+        titleEl.textContent = typeof tItem === 'function' ? tItem(product.name) : product.name;
+    }
+
+    const descEl = document.getElementById('spotlight-deal-desc');
+    if (descEl) {
+        descEl.textContent = product.desc || 'Freshly prepared handcrafted special deal with premium ingredients and signature seasoning.';
+    }
+
+    // Size Selector
+    const sizeSection = document.getElementById('spotlight-deal-size-section');
+    const sizeChipsContainer = document.getElementById('spotlight-size-chips');
+    const isPizzaOrMultiSize = product.category === 'Pizza' || (product.prices && (product.prices.S !== undefined || product.prices.M !== undefined || product.prices.L !== undefined));
+
+    if (isPizzaOrMultiSize && sizeSection && sizeChipsContainer) {
+        sizeSection.style.display = 'block';
+        const availableSizes = ['S', 'M', 'L'].filter(s => product.prices && product.prices[s] !== undefined);
+        const sizesToRender = availableSizes.length > 0 ? availableSizes : ['S', 'M', 'L'];
+        sizeChipsContainer.innerHTML = sizesToRender.map(sizeKey => {
+            const sizeLabel = sizeKey === 'S' ? 'Regular (S)' : (sizeKey === 'M' ? 'Medium (M)' : 'Large (L)');
+            const isActive = sizeKey === currentSpotlightState.selectedSize;
+            return `<button type="button" class="spotlight-size-chip ${isActive ? 'active' : ''}" data-size="${sizeKey}" onclick="onSpotlightSizeSelect('${sizeKey}')">${sizeLabel}</button>`;
+        }).join('');
+    } else if (sizeSection) {
+        sizeSection.style.display = 'none';
+    }
+
+    renderSpotlightAddonsSection();
+    updateSpotlightPricingDisplay();
+
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+}
+window.openSpotlightBannerModal = openSpotlightBannerModal;
+
+function renderSpotlightAddonsSection() {
+    const addonsSection = document.getElementById('spotlight-deal-addons-section');
+    const addonChipsContainer = document.getElementById('spotlight-addon-chips');
+    if (!addonsSection || !addonChipsContainer || !currentSpotlightState.product) return;
+
+    const product = currentSpotlightState.product;
+    const cat = product.category || '';
+
+    if (cat === 'Shake') {
+        addonsSection.style.display = 'block';
+        const shakeAddons = getCustomerCategoryAddons('Shake');
+        const iceCreamRate = shakeAddons.withIceCream !== undefined ? shakeAddons.withIceCream : 30;
+        const isIceActive = !!currentSpotlightState.selectedAddons.iceCream;
+        addonChipsContainer.innerHTML = `
+            <button type="button" class="spotlight-addon-chip ${isIceActive ? 'active' : ''}" onclick="toggleSpotlightAddon('iceCream')">
+                🍨 With Ice Cream (+${formatPrice(iceCreamRate)})
+            </button>
+        `;
+    } else if (cat === 'Pizza') {
+        addonsSection.style.display = 'block';
+        const rates = getPizzaSizeAddonRates(currentSpotlightState.selectedSize);
+        const isCheese = !!currentSpotlightState.selectedAddons.cheese;
+        const isSpicy = !!currentSpotlightState.selectedAddons.spicy;
+        const isMayo = !!currentSpotlightState.selectedAddons.mayo;
+        addonChipsContainer.innerHTML = `
+            <button type="button" class="spotlight-addon-chip ${isCheese ? 'active' : ''}" onclick="toggleSpotlightAddon('cheese')">
+                🧀 Extra Cheese (+${formatPrice(rates.extraCheese)})
+            </button>
+            <button type="button" class="spotlight-addon-chip ${isSpicy ? 'active' : ''}" onclick="toggleSpotlightAddon('spicy')">
+                🌶️ Extra Spicy (+${rates.extraSpicy > 0 ? formatPrice(rates.extraSpicy) : 'Free'})
+            </button>
+            <button type="button" class="spotlight-addon-chip ${isMayo ? 'active' : ''}" onclick="toggleSpotlightAddon('mayo')">
+                🍥 Extra Mayo (+${formatPrice(rates.extraMayo)})
+            </button>
+        `;
+    } else if (['Burger', 'Wrap', 'Garlic Bread', 'Sandwich', 'Momos', 'Pasta', 'Chinese', 'Noodles'].includes(cat)) {
+        addonsSection.style.display = 'block';
+        const catAddons = getCustomerCategoryAddons(cat);
+        const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+        const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+        const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+        const isCheese = !!currentSpotlightState.selectedAddons.cheese;
+        const isSpicy = !!currentSpotlightState.selectedAddons.spicy;
+        const isMayo = !!currentSpotlightState.selectedAddons.mayo;
+        addonChipsContainer.innerHTML = `
+            <button type="button" class="spotlight-addon-chip ${isCheese ? 'active' : ''}" onclick="toggleSpotlightAddon('cheese')">
+                🧀 Extra Cheese (+${formatPrice(cheeseRate)})
+            </button>
+            <button type="button" class="spotlight-addon-chip ${isSpicy ? 'active' : ''}" onclick="toggleSpotlightAddon('spicy')">
+                🌶️ Extra Spicy (+${spicyRate > 0 ? formatPrice(spicyRate) : 'Free'})
+            </button>
+            <button type="button" class="spotlight-addon-chip ${isMayo ? 'active' : ''}" onclick="toggleSpotlightAddon('mayo')">
+                🍥 Extra Mayo (+${formatPrice(mayoRate)})
+            </button>
+        `;
+    } else {
+        addonsSection.style.display = 'none';
+        addonChipsContainer.innerHTML = '';
+    }
+}
+window.renderSpotlightAddonsSection = renderSpotlightAddonsSection;
+
+function onSpotlightSizeSelect(sizeKey) {
+    currentSpotlightState.selectedSize = sizeKey;
+    const chips = document.querySelectorAll('#spotlight-size-chips .spotlight-size-chip');
+    chips.forEach(chip => {
+        if (chip.getAttribute('data-size') === sizeKey) {
+            chip.classList.add('active');
+        } else {
+            chip.classList.remove('active');
+        }
+    });
+    renderSpotlightAddonsSection();
+    updateSpotlightPricingDisplay();
+}
+window.onSpotlightSizeSelect = onSpotlightSizeSelect;
+
+function toggleSpotlightAddon(addonType) {
+    currentSpotlightState.selectedAddons[addonType] = !currentSpotlightState.selectedAddons[addonType];
+    renderSpotlightAddonsSection();
+    updateSpotlightPricingDisplay();
+}
+window.toggleSpotlightAddon = toggleSpotlightAddon;
+
+function updateSpotlightPricingDisplay() {
+    if (!currentSpotlightState.product) return;
+    const product = currentSpotlightState.product;
+    const size = currentSpotlightState.selectedSize;
+    const sel = currentSpotlightState.selectedAddons;
+    const cat = product.category || '';
+
+    let origBasePrice = 0;
+    if (product.prices && typeof product.prices === 'object') {
+        origBasePrice = Number(product.prices[size]) || Number(product.prices.M) || Number(product.price) || 0;
+    } else {
+        origBasePrice = Number(product.price) || 0;
+    }
+
+    const dPercent = currentSpotlightState.discountPercent;
+    const discountedBasePrice = Math.round(origBasePrice * (1 - dPercent / 100));
+
+    // Add-on Protection: 100% full price without discount
+    let addonsTotal = 0;
+    if (cat === 'Shake') {
+        const shakeAddons = getCustomerCategoryAddons('Shake');
+        const iceCreamRate = shakeAddons.withIceCream !== undefined ? shakeAddons.withIceCream : 30;
+        if (sel.iceCream) addonsTotal += iceCreamRate;
+    } else if (cat === 'Pizza') {
+        const rates = getPizzaSizeAddonRates(size);
+        if (sel.cheese) addonsTotal += rates.extraCheese;
+        if (sel.spicy) addonsTotal += rates.extraSpicy;
+        if (sel.mayo) addonsTotal += rates.extraMayo;
+    } else {
+        const catAddons = getCustomerCategoryAddons(cat);
+        const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+        const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+        const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+        if (sel.cheese) addonsTotal += cheeseRate;
+        if (sel.spicy) addonsTotal += spicyRate;
+        if (sel.mayo) addonsTotal += mayoRate;
+    }
+
+    const originalTotalPrice = origBasePrice + addonsTotal;
+    const finalDiscountedPrice = discountedBasePrice + addonsTotal;
+    const savings = originalTotalPrice - finalDiscountedPrice;
+
+    const strikeEl = document.getElementById('spotlight-strike-price');
+    const finalEl = document.getElementById('spotlight-final-price');
+    const savingsEl = document.getElementById('spotlight-savings-tag');
+
+    if (strikeEl) strikeEl.textContent = formatPrice(originalTotalPrice);
+    if (finalEl) finalEl.textContent = formatPrice(finalDiscountedPrice);
+    if (savingsEl) {
+        savingsEl.textContent = savings > 0 ? `Save ${formatPrice(savings)}` : '';
+        savingsEl.style.display = savings > 0 ? 'inline-block' : 'none';
+    }
+}
+window.updateSpotlightPricingDisplay = updateSpotlightPricingDisplay;
+
+function claimSpotlightDealToCart() {
+    if (!currentSpotlightState.product) return;
+    if (getCustomerShopStatus() === 'closed') {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
+    }
+
+    const product = currentSpotlightState.product;
+    const size = currentSpotlightState.selectedSize;
+    const sel = currentSpotlightState.selectedAddons;
+    const cat = product.category || '';
+
+    let origBasePrice = 0;
+    const isMultiSize = (product.prices && typeof product.prices === 'object' && (product.prices.S !== undefined || product.prices.M !== undefined || product.prices.L !== undefined));
+    if (isMultiSize) {
+        origBasePrice = Number(product.prices[size]) || Number(product.prices.M) || Number(product.price) || 0;
+    } else {
+        origBasePrice = Number(product.price) || 0;
+    }
+
+    const dPercent = currentSpotlightState.discountPercent;
+    const discountedBasePrice = Math.round(origBasePrice * (1 - dPercent / 100));
+
+    const addonsList = [];
+    let addonsTotal = 0;
+
+    if (cat === 'Shake') {
+        const shakeAddons = getCustomerCategoryAddons('Shake');
+        const iceCreamRate = shakeAddons.withIceCream !== undefined ? shakeAddons.withIceCream : 30;
+        if (sel.iceCream) {
+            addonsList.push({ name: '🍨 With Ice Cream', price: iceCreamRate });
+            addonsTotal += iceCreamRate;
+        }
+    } else if (cat === 'Pizza') {
+        const rates = getPizzaSizeAddonRates(size);
+        if (sel.cheese) {
+            addonsList.push({ name: 'Extra Cheese', price: rates.extraCheese });
+            addonsTotal += rates.extraCheese;
+        }
+        if (sel.spicy) {
+            addonsList.push({ name: 'Extra Spicy', price: rates.extraSpicy });
+            addonsTotal += rates.extraSpicy;
+        }
+        if (sel.mayo) {
+            addonsList.push({ name: '🍥 Extra Mayo', price: rates.extraMayo });
+            addonsTotal += rates.extraMayo;
+        }
+    } else {
+        const catAddons = getCustomerCategoryAddons(cat);
+        const cheeseRate = catAddons.extraCheese !== undefined ? catAddons.extraCheese : 25;
+        const spicyRate = catAddons.extraSpicy !== undefined ? catAddons.extraSpicy : 0;
+        const mayoRate = catAddons.extraMayo !== undefined ? catAddons.extraMayo : 20;
+        if (sel.cheese) {
+            addonsList.push({ name: 'Extra Cheese', price: cheeseRate });
+            addonsTotal += cheeseRate;
+        }
+        if (sel.spicy) {
+            addonsList.push({ name: 'Extra Spicy', price: spicyRate });
+            addonsTotal += spicyRate;
+        }
+        if (sel.mayo) {
+            addonsList.push({ name: '🍥 Extra Mayo', price: mayoRate });
+            addonsTotal += mayoRate;
+        }
+    }
+
+    const finalDiscountedPrice = discountedBasePrice + addonsTotal;
+    const originalTotalPrice = origBasePrice + addonsTotal;
+    const itemName = isMultiSize ? `${product.name} (${size})` : product.name;
+
+    // Add to cart with isBannerDeal: true and appliedPrice: finalDiscountedPrice
+    addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
+        isBannerDeal: true,
+        appliedPrice: finalDiscountedPrice
+    });
+
+    closeSpotlightDealModal();
+    showToast(`🎉 Claimed ${dPercent}% OFF deal on ${itemName}!`);
+}
+window.claimSpotlightDealToCart = claimSpotlightDealToCart;
+
+function closeSpotlightDealModal() {
+    const modal = document.getElementById('spotlight-deal-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    document.body.style.overflow = '';
+}
+window.closeSpotlightDealModal = closeSpotlightDealModal;
 
 // --------------------------------------------------------------------------
 // 9. WHATSAPP DP STYLE LOGO POPUP MODAL
@@ -11754,12 +12139,16 @@ function listenToRealtimeMenuAndRates() {
             bannersRealtimeUnsubscribe = customerFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
                 let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
                 if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                    banners = doc.data().banners.slice(0, 4).map((b, i) => {
+                    const docData = doc.data() || {};
+                    const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
+                    banners = docData.banners.slice(0, 4).map((b, i) => {
                         const bannerObj = (b && typeof b === 'object') ? b : {};
                         return {
                             id: bannerObj.id || `b${i + 1}`,
                             url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
-                            enabled: bannerObj.enabled !== false
+                            enabled: bannerObj.enabled !== false,
+                            targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : (bannerObj.targetProductId || ''),
+                            discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : (Number(bannerObj.discountPercent) || 0)
                         };
                     });
                 }
@@ -12220,6 +12609,7 @@ function setupGlobalCustomerModalDismissals() {
         { id: 'profile-edit-modal', dismiss: () => { if (typeof closeEditProfileModal === 'function') closeEditProfileModal(); } },
         { id: 'order-otp-success-modal', dismiss: () => { if (typeof closeOrderOtpSuccessModal === 'function') closeOrderOtpSuccessModal(); } },
         { id: 'clear-history-confirm-modal', dismiss: () => { if (typeof closeClearHistoryModal === 'function') closeClearHistoryModal(); } },
+        { id: 'spotlight-deal-modal', dismiss: () => { if (typeof closeSpotlightDealModal === 'function') closeSpotlightDealModal(); } },
         { id: 'logo-modal', dismiss: () => { if (typeof window.closeLogoModal === 'function') window.closeLogoModal(); } },
         { id: 'customer-care-modal', dismiss: () => { if (typeof window.closeCustomerCareModal === 'function') window.closeCustomerCareModal(); } }
     ];

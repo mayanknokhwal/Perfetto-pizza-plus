@@ -5192,6 +5192,7 @@
                         renderCategoryGrid();
                         updateStats();
                         updateUnsavedChangesUI();
+                        if (typeof renderAdminBannersUI === 'function') renderAdminBannersUI();
                         listenToAdminMenuRealtime();
                         return;
                     }
@@ -5233,6 +5234,7 @@
                     isMenuInitialLoading = false;
                     updateStats();
                     updateUnsavedChangesUI();
+                    if (typeof renderAdminBannersUI === 'function') renderAdminBannersUI();
 
                     // Re-render whichever view is active if admin is not actively typing in an input
                     const activeEl = document.activeElement;
@@ -8124,11 +8126,17 @@
             let normalized = [];
             for (let i = 0; i < 4; i++) {
                 const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: DEFAULT_FALLBACK_BANNER_LOGO, enabled: true };
-                normalized.push({
+                const bannerObj = {
                     id: (item.id && String(item.id).trim()) || `b${i + 1}`,
                     url: resolveBannerUrl(item.url),
                     enabled: item.enabled !== false
-                });
+                };
+                if (i === 0 || item.targetProductId !== undefined || item.discountPercent !== undefined) {
+                    bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
+                    const rawDisc = parseInt(item.discountPercent, 10);
+                    bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
+                }
+                normalized.push(bannerObj);
             }
             if (!normalized.some(b => b.enabled)) {
                 normalized[0].enabled = true;
@@ -8142,7 +8150,16 @@
                 try {
                     const doc = await adminFirestore.collection('settings').doc('daily_banners').get();
                     if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                        return normalizeAdminBanners(doc.data().banners);
+                        const normalized = normalizeAdminBanners(doc.data().banners);
+                        if (doc.data().slot1 && normalized[0]) {
+                            if (!normalized[0].targetProductId && doc.data().slot1.targetProductId) {
+                                normalized[0].targetProductId = doc.data().slot1.targetProductId;
+                            }
+                            if (!normalized[0].discountPercent && doc.data().slot1.discountPercent) {
+                                normalized[0].discountPercent = doc.data().slot1.discountPercent;
+                            }
+                        }
+                        return normalized;
                     }
                 } catch (e) {
                     console.warn('Firestore admin daily banners fetch note:', e.message);
@@ -8153,7 +8170,16 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
-                        return normalizeAdminBanners(data.banners);
+                        const normalized = normalizeAdminBanners(data.banners);
+                        if (data.slot1 && normalized[0]) {
+                            if (!normalized[0].targetProductId && data.slot1.targetProductId) {
+                                normalized[0].targetProductId = data.slot1.targetProductId;
+                            }
+                            if (!normalized[0].discountPercent && data.slot1.discountPercent) {
+                                normalized[0].discountPercent = data.slot1.discountPercent;
+                            }
+                        }
+                        return normalized;
                     }
                 }
             } catch (e) { }
@@ -8169,11 +8195,22 @@
                 const inputEl = document.getElementById(`banner-input-${i}`);
                 const toggleEl = document.getElementById(`banner-toggle-${i}`);
                 const current = (Array.isArray(bannersList) && bannersList[i]) || (adminDailyBannersList && adminDailyBannersList[i]) || DEFAULT_DAILY_BANNERS[i];
-                slots.push({
+                const bannerItem = {
                     id: current.id || `b${i + 1}`,
                     url: resolveBannerUrl(inputEl ? inputEl.value : current.url),
                     enabled: toggleEl ? toggleEl.checked : (current.enabled !== false)
-                });
+                };
+                if (i === 0) {
+                    const spotlightSelect = document.getElementById('banner-spotlight-product');
+                    const discountInput = document.getElementById('banner-discount-percent');
+                    const targetProd = spotlightSelect ? spotlightSelect.value : (current.targetProductId || '');
+                    let disc = discountInput ? parseInt(discountInput.value, 10) : (current.discountPercent || 0);
+                    if (isNaN(disc) || disc < 0) disc = 0;
+                    if (disc > 90) disc = 90;
+                    bannerItem.targetProductId = targetProd || '';
+                    bannerItem.discountPercent = targetProd ? disc : 0;
+                }
+                slots.push(bannerItem);
             }
 
             // Enforce validation: At least 1 banner must remain active
@@ -8181,8 +8218,18 @@
                 slots[0].enabled = true;
             }
 
+            const slot1Data = {
+                imageUrl: slots[0].url,
+                url: slots[0].url,
+                targetProductId: slots[0].targetProductId || '',
+                discountPercent: slots[0].discountPercent || 0,
+                active: slots[0].enabled !== false,
+                enabled: slots[0].enabled !== false
+            };
+
             const docPayload = {
                 banners: slots,
+                slot1: slot1Data,
                 count: 4,
                 activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),
@@ -8192,6 +8239,9 @@
             if (adminFirestore) {
                 try {
                     await adminFirestore.collection('settings').doc('daily_banners').set(docPayload);
+                    try {
+                        await adminFirestore.collection('banners').doc('slot1').set(slot1Data);
+                    } catch (subErr) {}
                 } catch (e) {
                     console.warn('Firestore admin banner save note:', e.message);
                 }
@@ -8207,7 +8257,7 @@
 
             adminDailyBannersList = slots;
             renderAdminBannersUI();
-            return { success: true, banners: slots };
+            return { success: true, banners: slots, slot1: slot1Data };
         }
         window.saveAdminDailyBanners = saveAdminDailyBanners;
 
@@ -8244,6 +8294,42 @@
             badge.style.color = activeCount === 1 ? 'var(--primary-orange)' : '#10b981';
         }
 
+        function renderSpotlightProductOptions(selectedId = '') {
+            if (!Array.isArray(menuItems) || menuItems.length === 0) return '';
+            
+            const categories = {};
+            menuItems.forEach(item => {
+                if (item.available === false) return; // only active items
+                const cat = item.category || 'Other';
+                if (!categories[cat]) categories[cat] = [];
+                categories[cat].push(item);
+            });
+
+            return Object.keys(categories).map(cat => {
+                const items = categories[cat];
+                const options = items.map(item => {
+                    const isSel = String(item.id) === String(selectedId);
+                    return `<option value="${item.id}" ${isSel ? 'selected' : ''}>${item.name} (${item.isMultiSize || item.prices ? 'Multi-size' : '₹' + item.price})</option>`;
+                }).join('');
+                return `<optgroup label="${cat}">${options}</optgroup>`;
+            }).join('');
+        }
+
+        function onBannerSpotlightChange(val) {
+            if (!adminDailyBannersList[0]) return;
+            adminDailyBannersList[0].targetProductId = val || '';
+        }
+        window.onBannerSpotlightChange = onBannerSpotlightChange;
+
+        function onBannerDiscountChange(val) {
+            if (!adminDailyBannersList[0]) return;
+            let num = parseInt(val, 10);
+            if (isNaN(num) || num < 0) num = 0;
+            if (num > 90) num = 90;
+            adminDailyBannersList[0].discountPercent = num;
+        }
+        window.onBannerDiscountChange = onBannerDiscountChange;
+
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
             if (!listContainer) return;
@@ -8257,6 +8343,51 @@
                 const safeUrl = resolveBannerUrl(banner.url);
                 const rawUrl = (banner.url || '').trim();
                 const isEnabled = banner.enabled !== false;
+                const isSlot1 = idx === 0;
+
+                let slot1ExtraHtml = '';
+                if (isSlot1) {
+                    const targetProd = banner.targetProductId || '';
+                    const discVal = banner.discountPercent || '';
+                    slot1ExtraHtml = `
+                        <div class="banner-spotlight-config-card" style="margin-top: 10px; padding: 12px 14px; background: rgba(255, 107, 0, 0.08); border: 1px dashed rgba(255, 107, 0, 0.4); border-radius: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-orange); display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-bullseye"></i> Tap-to-Activate Spotlight Product Deal
+                                </span>
+                                <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">Exclusive to Banner Slot 1</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 140px; gap: 10px; align-items: center;">
+                                <div>
+                                    <label for="banner-spotlight-product" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Spotlight Product:
+                                    </label>
+                                    <select id="banner-spotlight-product" class="search-input banner-spotlight-select" onchange="onBannerSpotlightChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 10px;">
+                                        <option value="">-- No Spotlight Deal (Standard Promotional Banner) --</option>
+                                        ${renderSpotlightProductOptions(targetProd)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="banner-discount-percent" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Banner Discount %:
+                                    </label>
+                                    <div style="position: relative; display: flex; align-items: center;">
+                                        <input type="number" 
+                                               id="banner-discount-percent" 
+                                               class="search-input banner-discount-input" 
+                                               min="1" 
+                                               max="90" 
+                                               value="${discVal}" 
+                                               placeholder="e.g. 30" 
+                                               oninput="onBannerDiscountChange(this.value)"
+                                               style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.88rem; font-weight: 700; background: var(--bg-card); color: #10b981; border: 1px solid var(--border-color); padding: 0 28px 0 10px;">
+                                        <span style="position: absolute; right: 10px; font-weight: 800; font-size: 0.85rem; color: #10b981;">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
 
                 html += `
                     <div class="banner-row-item ${isEnabled ? 'is-active' : 'is-disabled'}" data-index="${idx}" id="banner-row-${idx}">
@@ -8283,7 +8414,7 @@
                                  id="banner-thumb-${idx}" 
                                  onerror="handleBannerImgError(this)">
                         </div>
-                        <div class="banner-input-wrapper">
+                        <div class="banner-input-wrapper" style="flex: 1;">
                             <div class="search-box banner-url-box">
                                 <i class="fa-solid fa-link" style="color: var(--primary-orange);"></i>
                                 <input type="url" 
@@ -8295,6 +8426,7 @@
                                        autocomplete="off"
                                        spellcheck="false">
                             </div>
+                            ${slot1ExtraHtml}
                         </div>
                     </div>
                 `;

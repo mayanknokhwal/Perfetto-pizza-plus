@@ -741,6 +741,70 @@
             </div>
         </div>
 
+        <!-- BANNER SLOT 1 TAP-TO-ACTIVATE SPOTLIGHT DEAL MODAL -->
+        <div class="checkout-modal-overlay spotlight-deal-overlay" id="spotlight-deal-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card spotlight-deal-card" role="dialog" aria-labelledby="spotlight-deal-title">
+                <!-- MODAL HEADER -->
+                <div class="checkout-modal-header spotlight-deal-header">
+                    <div class="spotlight-deal-badge-pill" id="spotlight-deal-badge">
+                        <i class="fa-solid fa-fire"></i> <span id="spotlight-deal-badge-text">30% OFF (Banner Exclusive Deal)</span>
+                    </div>
+                    <button type="button" class="checkout-modal-close-btn" onclick="closeSpotlightDealModal()" aria-label="Close Deal Modal">
+                        &times;
+                    </button>
+                </div>
+
+                <!-- MODAL BODY -->
+                <div class="checkout-modal-body spotlight-deal-body">
+                    <div class="spotlight-deal-hero">
+                        <img id="spotlight-deal-img" src="" alt="Spotlight Deal Product" class="spotlight-deal-img">
+                    </div>
+
+                    <div class="spotlight-deal-details">
+                        <div class="spotlight-deal-cat-tag" id="spotlight-deal-cat">Pizza</div>
+                        <h3 class="spotlight-deal-title" id="spotlight-deal-title">Hot Country</h3>
+                        <p class="spotlight-deal-desc" id="spotlight-deal-desc">Onion, Red Corn, Jalapeno, Paneer, Black Olives & Red Paprika, Extra Cheese</p>
+
+                        <!-- Multi-Size Selector (Rendered for Pizzas / Multi-size items) -->
+                        <div class="spotlight-deal-size-section" id="spotlight-deal-size-section" style="display: none;">
+                            <div class="spotlight-section-title">Select Size:</div>
+                            <div class="spotlight-size-chips" id="spotlight-size-chips">
+                                <button type="button" class="spotlight-size-chip" data-size="S" onclick="onSpotlightSizeSelect('S')">Regular (S)</button>
+                                <button type="button" class="spotlight-size-chip active" data-size="M" onclick="onSpotlightSizeSelect('M')">Medium (M)</button>
+                                <button type="button" class="spotlight-size-chip" data-size="L" onclick="onSpotlightSizeSelect('L')">Large (L)</button>
+                            </div>
+                        </div>
+
+                        <!-- Add-ons Section (Billed at 100% full price - Add-on Protection) -->
+                        <div class="spotlight-deal-addons-section" id="spotlight-deal-addons-section" style="display: none;">
+                            <div class="spotlight-section-title">
+                                <span>Add-ons:</span>
+                                <span class="spotlight-addon-hint">(Billed at standard rate)</span>
+                            </div>
+                            <div class="spotlight-addon-chips" id="spotlight-addon-chips">
+                                <!-- Dynamically generated addon chips -->
+                            </div>
+                        </div>
+
+                        <!-- Price Breakdown & Call To Action -->
+                        <div class="spotlight-deal-pricing-card">
+                            <div class="spotlight-deal-price-col">
+                                <span class="spotlight-price-label">Exclusive Offer Price:</span>
+                                <div class="spotlight-deal-price-display">
+                                    <span class="spotlight-strike-price" id="spotlight-strike-price">₹299</span>
+                                    <span class="spotlight-final-price" id="spotlight-final-price">₹209</span>
+                                </div>
+                                <span class="spotlight-savings-tag" id="spotlight-savings-tag">Save ₹90</span>
+                            </div>
+                            <button type="button" class="btn-claim-spotlight-deal" id="btn-claim-spotlight-deal" onclick="claimSpotlightDealToCart()">
+                                <i class="fa-solid fa-cart-shopping"></i> Claim Deal & Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- CUSTOM CLEAR ORDER HISTORY CONFIRMATION MODAL -->
         <div class="checkout-modal-overlay" id="clear-history-confirm-modal" aria-hidden="true" style="display: none;">
             <div class="checkout-modal-card confirm-dialog-card" role="dialog" aria-labelledby="clear-history-dialog-title">

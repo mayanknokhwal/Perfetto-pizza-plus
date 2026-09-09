@@ -92,9 +92,18 @@ async function handleBannersRequest(req, res) {
     try {
         if (req.method === 'GET') {
             const banners = await fetchDailyBannersFromFirestore();
+            const slot1 = (banners && banners[0]) ? {
+                imageUrl: banners[0].url,
+                url: banners[0].url,
+                targetProductId: banners[0].targetProductId || '',
+                discountPercent: banners[0].discountPercent || 0,
+                active: banners[0].enabled !== false,
+                enabled: banners[0].enabled !== false
+            } : null;
             return res.status(200).json({
                 success: true,
                 banners: banners,
+                slot1: slot1,
                 count: banners.length,
                 activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
@@ -114,6 +123,7 @@ async function handleBannersRequest(req, res) {
                 success: true,
                 message: result.message,
                 banners: result.banners,
+                slot1: result.slot1 || null,
                 count: result.banners.length,
                 activeCount: result.banners.filter(b => b.enabled).length
             });
