@@ -10976,6 +10976,20 @@ function openSpotlightBannerModal(targetProductId, discountPercent) {
         badgeText.textContent = `${dPercent}% OFF (Banner Exclusive Deal)`;
     }
 
+    const heroEl = document.getElementById('spotlight-deal-hero') || modal.querySelector('.spotlight-deal-hero');
+    const categoryName = String(product.category || '').trim().toLowerCase();
+    const isRollsCategory = categoryName.includes('roll');
+
+    if (heroEl) {
+        if (isRollsCategory) {
+            heroEl.classList.remove('ratio-square');
+            heroEl.classList.add('ratio-landscape', 'category-rolls');
+        } else {
+            heroEl.classList.remove('ratio-landscape', 'category-rolls');
+            heroEl.classList.add('ratio-square');
+        }
+    }
+
     const imgEl = document.getElementById('spotlight-deal-img');
     if (imgEl) {
         imgEl.src = product.img || DEFAULT_FALLBACK_BANNER_LOGO;
