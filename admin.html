@@ -8145,6 +8145,13 @@
                     bannerObj.rewardType = isPizza ? 'pizza' : 'category';
                     bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
                 }
+                if (i === 2) {
+                    const rawMode = (item.offerMode && String(item.offerMode).trim().toLowerCase()) || 'pizza_stepdown';
+                    bannerObj.offerMode = (rawMode === 'category_bogo') ? 'category_bogo' : 'pizza_stepdown';
+                    bannerObj.targetCategory = (bannerObj.offerMode === 'pizza_stepdown')
+                        ? 'pizza'
+                        : ((item.targetCategory && String(item.targetCategory).trim()) || 'Shake');
+                }
                 normalized.push(bannerObj);
             }
             if (!normalized.some(b => b.enabled)) {
@@ -8174,6 +8181,10 @@
                             if (doc.data().slot2.rewardCategory) normalized[1].rewardCategory = doc.data().slot2.rewardCategory;
                             if (doc.data().slot2.rewardPizzaSize) normalized[1].rewardPizzaSize = doc.data().slot2.rewardPizzaSize;
                         }
+                        if (doc.data().slot3 && normalized[2]) {
+                            if (doc.data().slot3.offerMode) normalized[2].offerMode = doc.data().slot3.offerMode;
+                            if (doc.data().slot3.targetCategory) normalized[2].targetCategory = doc.data().slot3.targetCategory;
+                        }
                         return normalized;
                     }
                 } catch (e) {
@@ -8199,6 +8210,10 @@
                             if (data.slot2.rewardType) normalized[1].rewardType = data.slot2.rewardType;
                             if (data.slot2.rewardCategory) normalized[1].rewardCategory = data.slot2.rewardCategory;
                             if (data.slot2.rewardPizzaSize) normalized[1].rewardPizzaSize = data.slot2.rewardPizzaSize;
+                        }
+                        if (data.slot3 && normalized[2]) {
+                            if (data.slot3.offerMode) normalized[2].offerMode = data.slot3.offerMode;
+                            if (data.slot3.targetCategory) normalized[2].targetCategory = data.slot3.targetCategory;
                         }
                         return normalized;
                     }
@@ -8244,6 +8259,15 @@
                     bannerItem.rewardType = isPizza ? 'pizza' : 'category';
                     bannerItem.rewardPizzaSize = isPizza ? ((rewardSizeSelect && rewardSizeSelect.value) ? rewardSizeSelect.value.toLowerCase() : (current.rewardPizzaSize || 'medium')) : '';
                 }
+                if (i === 2) {
+                    const offerModeSelect = document.getElementById('banner-slot3-offer-mode');
+                    const targetCatSelect = document.getElementById('banner-slot3-target-cat');
+                    const rawMode = (offerModeSelect && offerModeSelect.value) ? offerModeSelect.value : (current.offerMode || 'pizza_stepdown');
+                    const offerMode = (rawMode === 'category_bogo') ? 'category_bogo' : 'pizza_stepdown';
+                    const targetCat = (targetCatSelect && targetCatSelect.value) ? targetCatSelect.value : (current.targetCategory || 'Shake');
+                    bannerItem.offerMode = offerMode;
+                    bannerItem.targetCategory = (offerMode === 'pizza_stepdown') ? 'pizza' : targetCat;
+                }
                 slots.push(bannerItem);
             }
 
@@ -8273,10 +8297,21 @@
                 enabled: slots[1].enabled !== false
             };
 
+            const isSlot3BogoCat = (slots[2].offerMode === 'category_bogo');
+            const slot3Data = {
+                imageUrl: slots[2].url,
+                url: slots[2].url,
+                offerMode: slots[2].offerMode || 'pizza_stepdown',
+                targetCategory: isSlot3BogoCat ? (slots[2].targetCategory || 'Shake') : 'pizza',
+                active: slots[2].enabled !== false,
+                enabled: slots[2].enabled !== false
+            };
+
             const docPayload = {
                 banners: slots,
                 slot1: slot1Data,
                 slot2: slot2Data,
+                slot3: slot3Data,
                 count: 4,
                 activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),
@@ -8289,6 +8324,7 @@
                     try {
                         await adminFirestore.collection('banners').doc('slot1').set(slot1Data);
                         await adminFirestore.collection('banners').doc('slot2').set(slot2Data);
+                        await adminFirestore.collection('banners').doc('slot3').set(slot3Data);
                     } catch (subErr) {}
                 } catch (e) {
                     console.warn('Firestore admin banner save note:', e.message);
@@ -8305,7 +8341,7 @@
 
             adminDailyBannersList = slots;
             renderAdminBannersUI();
-            return { success: true, banners: slots, slot1: slot1Data, slot2: slot2Data };
+            return { success: true, banners: slots, slot1: slot1Data, slot2: slot2Data, slot3: slot3Data };
         }
         window.saveAdminDailyBanners = saveAdminDailyBanners;
 
@@ -8413,6 +8449,26 @@
         }
         window.onBannerRewardPizzaSizeChange = onBannerRewardPizzaSizeChange;
 
+        function onBannerSlot3OfferModeChange(val) {
+            if (!adminDailyBannersList[2]) return;
+            const mode = val === 'category_bogo' ? 'category_bogo' : 'pizza_stepdown';
+            adminDailyBannersList[2].offerMode = mode;
+            if (mode === 'pizza_stepdown') {
+                adminDailyBannersList[2].targetCategory = 'pizza';
+            }
+            const catBox = document.getElementById('banner-slot3-cat-box');
+            if (catBox) {
+                catBox.style.display = (mode === 'category_bogo') ? 'block' : 'none';
+            }
+        }
+        window.onBannerSlot3OfferModeChange = onBannerSlot3OfferModeChange;
+
+        function onBannerSlot3TargetCatChange(val) {
+            if (!adminDailyBannersList[2]) return;
+            adminDailyBannersList[2].targetCategory = val || 'Shake';
+        }
+        window.onBannerSlot3TargetCatChange = onBannerSlot3TargetCatChange;
+
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
             if (!listContainer) return;
@@ -8428,6 +8484,7 @@
                 const isEnabled = banner.enabled !== false;
                 const isSlot1 = idx === 0;
                 const isSlot2 = idx === 1;
+                const isSlot3 = idx === 2;
 
                 let slot1ExtraHtml = '';
                 if (isSlot1) {
@@ -8527,6 +8584,41 @@
                     `;
                 }
 
+                let slot3ExtraHtml = '';
+                if (isSlot3) {
+                    const offerModeVal = banner.offerMode || 'pizza_stepdown';
+                    const targetCatVal = banner.targetCategory || 'Shake';
+                    slot3ExtraHtml = `
+                        <div class="banner-bogo-config-card" style="margin-top: 10px; padding: 12px 14px; background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245, 158, 11, 0.4); border-radius: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 0.85rem; font-weight: 700; color: #f59e0b; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-fire"></i> Tap-to-Activate Smart BOGO & Pizza Stepdown Offer
+                                </span>
+                                <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">Exclusive to Banner Slot 3</span>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;">
+                                <div>
+                                    <label for="banner-slot3-offer-mode" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Offer Mode:
+                                    </label>
+                                    <select id="banner-slot3-offer-mode" class="search-input" onchange="onBannerSlot3OfferModeChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        <option value="pizza_stepdown" ${offerModeVal === 'pizza_stepdown' ? 'selected' : ''}>Pizza Size-Stepdown (L -> Free M | M -> Free S | 2S -> Free S)</option>
+                                        <option value="category_bogo" ${offerModeVal === 'category_bogo' ? 'selected' : ''}>Category Buy 2 Get 1 Free</option>
+                                    </select>
+                                </div>
+                                <div id="banner-slot3-cat-box" style="display: ${offerModeVal === 'category_bogo' ? 'block' : 'none'}; min-width: 160px;">
+                                    <label for="banner-slot3-target-cat" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Target Category:
+                                    </label>
+                                    <select id="banner-slot3-target-cat" class="search-input" onchange="onBannerSlot3TargetCatChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        ${renderRewardCategoryOptions(targetCatVal)}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
                 html += `
                     <div class="banner-row-item ${isEnabled ? 'is-active' : 'is-disabled'}" data-index="${idx}" id="banner-row-${idx}">
                         <div class="banner-toggle-col" title="Toggle Banner Slot #${idx + 1}">
@@ -8566,6 +8658,7 @@
                             </div>
                             ${slot1ExtraHtml}
                             ${slot2ExtraHtml}
+                            ${slot3ExtraHtml}
                         </div>
                     </div>
                 `;

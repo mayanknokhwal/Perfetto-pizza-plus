@@ -261,6 +261,13 @@ export function normalizeDailyBanners(raw) {
             bannerObj.rewardType = isPizza ? 'pizza' : 'category';
             bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
         }
+        if (i === 2) {
+            const rawMode = (item.offerMode && String(item.offerMode).trim().toLowerCase()) || 'pizza_stepdown';
+            bannerObj.offerMode = (rawMode === 'category_bogo') ? 'category_bogo' : 'pizza_stepdown';
+            bannerObj.targetCategory = (bannerObj.offerMode === 'pizza_stepdown')
+                ? 'pizza'
+                : ((item.targetCategory && String(item.targetCategory).trim()) || 'Shake');
+        }
         normalized.push(bannerObj);
     }
 
