@@ -553,7 +553,6 @@
 
                 <!-- DYNAMIC FREE GIFT UNLOCK / PROGRESS BANNER CONTAINER -->
                 <div id="cart-free-gift-container" style="display: none; margin-bottom: 12px;"></div>
-                <div id="cart-stepdown-unlock-container" style="display: none; margin-bottom: 12px;"></div>
 
                 <div id="cart-items-container" class="cart-items-list">
                     <!-- Dynamic cart items rendered here -->
@@ -874,58 +873,6 @@
                         </div>
                         <button type="button" class="btn-confirm-free-gift" id="btn-confirm-free-gift" onclick="confirmClaimFreeGift()">
                             <i class="fa-solid fa-gift"></i> Claim Free Gift
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- BANNER SLOT 3 PIZZA SIZE-STEPDOWN REWARD SELECTION MODAL -->
-        <div class="checkout-modal-overlay stepdown-pizza-modal-overlay" id="stepdown-pizza-modal" aria-hidden="true" style="display: none;">
-            <div class="checkout-modal-card stepdown-pizza-modal-card" role="dialog" aria-labelledby="stepdown-pizza-modal-title">
-                <!-- MODAL HEADER -->
-                <div class="checkout-modal-header stepdown-modal-header">
-                    <div class="stepdown-badge-pill" id="stepdown-badge-pill">
-                        <i class="fa-solid fa-fire"></i> <span id="stepdown-badge-text">BOGO Stepdown Offer</span>
-                    </div>
-                    <button type="button" class="checkout-modal-close-btn" onclick="closeStepdownPizzaModal()" aria-label="Close Stepdown Modal">
-                        &times;
-                    </button>
-                </div>
-
-                <!-- MODAL BODY -->
-                <div class="checkout-modal-body stepdown-modal-body">
-                    <h3 class="section-title-bold" id="stepdown-pizza-modal-title" style="margin-bottom: 4px;">Choose Your Free Pizza</h3>
-                    <p class="free-gift-subheading" id="stepdown-pizza-modal-subtitle">Unlocked with your qualifying pizza order! Pick any 1 below:</p>
-
-                    <!-- Pizzas Grid -->
-                    <div class="stepdown-pizza-items-grid free-gift-items-grid" id="stepdown-pizza-items-grid">
-                        <!-- Populated dynamically via JS -->
-                    </div>
-
-                    <!-- Add-ons Section (Billed at 100% full rate - Zero Discount on Add-ons) -->
-                    <div class="free-gift-addons-box" id="stepdown-pizza-addons-box" style="display: none;">
-                        <div class="spotlight-section-title">
-                            <span>Customize with Add-ons:</span>
-                            <span class="spotlight-addon-hint">(Billed at standard rate)</span>
-                        </div>
-                        <div class="spotlight-addon-chips" id="stepdown-pizza-addon-chips">
-                            <!-- Populated dynamically via JS -->
-                        </div>
-                    </div>
-
-                    <!-- Pricing & Confirmation Footer -->
-                    <div class="free-gift-pricing-card">
-                        <div class="spotlight-deal-price-col">
-                            <span class="spotlight-price-label">Reward Total:</span>
-                            <div class="spotlight-deal-price-display">
-                                <span class="spotlight-strike-price" id="stepdown-strike-price">₹0</span>
-                                <span class="spotlight-final-price" id="stepdown-final-price" style="color: #10b981;">FREE</span>
-                            </div>
-                            <span class="spotlight-savings-tag" id="stepdown-breakdown-tag">Base Price: ₹0 (FREE)</span>
-                        </div>
-                        <button type="button" class="btn-confirm-free-gift btn-confirm-stepdown-pizza" id="btn-confirm-stepdown-pizza" onclick="confirmClaimStepdownPizza()">
-                            <i class="fa-solid fa-gift"></i> Claim Free Pizza
                         </button>
                     </div>
                 </div>

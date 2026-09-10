@@ -732,7 +732,7 @@ function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, item
         }
     }
 
-    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice, { category: categoryName });
+    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice);
 }
 window.addCardWithAddonsToCart = addCardWithAddonsToCart;
 window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
@@ -2252,7 +2252,6 @@ async function fetchLiveBannersFromBackend() {
                     const bannerObj = (b && typeof b === 'object') ? b : {};
                     const slot1Data = (data.slot1 && typeof data.slot1 === 'object') ? data.slot1 : {};
                     const slot2Data = (data.slot2 && typeof data.slot2 === 'object') ? data.slot2 : {};
-                    const slot3Data = (data.slot3 && typeof data.slot3 === 'object') ? data.slot3 : {};
                     const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
                     const isPizza = cat.toLowerCase() === 'pizza';
                     return {
@@ -2264,9 +2263,7 @@ async function fetchLiveBannersFromBackend() {
                         minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
                         rewardCategory: cat,
                         rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
-                        rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
-                        offerMode: i === 2 ? (bannerObj.offerMode || slot3Data.offerMode || 'pizza_stepdown') : '',
-                        targetCategory: i === 2 ? (bannerObj.targetCategory || slot3Data.targetCategory || 'pizza') : ''
+                        rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : ''
                     };
                 });
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
@@ -2445,11 +2442,7 @@ function addPizzaToCart(pizzaId, event) {
     }
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
-    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice, { category: 'Pizza', pizzaSize: selectedSize });
-
-    if (typeof checkBanner3StepdownUnlockAfterPizzaAdd === 'function') {
-        checkBanner3StepdownUnlockAfterPizzaAdd(selectedSize);
-    }
+    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice);
 }
 
 function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
@@ -5857,9 +5850,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
             img: img || '',
             addons: addons,
             isBannerDeal: isBannerDeal,
-            appliedPrice: isBannerDeal ? effPrice : undefined,
-            category: options.category || (menuItem && menuItem.category) || (typeof getItemCategory === 'function' ? getItemCategory({ name, baseName: name }) : undefined),
-            pizzaSize: options.pizzaSize || (/\((S|M|L)\)/i.test(name) ? name.match(/\((S|M|L)\)/i)[1].toUpperCase() : undefined)
+            appliedPrice: isBannerDeal ? effPrice : undefined
         });
     }
     saveCartToStorage();
@@ -5875,7 +5866,7 @@ function updateQuantity(index, change) {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
     }
-    if (cart[index] && (cart[index].isFreeGift || cart[index].isStepdownFreePizza)) {
+    if (cart[index] && cart[index].isFreeGift) {
         // Locked standard item controls on the free gift: cannot change quantity or delete via standard controls
         return;
     }
@@ -6029,119 +6020,6 @@ function updateCartUI() {
         }
     }
 
-    // Banner Slot 3 BOGO / Pizza Stepdown Engine & Reversal Guard
-    const slot3Config = (typeof getBannerSlot3Config === 'function') ? getBannerSlot3Config() : { offerMode: 'pizza_stepdown', targetCategory: 'pizza' };
-    const isBanner3OfferActive = (function () {
-        try { return sessionStorage.getItem('banner3BogoActive') === 'true'; } catch (e) { return false; }
-    })();
-
-    if (slot3Config.offerMode !== 'category_bogo') {
-        // Mode A: Pizza Size-Stepdown
-        const paidPizzas = cart.filter(item => !item.isFreeGift && !item.isStepdownFreePizza && isPizzaCartItem(item));
-        let countL = 0, countM = 0, countS = 0;
-        paidPizzas.forEach(p => {
-            const sz = getPizzaSizeFromItem(p);
-            if (sz === 'L') countL += (p.qty || 1);
-            else if (sz === 'M') countM += (p.qty || 1);
-            else if (sz === 'S') countS += (p.qty || 1);
-        });
-
-        const maxFreeM = countL;
-        const maxFreeS = countM + Math.floor(countS / 2);
-
-        let cartChanged = false;
-        let mKept = 0;
-        let sKept = 0;
-        const newCart = [];
-
-        cart.forEach(item => {
-            if (item.isStepdownFreePizza) {
-                if (!isBanner3OfferActive) {
-                    cartChanged = true;
-                    return; // Purge
-                }
-                if (item.freePizzaSize === 'M') {
-                    if (mKept < maxFreeM) {
-                        mKept++;
-                        newCart.push(item);
-                    } else {
-                        cartChanged = true;
-                    }
-                } else if (item.freePizzaSize === 'S') {
-                    if (sKept < maxFreeS) {
-                        sKept++;
-                        newCart.push(item);
-                    } else {
-                        cartChanged = true;
-                    }
-                } else {
-                    newCart.push(item);
-                }
-            } else {
-                newCart.push(item);
-            }
-        });
-
-        if (cartChanged) {
-            cart = newCart;
-            saveCartToStorage();
-            showToast('⚠️ Free pizza removed: Qualifying paid pizza was removed or downgraded.');
-        }
-
-        // Render Stepdown Unlock / Incentive Banner in cart (#cart-stepdown-unlock-container)
-        const stepdownContainer = document.getElementById('cart-stepdown-unlock-container');
-        if (stepdownContainer) {
-            if (isBanner3OfferActive && cart.length > 0) {
-                const freeMInCart = cart.filter(i => i.isStepdownFreePizza && i.freePizzaSize === 'M').reduce((s, i) => s + (i.qty || 1), 0);
-                const freeSInCart = cart.filter(i => i.isStepdownFreePizza && i.freePizzaSize === 'S').reduce((s, i) => s + (i.qty || 1), 0);
-                const unpickedM = Math.max(0, maxFreeM - freeMInCart);
-                const unpickedS = Math.max(0, maxFreeS - freeSInCart);
-
-                if (unpickedM > 0) {
-                    stepdownContainer.style.display = 'block';
-                    stepdownContainer.innerHTML = `
-                        <div class="cart-stepdown-unlock-banner">
-                            <div>
-                                <strong>🎉 ${unpickedM} Free Medium Pizza Unlocked!</strong>
-                                <div style="font-size:0.75rem; color:var(--text-muted);">With your Large Pizza purchase</div>
-                            </div>
-                            <button type="button" class="btn-claim-stepdown" onclick="openStepdownPizzaModal('M')">
-                                <i class="fa-solid fa-gift"></i> Claim Medium Pizza
-                            </button>
-                        </div>
-                    `;
-                } else if (unpickedS > 0) {
-                    stepdownContainer.style.display = 'block';
-                    stepdownContainer.innerHTML = `
-                        <div class="cart-stepdown-unlock-banner">
-                            <div>
-                                <strong>🎉 ${unpickedS} Free Small Pizza Unlocked!</strong>
-                                <div style="font-size:0.75rem; color:var(--text-muted);">With your qualifying pizza purchase</div>
-                            </div>
-                            <button type="button" class="btn-claim-stepdown" onclick="openStepdownPizzaModal('S')">
-                                <i class="fa-solid fa-gift"></i> Claim Small Pizza
-                            </button>
-                        </div>
-                    `;
-                } else {
-                    stepdownContainer.style.display = 'none';
-                    stepdownContainer.innerHTML = '';
-                }
-            } else {
-                stepdownContainer.style.display = 'none';
-                stepdownContainer.innerHTML = '';
-            }
-        }
-    } else {
-        // Mode B: Category Buy 2 Get 1 Free
-        applyCategoryBogoDiscount(slot3Config.targetCategory || 'Shake', isBanner3OfferActive);
-        const stepdownContainer = document.getElementById('cart-stepdown-unlock-container');
-        if (stepdownContainer) {
-            stepdownContainer.style.display = 'none';
-            stepdownContainer.innerHTML = '';
-        }
-    }
-
     // Update Cart Free Gift Container (#cart-free-gift-container)
     const freeGiftContainer = document.getElementById('cart-free-gift-container');
     if (freeGiftContainer) {
@@ -6244,9 +6122,6 @@ function updateCartUI() {
                 : '';
 
             const isGift = Boolean(item.isFreeGift);
-            const isStepdown = Boolean(item.isStepdownFreePizza);
-            const isBogo = Boolean(item.isBogoDiscounted);
-
             let priceMarkup = '';
             if (isGift) {
                 if (item.price > 0) {
@@ -6254,15 +6129,6 @@ function updateCartUI() {
                 } else {
                     priceMarkup = `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span><span style="color:#10b981; font-weight:800;">FREE</span></span>`;
                 }
-            } else if (isStepdown) {
-                if (item.price > 0) {
-                    priceMarkup = `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span>${formatPrice(item.price * item.qty)} <span style="font-size:0.72rem; color:#f59e0b; font-weight:700;">(Add-on only)</span></span>`;
-                } else {
-                    priceMarkup = `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(item.originalPrice * item.qty)}</span><span style="color:#10b981; font-weight:800;">FREE</span></span>`;
-                }
-            } else if (isBogo) {
-                const origP = (item.preBogoPrice !== undefined ? item.preBogoPrice : item.originalPrice) * item.qty;
-                priceMarkup = `<span class="cart-item-price"><span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${formatPrice(origP)}</span>${item.price > 0 ? formatPrice(item.price * item.qty) : '<span style="color:#10b981; font-weight:800;">FREE</span>'}${item.price > 0 ? ' <span style="font-size:0.72rem; color:#ea580c; font-weight:700;">(Add-on only)</span>' : ''}</span>`;
             } else {
                 const hasDiscount = Boolean(item.originalPrice && item.originalPrice > item.price);
                 priceMarkup = hasDiscount
@@ -6274,11 +6140,7 @@ function updateCartUI() {
                 ? `<span class="cart-banner-deal-badge" style="font-size:0.68rem; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.12); border:1px solid rgba(234,88,12,0.3); border-radius:999px; padding:2px 8px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-fire"></i> Banner Deal</span>`
                 : (isGift
                     ? `<span class="cart-free-gift-badge"><i class="fa-solid fa-gift"></i> Free Gift</span>`
-                    : (isStepdown
-                        ? `<span class="cart-stepdown-free-badge"><i class="fa-solid fa-fire"></i> Free ${item.freePizzaSize === 'S' ? 'Small' : 'Medium'} Pizza</span>`
-                        : (isBogo
-                            ? `<span class="cart-bogo-free-badge"><i class="fa-solid fa-tag"></i> BOGO FREE</span>`
-                            : '')));
+                    : '');
 
             if (isGift) {
                 return `
@@ -6293,25 +6155,6 @@ function updateCartUI() {
                         <span class="free-gift-qty-tag" title="Standard reward item (Free)"><i class="fa-solid fa-lock"></i> 1x FREE</span>
                         <button type="button" class="btn-cart-change-gift" onclick="openFreeGiftSelectionModal()" title="Swap your free gift">
                             <i class="fa-solid fa-arrows-rotate"></i> Change Gift
-                        </button>
-                    </div>
-                </div>
-                `;
-            }
-
-            if (isStepdown) {
-                return `
-                <div class="cart-item-card cart-item-free-gift" style="border-left: 3px solid #f59e0b;">
-                    <img src="${item.img}" alt="${item.name}" class="cart-item-img">
-                    <div class="cart-item-info">
-                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
-                        ${addonTagsMarkup}
-                        ${priceMarkup}
-                    </div>
-                    <div class="free-gift-cart-controls">
-                        <span class="free-gift-qty-tag" style="background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.35);" title="Free Stepdown Pizza"><i class="fa-solid fa-lock"></i> 1x FREE</span>
-                        <button type="button" class="btn-cart-change-gift" onclick="openStepdownPizzaModal('${item.freePizzaSize || 'M'}')" title="Swap your free pizza">
-                            <i class="fa-solid fa-arrows-rotate"></i> Change Pizza
                         </button>
                     </div>
                 </div>
@@ -11054,22 +10897,13 @@ function renderDynamicOfferSlider(customBanners = null) {
         const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
         const isPizza = (banner.rewardCategory || '').toLowerCase() === 'pizza';
         const spendRewardLabel = hasSpendOffer ? (isPizza ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${banner.rewardCategory || 'Gift'}`) : '';
-
-        const isSlot3 = (banner.id === 'b3');
-        const isSlot4 = (banner.id === 'b4');
-        const hasBogoOffer = isSlot3 && (banner.offerMode === 'pizza_stepdown' || banner.offerMode === 'category_bogo');
-        const bogoHintLabel = (banner.offerMode === 'category_bogo')
-            ? `Buy 2 Get 1 FREE on ${(banner.targetCategory || 'Items')}`
-            : `Pizza Size-Stepdown BOGO Free`;
-
         return `
-            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''} ${hasBogoOffer ? 'offer-slide-bogo' : ''} ${isSlot4 ? 'offer-slide-static' : ''}" 
+            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''}" 
                  data-banner-id="${banner.id || ('b' + (idx + 1))}" 
                  data-slide-index="${idx}"
                  ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
                  ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
-                 ${hasBogoOffer ? `data-offer-mode="${escapeHtml(banner.offerMode || '')}" data-target-category="${escapeHtml(banner.targetCategory || '')}"` : ''}
-                 ${isSlot4 ? '' : `onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')"`}>
+                 onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')">
                 <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
                 ${hasSpotlight ? `
                     <div class="banner-spotlight-tap-hint">
@@ -11079,11 +10913,6 @@ function renderDynamicOfferSlider(customBanners = null) {
                 ${hasSpendOffer ? `
                     <div class="banner-spend-tap-hint">
                         <i class="fa-solid fa-gift"></i> Tap to Unlock: ${escapeHtml(spendRewardLabel)} on ₹${Number(banner.minSpend)}+
-                    </div>
-                ` : ''}
-                ${hasBogoOffer ? `
-                    <div class="banner-bogo-tap-hint">
-                        <i class="fa-solid fa-fire"></i> Tap to Activate: ${escapeHtml(bogoHintLabel)}!
                     </div>
                 ` : ''}
             </div>
@@ -11331,13 +11160,6 @@ function handleBannerSlideClick(slideIndex, bannerId) {
     if (!banner) return;
     const isSlot1 = (banner.id === 'b1');
     const isSlot2 = (banner.id === 'b2');
-    const isSlot3 = (banner.id === 'b3');
-    const isSlot4 = (banner.id === 'b4');
-
-    if (isSlot4) {
-        // Banner Slot 4 remains strictly static (non-tappable announcement/image only)
-        return;
-    }
 
     if (isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0) {
         try {
@@ -11359,7 +11181,7 @@ function handleBannerSlideClick(slideIndex, bannerId) {
 
         // Immediately evaluate current paid cart subtotal
         const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
-            .filter(item => !item.isFreeGift && !item.isStepdownFreePizza)
+            .filter(item => !item.isFreeGift)
             .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
 
         if (typeof updateSpendHungerBar === 'function') {
@@ -11378,26 +11200,6 @@ function handleBannerSlideClick(slideIndex, bannerId) {
             // Below target spend: persistent hunger bar activated showing dynamic deficit
             const deficit = minSpend - qualifyingPaidTotal;
             showToast(`🎉 Offer Activated! Add ₹${deficit} more to unlock your FREE ${rewardTitle}!`);
-        }
-        return;
-    }
-
-    if (isSlot3) {
-        try {
-            sessionStorage.setItem('banner3BogoActive', 'true');
-        } catch (e) { }
-
-        const offerMode = banner.offerMode || 'pizza_stepdown';
-        const targetCategory = banner.targetCategory || (offerMode === 'pizza_stepdown' ? 'Pizza' : 'Shake');
-
-        showToast('🔥 Exclusive Deal Activated! Tap to claim your Pizza / BOGO offer!');
-
-        if (typeof updateCartUI === 'function') {
-            updateCartUI();
-        }
-
-        if (typeof navigateToCategory === 'function') {
-            navigateToCategory(targetCategory);
         }
         return;
     }
@@ -12097,514 +11899,6 @@ function confirmClaimFreeGift() {
     showToast(`🎁 Claimed Free ${baseItemName}!`);
 }
 window.confirmClaimFreeGift = confirmClaimFreeGift;
-
-// --------------------------------------------------------------------------
-// BANNER SLOT 3 TAP-CONDITIONAL SMART BOGO & PIZZA SIZE-STEPDOWN ENGINE
-// --------------------------------------------------------------------------
-function isPizzaCartItem(item) {
-    if (!item) return false;
-    if (item.category && item.category.toLowerCase() === 'pizza') return true;
-    const name = String(item.baseName || item.name || '');
-    if (/\((S|M|L)\)/i.test(name)) return true;
-    if (typeof categorySubItems !== 'undefined' && categorySubItems['Pizza']) {
-        return categorySubItems['Pizza'].some(p => p.name && name.toLowerCase().includes(p.name.toLowerCase()));
-    }
-    return false;
-}
-window.isPizzaCartItem = isPizzaCartItem;
-
-function getPizzaSizeFromItem(item) {
-    if (!item) return 'M';
-    if (item.pizzaSize) return String(item.pizzaSize).toUpperCase();
-    const name = String(item.baseName || item.name || '');
-    const match = name.match(/\((S|M|L)\)/i);
-    if (match && match[1]) return match[1].toUpperCase();
-    return 'M';
-}
-window.getPizzaSizeFromItem = getPizzaSizeFromItem;
-
-function getItemCategory(item) {
-    if (!item) return '';
-    if (item.category) return item.category;
-    if (isPizzaCartItem(item)) return 'Pizza';
-    const name = String(item.baseName || item.name || '').toLowerCase();
-    if (typeof categorySubItems !== 'undefined') {
-        for (const [cat, items] of Object.entries(categorySubItems)) {
-            if (items.some(i => i.name && name.includes(i.name.toLowerCase()))) {
-                return cat;
-            }
-        }
-    }
-    return '';
-}
-window.getItemCategory = getItemCategory;
-
-function getBannerSlot3Config() {
-    let banners = [];
-    try {
-        const saved = localStorage.getItem('perfetto_daily_banners');
-        if (saved) {
-            banners = JSON.parse(saved);
-        }
-    } catch (e) { }
-    if (!Array.isArray(banners) || banners.length < 3) {
-        banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
-    }
-    const b3 = banners[2] || {};
-    return {
-        id: 'b3',
-        url: b3.url || 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png',
-        offerMode: b3.offerMode || 'pizza_stepdown', // 'pizza_stepdown' | 'category_bogo'
-        targetCategory: b3.targetCategory || 'Pizza',
-        enabled: b3.enabled !== false
-    };
-}
-window.getBannerSlot3Config = getBannerSlot3Config;
-
-function navigateToCategory(targetCat) {
-    if (!targetCat) targetCat = 'Pizza';
-    const cleanCat = String(targetCat).trim().toLowerCase();
-
-    // Check DOM category cards first
-    const allFastFoodCards = Array.from(document.querySelectorAll('.fast-food-card'));
-    const matchedCard = allFastFoodCards.find(c => (c.getAttribute('data-category') || '').toLowerCase() === cleanCat)
-        || allFastFoodCards.find(c => (c.getAttribute('data-category') || '').toLowerCase().includes(cleanCat))
-        || allFastFoodCards.find(c => cleanCat.includes((c.getAttribute('data-category') || '').toLowerCase()));
-
-    let actualCategoryName = targetCat;
-    let actualCategoryImg = '';
-
-    if (matchedCard) {
-        actualCategoryName = matchedCard.getAttribute('data-category') || targetCat;
-        const img = matchedCard.querySelector('img');
-        if (img && img.src) {
-            actualCategoryImg = img.src;
-        }
-    } else {
-        if (typeof categorySubItems !== 'undefined') {
-            const catKey = Object.keys(categorySubItems).find(k => k.toLowerCase() === cleanCat);
-            if (catKey) {
-                actualCategoryName = catKey;
-            }
-        }
-    }
-
-    if (typeof openCategoryDetail === 'function') {
-        openCategoryDetail(actualCategoryName, actualCategoryImg);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (typeof switchTab === 'function') {
-        switchTab('home');
-    }
-}
-window.navigateToCategory = navigateToCategory;
-
-function checkBanner3StepdownUnlockAfterPizzaAdd(addedSize) {
-    let isBanner3OfferActive = false;
-    try {
-        isBanner3OfferActive = sessionStorage.getItem('banner3BogoActive') === 'true';
-    } catch (e) { }
-
-    if (!isBanner3OfferActive) return;
-
-    const slot3Config = getBannerSlot3Config();
-    if (slot3Config.offerMode !== 'pizza_stepdown' || !slot3Config.enabled) return;
-
-    const paidPizzas = (Array.isArray(cart) ? cart : []).filter(item => !item.isFreeGift && !item.isStepdownFreePizza && isPizzaCartItem(item));
-    let countL = 0, countM = 0, countS = 0;
-    paidPizzas.forEach(p => {
-        const sz = getPizzaSizeFromItem(p);
-        if (sz === 'L') countL += (p.qty || 1);
-        else if (sz === 'M') countM += (p.qty || 1);
-        else if (sz === 'S') countS += (p.qty || 1);
-    });
-
-    const maxFreeM = countL;
-    const maxFreeS = countM + Math.floor(countS / 2);
-
-    const freeMInCart = cart.filter(i => i.isStepdownFreePizza && i.freePizzaSize === 'M').reduce((s, i) => s + (i.qty || 1), 0);
-    const freeSInCart = cart.filter(i => i.isStepdownFreePizza && i.freePizzaSize === 'S').reduce((s, i) => s + (i.qty || 1), 0);
-
-    const neededM = maxFreeM - freeMInCart;
-    const neededS = maxFreeS - freeSInCart;
-
-    const normSize = String(addedSize || '').toUpperCase();
-    if (normSize === 'L' && neededM > 0) {
-        setTimeout(() => {
-            openStepdownPizzaModal('M');
-        }, 250);
-    } else if (normSize === 'M' && neededS > 0) {
-        setTimeout(() => {
-            openStepdownPizzaModal('S');
-        }, 250);
-    } else if (normSize === 'S' && neededS > 0 && (countS % 2 === 0)) {
-        setTimeout(() => {
-            openStepdownPizzaModal('S');
-        }, 250);
-    } else if (neededM > 0) {
-        setTimeout(() => {
-            openStepdownPizzaModal('M');
-        }, 250);
-    } else if (neededS > 0) {
-        setTimeout(() => {
-            openStepdownPizzaModal('S');
-        }, 250);
-    }
-}
-window.checkBanner3StepdownUnlockAfterPizzaAdd = checkBanner3StepdownUnlockAfterPizzaAdd;
-
-let currentStepdownState = {
-    targetSize: 'M',
-    selectedPizza: null,
-    addons: { cheese: false, spicy: false, mayo: false },
-    eligiblePizzas: []
-};
-
-function openStepdownPizzaModal(targetSize = 'M') {
-    const modal = document.getElementById('stepdown-pizza-modal');
-    if (!modal) return;
-
-    const size = (targetSize === 'S' || targetSize === 'Small') ? 'S' : 'M';
-    currentStepdownState.targetSize = size;
-    currentStepdownState.addons = { cheese: false, spicy: false, mayo: false };
-
-    const titleEl = document.getElementById('stepdown-pizza-modal-title') || document.getElementById('stepdown-modal-title');
-    const subtitleEl = document.getElementById('stepdown-pizza-modal-subtitle') || document.getElementById('stepdown-modal-subtitle');
-    const badgeTextEl = document.getElementById('stepdown-badge-text');
-
-    const sizeName = size === 'M' ? 'Medium' : 'Small';
-    if (badgeTextEl) badgeTextEl.textContent = `Free ${sizeName} Pizza Reward`;
-    if (titleEl) titleEl.textContent = `Choose Your Free ${sizeName} Pizza`;
-    if (subtitleEl) {
-        subtitleEl.textContent = size === 'M'
-            ? 'Unlocked with your Large Pizza purchase! Base price ₹0 (FREE).'
-            : 'Unlocked with your qualifying pizza purchase! Base price ₹0 (FREE).';
-    }
-
-    let pizzas = [];
-    if (typeof categorySubItems !== 'undefined' && categorySubItems['Pizza']) {
-        pizzas = categorySubItems['Pizza'].filter(p => p.available !== false);
-    }
-    if (pizzas.length === 0 && typeof getAllCustomerMenuItems === 'function') {
-        pizzas = getAllCustomerMenuItems().filter(i => (i.category || '').toLowerCase() === 'pizza' && i.available !== false);
-    }
-    currentStepdownState.eligiblePizzas = pizzas;
-
-    const existingFreePizza = cart.find(i => i.isStepdownFreePizza && i.freePizzaSize === size);
-    if (existingFreePizza) {
-        const found = pizzas.find(p => existingFreePizza.name.includes(p.name));
-        currentStepdownState.selectedPizza = found || pizzas[0] || null;
-    } else {
-        currentStepdownState.selectedPizza = pizzas[0] || null;
-    }
-
-    renderStepdownPizzaGrid();
-    renderStepdownPizzaAddonsAndPricing();
-
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-}
-window.openStepdownPizzaModal = openStepdownPizzaModal;
-
-function closeStepdownPizzaModal() {
-    const modal = document.getElementById('stepdown-pizza-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.setAttribute('aria-hidden', 'true');
-    }
-    document.body.style.overflow = '';
-}
-window.closeStepdownPizzaModal = closeStepdownPizzaModal;
-
-function renderStepdownPizzaGrid() {
-    const grid = document.getElementById('stepdown-pizza-items-grid') || document.getElementById('stepdown-items-grid');
-    if (!grid) return;
-
-    const { eligiblePizzas, selectedPizza, targetSize } = currentStepdownState;
-    if (!eligiblePizzas || eligiblePizzas.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No eligible pizza options available.</div>';
-        return;
-    }
-
-    grid.innerHTML = eligiblePizzas.map(pizza => {
-        const isSelected = selectedPizza && (selectedPizza.id === pizza.id || selectedPizza.name === pizza.name);
-        const origPrice = (pizza.prices && pizza.prices[targetSize]) || (targetSize === 'M' ? 299 : 199);
-        const displayName = typeof tItem === 'function' ? tItem(pizza.name) : pizza.name;
-
-        return `
-            <div class="free-gift-item-card ${isSelected ? 'selected' : ''}" onclick="onSelectStepdownPizzaItem('${escapeHtml(pizza.id || pizza.name)}')">
-                ${isSelected ? '<div class="free-gift-selected-check"><i class="fa-solid fa-check"></i></div>' : ''}
-                <div class="free-gift-item-thumb-wrapper">
-                    <img src="${pizza.img}" alt="${escapeHtml(pizza.name)}" class="free-gift-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
-                </div>
-                <div class="free-gift-item-name" title="${escapeHtml(pizza.name)}">${displayName}</div>
-                <div class="free-gift-price-line">
-                    <span class="free-gift-strike">${formatPrice(origPrice)}</span>
-                    <span class="free-gift-free-tag">FREE</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-window.renderStepdownPizzaGrid = renderStepdownPizzaGrid;
-
-function onSelectStepdownPizzaItem(idOrName) {
-    const found = currentStepdownState.eligiblePizzas.find(p => p.id === idOrName || p.name === idOrName);
-    if (!found) return;
-    currentStepdownState.selectedPizza = found;
-    currentStepdownState.addons = { cheese: false, spicy: false, mayo: false };
-    renderStepdownPizzaGrid();
-    renderStepdownPizzaAddonsAndPricing();
-}
-window.onSelectStepdownPizzaItem = onSelectStepdownPizzaItem;
-
-function renderStepdownPizzaAddonsAndPricing() {
-    const { selectedPizza, targetSize, addons } = currentStepdownState;
-    const addonsBox = document.getElementById('stepdown-pizza-addons-box');
-    const addonsChipsContainer = document.getElementById('stepdown-pizza-addon-chips') || document.getElementById('stepdown-addon-chips');
-    const strikePriceEl = document.getElementById('stepdown-strike-price');
-    const finalPriceEl = document.getElementById('stepdown-final-price');
-    const breakdownTagEl = document.getElementById('stepdown-breakdown-tag');
-    const confirmBtn = document.getElementById('btn-confirm-stepdown-pizza') || document.getElementById('btn-confirm-stepdown');
-
-    if (!selectedPizza) {
-        if (confirmBtn) confirmBtn.disabled = true;
-        return;
-    }
-    if (confirmBtn) confirmBtn.disabled = false;
-
-    const rates = (typeof getPizzaSizeAddonRates === 'function')
-        ? getPizzaSizeAddonRates(targetSize)
-        : { extraCheese: targetSize === 'M' ? 40 : 30, extraSpicy: 0, extraMayo: 20 };
-
-    const origBasePrice = (selectedPizza.prices && selectedPizza.prices[targetSize]) || (targetSize === 'M' ? 299 : 199);
-
-    const availableAddons = [
-        { key: 'cheese', label: '🧀 Extra Cheese', price: rates.extraCheese },
-        { key: 'spicy', label: '🌶️ Extra Spicy', price: rates.extraSpicy },
-        { key: 'mayo', label: '🍥 Extra Mayo', price: rates.extraMayo }
-    ];
-
-    if (addonsBox) {
-        addonsBox.style.display = 'block';
-    }
-
-    if (addonsChipsContainer) {
-        addonsChipsContainer.innerHTML = availableAddons.map(a => {
-            const isChecked = Boolean(addons[a.key]);
-            const priceTag = a.price > 0 ? ` (+${formatPrice(a.price)})` : ' (FREE)';
-            return `
-                <button type="button" class="spotlight-addon-chip ${isChecked ? 'active' : ''}" onclick="toggleStepdownPizzaAddon('${a.key}')">
-                    <i class="fa-solid ${isChecked ? 'fa-square-check' : 'fa-square'}"></i>
-                    ${a.label}${priceTag}
-                </button>
-            `;
-        }).join('');
-    }
-
-    let totalAddonsPrice = 0;
-    availableAddons.forEach(a => {
-        if (addons[a.key]) {
-            totalAddonsPrice += a.price;
-        }
-    });
-
-    const origTotal = origBasePrice + totalAddonsPrice;
-    const finalPayable = totalAddonsPrice;
-
-    if (strikePriceEl) strikePriceEl.textContent = formatPrice(origTotal);
-    if (finalPriceEl) {
-        if (finalPayable === 0) {
-            finalPriceEl.textContent = 'FREE';
-            finalPriceEl.style.color = '#10b981';
-        } else {
-            finalPriceEl.textContent = formatPrice(finalPayable);
-            finalPriceEl.style.color = '#ffffff';
-        }
-    }
-    if (breakdownTagEl) {
-        if (finalPayable === 0) {
-            breakdownTagEl.textContent = `Base ₹0 (100% FREE)`;
-        } else {
-            breakdownTagEl.textContent = `Base ₹0 (FREE) + Add-ons ${formatPrice(totalAddonsPrice)}`;
-        }
-    }
-}
-window.renderStepdownPizzaAddonsAndPricing = renderStepdownPizzaAddonsAndPricing;
-
-function toggleStepdownPizzaAddon(addonKey) {
-    if (!currentStepdownState.addons) {
-        currentStepdownState.addons = {};
-    }
-    currentStepdownState.addons[addonKey] = !currentStepdownState.addons[addonKey];
-    renderStepdownPizzaAddonsAndPricing();
-}
-window.toggleStepdownPizzaAddon = toggleStepdownPizzaAddon;
-
-function confirmClaimStepdownPizza() {
-    const { selectedPizza, targetSize, addons } = currentStepdownState;
-    if (!selectedPizza) return;
-
-    const rates = (typeof getPizzaSizeAddonRates === 'function')
-        ? getPizzaSizeAddonRates(targetSize)
-        : { extraCheese: targetSize === 'M' ? 40 : 30, extraSpicy: 0, extraMayo: 20 };
-
-    const origBasePrice = (selectedPizza.prices && selectedPizza.prices[targetSize]) || (targetSize === 'M' ? 299 : 199);
-
-    const addonsList = [];
-    let addonsPrice = 0;
-    if (addons.cheese) {
-        addonsList.push({ name: 'Extra Cheese', price: rates.extraCheese });
-        addonsPrice += rates.extraCheese;
-    }
-    if (addons.spicy) {
-        addonsList.push({ name: 'Extra Spicy', price: rates.extraSpicy });
-        addonsPrice += rates.extraSpicy;
-    }
-    if (addons.mayo) {
-        addonsList.push({ name: '🍥 Extra Mayo', price: rates.extraMayo });
-        addonsPrice += rates.extraMayo;
-    }
-
-    const baseTitle = `${selectedPizza.name} (${targetSize})`;
-    const fullTitle = addonsList.length > 0 ? `${baseTitle} (+${addonsList.map(a => a.name).join(', ')})` : baseTitle;
-
-    const existingIdx = cart.findIndex(i => i.isStepdownFreePizza && i.freePizzaSize === targetSize);
-    const freePizzaItem = {
-        name: fullTitle,
-        baseName: baseTitle,
-        price: addonsPrice,
-        basePrice: 0,
-        originalPrice: origBasePrice + addonsPrice,
-        qty: 1,
-        img: selectedPizza.img || 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png',
-        addons: addonsList,
-        category: 'Pizza',
-        pizzaSize: targetSize,
-        isStepdownFreePizza: true,
-        freePizzaSize: targetSize
-    };
-
-    if (existingIdx >= 0) {
-        cart[existingIdx] = freePizzaItem;
-    } else {
-        cart.push(freePizzaItem);
-    }
-
-    saveCartToStorage();
-    closeStepdownPizzaModal();
-    updateCartUI();
-
-    showToast(`🎉 Claimed Free ${targetSize === 'M' ? 'Medium' : 'Small'} Pizza!`);
-}
-window.confirmClaimStepdownPizza = confirmClaimStepdownPizza;
-
-function applyCategoryBogoDiscount(targetCategory, isOfferActive) {
-    if (!Array.isArray(cart) || cart.length === 0) return;
-
-    // Reset any previously applied BOGO flags and restore prices
-    cart.forEach(item => {
-        if (item.isBogoDiscounted) {
-            if (item.preBogoPrice !== undefined) {
-                item.price = item.preBogoPrice;
-            }
-            delete item.isBogoDiscounted;
-            delete item.preBogoPrice;
-        }
-    });
-
-    // Consolidate identical items that were previously split
-    for (let i = 0; i < cart.length; i++) {
-        for (let j = i + 1; j < cart.length; j++) {
-            if (cart[i].name === cart[j].name &&
-                !cart[i].isFreeGift && !cart[j].isFreeGift &&
-                !cart[i].isStepdownFreePizza && !cart[j].isStepdownFreePizza &&
-                JSON.stringify(cart[i].addons || []) === JSON.stringify(cart[j].addons || [])) {
-                cart[i].qty = (cart[i].qty || 1) + (cart[j].qty || 1);
-                cart.splice(j, 1);
-                j--;
-            }
-        }
-    }
-
-    if (!isOfferActive) {
-        return;
-    }
-
-    const normTarget = String(targetCategory || '').trim().toLowerCase();
-    if (!normTarget) return;
-
-    const qualifyingIndices = [];
-    cart.forEach((item, idx) => {
-        if (item.isFreeGift || item.isStepdownFreePizza) return;
-        const cat = String(getItemCategory(item) || '').toLowerCase();
-        if (cat === normTarget || cat.includes(normTarget) || normTarget.includes(cat)) {
-            qualifyingIndices.push(idx);
-        }
-    });
-
-    const totalQualifyingQty = qualifyingIndices.reduce((sum, idx) => sum + (cart[idx].qty || 1), 0);
-    const freeItemsAllowed = Math.floor(totalQualifyingQty / 3);
-
-    if (freeItemsAllowed <= 0) return;
-
-    const unitPool = [];
-    qualifyingIndices.forEach(cartIdx => {
-        const item = cart[cartIdx];
-        const addonsTotal = (Array.isArray(item.addons) ? item.addons : []).reduce((s, a) => s + (Number(a.price) || 0), 0);
-        const basePrice = Math.max(0, (Number(item.price) || 0) - addonsTotal);
-        for (let q = 0; q < (item.qty || 1); q++) {
-            unitPool.push({
-                cartIdx,
-                basePrice,
-                addonsTotal,
-                origPrice: item.price
-            });
-        }
-    });
-
-    // Sort ascending by basePrice (lowest price item gets free)
-    unitPool.sort((a, b) => a.basePrice - b.basePrice);
-
-    const unitsToFree = unitPool.slice(0, freeItemsAllowed);
-    const freeCountPerCartIdx = {};
-    unitsToFree.forEach(u => {
-        freeCountPerCartIdx[u.cartIdx] = (freeCountPerCartIdx[u.cartIdx] || 0) + 1;
-    });
-
-    const newCartItems = [];
-    cart.forEach((item, idx) => {
-        const freeCount = freeCountPerCartIdx[idx] || 0;
-        if (freeCount === 0) {
-            newCartItems.push(item);
-            return;
-        }
-
-        const addonsTotal = (Array.isArray(item.addons) ? item.addons : []).reduce((s, a) => s + (Number(a.price) || 0), 0);
-        const origItemPrice = item.price;
-
-        if (item.qty === freeCount) {
-            item.isBogoDiscounted = true;
-            item.preBogoPrice = origItemPrice;
-            item.price = addonsTotal;
-            newCartItems.push(item);
-        } else {
-            const paidUnits = item.qty - freeCount;
-            item.qty = paidUnits;
-            newCartItems.push(item);
-
-            const freeCopy = JSON.parse(JSON.stringify(item));
-            freeCopy.qty = freeCount;
-            freeCopy.isBogoDiscounted = true;
-            freeCopy.preBogoPrice = origItemPrice;
-            freeCopy.price = addonsTotal;
-            newCartItems.push(freeCopy);
-        }
-    });
-
-    cart = newCartItems;
-}
-window.applyCategoryBogoDiscount = applyCategoryBogoDiscount;
 
 // --------------------------------------------------------------------------
 // 9. WHATSAPP DP STYLE LOGO POPUP MODAL
@@ -13494,7 +12788,6 @@ function listenToRealtimeMenuAndRates() {
                     const docData = doc.data() || {};
                     const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
                     const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
-                    const slot3Data = (docData.slot3 && typeof docData.slot3 === 'object') ? docData.slot3 : {};
                     banners = docData.banners.slice(0, 4).map((b, i) => {
                         const bannerObj = (b && typeof b === 'object') ? b : {};
                         const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
@@ -13508,9 +12801,7 @@ function listenToRealtimeMenuAndRates() {
                             minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
                             rewardCategory: cat,
                             rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
-                            rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
-                            offerMode: i === 2 ? (bannerObj.offerMode || slot3Data.offerMode || 'pizza_stepdown') : '',
-                            targetCategory: i === 2 ? (bannerObj.targetCategory || slot3Data.targetCategory || 'pizza') : ''
+                            rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : ''
                         };
                     });
                 }
