@@ -8131,17 +8131,19 @@
                     url: resolveBannerUrl(item.url),
                     enabled: item.enabled !== false
                 };
-                if (i === 0 || item.targetProductId !== undefined || item.discountPercent !== undefined) {
+                if (i === 0) {
                     bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
                     const rawDisc = parseInt(item.discountPercent, 10);
                     bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
                 }
-                if (i === 1 || item.minSpend !== undefined || item.rewardType !== undefined) {
+                if (i === 1) {
                     const rawSpend = parseInt(item.minSpend, 10);
                     bannerObj.minSpend = (!isNaN(rawSpend) && rawSpend > 0) ? rawSpend : 699;
-                    bannerObj.rewardType = (item.rewardType === 'pizza') ? 'pizza' : 'category';
-                    bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
-                    bannerObj.rewardPizzaSize = (item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium';
+                    const cat = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+                    const isPizza = cat.toLowerCase() === 'pizza';
+                    bannerObj.rewardCategory = cat;
+                    bannerObj.rewardType = isPizza ? 'pizza' : 'category';
+                    bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
                 }
                 normalized.push(bannerObj);
             }
@@ -8231,15 +8233,16 @@
                 }
                 if (i === 1) {
                     const minSpendInput = document.getElementById('banner-min-spend');
-                    const rewardTypeSelect = document.getElementById('banner-reward-type');
                     const rewardCatSelect = document.getElementById('banner-reward-category');
                     const rewardSizeSelect = document.getElementById('banner-reward-pizza-size');
                     let minSpend = minSpendInput ? parseInt(minSpendInput.value, 10) : (current.minSpend || 699);
                     if (isNaN(minSpend) || minSpend < 1) minSpend = 699;
+                    const cat = (rewardCatSelect && rewardCatSelect.value) ? rewardCatSelect.value : (current.rewardCategory || 'Shake');
+                    const isPizza = cat.trim().toLowerCase() === 'pizza';
                     bannerItem.minSpend = minSpend;
-                    bannerItem.rewardType = (rewardTypeSelect && rewardTypeSelect.value === 'pizza') ? 'pizza' : 'category';
-                    bannerItem.rewardCategory = (rewardCatSelect && rewardCatSelect.value) ? rewardCatSelect.value : (current.rewardCategory || 'Shake');
-                    bannerItem.rewardPizzaSize = (rewardSizeSelect && rewardSizeSelect.value) ? rewardSizeSelect.value.toLowerCase() : (current.rewardPizzaSize || 'medium');
+                    bannerItem.rewardCategory = cat;
+                    bannerItem.rewardType = isPizza ? 'pizza' : 'category';
+                    bannerItem.rewardPizzaSize = isPizza ? ((rewardSizeSelect && rewardSizeSelect.value) ? rewardSizeSelect.value.toLowerCase() : (current.rewardPizzaSize || 'medium')) : '';
                 }
                 slots.push(bannerItem);
             }
@@ -8258,13 +8261,14 @@
                 enabled: slots[0].enabled !== false
             };
 
+            const isSlot2Pizza = (slots[1].rewardCategory || '').trim().toLowerCase() === 'pizza';
             const slot2Data = {
                 imageUrl: slots[1].url,
                 url: slots[1].url,
                 minSpend: Number(slots[1].minSpend) || 699,
-                rewardType: slots[1].rewardType || 'category',
+                rewardType: isSlot2Pizza ? 'pizza' : 'category',
                 rewardCategory: slots[1].rewardCategory || 'Shake',
-                rewardPizzaSize: slots[1].rewardPizzaSize || 'medium',
+                rewardPizzaSize: isSlot2Pizza ? (slots[1].rewardPizzaSize || 'medium') : '',
                 active: slots[1].enabled !== false,
                 enabled: slots[1].enabled !== false
             };
@@ -8390,19 +8394,16 @@
         }
         window.onBannerMinSpendChange = onBannerMinSpendChange;
 
-        function onBannerRewardTypeChange(val) {
-            if (!adminDailyBannersList[1]) return;
-            adminDailyBannersList[1].rewardType = val === 'pizza' ? 'pizza' : 'category';
-            const catBox = document.getElementById('banner-reward-cat-box');
-            const pizzaBox = document.getElementById('banner-reward-pizza-box');
-            if (catBox) catBox.style.display = val === 'category' ? 'block' : 'none';
-            if (pizzaBox) pizzaBox.style.display = val === 'pizza' ? 'block' : 'none';
-        }
-        window.onBannerRewardTypeChange = onBannerRewardTypeChange;
-
         function onBannerRewardCategoryChange(val) {
             if (!adminDailyBannersList[1]) return;
-            adminDailyBannersList[1].rewardCategory = val || 'Shake';
+            const cleanVal = val || 'Shake';
+            adminDailyBannersList[1].rewardCategory = cleanVal;
+            const isPizza = cleanVal.trim().toLowerCase() === 'pizza';
+            adminDailyBannersList[1].rewardType = isPizza ? 'pizza' : 'category';
+            const pizzaBox = document.getElementById('banner-reward-pizza-box');
+            if (pizzaBox) {
+                pizzaBox.style.display = isPizza ? 'block' : 'none';
+            }
         }
         window.onBannerRewardCategoryChange = onBannerRewardCategoryChange;
 
@@ -8475,8 +8476,8 @@
                 let slot2ExtraHtml = '';
                 if (isSlot2) {
                     const minSpendVal = banner.minSpend || 699;
-                    const rewardTypeVal = banner.rewardType || 'category';
                     const rewardCatVal = banner.rewardCategory || 'Shake';
+                    const isPizza = (rewardCatVal || '').trim().toLowerCase() === 'pizza';
                     const rewardSizeVal = banner.rewardPizzaSize || 'medium';
                     slot2ExtraHtml = `
                         <div class="banner-spend-config-card" style="margin-top: 10px; padding: 12px 14px; background: rgba(59, 130, 246, 0.08); border: 1px dashed rgba(59, 130, 246, 0.4); border-radius: 12px;">
@@ -8486,7 +8487,7 @@
                                 </span>
                                 <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">Exclusive to Banner Slot 2</span>
                             </div>
-                            <div style="display: grid; grid-template-columns: 130px 150px 1fr; gap: 10px; align-items: center;">
+                            <div style="display: grid; grid-template-columns: 140px 1fr auto; gap: 10px; align-items: center;">
                                 <div>
                                     <label for="banner-min-spend" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Min Spend (₹):
@@ -8503,16 +8504,7 @@
                                                style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.88rem; font-weight: 700; background: var(--bg-card); color: #3b82f6; border: 1px solid var(--border-color); padding: 0 10px 0 24px;">
                                     </div>
                                 </div>
-                                <div>
-                                    <label for="banner-reward-type" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
-                                        Free Reward Type:
-                                    </label>
-                                    <select id="banner-reward-type" class="search-input" onchange="onBannerRewardTypeChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
-                                        <option value="category" ${rewardTypeVal === 'category' ? 'selected' : ''}>Specific Category</option>
-                                        <option value="pizza" ${rewardTypeVal === 'pizza' ? 'selected' : ''}>Pizza Menu</option>
-                                    </select>
-                                </div>
-                                <div id="banner-reward-cat-box" style="display: ${rewardTypeVal === 'pizza' ? 'none' : 'block'};">
+                                <div id="banner-reward-cat-box">
                                     <label for="banner-reward-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Eligible Category:
                                     </label>
@@ -8520,7 +8512,7 @@
                                         ${renderRewardCategoryOptions(rewardCatVal)}
                                     </select>
                                 </div>
-                                <div id="banner-reward-pizza-box" style="display: ${rewardTypeVal === 'pizza' ? 'block' : 'none'};">
+                                <div id="banner-reward-pizza-box" style="display: ${isPizza ? 'block' : 'none'}; min-width: 150px;">
                                     <label for="banner-reward-pizza-size" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Pizza Size:
                                     </label>

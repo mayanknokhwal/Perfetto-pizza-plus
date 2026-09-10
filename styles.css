@@ -8967,6 +8967,219 @@ html[lang="hi"] .nav-label {
    BANNER SLOT 2 SPEND TARGET & FREE GIFT UNLOCK ENGINE STYLES
    ========================================================================== */
 
+/* Tap-Conditional Persistent Spend Hunger Bar */
+.spend-hunger-bar-wrapper {
+    position: sticky;
+    top: 64px;
+    z-index: 998;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1.5px solid rgba(255, 107, 0, 0.35);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+    padding: 9px 16px 8px 16px;
+    box-sizing: border-box;
+    animation: slideDownHunger 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.3s ease;
+}
+
+[data-theme="light"] .spend-hunger-bar-wrapper {
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 1.5px solid rgba(255, 107, 0, 0.3);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes slideDownHunger {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.spend-hunger-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.spend-hunger-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.spend-hunger-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.spend-hunger-text-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.spend-hunger-title {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--primary-orange, #ff6b00);
+    line-height: 1.2;
+}
+
+.spend-hunger-deficit {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-main, #f8fafc);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+}
+
+.spend-hunger-right {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.spend-hunger-pill {
+    background: rgba(255, 107, 0, 0.14);
+    color: var(--primary-orange, #ff6b00);
+    border: 1px solid rgba(255, 107, 0, 0.35);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.spend-hunger-pill.pill-unlocked {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+.btn-hunger-claim {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    animation: giftPulse 2s infinite ease-in-out;
+    white-space: nowrap;
+}
+
+.btn-hunger-change {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-main, #e2e8f0);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.2));
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.btn-hunger-change:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.spend-hunger-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(148, 163, 184, 0.22);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.spend-hunger-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b00 0%, #f59e0b 60%, #10b981 100%);
+    border-radius: 999px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 10px rgba(255, 107, 0, 0.5);
+}
+
+.spend-hunger-fill.fill-complete {
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+
+/* Cart Item Free Gift Controls (Locked Standard Controls) */
+.free-gift-cart-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.free-gift-qty-tag {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 999px;
+    padding: 3px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.btn-cart-change-gift {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.btn-cart-change-gift:hover {
+    background: rgba(59, 130, 246, 0.22);
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: translateY(-1px);
+}
+
 /* Banner 2 Tap-to-Activate Hint Pill */
 .banner-spend-tap-hint {
     position: absolute;

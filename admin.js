@@ -247,17 +247,19 @@ export function normalizeDailyBanners(raw) {
             url,
             enabled: item.enabled !== false
         };
-        if (i === 0 || item.targetProductId !== undefined || item.discountPercent !== undefined) {
+        if (i === 0) {
             bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
             const rawDisc = parseInt(item.discountPercent, 10);
             bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
         }
-        if (i === 1 || item.minSpend !== undefined || item.rewardType !== undefined) {
+        if (i === 1) {
             const rawSpend = parseInt(item.minSpend, 10);
             bannerObj.minSpend = (!isNaN(rawSpend) && rawSpend > 0) ? rawSpend : 699;
-            bannerObj.rewardType = (item.rewardType === 'pizza') ? 'pizza' : 'category';
-            bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
-            bannerObj.rewardPizzaSize = (item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium';
+            const cat = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+            const isPizza = cat.toLowerCase() === 'pizza';
+            bannerObj.rewardCategory = cat;
+            bannerObj.rewardType = isPizza ? 'pizza' : 'category';
+            bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
         }
         normalized.push(bannerObj);
     }
