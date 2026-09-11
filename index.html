@@ -967,15 +967,19 @@
                                 <div class="spotlight-deal-price-display">
                                     <span class="spotlight-final-price" id="bogo-step2-total-price" style="color: #10b981;">₹0</span>
                                 </div>
-                                <span class="spotlight-savings-tag" id="bogo-step2-breakdown-tag">Base Reward: ₹0 (FREE)</span>
                             </div>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button type="button" class="btn-dialog-cancel" onclick="goToBogoStep(1)" style="padding: 10px 14px; border-radius: 12px; font-weight: 700; height: 46px; font-size: 0.85rem;">
-                                    <i class="fa-solid fa-arrow-left"></i> Back
-                                </button>
-                                <button type="button" class="btn-confirm-free-gift" id="btn-confirm-bogo-combo" onclick="confirmClaimBogoCombo()" disabled>
-                                    <i class="fa-solid fa-gift"></i> Claim & Add to Cart
-                                </button>
+                            <div class="bogo-step2-actions-box">
+                                <div class="bogo-reward-reassurance-badge" id="bogo-step2-breakdown-tag">
+                                    Base Reward: ₹0 • 100% FREE
+                                </div>
+                                <div class="bogo-step2-buttons-row">
+                                    <button type="button" class="btn-dialog-cancel" onclick="goToBogoStep(1)" style="padding: 10px 14px; border-radius: 12px; font-weight: 700; height: 44px; font-size: 0.85rem; min-width: 68px;">
+                                        <i class="fa-solid fa-arrow-left"></i> Back
+                                    </button>
+                                    <button type="button" class="btn-confirm-free-gift" id="btn-confirm-bogo-combo" onclick="confirmClaimBogoCombo()" disabled style="flex: 1; height: 44px; padding: 10px 14px; font-size: 0.88rem;">
+                                        <i class="fa-solid fa-gift"></i> Claim & Add to Cart
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

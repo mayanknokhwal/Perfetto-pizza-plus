@@ -4929,7 +4929,7 @@
             "Pasta": { name: "Pasta", img: "https://i.ibb.co/Qvzgv353/pasta.png" },
             "Desserts": { name: "Desserts", img: "https://i.ibb.co/YBQ73fv2/dasserts.png" },
             "Shake": { name: "Shakes", img: "https://i.ibb.co/XZpkRRpJ/shake.png" },
-            "Hot Cold Coffee": { name: "Hot Cold Coffee", img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" },
+            "Hot Cold Coffee": { name: "Hot & Cold Coffee", img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" },
             "Mojito": { name: "Mojito", img: "https://i.ibb.co/kV2Wvsdq/mojito.png" },
             "Momos": { name: "Momos", img: "https://i.ibb.co/gbdrfGJK/momos.png" },
             "Noodles": { name: "Noodles", img: "https://i.ibb.co/v6LTBqFV/noodles.png" },
@@ -8145,6 +8145,14 @@
                     bannerObj.rewardType = isPizza ? 'pizza' : 'category';
                     bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
                 }
+                if (i === 2) {
+                    bannerObj.buyCategory = (item.buyCategory && String(item.buyCategory).trim()) || 'Momos';
+                    const rawBuyQty = parseInt(item.buyQty, 10);
+                    bannerObj.buyQty = (!isNaN(rawBuyQty) && rawBuyQty > 0) ? rawBuyQty : 2;
+                    bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+                    const rawFreeQty = parseInt(item.freeQty, 10);
+                    bannerObj.freeQty = (!isNaN(rawFreeQty) && rawFreeQty > 0) ? rawFreeQty : 1;
+                }
                 normalized.push(bannerObj);
             }
             if (!normalized.some(b => b.enabled)) {
@@ -8174,6 +8182,12 @@
                             if (doc.data().slot2.rewardCategory) normalized[1].rewardCategory = doc.data().slot2.rewardCategory;
                             if (doc.data().slot2.rewardPizzaSize) normalized[1].rewardPizzaSize = doc.data().slot2.rewardPizzaSize;
                         }
+                        if (doc.data().slot3 && normalized[2]) {
+                            if (doc.data().slot3.buyCategory) normalized[2].buyCategory = doc.data().slot3.buyCategory;
+                            if (doc.data().slot3.buyQty !== undefined) normalized[2].buyQty = Number(doc.data().slot3.buyQty) || 2;
+                            if (doc.data().slot3.rewardCategory) normalized[2].rewardCategory = doc.data().slot3.rewardCategory;
+                            if (doc.data().slot3.freeQty !== undefined) normalized[2].freeQty = Number(doc.data().slot3.freeQty) || 1;
+                        }
                         return normalized;
                     }
                 } catch (e) {
@@ -8199,6 +8213,12 @@
                             if (data.slot2.rewardType) normalized[1].rewardType = data.slot2.rewardType;
                             if (data.slot2.rewardCategory) normalized[1].rewardCategory = data.slot2.rewardCategory;
                             if (data.slot2.rewardPizzaSize) normalized[1].rewardPizzaSize = data.slot2.rewardPizzaSize;
+                        }
+                        if (data.slot3 && normalized[2]) {
+                            if (data.slot3.buyCategory) normalized[2].buyCategory = data.slot3.buyCategory;
+                            if (data.slot3.buyQty !== undefined) normalized[2].buyQty = Number(data.slot3.buyQty) || 2;
+                            if (data.slot3.rewardCategory) normalized[2].rewardCategory = data.slot3.rewardCategory;
+                            if (data.slot3.freeQty !== undefined) normalized[2].freeQty = Number(data.slot3.freeQty) || 1;
                         }
                         return normalized;
                     }
@@ -8397,13 +8417,49 @@
             }).join('');
         }
 
+        const BANNER_CATEGORY_LIST = [
+            { key: "Bread", name: "Bread & Sides" },
+            { key: "Burger", name: "Burgers" },
+            { key: "Chinese Food", name: "Chinese Food" },
+            { key: "Colo Drinks", name: "Cold Drinks" },
+            { key: "Desserts", name: "Desserts" },
+            { key: "Hot Cold Coffee", name: "Hot & Cold Coffee" },
+            { key: "Mojito", name: "Mojito" },
+            { key: "Momos", name: "Momos" },
+            { key: "Noodles", name: "Noodles" },
+            { key: "Pasta", name: "Pasta" },
+            { key: "Pizza", name: "Pizza" },
+            { key: "Rice", name: "Rice" },
+            { key: "Salad", name: "Salad" },
+            { key: "Sandwich", name: "Sandwich" },
+            { key: "Shake", name: "Shakes" },
+            { key: "Side Orders", name: "Side Orders" },
+            { key: "Spring Rolls", name: "Spring Rolls" },
+            { key: "Wrap", name: "Wrap" }
+        ];
+
+        function isBannerCategorySelected(cat, selectedCat) {
+            if (!selectedCat) return false;
+            const target = String(selectedCat).trim().toLowerCase();
+            const key = String(cat.key).trim().toLowerCase();
+            const name = String(cat.name).trim().toLowerCase();
+            if (target === key || target === name) return true;
+            if (key === 'colo drinks' && (target === 'cold drinks' || target === 'colo drinks' || target === 'drinks')) return true;
+            if (key === 'chinese food' && (target === 'chinese' || target === 'chinese food')) return true;
+            if (key === 'burger' && (target === 'burgers' || target === 'burger')) return true;
+            if (key === 'bread' && (target === 'bread & sides' || target === 'bread' || target === 'breads')) return true;
+            if (key === 'shake' && (target === 'shakes' || target === 'shake')) return true;
+            if (key === 'hot cold coffee' && (target === 'hot & cold coffee' || target === 'hot cold coffee' || target === 'coffee')) return true;
+            return false;
+        }
+
         function renderRewardCategoryOptions(selectedCat = 'Shake') {
-            const availableCategories = ['Shake', 'Pizza', 'Burger', 'Cold Drinks', 'Mojito', 'Momos', 'Pasta', 'Chinese', 'Noodles', 'Sandwich', 'Wrap', 'Desserts', 'Salad', 'Spring Rolls'];
-            return availableCategories.map(cat => {
-                const isSel = cat.toLowerCase() === String(selectedCat || '').toLowerCase();
-                return `<option value="${cat}" ${isSel ? 'selected' : ''}>${cat}</option>`;
+            return BANNER_CATEGORY_LIST.map(cat => {
+                const isSel = isBannerCategorySelected(cat, selectedCat);
+                return `<option value="${cat.key}" ${isSel ? 'selected' : ''}>${cat.name}</option>`;
             }).join('');
         }
+        window.renderRewardCategoryOptions = renderRewardCategoryOptions;
 
         function onBannerSpotlightChange(val) {
             if (!adminDailyBannersList[0]) return;
@@ -8448,10 +8504,10 @@
         window.onBannerRewardPizzaSizeChange = onBannerRewardPizzaSizeChange;
 
         function renderBogoCategoryOptions(selectedCat = 'Momos') {
-            const availableCategories = ['Momos', 'Burger', 'Pasta', 'Chinese', 'Noodles', 'Sandwich', 'Wrap', 'Shake', 'Cold Drinks', 'Mojito', 'Desserts', 'Salad', 'Spring Rolls'];
-            return availableCategories.map(cat => {
-                const isSel = cat.toLowerCase() === String(selectedCat || '').toLowerCase();
-                return `<option value="${cat}" ${isSel ? 'selected' : ''}>${cat}</option>`;
+            const nonPizzaCats = BANNER_CATEGORY_LIST.filter(c => c.key.toLowerCase() !== 'pizza');
+            return nonPizzaCats.map(cat => {
+                const isSel = isBannerCategorySelected(cat, selectedCat);
+                return `<option value="${cat.key}" ${isSel ? 'selected' : ''}>${cat.name}</option>`;
             }).join('');
         }
         window.renderBogoCategoryOptions = renderBogoCategoryOptions;

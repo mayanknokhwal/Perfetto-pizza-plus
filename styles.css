@@ -9254,6 +9254,9 @@ html[lang="hi"] .nav-label {
     font-weight: 700;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
     gap: 6px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
     animation: giftPulse 2.4s infinite ease-in-out;
@@ -9292,6 +9295,9 @@ html[lang="hi"] .nav-label {
     font-weight: 700;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
     gap: 6px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
     animation: bogoPulse 2.4s infinite ease-in-out;
@@ -9567,6 +9573,47 @@ html[lang="hi"] .nav-label {
     margin-bottom: 6px;
 }
 
+/* Step 2 Free Reward Item Card Layout */
+.bogo-reward-card-bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: auto;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-color);
+    gap: 6px;
+}
+
+.bogo-reward-addons-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.bogo-reward-free-pill {
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.14);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    border-radius: 6px;
+    padding: 2px 7px;
+    letter-spacing: 0.5px;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
+}
+
+[data-theme="light"] .bogo-reward-free-pill {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #059669;
+}
+
 /* Item-Level Add-ons Row on Step 1 item cards */
 .bogo-item-addons-row {
     display: flex;
@@ -9719,6 +9766,45 @@ html[lang="hi"] .nav-label {
 [data-theme="light"] .bogo-step2-footer {
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.1);
+}
+
+.bogo-step2-actions-box {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    flex: 1;
+    max-width: 290px;
+}
+
+.bogo-reward-reassurance-badge {
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    border-radius: 999px;
+    padding: 2px 10px;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+[data-theme="light"] .bogo-reward-reassurance-badge {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #059669;
+}
+
+.bogo-step2-buttons-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
 }
 
 /* Cart Free Gift Unlock / Progress Banner */

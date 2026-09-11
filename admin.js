@@ -224,7 +224,7 @@ export const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-
 export const DEFAULT_DAILY_BANNERS = [
     { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
     { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
+    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
     { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
 ];
 
@@ -232,7 +232,7 @@ export const DEFAULT_DAILY_BANNERS = [
  * Validates and normalizes banner slots into strictly 4 persistent slots.
  * Ensures at least 1 banner remains active and preserves Slot 1 Spotlight and Slot 2 Spend Target config.
  * @param {Array} raw 
- * @returns {Array<{id: string, url: string, enabled: boolean, targetProductId?: string, discountPercent?: number, minSpend?: number, rewardType?: string, rewardCategory?: string, rewardPizzaSize?: string}>}
+ * @returns {Array<{id: string, url: string, enabled: boolean, targetProductId?: string, discountPercent?: number, minSpend?: number, rewardType?: string, rewardCategory?: string, rewardPizzaSize?: string, buyCategory?: string, buyQty?: number, freeQty?: number}>}
  */
 export function normalizeDailyBanners(raw) {
     const list = Array.isArray(raw) ? raw : [];
@@ -260,6 +260,14 @@ export function normalizeDailyBanners(raw) {
             bannerObj.rewardCategory = cat;
             bannerObj.rewardType = isPizza ? 'pizza' : 'category';
             bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
+        }
+        if (i === 2) {
+            bannerObj.buyCategory = (item.buyCategory && String(item.buyCategory).trim()) || 'Momos';
+            const rawBuyQty = parseInt(item.buyQty, 10);
+            bannerObj.buyQty = (!isNaN(rawBuyQty) && rawBuyQty > 0) ? rawBuyQty : 2;
+            bannerObj.rewardCategory = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+            const rawFreeQty = parseInt(item.freeQty, 10);
+            bannerObj.freeQty = (!isNaN(rawFreeQty) && rawFreeQty > 0) ? rawFreeQty : 1;
         }
         normalized.push(bannerObj);
     }

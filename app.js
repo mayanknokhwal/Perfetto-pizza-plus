@@ -392,6 +392,60 @@ const DEFAULT_CATEGORY_ADDONS = {
     }
 };
 
+const MENU_CATEGORY_MAP = {
+    "pizza": { key: "Pizza", name: "Pizza" },
+    "bread": { key: "Bread", name: "Bread & Sides" },
+    "bread & sides": { key: "Bread", name: "Bread & Sides" },
+    "breads": { key: "Bread", name: "Bread & Sides" },
+    "burger": { key: "Burger", name: "Burgers" },
+    "burgers": { key: "Burger", name: "Burgers" },
+    "chinese": { key: "Chinese Food", name: "Chinese Food" },
+    "chinese food": { key: "Chinese Food", name: "Chinese Food" },
+    "colo drinks": { key: "Colo Drinks", name: "Cold Drinks" },
+    "cold drinks": { key: "Colo Drinks", name: "Cold Drinks" },
+    "pasta": { key: "Pasta", name: "Pasta" },
+    "desserts": { key: "Desserts", name: "Desserts" },
+    "shake": { key: "Shake", name: "Shakes" },
+    "shakes": { key: "Shake", name: "Shakes" },
+    "hot cold coffee": { key: "Hot Cold Coffee", name: "Hot & Cold Coffee" },
+    "hot & cold coffee": { key: "Hot Cold Coffee", name: "Hot & Cold Coffee" },
+    "mojito": { key: "Mojito", name: "Mojito" },
+    "momos": { key: "Momos", name: "Momos" },
+    "noodles": { key: "Noodles", name: "Noodles" },
+    "rice": { key: "Rice", name: "Rice" },
+    "salad": { key: "Salad", name: "Salad" },
+    "sandwich": { key: "Sandwich", name: "Sandwich" },
+    "side orders": { key: "Side Orders", name: "Side Orders" },
+    "spring rolls": { key: "Spring Rolls", name: "Spring Rolls" },
+    "wrap": { key: "Wrap", name: "Wrap" }
+};
+window.MENU_CATEGORY_MAP = MENU_CATEGORY_MAP;
+
+function getCategoryStandardKey(cat) {
+    if (!cat) return '';
+    const clean = String(cat).trim().toLowerCase();
+    return (MENU_CATEGORY_MAP[clean] && MENU_CATEGORY_MAP[clean].key) || String(cat).trim();
+}
+window.getCategoryStandardKey = getCategoryStandardKey;
+
+function getCategoryDisplayName(cat) {
+    if (!cat) return '';
+    const clean = String(cat).trim().toLowerCase();
+    return (MENU_CATEGORY_MAP[clean] && MENU_CATEGORY_MAP[clean].name) || String(cat).trim();
+}
+window.getCategoryDisplayName = getCategoryDisplayName;
+
+function isCategoryMatch(cat1, cat2) {
+    if (!cat1 || !cat2) return false;
+    const s1 = String(cat1).trim().toLowerCase();
+    const s2 = String(cat2).trim().toLowerCase();
+    if (s1 === s2) return true;
+    const k1 = (MENU_CATEGORY_MAP[s1] && MENU_CATEGORY_MAP[s1].key.toLowerCase()) || s1;
+    const k2 = (MENU_CATEGORY_MAP[s2] && MENU_CATEGORY_MAP[s2].key.toLowerCase()) || s2;
+    return k1 === k2;
+}
+window.isCategoryMatch = isCategoryMatch;
+
 let customerCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
 let customerCategoryDiscounts = {};
 
@@ -406,7 +460,8 @@ function getCustomerCategoryAddons(categoryName) {
         }
     } catch (e) { }
 
-    return customerCategoryAddons[categoryName] || DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
+    const stdKey = getCategoryStandardKey(categoryName);
+    return customerCategoryAddons[categoryName] || customerCategoryAddons[stdKey] || DEFAULT_CATEGORY_ADDONS[categoryName] || DEFAULT_CATEGORY_ADDONS[stdKey] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
 }
 
 function getCustomerCategoryDiscounts() {
@@ -5921,10 +5976,10 @@ function updateSpendHungerBar() {
 
     const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : { minSpend: 699, rewardType: 'category', rewardCategory: 'Shake' };
     const minSpend = Number(slot2Config.minSpend) || 699;
-    const isPizza = (slot2Config.rewardCategory || '').toLowerCase() === 'pizza';
+    const isPizza = isCategoryMatch(slot2Config.rewardCategory, 'Pizza');
     const rewardName = isPizza
         ? `${(slot2Config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (slot2Config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
-        : (slot2Config.rewardCategory || 'Gift');
+        : (getCategoryDisplayName(slot2Config.rewardCategory) || 'Gift');
 
     const currentGiftItem = (Array.isArray(cart) ? cart : []).find(item => item.isFreeGift);
     const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
@@ -6106,10 +6161,10 @@ function updateCartUI() {
     const freeGiftContainer = document.getElementById('cart-free-gift-container');
     if (freeGiftContainer) {
         if (isBanner2OfferActive && cart.length > 0) {
-            const isPizza = (slot2Config.rewardCategory || '').toLowerCase() === 'pizza';
+            const isPizza = isCategoryMatch(slot2Config.rewardCategory, 'Pizza');
             const rewardName = isPizza
                 ? `${(slot2Config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (slot2Config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
-                : (slot2Config.rewardCategory || 'Reward');
+                : (getCategoryDisplayName(slot2Config.rewardCategory) || 'Reward');
             const currentGiftItem = cart.find(item => item.isFreeGift);
 
             if (qualifyingPaidTotal >= minSpend) {
@@ -11001,8 +11056,8 @@ function renderDynamicOfferSlider(customBanners = null) {
         const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
         const isSlot3 = (banner.id === 'b3');
         const hasBogoOffer = isSlot3 && (banner.enabled !== false);
-        const isPizza = (banner.rewardCategory || '').toLowerCase() === 'pizza';
-        const spendRewardLabel = hasSpendOffer ? (isPizza ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${banner.rewardCategory || 'Gift'}`) : '';
+        const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
+        const spendRewardLabel = hasSpendOffer ? (isPizza ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${getCategoryDisplayName(banner.rewardCategory) || 'Gift'}`) : '';
         return `
             <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''} ${hasBogoOffer ? 'offer-slide-bogo' : ''}" 
                  data-banner-id="${banner.id || ('b' + (idx + 1))}" 
@@ -11023,7 +11078,7 @@ function renderDynamicOfferSlider(customBanners = null) {
                 ` : ''}
                 ${hasBogoOffer ? `
                     <div class="banner-bogo-tap-hint">
-                        <i class="fa-solid fa-gift"></i> Tap to Unlock
+                        <i class="fa-solid fa-gift"></i> BOGO Combo Deal
                     </div>
                 ` : ''}
             </div>
@@ -11285,10 +11340,10 @@ function handleBannerSlideClick(slideIndex, bannerId) {
             sessionStorage.setItem('banner2SpendOfferActive', 'true');
         } catch (e) { }
         const minSpend = Number(banner.minSpend) || 699;
-        const isPizza = (banner.rewardCategory || '').toLowerCase() === 'pizza';
+        const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
         const rewardTitle = isPizza
             ? `${(banner.rewardPizzaSize || 'medium').charAt(0).toUpperCase() + (banner.rewardPizzaSize || 'medium').slice(1)} Pizza`
-            : (banner.rewardCategory || 'Gift');
+            : (getCategoryDisplayName(banner.rewardCategory) || 'Gift');
 
         // Immediately evaluate current paid cart subtotal
         const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
@@ -11725,10 +11780,10 @@ function openFreeGiftSelectionModal() {
     const subtitleEl = document.getElementById('free-gift-modal-subtitle');
     const badgeTextEl = document.getElementById('free-gift-badge-text');
 
-    const isPizza = config.rewardType === 'pizza' || (config.rewardCategory || '').toLowerCase() === 'pizza';
+    const isPizza = config.rewardType === 'pizza' || isCategoryMatch(config.rewardCategory, 'Pizza');
     const rewardName = isPizza
         ? `${(config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
-        : (config.rewardCategory || 'Gift');
+        : (getCategoryDisplayName(config.rewardCategory) || 'Gift');
 
     if (badgeTextEl) badgeTextEl.textContent = `Free ${rewardName} Reward`;
     if (titleEl) titleEl.textContent = `Choose Your Free ${rewardName}`;
@@ -11739,15 +11794,15 @@ function openFreeGiftSelectionModal() {
     let eligible = [];
 
     if (isPizza) {
-        eligible = allItems.filter(item => (item.category || '').toLowerCase() === 'pizza' && item.available !== false);
+        eligible = allItems.filter(item => isCategoryMatch(item.category, 'Pizza') && item.available !== false);
         if (eligible.length === 0 && typeof categorySubItems !== 'undefined' && categorySubItems['Pizza']) {
             eligible = categorySubItems['Pizza'].filter(i => i.available !== false);
         }
     } else {
-        const catTarget = (config.rewardCategory || 'Shake').toLowerCase();
-        eligible = allItems.filter(item => (item.category || '').toLowerCase() === catTarget && item.available !== false);
+        const catTarget = config.rewardCategory || 'Shake';
+        eligible = allItems.filter(item => isCategoryMatch(item.category, catTarget) && item.available !== false);
         if (eligible.length === 0 && typeof categorySubItems !== 'undefined') {
-            const matchedKey = Object.keys(categorySubItems).find(k => k.toLowerCase() === catTarget);
+            const matchedKey = Object.keys(categorySubItems).find(k => isCategoryMatch(k, catTarget));
             if (matchedKey) {
                 eligible = categorySubItems[matchedKey].filter(i => i.available !== false);
             }
@@ -12087,27 +12142,23 @@ function openBogoComboModal() {
     }
 
     const allItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
-    const buyCat = (config.buyCategory || 'Momos').toLowerCase();
-    const rewardCat = (config.rewardCategory || 'Shake').toLowerCase();
 
     // Step 1: Paid items belonging to buyCategory (pizza strictly excluded)
     const buyItems = allItems.filter(item => {
-        const itemCat = (item.category || '').toLowerCase();
-        return itemCat === buyCat && item.available !== false;
+        return isCategoryMatch(item.category, config.buyCategory) && !isCategoryMatch(item.category, 'Pizza') && item.available !== false;
     });
 
     // Step 2: Free reward items belonging to rewardCategory (pizza strictly excluded)
     const rewardItems = allItems.filter(item => {
-        const itemCat = (item.category || '').toLowerCase();
-        return itemCat === rewardCat && item.available !== false;
+        return isCategoryMatch(item.category, config.rewardCategory) && !isCategoryMatch(item.category, 'Pizza') && item.available !== false;
     });
 
     if (buyItems.length === 0) {
-        showToast(`No qualifying items currently available for category "${config.buyCategory}".`);
+        showToast(`No qualifying items currently available for category "${getCategoryDisplayName(config.buyCategory)}".`);
         return;
     }
     if (rewardItems.length === 0) {
-        showToast(`No free reward items currently available for category "${config.rewardCategory}".`);
+        showToast(`No free reward items currently available for category "${getCategoryDisplayName(config.rewardCategory)}".`);
         return;
     }
 
@@ -12180,7 +12231,7 @@ function goToBogoStep(stepNum) {
 
     if (stepNum === 2) {
         if (totalPaid < config.buyQty) {
-            showToast(`Please select ${config.buyQty} distinct ${config.buyCategory} varieties to proceed (${totalPaid}/${config.buyQty} selected).`);
+            showToast(`Please select ${config.buyQty} distinct ${getCategoryDisplayName(config.buyCategory)} varieties to proceed (${totalPaid}/${config.buyQty} selected).`);
             return;
         }
     }
@@ -12220,7 +12271,7 @@ function renderBogoStep1UI() {
 
     const titleEl = document.getElementById('bogo-step1-title');
     if (titleEl) {
-        titleEl.textContent = `Please select your ${config.buyQty} ${config.buyCategory}`;
+        titleEl.textContent = `Please select your ${config.buyQty} ${getCategoryDisplayName(config.buyCategory)}`;
     }
 
     const totalSelected = getBogoSelectedPaidTotal();
@@ -12241,7 +12292,7 @@ function renderBogoStep1UI() {
     }
 
     // Available addons for qualifying buy category
-    const catName = config.buyCategory || 'Momos';
+    const catName = getCategoryStandardKey(config.buyCategory) || 'Momos';
     let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
     const availableAddons = [];
     if (addonConfig.extraCheese !== undefined && Number(addonConfig.extraCheese) > 0) {
@@ -12395,7 +12446,7 @@ function renderBogoStep2UI() {
 
     const titleEl = document.getElementById('bogo-step2-title');
     if (titleEl) {
-        titleEl.textContent = `Choose your ${config.freeQty} FREE ${config.rewardCategory}`;
+        titleEl.textContent = `Choose your ${config.freeQty} FREE ${getCategoryDisplayName(config.rewardCategory)}`;
     }
 
     const countValEl = document.getElementById('bogo-step2-count-val');
@@ -12403,34 +12454,8 @@ function renderBogoStep2UI() {
     if (countValEl) countValEl.textContent = selectedFreeItem ? 1 : 0;
     if (targetValEl) targetValEl.textContent = config.freeQty;
 
-    const grid = document.getElementById('bogo-step2-items-grid');
-    if (grid) {
-        if (!rewardItems || rewardItems.length === 0) {
-            grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No free reward items available.</div>';
-        } else {
-            grid.innerHTML = rewardItems.map(item => {
-                const isSelected = selectedFreeItem && (selectedFreeItem.id === item.id || selectedFreeItem.name === item.name);
-                const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
-                const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
-
-                return `
-                    <div class="bogo-combo-item-card ${isSelected ? 'is-selected' : ''}" onclick="onSelectBogoStep2Item('${escapeHtml(item.id || item.name)}')">
-                        ${isSelected ? '<div class="bogo-card-selected-badge"><i class="fa-solid fa-check"></i></div>' : ''}
-                        <div class="bogo-item-thumb-wrapper">
-                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
-                        </div>
-                        <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
-                        <div class="bogo-item-price-free">FREE</div>
-                    </div>
-                `;
-            }).join('');
-        }
-    }
-
-    // Addons section for Reward Category
-    const addonsBox = document.getElementById('bogo-step2-addons-box');
-    const chipsContainer = document.getElementById('bogo-step2-addon-chips');
-    const catName = config.rewardCategory || (selectedFreeItem && selectedFreeItem.category) || 'Shake';
+    // Available add-ons for Reward Category (placed directly on item cards in the bottom row)
+    const catName = getCategoryStandardKey(config.rewardCategory || (selectedFreeItem && selectedFreeItem.category)) || 'Shake';
     let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
 
     const availableAddons = [];
@@ -12447,27 +12472,58 @@ function renderBogoStep2UI() {
         availableAddons.push({ key: 'iceCream', emoji: '🍨', name: 'With Ice Cream', price: Number(addonConfig.withIceCream) });
     }
 
-    if (availableAddons.length > 0 && addonsBox && chipsContainer) {
-        addonsBox.style.display = 'block';
-        chipsContainer.innerHTML = availableAddons.map(a => {
-            const isChecked = Boolean(selectedAddons[a.key]);
-            return `
-                <button type="button" 
-                        class="free-gift-addon-chip ${isChecked ? 'active active-' + a.key : ''}" 
-                        id="bogo-combo-addon-${a.key}"
-                        title="${escapeHtml(a.name)} (+${formatPrice(a.price)})"
-                        aria-label="${escapeHtml(a.name)}"
-                        onclick="onToggleBogoComboAddon('${a.key}', '${escapeHtml(a.name)}')">
-                    <span class="addon-emoji">${a.emoji}</span>
-                </button>
-            `;
-        }).join('');
-    } else if (addonsBox) {
+    const grid = document.getElementById('bogo-step2-items-grid');
+    if (grid) {
+        if (!rewardItems || rewardItems.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No free reward items available.</div>';
+        } else {
+            grid.innerHTML = rewardItems.map(item => {
+                const key = item.id || item.name;
+                const isSelected = selectedFreeItem && (selectedFreeItem.id === item.id || selectedFreeItem.name === item.name);
+                const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
+                const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
+
+                return `
+                    <div class="bogo-combo-item-card bogo-step2-item-card ${isSelected ? 'is-selected' : ''}" 
+                         id="bogo-reward-item-${escapeHtml(key)}" 
+                         onclick="onSelectBogoStep2Item('${escapeHtml(key)}')">
+                        ${isSelected ? '<div class="bogo-card-selected-badge"><i class="fa-solid fa-check"></i></div>' : ''}
+                        <div class="bogo-item-thumb-wrapper">
+                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                        </div>
+                        <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
+                        <div class="bogo-reward-card-bottom-row">
+                            <div class="bogo-reward-addons-group" onclick="event.stopPropagation()">
+                                ${availableAddons.map(a => {
+                                    const isAddonActive = isSelected && Boolean(selectedAddons[a.key]);
+                                    return `
+                                        <button type="button" 
+                                                class="bogo-item-addon-chip ${isAddonActive ? 'active active-' + a.key : ''}" 
+                                                id="bogo-step2-addon-${escapeHtml(key)}-${a.key}"
+                                                title="${escapeHtml(a.name)} (+${formatPrice(a.price)})"
+                                                aria-label="${escapeHtml(a.name)}"
+                                                onclick="onToggleBogoStep2ItemAddon(event, '${escapeHtml(key)}', '${a.key}', '${escapeHtml(a.name)}')">
+                                            <span class="addon-emoji">${a.emoji}</span>
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <span class="bogo-reward-free-pill">FREE</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Hide old separate addons box since addons are now integrated directly on cards
+    const addonsBox = document.getElementById('bogo-step2-addons-box');
+    if (addonsBox) {
         addonsBox.style.display = 'none';
     }
 
     // Calculate Step 1 subtotal (base price + individual item add-ons)
-    const buyCat = config.buyCategory || 'Momos';
+    const buyCat = getCategoryStandardKey(config.buyCategory) || 'Momos';
     let buyAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(buyCat) : {};
     let step1Subtotal = 0;
     for (const [key, itemAddons] of Object.entries(selectedPaid)) {
@@ -12500,9 +12556,9 @@ function renderBogoStep2UI() {
     const breakdownTagEl = document.getElementById('bogo-step2-breakdown-tag');
     if (breakdownTagEl) {
         if (rewardAddonsPrice > 0) {
-            breakdownTagEl.textContent = `Base Reward: ₹0 (FREE) + ₹${rewardAddonsPrice} reward add-ons`;
+            breakdownTagEl.textContent = `Base Reward: ₹0 • 100% FREE (+₹${rewardAddonsPrice} add-on)`;
         } else {
-            breakdownTagEl.textContent = `Base Reward: ₹0 (100% FREE)`;
+            breakdownTagEl.textContent = `Base Reward: ₹0 • 100% FREE`;
         }
     }
 
@@ -12521,17 +12577,35 @@ function onSelectBogoStep2Item(key) {
 }
 window.onSelectBogoStep2Item = onSelectBogoStep2Item;
 
-function onToggleBogoComboAddon(addonKey, addonName) {
+function onToggleBogoStep2ItemAddon(event, itemKey, addonKey, addonName) {
+    if (event) event.stopPropagation();
+    if (!currentBogoComboState) return;
+
+    // If this item is not currently selected, select it first as the free reward item
+    const found = currentBogoComboState.rewardItems.find(i => (i.id === itemKey || i.name === itemKey));
+    if (found && (!currentBogoComboState.selectedFreeItem || (currentBogoComboState.selectedFreeItem.id !== found.id && currentBogoComboState.selectedFreeItem.name !== found.name))) {
+        currentBogoComboState.selectedFreeItem = found;
+        currentBogoComboState.selectedAddons = {};
+    }
+
     if (!currentBogoComboState.selectedAddons) {
         currentBogoComboState.selectedAddons = {};
     }
-    currentBogoComboState.selectedAddons[addonKey] = !currentBogoComboState.selectedAddons[addonKey];
+
+    const isNowActive = !currentBogoComboState.selectedAddons[addonKey];
+    currentBogoComboState.selectedAddons[addonKey] = isNowActive;
+
     const names = { cheese: 'Extra Cheese', mayo: 'Extra Mayo', spicy: 'Extra Spicy', iceCream: 'With Ice Cream' };
-    const toastLabel = addonName || names[addonKey] || addonKey;
+    const label = addonName || names[addonKey] || addonKey;
     if (typeof showToast === 'function') {
-        showToast(toastLabel, 1800);
+        showToast(isNowActive ? `Added ${label}` : `Removed ${label}`, 1500);
     }
     renderBogoStep2UI();
+}
+window.onToggleBogoStep2ItemAddon = onToggleBogoStep2ItemAddon;
+
+function onToggleBogoComboAddon(addonKey, addonName) {
+    onToggleBogoStep2ItemAddon(null, (currentBogoComboState.selectedFreeItem && (currentBogoComboState.selectedFreeItem.id || currentBogoComboState.selectedFreeItem.name)), addonKey, addonName);
 }
 window.onToggleBogoComboAddon = onToggleBogoComboAddon;
 
@@ -12553,7 +12627,7 @@ function confirmClaimBogoCombo() {
     const bogoComboId = 'bogo_combo_' + Date.now();
 
     // 1. Calculate Add-ons for Reward Item
-    const rewardCatName = config.rewardCategory || selectedFreeItem.category || 'Shake';
+    const rewardCatName = getCategoryStandardKey(config.rewardCategory || selectedFreeItem.category) || 'Shake';
     let rewardAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(rewardCatName) : {};
     const rewardAddonsList = [];
     let rewardAddonsPrice = 0;
@@ -12582,7 +12656,7 @@ function confirmClaimBogoCombo() {
     cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isBogoCombo && !item.isBogoReward && !item.isBogoQualifying);
 
     // 3. Add Qualifying Paid Items (unique varieties at standard/original base prices + item add-ons)
-    const buyCatName = config.buyCategory || 'Momos';
+    const buyCatName = getCategoryStandardKey(config.buyCategory) || 'Momos';
     let buyAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(buyCatName) : {};
 
     for (const [key, itemAddons] of Object.entries(selectedPaid)) {
@@ -12621,7 +12695,7 @@ function confirmClaimBogoCombo() {
             originalPrice: finalPrice,
             qty: 1, // Distinct variety: 1 unit!
             img: itemObj.img || DEFAULT_FALLBACK_BANNER_LOGO,
-            category: itemObj.category || config.buyCategory,
+            category: itemObj.category || getCategoryStandardKey(config.buyCategory),
             addons: itemAddonsList,
             isBogoCombo: true,
             isBogoQualifying: true,
@@ -12639,7 +12713,7 @@ function confirmClaimBogoCombo() {
         originalPrice: origRewardPrice + rewardAddonsPrice,
         qty: 1,
         img: selectedFreeItem.img || DEFAULT_FALLBACK_BANNER_LOGO,
-        category: selectedFreeItem.category || config.rewardCategory,
+        category: selectedFreeItem.category || getCategoryStandardKey(config.rewardCategory),
         addons: rewardAddonsList,
         isBogoCombo: true,
         isBogoReward: true,
@@ -12654,7 +12728,7 @@ function confirmClaimBogoCombo() {
         updateCartUI();
     }
 
-    showToast(`🎉 Claimed your ${config.buyCategory} & FREE ${selectedFreeItem.name} BOGO combo!`);
+    showToast(`🎉 Claimed your ${getCategoryDisplayName(config.buyCategory)} & FREE ${selectedFreeItem.name} BOGO combo!`);
 }
 window.confirmClaimBogoCombo = confirmClaimBogoCombo;
 
