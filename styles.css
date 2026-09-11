@@ -1793,7 +1793,7 @@ html[lang="hi"] .nav-label {
     opacity: 0;
     visibility: hidden;
     transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease, visibility 0.25s ease;
-    z-index: 995;
+    z-index: 999999;
     pointer-events: none;
     white-space: nowrap;
 }
@@ -9512,17 +9512,104 @@ html[lang="hi"] .nav-label {
 }
 
 .free-gift-addons-box {
-    margin-top: 14px;
-    padding: 12px 14px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.03);
+    margin-top: 10px;
+    padding: 6px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+[data-theme="light"] .free-gift-addons-box {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+.free-gift-addons-label {
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted, #94a3b8);
+    white-space: nowrap;
+}
+
+.free-gift-addon-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.free-gift-addon-chip {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 1.15rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid var(--border-color, rgba(255, 255, 255, 0.14));
+    color: var(--text-main);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    user-select: none;
+    touch-action: manipulation;
+    padding: 0;
+    line-height: 1;
+}
+
+.free-gift-addon-chip:hover {
+    transform: scale(1.08);
+    border-color: var(--primary-orange, #ff6b00);
+}
+
+.free-gift-addon-chip.active {
+    background: rgba(255, 107, 0, 0.18);
+    border-color: var(--primary-orange, #ff6b00);
+    box-shadow: 0 0 10px rgba(255, 107, 0, 0.35);
+    transform: scale(1.08);
+}
+
+.free-gift-addon-chip.active.active-cheese {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.2);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.45);
+}
+
+.free-gift-addon-chip.active.active-mayo {
+    border-color: #fb7185;
+    background: rgba(251, 113, 133, 0.2);
+    box-shadow: 0 0 10px rgba(251, 113, 133, 0.45);
+}
+
+.free-gift-addon-chip.active.active-spicy {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.2);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+.free-gift-addon-chip.active.active-iceCream {
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.2);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+}
+
+[data-theme="light"] .free-gift-addon-chip {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .free-gift-pricing-card {
-    margin-top: 16px;
-    padding: 14px 16px;
-    border-radius: 18px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 16px;
     background: rgba(16, 185, 129, 0.08);
     border: 1px solid rgba(16, 185, 129, 0.3);
     display: flex;
@@ -9535,10 +9622,10 @@ html[lang="hi"] .nav-label {
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: #ffffff;
     border: none;
-    padding: 12px 20px;
-    border-radius: 14px;
+    padding: 10px 18px;
+    border-radius: 12px;
     font-weight: 700;
-    font-size: 0.92rem;
+    font-size: 0.90rem;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -9577,19 +9664,28 @@ html[lang="hi"] .nav-label {
 @media (max-width: 480px) {
     .free-gift-modal-card {
         border-radius: 20px;
+        max-height: 92vh;
+    }
+    .free-gift-modal-body {
+        padding: 12px 14px 16px;
     }
     .free-gift-items-grid {
         grid-template-columns: repeat(2, 1fr);
-        max-height: 240px;
+        max-height: 280px;
+        gap: 8px;
+        margin-bottom: 8px;
     }
     .free-gift-pricing-card {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
+        margin-top: 10px;
+        padding: 10px 12px;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
     }
     .btn-confirm-free-gift {
         justify-content: center;
-        width: 100%;
+        padding: 9px 14px;
+        font-size: 0.85rem;
     }
 }
 

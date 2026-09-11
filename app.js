@@ -10861,6 +10861,9 @@ function showToast(msg, duration = 2400) {
         } else if (lower.includes('mayo')) {
             toastIconEl.className = 'toast-icon';
             toastIconEl.textContent = '🍥';
+        } else if (lower.includes('ice cream')) {
+            toastIconEl.className = 'toast-icon';
+            toastIconEl.textContent = '🍨';
         } else {
             toastIconEl.textContent = '';
             toastIconEl.className = 'fa-solid fa-circle-check toast-icon';
@@ -11803,29 +11806,32 @@ function renderFreeGiftAddonsAndPricing() {
     }
 
     const availableAddons = [];
-    if (addonConfig.withIceCream !== undefined && Number(addonConfig.withIceCream) > 0) {
-        availableAddons.push({ key: 'iceCream', label: '🍨 With Ice Cream', price: Number(addonConfig.withIceCream) });
-    }
     if (addonConfig.extraCheese !== undefined && Number(addonConfig.extraCheese) > 0) {
-        availableAddons.push({ key: 'cheese', label: '🧀 Extra Cheese', price: Number(addonConfig.extraCheese) });
+        availableAddons.push({ key: 'cheese', emoji: '🧀', name: 'Extra Cheese', price: Number(addonConfig.extraCheese) });
     }
     if (addonConfig.extraMayo !== undefined && Number(addonConfig.extraMayo) > 0) {
-        availableAddons.push({ key: 'mayo', label: '🍥 Extra Mayo', price: Number(addonConfig.extraMayo) });
+        availableAddons.push({ key: 'mayo', emoji: '🍥', name: 'Extra Mayo', price: Number(addonConfig.extraMayo) });
     }
     if (addonConfig.extraSpicy !== undefined) {
-        availableAddons.push({ key: 'spicy', label: '🌶️ Extra Spicy', price: Number(addonConfig.extraSpicy) });
+        availableAddons.push({ key: 'spicy', emoji: '🌶️', name: 'Extra Spicy', price: Number(addonConfig.extraSpicy) });
+    }
+    if (addonConfig.withIceCream !== undefined && Number(addonConfig.withIceCream) > 0) {
+        availableAddons.push({ key: 'iceCream', emoji: '🍨', name: 'With Ice Cream', price: Number(addonConfig.withIceCream) });
     }
 
-    // Render addon chips if available
+    // Render compact horizontal addon chips if available
     if (availableAddons.length > 0 && addonsBox && addonsChipsContainer) {
-        addonsBox.style.display = 'block';
+        addonsBox.style.display = 'flex';
         addonsChipsContainer.innerHTML = availableAddons.map(a => {
             const isChecked = Boolean(selectedAddons[a.key]);
-            const priceTag = a.price > 0 ? ` (+${formatPrice(a.price)})` : ' (FREE)';
             return `
-                <button type="button" class="spotlight-addon-chip ${isChecked ? 'active' : ''}" onclick="onToggleFreeGiftAddon('${a.key}')">
-                    <i class="fa-solid ${isChecked ? 'fa-square-check' : 'fa-square'}"></i>
-                    ${a.label}${priceTag}
+                <button type="button" 
+                        class="free-gift-addon-chip ${isChecked ? 'active active-' + a.key : ''}" 
+                        id="gift-addon-${a.key}"
+                        title="${escapeHtml(a.name)} (+${formatPrice(a.price)})"
+                        aria-label="${escapeHtml(a.name)}"
+                        onclick="onToggleFreeGiftAddon('${a.key}', '${escapeHtml(a.name)}')">
+                    <span class="addon-emoji">${a.emoji}</span>
                 </button>
             `;
         }).join('');
@@ -11863,11 +11869,19 @@ function renderFreeGiftAddonsAndPricing() {
     }
 }
 
-function onToggleFreeGiftAddon(addonKey) {
+function onToggleFreeGiftAddon(addonKey, addonName) {
     if (!currentFreeGiftState.selectedAddons) {
         currentFreeGiftState.selectedAddons = {};
     }
     currentFreeGiftState.selectedAddons[addonKey] = !currentFreeGiftState.selectedAddons[addonKey];
+
+    // Lightweight toast notification displaying the selected add-on name
+    const names = { cheese: 'Extra Cheese', mayo: 'Extra Mayo', spicy: 'Extra Spicy', iceCream: 'With Ice Cream' };
+    const toastLabel = addonName || names[addonKey] || addonKey;
+    if (typeof showToast === 'function') {
+        showToast(toastLabel, 1800);
+    }
+
     renderFreeGiftAddonsAndPricing();
 }
 window.onToggleFreeGiftAddon = onToggleFreeGiftAddon;
