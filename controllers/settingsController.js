@@ -110,11 +110,21 @@ async function handleBannersRequest(req, res) {
                 active: banners[1].enabled !== false,
                 enabled: banners[1].enabled !== false
             } : null;
+            const slot3 = (banners && banners[2]) ? {
+                imageUrl: banners[2].url,
+                url: banners[2].url,
+                dealType: banners[2].dealType || 'category_bogo',
+                targetCategory: banners[2].targetCategory || banners[2].bogoCategory || 'Pizza',
+                bogoCategory: banners[2].bogoCategory || banners[2].targetCategory || 'Pizza',
+                active: banners[2].enabled !== false,
+                enabled: banners[2].enabled !== false
+            } : null;
             return res.status(200).json({
                 success: true,
                 banners: banners,
                 slot1: slot1,
                 slot2: slot2,
+                slot3: slot3,
                 count: banners.length,
                 activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
@@ -136,6 +146,7 @@ async function handleBannersRequest(req, res) {
                 banners: result.banners,
                 slot1: result.slot1 || null,
                 slot2: result.slot2 || null,
+                slot3: result.slot3 || null,
                 count: result.banners.length,
                 activeCount: result.banners.filter(b => b.enabled).length
             });

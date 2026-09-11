@@ -88,22 +88,44 @@
             </div>
         </header>
 
-        <!-- TAP-CONDITIONAL PERSISTENT SPEND HUNGER BAR (Banner Slot 2 Reward Engine) -->
-        <div class="spend-hunger-bar-wrapper" id="spend-hunger-bar-wrapper" style="display: none;">
-            <div class="spend-hunger-inner">
-                <div class="spend-hunger-left">
-                    <span class="spend-hunger-icon" id="spend-hunger-icon">🎯</span>
-                    <div class="spend-hunger-text-group">
-                        <span class="spend-hunger-title" id="spend-hunger-title">Free Gift Unlock</span>
-                        <span class="spend-hunger-deficit" id="spend-hunger-deficit">Add ₹699 more to unlock your FREE Shake!</span>
+        <!-- STICKY PROMO OFFERS TRACKER STACK (Banner Slots 2 & 3) -->
+        <div class="offers-tracker-stack" id="offers-tracker-stack">
+            <!-- TAP-CONDITIONAL PERSISTENT SPEND HUNGER BAR (Banner Slot 2 Free Gift Engine) -->
+            <div class="spend-hunger-bar-wrapper" id="spend-hunger-bar-wrapper" style="display: none;">
+                <div class="spend-hunger-inner">
+                    <div class="spend-hunger-left">
+                        <span class="spend-hunger-icon" id="spend-hunger-icon">🎯</span>
+                        <div class="spend-hunger-text-group">
+                            <span class="spend-hunger-title" id="spend-hunger-title">Free Gift Unlock</span>
+                            <span class="spend-hunger-deficit" id="spend-hunger-deficit">Add ₹699 more to unlock your FREE Shake!</span>
+                        </div>
+                    </div>
+                    <div class="spend-hunger-right" id="spend-hunger-right">
+                        <!-- Dynamically populated via JS: badge or Claim/Change button -->
                     </div>
                 </div>
-                <div class="spend-hunger-right" id="spend-hunger-right">
-                    <!-- Dynamically populated via JS: badge or Claim/Change button -->
+                <div class="spend-hunger-track">
+                    <div class="spend-hunger-fill" id="spend-hunger-fill" style="width: 0%;"></div>
                 </div>
             </div>
-            <div class="spend-hunger-track">
-                <div class="spend-hunger-fill" id="spend-hunger-fill" style="width: 0%;"></div>
+
+            <!-- TAP-CONDITIONAL PERSISTENT BOGO TRACKER BAR (Banner Slot 3 BOGO Engine) -->
+            <div class="spend-hunger-bar-wrapper bogo-tracker-bar-wrapper" id="bogo-tracker-bar-wrapper" style="display: none;">
+                <div class="spend-hunger-inner">
+                    <div class="spend-hunger-left">
+                        <span class="spend-hunger-icon" id="bogo-tracker-icon">🎁</span>
+                        <div class="spend-hunger-text-group">
+                            <span class="spend-hunger-title" id="bogo-tracker-title">BOGO OFFER ACTIVE</span>
+                            <span class="spend-hunger-deficit" id="bogo-tracker-deficit">Add items to unlock your FREE reward!</span>
+                        </div>
+                    </div>
+                    <div class="spend-hunger-right" id="bogo-tracker-right">
+                        <!-- Dynamically populated via JS: badge or Claim/Change button -->
+                    </div>
+                </div>
+                <div class="spend-hunger-track">
+                    <div class="spend-hunger-fill" id="bogo-tracker-fill" style="width: 0%;"></div>
+                </div>
             </div>
         </div>
 
@@ -870,6 +892,55 @@
                         </div>
                         <button type="button" class="btn-confirm-free-gift" id="btn-confirm-free-gift" onclick="confirmClaimFreeGift()">
                             <i class="fa-solid fa-gift"></i> Claim Free Gift
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BANNER SLOT 3 FREE BOGO REWARD SELECTION MODAL -->
+        <div class="checkout-modal-overlay free-gift-modal-overlay bogo-reward-modal-overlay" id="bogo-reward-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card free-gift-modal-card" role="dialog" aria-labelledby="bogo-reward-modal-title">
+                <!-- MODAL HEADER -->
+                <div class="checkout-modal-header free-gift-modal-header">
+                    <div class="free-gift-badge-pill" id="bogo-reward-badge-pill" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        <i class="fa-solid fa-gift"></i> <span id="bogo-reward-badge-text">Free BOGO Reward</span>
+                    </div>
+                    <button type="button" class="checkout-modal-close-btn" onclick="closeBogoRewardModal()" aria-label="Close Free BOGO Modal">
+                        &times;
+                    </button>
+                </div>
+
+                <!-- MODAL BODY -->
+                <div class="checkout-modal-body free-gift-modal-body">
+                    <h3 class="section-title-bold" id="bogo-reward-modal-title" style="margin-bottom: 4px;">Choose Your Free Reward</h3>
+                    <p class="free-gift-subheading" id="bogo-reward-modal-subtitle">BOGO deal unlocked! Select any 1 item below as your free reward.</p>
+
+                    <!-- Items Grid -->
+                    <div class="free-gift-items-grid" id="bogo-reward-items-grid">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+
+                    <!-- Add-ons Section (Billed at 100% full rate - Add-on Protection) -->
+                    <div class="free-gift-addons-box" id="bogo-reward-addons-box" style="display: none;">
+                        <span class="free-gift-addons-label">Add-ons:</span>
+                        <div class="free-gift-addon-chips" id="bogo-reward-addon-chips">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Pricing & Confirmation Footer -->
+                    <div class="free-gift-pricing-card">
+                        <div class="spotlight-deal-price-col">
+                            <span class="spotlight-price-label">Reward Total:</span>
+                            <div class="spotlight-deal-price-display">
+                                <span class="spotlight-strike-price" id="bogo-reward-strike-price">₹0</span>
+                                <span class="spotlight-final-price" id="bogo-reward-final-price" style="color: #10b981;">FREE</span>
+                            </div>
+                            <span class="spotlight-savings-tag" id="bogo-reward-breakdown-tag">Base Price: ₹0 (FREE)</span>
+                        </div>
+                        <button type="button" class="btn-confirm-free-gift" id="btn-confirm-bogo-reward" onclick="confirmClaimBogoReward()">
+                            <i class="fa-solid fa-gift"></i> Claim Free Reward
                         </button>
                     </div>
                 </div>
