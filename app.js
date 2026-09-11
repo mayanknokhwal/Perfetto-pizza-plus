@@ -2252,8 +2252,15 @@ async function fetchLiveBannersFromBackend() {
                     const bannerObj = (b && typeof b === 'object') ? b : {};
                     const slot1Data = (data.slot1 && typeof data.slot1 === 'object') ? data.slot1 : {};
                     const slot2Data = (data.slot2 && typeof data.slot2 === 'object') ? data.slot2 : {};
+                    const slot3Data = (data.slot3 && typeof data.slot3 === 'object') ? data.slot3 : {};
                     const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
                     const isPizza = cat.toLowerCase() === 'pizza';
+
+                    const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Momos').trim() : '';
+                    const rawBuyQty = i === 2 ? parseInt(bannerObj.buyQty || slot3Data.buyQty || 2, 10) : 0;
+                    const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
+                    const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
+
                     return {
                         id: bannerObj.id || `b${i + 1}`,
                         url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
@@ -2261,9 +2268,12 @@ async function fetchLiveBannersFromBackend() {
                         targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
                         discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
                         minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
-                        rewardCategory: cat,
+                        rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
                         rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
-                        rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : ''
+                        rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
+                        buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat) : '',
+                        buyQty: i === 2 ? ((!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2) : 0,
+                        freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
                     };
                 });
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
@@ -6037,12 +6047,9 @@ function cancelSpendOffer(event) {
 window.cancelSpendOffer = cancelSpendOffer;
 
 function updateCartUI() {
-    // 0. Update persistent spend hunger bar & BOGO tracker bar
+    // 0. Update persistent spend hunger bar
     if (typeof updateSpendHungerBar === 'function') {
         updateSpendHungerBar();
-    }
-    if (typeof updateBogoTrackerBar === 'function') {
-        updateBogoTrackerBar();
     }
 
     // Banner Slot 2 Spend Target Check & Automatic Free Gift Revocation
@@ -6070,31 +6077,28 @@ function updateCartUI() {
     }
 
     // Banner Slot 3 BOGO Safeguard & Automatic Free Reward Revocation
-    const slot3Config = (typeof getBannerSlot3Config === 'function') ? getBannerSlot3Config() : { targetCategory: 'Pizza' };
-    const isBanner3OfferActive = (function () {
-        try { return sessionStorage.getItem('banner3BogoOfferActive') === 'true'; } catch (e) { return false; }
-    })();
+    // If a customer deletes the qualifying paid items from their cart, automatically remove the linked free reward item
+    const bogoRewardItems = cart.filter(item => item.isBogoReward);
+    if (bogoRewardItems.length > 0) {
+        const slot3Config = (typeof getBannerSlot3Config === 'function') ? getBannerSlot3Config() : { buyQty: 2 };
+        const requiredBuyQty = Number(slot3Config.buyQty) || 2;
+        let bogoCartChanged = false;
 
-    const currentBogoReward = cart.find(item => item.isBogoReward);
-    if (currentBogoReward) {
-        const bogoEval = evaluateBogoProgress(cart, slot3Config);
-        let shouldRevoke = !isBanner3OfferActive || !bogoEval.unlocked;
+        bogoRewardItems.forEach(rewardItem => {
+            const comboId = rewardItem.bogoComboId;
+            const qualifyingPaidQty = cart
+                .filter(item => item.isBogoQualifying && (comboId ? item.bogoComboId === comboId : true))
+                .reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
 
-        if (!shouldRevoke && (slot3Config.targetCategory || '').toLowerCase() === 'pizza') {
-            const rewardSize = (currentBogoReward.rewardPizzaSize || '').toLowerCase();
-            const unlockedSize = (bogoEval.rewardPizzaSize || '').toLowerCase();
-            if (rewardSize && unlockedSize && rewardSize !== unlockedSize) {
-                shouldRevoke = true;
+            if (qualifyingPaidQty < requiredBuyQty) {
+                cart = cart.filter(item => item !== rewardItem);
+                bogoCartChanged = true;
             }
-        }
+        });
 
-        if (shouldRevoke) {
-            cart = cart.filter(item => !item.isBogoReward);
+        if (bogoCartChanged) {
             saveCartToStorage();
-            showToast('⚠️ Free BOGO reward removed: Qualifying items no longer in cart.');
-            if (typeof updateBogoTrackerBar === 'function') {
-                updateBogoTrackerBar();
-            }
+            showToast('⚠️ Free BOGO reward removed: Qualifying items deleted from cart.');
         }
     }
 
@@ -6217,17 +6221,20 @@ function updateCartUI() {
                     : `<span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>`;
             }
 
+            const isBogoQualifying = Boolean(item.isBogoQualifying);
             const bannerBadgeMarkup = item.isBannerDeal
                 ? `<span class="cart-banner-deal-badge" style="font-size:0.68rem; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.12); border:1px solid rgba(234,88,12,0.3); border-radius:999px; padding:2px 8px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-fire"></i> Banner Deal</span>`
                 : (isGift
                     ? `<span class="cart-free-gift-badge"><i class="fa-solid fa-gift"></i> Free Gift</span>`
                     : (isBogo
                         ? `<span class="cart-bogo-reward-badge"><i class="fa-solid fa-gift"></i> Free Reward</span>`
-                        : ''));
+                        : (isBogoQualifying
+                            ? `<span class="cart-bogo-qualifying-badge"><i class="fa-solid fa-tag"></i> BOGO Item</span>`
+                            : '')));
 
             if (isAnyFree) {
-                const changeAction = isBogo ? 'openBogoRewardSelectionModal()' : 'openFreeGiftSelectionModal()';
-                const changeLabel = isBogo ? 'Change Reward' : 'Change Gift';
+                const changeAction = isBogo ? 'openBogoComboModal()' : 'openFreeGiftSelectionModal()';
+                const changeLabel = isBogo ? 'Edit Combo' : 'Change Gift';
                 return `
                 <div class="cart-item-card cart-item-free-gift">
                     <img src="${item.img}" alt="${item.name}" class="cart-item-img">
@@ -6238,7 +6245,7 @@ function updateCartUI() {
                     </div>
                     <div class="free-gift-cart-controls">
                         <span class="free-gift-qty-tag" title="Standard reward item (Free)"><i class="fa-solid fa-lock"></i> 1x FREE</span>
-                        <button type="button" class="btn-cart-change-gift" onclick="${changeAction}" title="Swap your free reward">
+                        <button type="button" class="btn-cart-change-gift" onclick="${changeAction}" title="${isBogo ? 'Edit BOGO combo' : 'Swap your free reward'}">
                             <i class="fa-solid fa-arrows-rotate"></i> ${changeLabel}
                         </button>
                     </div>
@@ -10924,7 +10931,7 @@ const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.p
 const DEFAULT_DAILY_BANNERS = [
     { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
     { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
+    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
     { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
 ];
 
@@ -11310,37 +11317,9 @@ function handleBannerSlideClick(slideIndex, bannerId) {
 
     const isSlot3 = (banner.id === 'b3');
     if (isSlot3) {
-        try {
-            sessionStorage.setItem('banner3BogoOfferActive', 'true');
-        } catch (e) { }
-
-        const slot3Config = (typeof getBannerSlot3Config === 'function') ? getBannerSlot3Config() : { targetCategory: 'Pizza' };
-        const targetCategory = slot3Config.targetCategory || slot3Config.bogoCategory || 'Pizza';
-
-        // Smoothly navigate to the configured category view
-        if (typeof openCategoryDetail === 'function') {
-            let catImg = '';
-            if (typeof categories !== 'undefined' && Array.isArray(categories)) {
-                const foundCat = categories.find(c => (c.name || '').toLowerCase() === targetCategory.toLowerCase());
-                if (foundCat && foundCat.img) catImg = foundCat.img;
-            }
-            openCategoryDetail(targetCategory, catImg);
-        }
-
-        if (typeof updateBogoTrackerBar === 'function') {
-            updateBogoTrackerBar();
-        }
-        if (typeof updateCartUI === 'function') {
-            updateCartUI();
-        }
-
-        const bogoEval = evaluateBogoProgress(cart, slot3Config);
-        if (bogoEval.unlocked) {
-            if (typeof openBogoRewardSelectionModal === 'function') {
-                openBogoRewardSelectionModal();
-            }
-        } else {
-            showToast(`🎉 BOGO Offer Activated! ${bogoEval.deficitText}`);
+        // Do NOT redirect or scroll away. Open self-contained in-modal combo deal directly.
+        if (typeof openBogoComboModal === 'function') {
+            openBogoComboModal();
         }
         return;
     }
@@ -12053,13 +12032,16 @@ function confirmClaimFreeGift() {
 window.confirmClaimFreeGift = confirmClaimFreeGift;
 
 // --------------------------------------------------------------------------
-// BANNER SLOT 3 BOGO (BUY ONE GET ONE / CATEGORY DEAL) ENGINE
+// BANNER SLOT 3: 2-STEP IN-MODAL BOGO COMBO DEAL ENGINE
 // --------------------------------------------------------------------------
-let currentBogoModalState = {
-    selectedItem: null,
-    selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false },
-    eligibleItems: [],
-    rewardConfig: null
+let currentBogoComboState = {
+    step: 1,
+    config: null,
+    buyItems: [],
+    rewardItems: [],
+    selectedPaid: {}, // { [itemId]: count }
+    selectedFreeItem: null,
+    selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
 };
 
 function getBannerSlot3Config() {
@@ -12074,458 +12056,300 @@ function getBannerSlot3Config() {
         banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
     }
     const b3 = banners[2] || {};
-    const cat = b3.targetCategory || b3.bogoCategory || 'Pizza';
+    const rawBuyCat = (b3.buyCategory || b3.targetCategory || b3.bogoCategory || 'Momos').trim();
+    const buyCat = rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat;
+    const buyQty = Math.max(1, parseInt(b3.buyQty || 2, 10) || 2);
+
+    const rawRewardCat = (b3.rewardCategory || b3.freeCategory || 'Shake').trim();
+    const rewardCat = rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat;
+    const freeQty = Math.max(1, parseInt(b3.freeQty || 1, 10) || 1);
+
     return {
         id: 'b3',
         url: b3.url || 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png',
-        dealType: b3.dealType || 'category_bogo',
-        targetCategory: cat,
-        bogoCategory: cat,
+        buyCategory: buyCat,
+        buyQty: buyQty,
+        rewardCategory: rewardCat,
+        freeQty: freeQty,
         enabled: b3.enabled !== false
     };
 }
 window.getBannerSlot3Config = getBannerSlot3Config;
 
-function evaluateBogoProgress(cartItems, slot3Config) {
-    const config = slot3Config || (typeof getBannerSlot3Config === 'function' ? getBannerSlot3Config() : { targetCategory: 'Pizza' });
-    const targetCat = (config.targetCategory || config.bogoCategory || 'Pizza').trim();
-    const isPizza = targetCat.toLowerCase() === 'pizza';
-    const items = Array.isArray(cartItems) ? cartItems : [];
-
-    // Filter to qualifying paid items only (strictly excluding free gifts and BOGO rewards)
-    const paidItems = items.filter(item => !item.isFreeGift && !item.isBogoReward);
-
-    if (isPizza) {
-        let largeCount = 0;
-        let mediumCount = 0;
-        let smallCount = 0;
-
-        paidItems.forEach(item => {
-            const rawTitle = item.baseName || item.name || '';
-            const sizeMatch = rawTitle.match(/\(([SML])\)/i);
-            const size = sizeMatch ? sizeMatch[1].toUpperCase() : null;
-            const itemCategory = (item.category || '').toLowerCase();
-            const isItemPizza = itemCategory === 'pizza' || size !== null || rawTitle.toLowerCase().includes('pizza');
-
-            if (isItemPizza) {
-                const qty = Number(item.qty) || 1;
-                if (size === 'L' || rawTitle.toLowerCase().includes('(large)')) {
-                    largeCount += qty;
-                } else if (size === 'M' || rawTitle.toLowerCase().includes('(medium)')) {
-                    mediumCount += qty;
-                } else if (size === 'S' || rawTitle.toLowerCase().includes('(small)')) {
-                    smallCount += qty;
-                } else {
-                    mediumCount += qty;
-                }
-            }
-        });
-
-        // Case A Rules for Pizza:
-        // 1. Buy 1 Large Pizza -> Unlocks 1 Free Medium Pizza
-        if (largeCount >= 1) {
-            return {
-                unlocked: true,
-                targetCategory: 'Pizza',
-                rewardType: 'pizza',
-                rewardPizzaSize: 'medium',
-                rewardTitle: 'Free Medium Pizza',
-                headline: '🎉 BOGO UNLOCKED: FREE MEDIUM PIZZA!',
-                deficitText: 'Claim your FREE Medium Pizza now!',
-                progressPct: 100
-            };
-        }
-        // 2. Buy 2 Small Pizzas -> Unlocks 1 Free Medium Pizza
-        if (smallCount >= 2) {
-            return {
-                unlocked: true,
-                targetCategory: 'Pizza',
-                rewardType: 'pizza',
-                rewardPizzaSize: 'medium',
-                rewardTitle: 'Free Medium Pizza',
-                headline: '🎉 BOGO UNLOCKED: FREE MEDIUM PIZZA!',
-                deficitText: 'Claim your FREE Medium Pizza now!',
-                progressPct: 100
-            };
-        }
-        // 3. Buy 1 Medium Pizza -> Unlocks 1 Free Small Pizza
-        if (mediumCount >= 1) {
-            return {
-                unlocked: true,
-                targetCategory: 'Pizza',
-                rewardType: 'pizza',
-                rewardPizzaSize: 'small',
-                rewardTitle: 'Free Small Pizza',
-                headline: '🎉 BOGO UNLOCKED: FREE SMALL PIZZA!',
-                deficitText: 'Claim your FREE Small Pizza now!',
-                progressPct: 100
-            };
-        }
-
-        // Below threshold:
-        if (smallCount === 1) {
-            return {
-                unlocked: false,
-                targetCategory: 'Pizza',
-                rewardType: 'pizza',
-                rewardPizzaSize: '',
-                rewardTitle: 'Free Pizza',
-                headline: 'BOGO OFFER ACTIVE (PIZZA)',
-                deficitText: 'Add 1 more Small Pizza for FREE Medium, or 1 Medium for FREE Small!',
-                progressPct: 50
-            };
-        }
-
-        return {
-            unlocked: false,
-            targetCategory: 'Pizza',
-            rewardType: 'pizza',
-            rewardPizzaSize: '',
-            rewardTitle: 'Free Pizza',
-            headline: 'BOGO OFFER ACTIVE (PIZZA)',
-            deficitText: 'Add 1 Large or 1 Medium Pizza to unlock FREE Pizza!',
-            progressPct: 0
-        };
-    } else {
-        // Case B Rules for Non-Pizza Categories:
-        const allMenuItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
-        let categoryPaidQty = 0;
-
-        paidItems.forEach(item => {
-            const cleanName = (item.baseName || item.name || '').replace(/\s*\([SML]\)$/i, '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
-            const menuItem = allMenuItems.find(i => (i.name && i.name.toLowerCase() === cleanName));
-            const itemCat = (item.category || (menuItem && menuItem.category) || '').toLowerCase();
-
-            if (itemCat === targetCat.toLowerCase() || cleanName.includes(targetCat.toLowerCase())) {
-                categoryPaidQty += (Number(item.qty) || 1);
-            }
-        });
-
-        if (categoryPaidQty >= 2) {
-            return {
-                unlocked: true,
-                targetCategory: targetCat,
-                rewardType: 'category',
-                rewardCategory: targetCat,
-                rewardPizzaSize: '',
-                rewardTitle: `Free ${targetCat}`,
-                headline: `🎉 BOGO UNLOCKED: FREE ${targetCat.toUpperCase()}!`,
-                deficitText: `Claim your FREE ${targetCat} now!`,
-                progressPct: 100
-            };
-        } else if (categoryPaidQty === 1) {
-            return {
-                unlocked: false,
-                targetCategory: targetCat,
-                rewardType: 'category',
-                rewardCategory: targetCat,
-                rewardPizzaSize: '',
-                rewardTitle: `Free ${targetCat}`,
-                headline: `BOGO OFFER ACTIVE (${targetCat.toUpperCase()})`,
-                deficitText: `Add 1 more ${targetCat} to unlock 1 FREE ${targetCat}!`,
-                progressPct: 50
-            };
-        } else {
-            return {
-                unlocked: false,
-                targetCategory: targetCat,
-                rewardType: 'category',
-                rewardCategory: targetCat,
-                rewardPizzaSize: '',
-                rewardTitle: `Free ${targetCat}`,
-                headline: `BOGO OFFER ACTIVE (${targetCat.toUpperCase()})`,
-                deficitText: `Add 2 ${targetCat} items to unlock 1 FREE ${targetCat}!`,
-                progressPct: 0
-            };
-        }
-    }
-}
-window.evaluateBogoProgress = evaluateBogoProgress;
-
-function updateBogoTrackerBar() {
-    const hungerWrapper = document.getElementById('bogo-tracker-bar-wrapper');
-    const hungerIcon = document.getElementById('bogo-tracker-icon');
-    const hungerTitle = document.getElementById('bogo-tracker-title');
-    const hungerDeficit = document.getElementById('bogo-tracker-deficit');
-    const hungerRight = document.getElementById('bogo-tracker-right');
-    const hungerFill = document.getElementById('bogo-tracker-fill');
-    if (!hungerWrapper) return;
-
-    let isOfferActive = false;
-    try {
-        isOfferActive = (sessionStorage.getItem('banner3BogoOfferActive') === 'true');
-    } catch (e) { }
-
-    if (!isOfferActive) {
-        hungerWrapper.style.display = 'none';
-        return;
-    }
-
-    const slot3Config = (typeof getBannerSlot3Config === 'function') ? getBannerSlot3Config() : { targetCategory: 'Pizza' };
-    const bogoProgress = evaluateBogoProgress(cart, slot3Config);
-    const currentRewardItem = (Array.isArray(cart) ? cart : []).find(item => item.isBogoReward);
-
-    hungerWrapper.style.display = 'block';
-
-    if (bogoProgress.unlocked) {
-        if (hungerFill) {
-            hungerFill.style.width = '100%';
-            hungerFill.classList.add('fill-complete');
-        }
-        if (hungerIcon) hungerIcon.textContent = '🎉';
-        if (hungerTitle) hungerTitle.textContent = bogoProgress.headline;
-
-        if (currentRewardItem) {
-            // Reward claimed in cart: Lock dismiss button, display Change button
-            if (hungerDeficit) hungerDeficit.textContent = `Claimed: ${currentRewardItem.baseName || currentRewardItem.name}`;
-            if (hungerRight) {
-                hungerRight.innerHTML = `
-                    <button type="button" class="btn-hunger-change" onclick="openBogoRewardSelectionModal()" aria-label="Change Reward" title="Change Reward">
-                        <i class="fa-solid fa-arrows-rotate"></i> Change
-                    </button>
-                `;
-            }
-        } else {
-            // Unlocked but not yet in cart: Show Claim button + "✕" dismiss button
-            if (hungerDeficit) hungerDeficit.textContent = bogoProgress.deficitText;
-            if (hungerRight) {
-                hungerRight.innerHTML = `
-                    <button type="button" class="btn-hunger-claim" onclick="openBogoRewardSelectionModal()" aria-label="Claim Free Reward" title="Claim Free Reward">
-                        <i class="fa-solid fa-gift"></i> Claim
-                    </button>
-                    <button type="button" class="btn-hunger-dismiss" onclick="cancelBogoOffer(event)" aria-label="Dismiss Offer" title="Dismiss Offer">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                `;
-            }
-
-            // Auto-pop modal once when unlocked if not already popped
-            if (!window.__hasAutoPoppedBogoModal) {
-                window.__hasAutoPoppedBogoModal = true;
-                const modal = document.getElementById('bogo-reward-modal');
-                const isAlreadyOpen = modal && modal.style.display !== 'none';
-                if (!isAlreadyOpen && typeof openBogoRewardSelectionModal === 'function') {
-                    openBogoRewardSelectionModal();
-                }
-            }
-        }
-    } else {
-        window.__hasAutoPoppedBogoModal = false;
-        if (hungerFill) {
-            hungerFill.style.width = `${bogoProgress.progressPct}%`;
-            hungerFill.classList.remove('fill-complete');
-        }
-        if (hungerIcon) hungerIcon.textContent = '🎁';
-        if (hungerTitle) hungerTitle.textContent = bogoProgress.headline;
-        if (hungerDeficit) hungerDeficit.textContent = bogoProgress.deficitText;
-        if (hungerRight) {
-            hungerRight.innerHTML = `
-                <span class="spend-hunger-pill">${bogoProgress.progressPct}%</span>
-                <button type="button" class="btn-hunger-dismiss" onclick="cancelBogoOffer(event)" aria-label="Dismiss Offer" title="Dismiss Offer">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            `;
-        }
-    }
-}
-window.updateBogoTrackerBar = updateBogoTrackerBar;
-
-function cancelBogoOffer(event) {
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    const slot3Config = (typeof getBannerSlot3Config === 'function') ? getBannerSlot3Config() : { targetCategory: 'Pizza' };
-    const bogoProgress = evaluateBogoProgress(cart, slot3Config);
-    const currentRewardItem = (Array.isArray(cart) ? cart : []).find(item => item.isBogoReward);
-
-    // Guard condition: Cannot cancel if target reached and reward is in cart
-    if (bogoProgress.unlocked && currentRewardItem) {
-        return;
-    }
-
-    try {
-        sessionStorage.removeItem('banner3BogoOfferActive');
-    } catch (e) { }
-
-    window.__hasAutoPoppedBogoModal = false;
-
-    // Remove any pending bogo reward from cart
-    if (currentRewardItem) {
-        cart = cart.filter(item => !item.isBogoReward);
-        saveCartToStorage();
-    }
-
-    if (typeof updateBogoTrackerBar === 'function') {
-        updateBogoTrackerBar();
-    }
-    if (typeof updateCartUI === 'function') {
-        updateCartUI();
-    }
-
-    showToast('BOGO offer dismissed');
-}
-window.cancelBogoOffer = cancelBogoOffer;
-
-function openBogoRewardSelectionModal() {
-    const modal = document.getElementById('bogo-reward-modal');
+function openBogoComboModal() {
+    const modal = document.getElementById('bogo-combo-modal');
     if (!modal) return;
 
-    const slot3Config = getBannerSlot3Config();
-    const bogoProgress = evaluateBogoProgress(cart, slot3Config);
-    currentBogoModalState.rewardConfig = bogoProgress;
-
-    const titleEl = document.getElementById('bogo-reward-modal-title');
-    const subtitleEl = document.getElementById('bogo-reward-modal-subtitle');
-    const badgeTextEl = document.getElementById('bogo-reward-badge-text');
-
-    const rewardTitle = bogoProgress.rewardTitle || 'Free Reward';
-    if (badgeTextEl) badgeTextEl.textContent = `Free BOGO Reward`;
-    if (titleEl) titleEl.textContent = `Choose Your ${rewardTitle}`;
-    if (subtitleEl) subtitleEl.textContent = `BOGO deal unlocked! Pick any 1 eligible item below as your free reward:`;
-
-    // Fetch eligible items
-    const allItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
-    let eligible = [];
-    const isPizza = bogoProgress.rewardType === 'pizza';
-
-    if (isPizza) {
-        eligible = allItems.filter(item => (item.category || '').toLowerCase() === 'pizza' && item.available !== false);
-        if (eligible.length === 0 && typeof categorySubItems !== 'undefined' && categorySubItems['Pizza']) {
-            eligible = categorySubItems['Pizza'].filter(i => i.available !== false);
-        }
-    } else {
-        const catTarget = (bogoProgress.targetCategory || 'Shake').toLowerCase();
-        eligible = allItems.filter(item => (item.category || '').toLowerCase() === catTarget && item.available !== false);
-        if (eligible.length === 0 && typeof categorySubItems !== 'undefined') {
-            const matchedKey = Object.keys(categorySubItems).find(k => k.toLowerCase() === catTarget);
-            if (matchedKey) {
-                eligible = categorySubItems[matchedKey].filter(i => i.available !== false);
-            }
-        }
+    const config = getBannerSlot3Config();
+    if (config.enabled === false) {
+        showToast('BOGO Combo Deal is currently inactive.');
+        return;
     }
 
-    currentBogoModalState.eligibleItems = eligible;
+    const allItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
+    const buyCat = (config.buyCategory || 'Momos').toLowerCase();
+    const rewardCat = (config.rewardCategory || 'Shake').toLowerCase();
 
-    // Check if user already had a BOGO reward in cart to preselect item and add-ons
-    const existingReward = cart.find(i => i.isBogoReward);
-    let initialAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
+    // Step 1: Paid items belonging to buyCategory (pizza strictly excluded)
+    const buyItems = allItems.filter(item => {
+        const itemCat = (item.category || '').toLowerCase();
+        return itemCat === buyCat && item.available !== false;
+    });
+
+    // Step 2: Free reward items belonging to rewardCategory (pizza strictly excluded)
+    const rewardItems = allItems.filter(item => {
+        const itemCat = (item.category || '').toLowerCase();
+        return itemCat === rewardCat && item.available !== false;
+    });
+
+    if (buyItems.length === 0) {
+        showToast(`No qualifying items currently available for category "${config.buyCategory}".`);
+        return;
+    }
+    if (rewardItems.length === 0) {
+        showToast(`No free reward items currently available for category "${config.rewardCategory}".`);
+        return;
+    }
+
+    currentBogoComboState = {
+        step: 1,
+        config: config,
+        buyItems: buyItems,
+        rewardItems: rewardItems,
+        selectedPaid: {},
+        selectedFreeItem: rewardItems[0] || null,
+        selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
+    };
+
+    // If combo is already in cart, pre-populate current selection so user can edit/replace
+    const existingReward = (Array.isArray(cart) ? cart : []).find(i => i.isBogoCombo && i.isBogoReward);
     if (existingReward) {
-        const found = eligible.find(i => i.name === existingReward.baseName || i.name === existingReward.name || (existingReward.baseName && existingReward.baseName.startsWith(i.name)) || (existingReward.name && existingReward.name.startsWith(i.name)));
-        currentBogoModalState.selectedItem = found || eligible[0] || null;
+        showToast('Editing existing BOGO combo in your cart (Limit 1 per order).');
+        const comboId = existingReward.bogoComboId;
+        const paidInCart = cart.filter(i => i.isBogoQualifying && (comboId ? i.bogoComboId === comboId : true));
+        paidInCart.forEach(pi => {
+            const foundBuy = buyItems.find(bi => bi.name === pi.baseName || bi.name === pi.name);
+            const key = foundBuy ? (foundBuy.id || foundBuy.name) : pi.name;
+            currentBogoComboState.selectedPaid[key] = (currentBogoComboState.selectedPaid[key] || 0) + (Number(pi.qty) || 1);
+        });
+        const foundFree = rewardItems.find(ri => ri.name === existingReward.baseName || ri.name === existingReward.name);
+        if (foundFree) currentBogoComboState.selectedFreeItem = foundFree;
         if (Array.isArray(existingReward.addons)) {
-            initialAddons = {
+            currentBogoComboState.selectedAddons = {
                 cheese: existingReward.addons.some(a => (a.name || '').toLowerCase().includes('cheese')),
                 mayo: existingReward.addons.some(a => (a.name || '').toLowerCase().includes('mayo')),
                 spicy: existingReward.addons.some(a => (a.name || '').toLowerCase().includes('spicy')),
                 iceCream: existingReward.addons.some(a => (a.name || '').toLowerCase().includes('ice cream'))
             };
         }
-    } else {
-        currentBogoModalState.selectedItem = eligible[0] || null;
     }
-    currentBogoModalState.selectedAddons = initialAddons;
 
-    renderBogoRewardItemsGrid();
-    renderBogoRewardAddonsAndPricing();
+    goToBogoStep(1);
 
     modal.style.display = 'flex';
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
 }
-window.openBogoRewardSelectionModal = openBogoRewardSelectionModal;
+window.openBogoComboModal = openBogoComboModal;
 
-function closeBogoRewardModal() {
-    const modal = document.getElementById('bogo-reward-modal');
+function closeBogoComboModal() {
+    const modal = document.getElementById('bogo-combo-modal');
     if (modal) {
         modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
     }
     document.body.style.overflow = '';
 }
-window.closeBogoRewardModal = closeBogoRewardModal;
+window.closeBogoComboModal = closeBogoComboModal;
 
-function renderBogoRewardItemsGrid() {
-    const grid = document.getElementById('bogo-reward-items-grid');
-    if (!grid) return;
-
-    const { eligibleItems, selectedItem, rewardConfig } = currentBogoModalState;
-    if (!eligibleItems || eligibleItems.length === 0) {
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No eligible reward items found at this time.</div>';
-        return;
-    }
-
-    const isPizza = rewardConfig && rewardConfig.rewardType === 'pizza';
-    const pizzaSize = (rewardConfig && rewardConfig.rewardPizzaSize) ? rewardConfig.rewardPizzaSize.toLowerCase() : 'medium';
-    const pizzaSizeKey = pizzaSize.startsWith('s') ? 'S' : (pizzaSize.startsWith('l') ? 'L' : 'M');
-
-    grid.innerHTML = eligibleItems.map(item => {
-        const isSelected = selectedItem && (selectedItem.id === item.id || selectedItem.name === item.name);
-        let origP = item.price;
-        if (isPizza) {
-            origP = (item.prices && item.prices[pizzaSizeKey]) ? item.prices[pizzaSizeKey] : (item.price || 249);
-        }
-
-        const safeImg = item.img || 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png';
-        const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
-
-        return `
-            <div class="free-gift-item-card ${isSelected ? 'selected' : ''}" onclick="onSelectBogoRewardItem('${escapeHtml(item.id || item.name)}')">
-                ${isSelected ? '<div class="free-gift-selected-check"><i class="fa-solid fa-check"></i></div>' : ''}
-                <div class="free-gift-item-thumb-wrapper">
-                    <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="free-gift-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
-                </div>
-                <div class="free-gift-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
-                <div class="free-gift-price-line">
-                    <span class="free-gift-strike">${formatPrice(origP)}</span>
-                    <span class="free-gift-free-tag">FREE</span>
-                </div>
-            </div>
-        `;
-    }).join('');
+function getBogoSelectedPaidTotal() {
+    const paid = currentBogoComboState.selectedPaid || {};
+    return Object.values(paid).reduce((sum, count) => sum + (Number(count) || 0), 0);
 }
 
-function onSelectBogoRewardItem(itemIdOrName) {
-    const found = currentBogoModalState.eligibleItems.find(i => (i.id === itemIdOrName || i.name === itemIdOrName));
-    if (!found) return;
-    currentBogoModalState.selectedItem = found;
-    currentBogoModalState.selectedAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
-    renderBogoRewardItemsGrid();
-    renderBogoRewardAddonsAndPricing();
-}
-window.onSelectBogoRewardItem = onSelectBogoRewardItem;
+function goToBogoStep(stepNum) {
+    const config = currentBogoComboState.config || getBannerSlot3Config();
+    const totalPaid = getBogoSelectedPaidTotal();
 
-function renderBogoRewardAddonsAndPricing() {
-    const { selectedItem, rewardConfig, selectedAddons } = currentBogoModalState;
-    const addonsBox = document.getElementById('bogo-reward-addons-box');
-    const addonsChipsContainer = document.getElementById('bogo-reward-addon-chips');
-    const strikePriceEl = document.getElementById('bogo-reward-strike-price');
-    const finalPriceEl = document.getElementById('bogo-reward-final-price');
-    const breakdownTagEl = document.getElementById('bogo-reward-breakdown-tag');
-    const confirmBtn = document.getElementById('btn-confirm-bogo-reward');
-
-    if (!selectedItem) {
-        if (confirmBtn) confirmBtn.disabled = true;
-        return;
-    }
-    if (confirmBtn) confirmBtn.disabled = false;
-
-    let origBasePrice = Number(selectedItem.price) || 0;
-    const isPizza = rewardConfig && rewardConfig.rewardType === 'pizza';
-    let pizzaSizeKey = 'M';
-    if (isPizza) {
-        const pSize = (rewardConfig && rewardConfig.rewardPizzaSize) ? rewardConfig.rewardPizzaSize.toLowerCase() : 'medium';
-        pizzaSizeKey = pSize.startsWith('s') ? 'S' : (pSize.startsWith('l') ? 'L' : 'M');
-        if (selectedItem.prices && selectedItem.prices[pizzaSizeKey]) {
-            origBasePrice = Number(selectedItem.prices[pizzaSizeKey]);
+    if (stepNum === 2) {
+        if (totalPaid < config.buyQty) {
+            showToast(`Please select ${config.buyQty} ${config.buyCategory} to proceed (${totalPaid}/${config.buyQty} selected).`);
+            return;
         }
     }
 
-    const catName = selectedItem.category || (isPizza ? 'Pizza' : 'Shake');
+    currentBogoComboState.step = stepNum;
+
+    // Tabs update
+    const tab1 = document.getElementById('bogo-tab-step1');
+    const tab2 = document.getElementById('bogo-tab-step2');
+    if (tab1 && tab2) {
+        if (stepNum === 1) {
+            tab1.className = 'bogo-step-tab active';
+            tab2.className = 'bogo-step-tab';
+        } else {
+            tab1.className = 'bogo-step-tab completed';
+            tab2.className = 'bogo-step-tab active';
+        }
+    }
+
+    // Pane update
+    const pane1 = document.getElementById('bogo-step1-pane');
+    const pane2 = document.getElementById('bogo-step2-pane');
+    if (pane1) pane1.style.display = (stepNum === 1) ? 'block' : 'none';
+    if (pane2) pane2.style.display = (stepNum === 2) ? 'block' : 'none';
+
+    if (stepNum === 1) {
+        renderBogoStep1UI();
+    } else {
+        renderBogoStep2UI();
+    }
+}
+window.goToBogoStep = goToBogoStep;
+
+function renderBogoStep1UI() {
+    const { config, buyItems, selectedPaid } = currentBogoComboState;
+    if (!config) return;
+
+    const titleEl = document.getElementById('bogo-step1-title');
+    if (titleEl) {
+        titleEl.textContent = `Please select your ${config.buyQty} ${config.buyCategory}`;
+    }
+
+    const totalSelected = getBogoSelectedPaidTotal();
+    const countValEl = document.getElementById('bogo-step1-count-val');
+    const targetValEl = document.getElementById('bogo-step1-target-val');
+    if (countValEl) countValEl.textContent = totalSelected;
+    if (targetValEl) targetValEl.textContent = config.buyQty;
+
+    const counterChip = document.getElementById('bogo-step1-counter-chip');
+    if (counterChip) {
+        if (totalSelected === config.buyQty) {
+            counterChip.style.background = 'rgba(16, 185, 129, 0.25)';
+            counterChip.style.borderColor = '#10b981';
+        } else {
+            counterChip.style.background = 'rgba(16, 185, 129, 0.14)';
+            counterChip.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+        }
+    }
+
+    const grid = document.getElementById('bogo-step1-items-grid');
+    if (grid) {
+        if (!buyItems || buyItems.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No qualifying items available.</div>';
+        } else {
+            grid.innerHTML = buyItems.map(item => {
+                const key = item.id || item.name;
+                const selectedQty = selectedPaid[key] || 0;
+                // Pricing rule: Regular/original base price (no discounts allowed)
+                const regularPrice = Number(item.originalPrice || item.price) || 0;
+                const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
+                const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
+
+                return `
+                    <div class="bogo-combo-item-card ${selectedQty > 0 ? 'is-selected' : ''}" id="bogo-buy-item-${escapeHtml(key)}">
+                        <div class="bogo-item-thumb-wrapper">
+                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                        </div>
+                        <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
+                        <div class="bogo-item-price-clean">${formatPrice(regularPrice)}</div>
+                        <div class="bogo-stepper-ctrl">
+                            <button type="button" class="bogo-stepper-btn" onclick="onBogoStep1QtyChange('${escapeHtml(key)}', -1)" aria-label="Decrease quantity">-</button>
+                            <span class="bogo-stepper-val" id="bogo-stepper-val-${escapeHtml(key)}">${selectedQty}</span>
+                            <button type="button" class="bogo-stepper-btn" onclick="onBogoStep1QtyChange('${escapeHtml(key)}', 1)" aria-label="Increase quantity">+</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Calculate Step 1 subtotal
+    let subtotal = 0;
+    for (const [key, count] of Object.entries(selectedPaid)) {
+        if (count > 0) {
+            const found = buyItems.find(i => (i.id === key || i.name === key));
+            const regPrice = found ? Number(found.originalPrice || found.price) || 0 : 0;
+            subtotal += regPrice * count;
+        }
+    }
+
+    const subtotalEl = document.getElementById('bogo-step1-subtotal');
+    if (subtotalEl) {
+        subtotalEl.textContent = formatPrice(subtotal);
+    }
+
+    const nextBtn = document.getElementById('btn-bogo-step1-next');
+    if (nextBtn) {
+        nextBtn.disabled = (totalSelected !== config.buyQty);
+    }
+}
+
+function onBogoStep1QtyChange(key, delta) {
+    const { config } = currentBogoComboState;
+    if (!config) return;
+
+    const currentCount = currentBogoComboState.selectedPaid[key] || 0;
+    const currentTotal = getBogoSelectedPaidTotal();
+
+    if (delta > 0 && currentTotal >= config.buyQty) {
+        showToast(`You can only select ${config.buyQty} ${config.buyCategory}.`);
+        return;
+    }
+
+    const nextCount = Math.max(0, currentCount + delta);
+    if (nextCount === 0) {
+        delete currentBogoComboState.selectedPaid[key];
+    } else {
+        currentBogoComboState.selectedPaid[key] = nextCount;
+    }
+
+    renderBogoStep1UI();
+}
+window.onBogoStep1QtyChange = onBogoStep1QtyChange;
+
+function renderBogoStep2UI() {
+    const { config, rewardItems, selectedPaid, buyItems, selectedFreeItem, selectedAddons } = currentBogoComboState;
+    if (!config) return;
+
+    const titleEl = document.getElementById('bogo-step2-title');
+    if (titleEl) {
+        titleEl.textContent = `Choose your ${config.freeQty} FREE ${config.rewardCategory}`;
+    }
+
+    const countValEl = document.getElementById('bogo-step2-count-val');
+    const targetValEl = document.getElementById('bogo-step2-target-val');
+    if (countValEl) countValEl.textContent = selectedFreeItem ? 1 : 0;
+    if (targetValEl) targetValEl.textContent = config.freeQty;
+
+    const grid = document.getElementById('bogo-step2-items-grid');
+    if (grid) {
+        if (!rewardItems || rewardItems.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding:20px; color:var(--text-muted);">No free reward items available.</div>';
+        } else {
+            grid.innerHTML = rewardItems.map(item => {
+                const isSelected = selectedFreeItem && (selectedFreeItem.id === item.id || selectedFreeItem.name === item.name);
+                const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
+                const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
+
+                return `
+                    <div class="bogo-combo-item-card ${isSelected ? 'is-selected' : ''}" onclick="onSelectBogoStep2Item('${escapeHtml(item.id || item.name)}')">
+                        <div class="bogo-item-thumb-wrapper">
+                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                        </div>
+                        <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
+                        <div class="bogo-item-price-free">FREE</div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Addons section for Reward Category
+    const addonsBox = document.getElementById('bogo-step2-addons-box');
+    const chipsContainer = document.getElementById('bogo-step2-addon-chips');
+    const catName = config.rewardCategory || (selectedFreeItem && selectedFreeItem.category) || 'Shake';
     let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
-    if (isPizza && addonConfig.sizes && addonConfig.sizes[pizzaSizeKey]) {
-        addonConfig = addonConfig.sizes[pizzaSizeKey];
-    }
 
     const availableAddons = [];
     if (addonConfig.extraCheese !== undefined && Number(addonConfig.extraCheese) > 0) {
@@ -12541,17 +12365,17 @@ function renderBogoRewardAddonsAndPricing() {
         availableAddons.push({ key: 'iceCream', emoji: '🍨', name: 'With Ice Cream', price: Number(addonConfig.withIceCream) });
     }
 
-    if (availableAddons.length > 0 && addonsBox && addonsChipsContainer) {
-        addonsBox.style.display = 'flex';
-        addonsChipsContainer.innerHTML = availableAddons.map(a => {
+    if (availableAddons.length > 0 && addonsBox && chipsContainer) {
+        addonsBox.style.display = 'block';
+        chipsContainer.innerHTML = availableAddons.map(a => {
             const isChecked = Boolean(selectedAddons[a.key]);
             return `
                 <button type="button" 
                         class="free-gift-addon-chip ${isChecked ? 'active active-' + a.key : ''}" 
-                        id="bogo-addon-${a.key}"
+                        id="bogo-combo-addon-${a.key}"
                         title="${escapeHtml(a.name)} (+${formatPrice(a.price)})"
                         aria-label="${escapeHtml(a.name)}"
-                        onclick="onToggleBogoRewardAddon('${a.key}', '${escapeHtml(a.name)}')">
+                        onclick="onToggleBogoComboAddon('${a.key}', '${escapeHtml(a.name)}')">
                     <span class="addon-emoji">${a.emoji}</span>
                 </button>
             `;
@@ -12560,81 +12384,88 @@ function renderBogoRewardAddonsAndPricing() {
         addonsBox.style.display = 'none';
     }
 
-    let totalAddonsPrice = 0;
+    // Calculate Step 1 subtotal
+    let step1Subtotal = 0;
+    for (const [key, count] of Object.entries(selectedPaid)) {
+        if (count > 0) {
+            const found = buyItems.find(i => (i.id === key || i.name === key));
+            const regPrice = found ? Number(found.originalPrice || found.price) || 0 : 0;
+            step1Subtotal += regPrice * count;
+        }
+    }
+
+    // Calculate Add-on fees
+    let addonsPrice = 0;
     availableAddons.forEach(a => {
         if (selectedAddons[a.key]) {
-            totalAddonsPrice += a.price;
+            addonsPrice += a.price;
         }
     });
 
-    const origTotal = origBasePrice + totalAddonsPrice;
-    const finalPayable = totalAddonsPrice; // Base is ₹0
+    const totalComboPrice = step1Subtotal + addonsPrice;
+    const totalPriceEl = document.getElementById('bogo-step2-total-price');
+    if (totalPriceEl) {
+        totalPriceEl.textContent = formatPrice(totalComboPrice);
+    }
 
-    if (strikePriceEl) strikePriceEl.textContent = formatPrice(origTotal);
-    if (finalPriceEl) {
-        if (finalPayable === 0) {
-            finalPriceEl.textContent = 'FREE';
-            finalPriceEl.style.color = '#10b981';
+    const breakdownTagEl = document.getElementById('bogo-step2-breakdown-tag');
+    if (breakdownTagEl) {
+        if (addonsPrice > 0) {
+            breakdownTagEl.textContent = `Base Reward: ₹0 (FREE) + ₹${addonsPrice} add-ons`;
         } else {
-            finalPriceEl.textContent = formatPrice(finalPayable);
-            finalPriceEl.style.color = '#ffffff';
+            breakdownTagEl.textContent = `Base Reward: ₹0 (100% FREE)`;
         }
     }
-    if (breakdownTagEl) {
-        if (finalPayable === 0) {
-            breakdownTagEl.textContent = `Save ${formatPrice(origBasePrice)} (100% FREE)`;
-        } else {
-            breakdownTagEl.textContent = `Base ₹0 (FREE) + Add-ons ${formatPrice(totalAddonsPrice)}`;
-        }
+
+    const claimBtn = document.getElementById('btn-confirm-bogo-combo');
+    if (claimBtn) {
+        claimBtn.disabled = !selectedFreeItem;
     }
 }
 
-function onToggleBogoRewardAddon(addonKey, addonName) {
-    if (!currentBogoModalState.selectedAddons) {
-        currentBogoModalState.selectedAddons = {};
-    }
-    currentBogoModalState.selectedAddons[addonKey] = !currentBogoModalState.selectedAddons[addonKey];
+function onSelectBogoStep2Item(key) {
+    const found = currentBogoComboState.rewardItems.find(i => (i.id === key || i.name === key));
+    if (!found) return;
+    currentBogoComboState.selectedFreeItem = found;
+    currentBogoComboState.selectedAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
+    renderBogoStep2UI();
+}
+window.onSelectBogoStep2Item = onSelectBogoStep2Item;
 
+function onToggleBogoComboAddon(addonKey, addonName) {
+    if (!currentBogoComboState.selectedAddons) {
+        currentBogoComboState.selectedAddons = {};
+    }
+    currentBogoComboState.selectedAddons[addonKey] = !currentBogoComboState.selectedAddons[addonKey];
     const names = { cheese: 'Extra Cheese', mayo: 'Extra Mayo', spicy: 'Extra Spicy', iceCream: 'With Ice Cream' };
     const toastLabel = addonName || names[addonKey] || addonKey;
     if (typeof showToast === 'function') {
         showToast(toastLabel, 1800);
     }
-
-    renderBogoRewardAddonsAndPricing();
+    renderBogoStep2UI();
 }
-window.onToggleBogoRewardAddon = onToggleBogoRewardAddon;
+window.onToggleBogoComboAddon = onToggleBogoComboAddon;
 
-function confirmClaimBogoReward() {
-    const { selectedItem, rewardConfig, selectedAddons } = currentBogoModalState;
-    if (!selectedItem) return;
+function confirmClaimBogoCombo() {
+    const { config, buyItems, selectedPaid, selectedFreeItem, selectedAddons } = currentBogoComboState;
+    if (!config) return;
 
-    const slot3Config = getBannerSlot3Config();
-    const bogoProgress = evaluateBogoProgress(cart, slot3Config);
-
-    if (!bogoProgress.unlocked) {
-        showToast('⚠️ Qualifying conditions are no longer met in your cart.');
-        closeBogoRewardModal();
+    const totalPaid = getBogoSelectedPaidTotal();
+    if (totalPaid < config.buyQty) {
+        showToast(`Please select ${config.buyQty} qualifying items.`);
+        goToBogoStep(1);
+        return;
+    }
+    if (!selectedFreeItem) {
+        showToast('Please choose your free reward item.');
         return;
     }
 
-    let origBasePrice = Number(selectedItem.price) || 0;
-    const isPizza = rewardConfig && rewardConfig.rewardType === 'pizza';
-    let pizzaSizeKey = 'M';
-    if (isPizza) {
-        const pSize = (rewardConfig && rewardConfig.rewardPizzaSize) ? rewardConfig.rewardPizzaSize.toLowerCase() : 'medium';
-        pizzaSizeKey = pSize.startsWith('s') ? 'S' : (pSize.startsWith('l') ? 'L' : 'M');
-        if (selectedItem.prices && selectedItem.prices[pizzaSizeKey]) {
-            origBasePrice = Number(selectedItem.prices[pizzaSizeKey]);
-        }
-    }
+    const bogoComboId = 'bogo_combo_' + Date.now();
 
-    const catName = selectedItem.category || (isPizza ? 'Pizza' : 'Shake');
+    // 1. Calculate Add-ons for Reward Item
+    const catName = config.rewardCategory || selectedFreeItem.category || 'Shake';
     let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
-    if (isPizza && addonConfig.sizes && addonConfig.sizes[pizzaSizeKey]) {
-        addonConfig = addonConfig.sizes[pizzaSizeKey];
-    }
-
     const addonsList = [];
     let addonsPrice = 0;
     if (selectedAddons.cheese && addonConfig.extraCheese !== undefined) {
@@ -12654,41 +12485,61 @@ function confirmClaimBogoReward() {
         addonsPrice += Number(addonConfig.withIceCream);
     }
 
-    const baseItemName = isPizza ? `${selectedItem.name} (${pizzaSizeKey})` : selectedItem.name;
     const addonNames = addonsList.map(a => a.name);
-    const fullItemName = addonNames.length > 0 ? `${baseItemName} (+${addonNames.join(', ')})` : baseItemName;
+    const fullRewardName = addonNames.length > 0 ? `${selectedFreeItem.name} (+${addonNames.join(', ')})` : selectedFreeItem.name;
+    const origRewardPrice = Number(selectedFreeItem.originalPrice || selectedFreeItem.price) || 0;
 
-    // Remove any previous BOGO reward in cart
-    cart = cart.filter(item => !item.isBogoReward);
+    // 2. Limit to Once Per Order: Remove any existing BOGO combo items in cart
+    cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isBogoCombo && !item.isBogoReward && !item.isBogoQualifying);
 
-    // Add free BOGO reward item
+    // 3. Add Qualifying Paid Items (standard/original base prices, no discounts)
+    for (const [key, qty] of Object.entries(selectedPaid)) {
+        if (qty > 0) {
+            const itemObj = buyItems.find(i => (i.id === key || i.name === key)) || { name: key, price: 0 };
+            const regularPrice = Number(itemObj.originalPrice || itemObj.price) || 0;
+            cart.push({
+                name: itemObj.name,
+                baseName: itemObj.name,
+                price: regularPrice,
+                originalPrice: regularPrice,
+                qty: Number(qty),
+                img: itemObj.img || DEFAULT_FALLBACK_BANNER_LOGO,
+                category: itemObj.category || config.buyCategory,
+                isBogoCombo: true,
+                isBogoQualifying: true,
+                bogoComboId: bogoComboId,
+                bogoBuyQtyRequired: config.buyQty
+            });
+        }
+    }
+
+    // 4. Add Free Reward Item (base price ₹0, add-ons charged at full rate)
     cart.push({
-        name: fullItemName,
-        baseName: baseItemName,
+        name: fullRewardName,
+        baseName: selectedFreeItem.name,
         price: addonsPrice,
         basePrice: 0,
-        originalPrice: origBasePrice + addonsPrice,
+        originalPrice: origRewardPrice + addonsPrice,
         qty: 1,
-        img: selectedItem.img || 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png',
+        img: selectedFreeItem.img || DEFAULT_FALLBACK_BANNER_LOGO,
+        category: selectedFreeItem.category || config.rewardCategory,
         addons: addonsList,
+        isBogoCombo: true,
         isBogoReward: true,
-        rewardPizzaSize: isPizza ? pizzaSizeKey : '',
-        targetCategory: bogoProgress.targetCategory
+        bogoComboId: bogoComboId,
+        bogoBuyQtyRequired: config.buyQty
     });
 
     saveCartToStorage();
-    closeBogoRewardModal();
+    closeBogoComboModal();
 
-    if (typeof updateBogoTrackerBar === 'function') {
-        updateBogoTrackerBar();
-    }
     if (typeof updateCartUI === 'function') {
         updateCartUI();
     }
 
-    showToast(`🎉 Claimed your FREE ${baseItemName}!`);
+    showToast(`🎉 Claimed your ${config.buyCategory} & FREE ${selectedFreeItem.name} BOGO combo!`);
 }
-window.confirmClaimBogoReward = confirmClaimBogoReward;
+window.confirmClaimBogoCombo = confirmClaimBogoCombo;
 
 // --------------------------------------------------------------------------
 // 9. WHATSAPP DP STYLE LOGO POPUP MODAL
@@ -13583,7 +13434,12 @@ function listenToRealtimeMenuAndRates() {
                         const bannerObj = (b && typeof b === 'object') ? b : {};
                         const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
                         const isPizza = cat.toLowerCase() === 'pizza';
-                        const slot3Cat = i === 2 ? (bannerObj.targetCategory || bannerObj.bogoCategory || slot3Data.targetCategory || slot3Data.bogoCategory || 'Pizza') : '';
+
+                        const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Momos').trim() : '';
+                        const rawBuyQty = i === 2 ? parseInt(bannerObj.buyQty || slot3Data.buyQty || 2, 10) : 0;
+                        const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
+                        const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
+
                         return {
                             id: bannerObj.id || `b${i + 1}`,
                             url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
@@ -13591,12 +13447,12 @@ function listenToRealtimeMenuAndRates() {
                             targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
                             discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
                             minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
-                            rewardCategory: cat,
+                            rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
                             rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
                             rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
-                            dealType: i === 2 ? (bannerObj.dealType || slot3Data.dealType || 'category_bogo') : '',
-                            targetCategory: i === 2 ? slot3Cat : '',
-                            bogoCategory: i === 2 ? slot3Cat : ''
+                            buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat) : '',
+                            buyQty: i === 2 ? ((!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2) : 0,
+                            freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
                         };
                     });
                 }
@@ -14059,7 +13915,7 @@ function setupGlobalCustomerModalDismissals() {
         { id: 'clear-history-confirm-modal', dismiss: () => { if (typeof closeClearHistoryModal === 'function') closeClearHistoryModal(); } },
         { id: 'spotlight-deal-modal', dismiss: () => { if (typeof closeSpotlightDealModal === 'function') closeSpotlightDealModal(); } },
         { id: 'free-gift-modal', dismiss: () => { if (typeof closeFreeGiftModal === 'function') closeFreeGiftModal(); } },
-        { id: 'bogo-reward-modal', dismiss: () => { if (typeof closeBogoRewardModal === 'function') closeBogoRewardModal(); } },
+        { id: 'bogo-combo-modal', dismiss: () => { if (typeof closeBogoComboModal === 'function') closeBogoComboModal(); } },
         { id: 'logo-modal', dismiss: () => { if (typeof window.closeLogoModal === 'function') window.closeLogoModal(); } },
         { id: 'customer-care-modal', dismiss: () => { if (typeof window.closeCustomerCareModal === 'function') window.closeCustomerCareModal(); } }
     ];

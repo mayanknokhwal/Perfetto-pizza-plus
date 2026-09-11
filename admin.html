@@ -8245,13 +8245,25 @@
                     bannerItem.rewardPizzaSize = isPizza ? ((rewardSizeSelect && rewardSizeSelect.value) ? rewardSizeSelect.value.toLowerCase() : (current.rewardPizzaSize || 'medium')) : '';
                 }
                 if (i === 2) {
-                    const bogoDealSelect = document.getElementById('banner-bogo-deal-type');
-                    const bogoCatSelect = document.getElementById('banner-bogo-target-category');
-                    const dealType = (bogoDealSelect && bogoDealSelect.value) ? bogoDealSelect.value : (current.dealType || 'category_bogo');
-                    const targetCat = (bogoCatSelect && bogoCatSelect.value) ? bogoCatSelect.value : (current.targetCategory || current.bogoCategory || 'Pizza');
-                    bannerItem.dealType = dealType;
-                    bannerItem.targetCategory = targetCat;
-                    bannerItem.bogoCategory = targetCat;
+                    const buyCatSelect = document.getElementById('banner-bogo-buy-category');
+                    const buyQtyInput = document.getElementById('banner-bogo-buy-qty');
+                    const rewardCatSelect = document.getElementById('banner-bogo-reward-category');
+                    const freeQtyInput = document.getElementById('banner-bogo-free-qty');
+
+                    let buyCat = (buyCatSelect && buyCatSelect.value) ? buyCatSelect.value : (current.buyCategory || 'Momos');
+                    if (buyCat.toLowerCase() === 'pizza') buyCat = 'Momos';
+                    let buyQty = buyQtyInput ? parseInt(buyQtyInput.value, 10) : (current.buyQty || 2);
+                    if (isNaN(buyQty) || buyQty < 1) buyQty = 2;
+
+                    let rewardCat = (rewardCatSelect && rewardCatSelect.value) ? rewardCatSelect.value : (current.rewardCategory || 'Shake');
+                    if (rewardCat.toLowerCase() === 'pizza') rewardCat = 'Shake';
+                    let freeQty = freeQtyInput ? parseInt(freeQtyInput.value, 10) : (current.freeQty || 1);
+                    if (isNaN(freeQty) || freeQty < 1) freeQty = 1;
+
+                    bannerItem.buyCategory = buyCat;
+                    bannerItem.buyQty = buyQty;
+                    bannerItem.rewardCategory = rewardCat;
+                    bannerItem.freeQty = freeQty;
                 }
                 slots.push(bannerItem);
             }
@@ -8285,9 +8297,10 @@
             const slot3Data = {
                 imageUrl: slots[2].url,
                 url: slots[2].url,
-                dealType: slots[2].dealType || 'category_bogo',
-                targetCategory: slots[2].targetCategory || slots[2].bogoCategory || 'Pizza',
-                bogoCategory: slots[2].bogoCategory || slots[2].targetCategory || 'Pizza',
+                buyCategory: slots[2].buyCategory || 'Momos',
+                buyQty: Number(slots[2].buyQty) || 2,
+                rewardCategory: slots[2].rewardCategory || 'Shake',
+                freeQty: Number(slots[2].freeQty) || 1,
                 active: slots[2].enabled !== false,
                 enabled: slots[2].enabled !== false
             };
@@ -8434,19 +8447,44 @@
         }
         window.onBannerRewardPizzaSizeChange = onBannerRewardPizzaSizeChange;
 
-        function onBannerBogoDealTypeChange(val) {
-            if (!adminDailyBannersList[2]) return;
-            adminDailyBannersList[2].dealType = val || 'category_bogo';
+        function renderBogoCategoryOptions(selectedCat = 'Momos') {
+            const availableCategories = ['Momos', 'Burger', 'Pasta', 'Chinese', 'Noodles', 'Sandwich', 'Wrap', 'Shake', 'Cold Drinks', 'Mojito', 'Desserts', 'Salad', 'Spring Rolls'];
+            return availableCategories.map(cat => {
+                const isSel = cat.toLowerCase() === String(selectedCat || '').toLowerCase();
+                return `<option value="${cat}" ${isSel ? 'selected' : ''}>${cat}</option>`;
+            }).join('');
         }
-        window.onBannerBogoDealTypeChange = onBannerBogoDealTypeChange;
+        window.renderBogoCategoryOptions = renderBogoCategoryOptions;
 
-        function onBannerBogoCategoryChange(val) {
+        function onBannerBogoBuyCategoryChange(val) {
             if (!adminDailyBannersList[2]) return;
-            const cleanVal = val || 'Pizza';
-            adminDailyBannersList[2].targetCategory = cleanVal;
-            adminDailyBannersList[2].bogoCategory = cleanVal;
+            const clean = (val && val.toLowerCase() !== 'pizza') ? val : 'Momos';
+            adminDailyBannersList[2].buyCategory = clean;
         }
-        window.onBannerBogoCategoryChange = onBannerBogoCategoryChange;
+        window.onBannerBogoBuyCategoryChange = onBannerBogoBuyCategoryChange;
+
+        function onBannerBogoBuyQtyChange(val) {
+            if (!adminDailyBannersList[2]) return;
+            let num = parseInt(val, 10);
+            if (isNaN(num) || num < 1) num = 2;
+            adminDailyBannersList[2].buyQty = num;
+        }
+        window.onBannerBogoBuyQtyChange = onBannerBogoBuyQtyChange;
+
+        function onBannerBogoRewardCategoryChange(val) {
+            if (!adminDailyBannersList[2]) return;
+            const clean = (val && val.toLowerCase() !== 'pizza') ? val : 'Shake';
+            adminDailyBannersList[2].rewardCategory = clean;
+        }
+        window.onBannerBogoRewardCategoryChange = onBannerBogoRewardCategoryChange;
+
+        function onBannerBogoFreeQtyChange(val) {
+            if (!adminDailyBannersList[2]) return;
+            let num = parseInt(val, 10);
+            if (isNaN(num) || num < 1) num = 1;
+            adminDailyBannersList[2].freeQty = num;
+        }
+        window.onBannerBogoFreeQtyChange = onBannerBogoFreeQtyChange;
 
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
@@ -8565,32 +8603,46 @@
 
                 let slot3ExtraHtml = '';
                 if (isSlot3) {
-                    const dealTypeVal = banner.dealType || 'category_bogo';
-                    const targetCatVal = banner.targetCategory || banner.bogoCategory || 'Pizza';
+                    const buyCatVal = banner.buyCategory || 'Momos';
+                    const buyQtyVal = banner.buyQty || 2;
+                    const rewardCatVal = banner.rewardCategory || 'Shake';
+                    const freeQtyVal = banner.freeQty || 1;
                     slot3ExtraHtml = `
                         <div class="banner-bogo-config-card" style="margin-top: 10px; padding: 12px 14px; background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.4); border-radius: 12px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                                 <span style="font-size: 0.85rem; font-weight: 700; color: #10b981; display: flex; align-items: center; gap: 6px;">
-                                    <i class="fa-solid fa-tag"></i> Tap-to-Activate BOGO / Category Deal
+                                    <i class="fa-solid fa-gift"></i> 2-Step BOGO Combo Deal (Slot #3)
                                 </span>
-                                <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">Exclusive to Banner Slot 3</span>
+                                <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">In-Modal Combo Flow (Pizza Excluded)</span>
                             </div>
-                            <div style="display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center;">
+                            <div style="display: grid; grid-template-columns: 1fr 90px 1fr 90px; gap: 10px; align-items: center;">
                                 <div>
-                                    <label for="banner-bogo-deal-type" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
-                                        Deal Type:
+                                    <label for="banner-bogo-buy-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Buy Category:
                                     </label>
-                                    <select id="banner-bogo-deal-type" class="search-input" onchange="onBannerBogoDealTypeChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
-                                        <option value="category_bogo" ${dealTypeVal === 'category_bogo' ? 'selected' : ''}>Category BOGO / Reward</option>
+                                    <select id="banner-bogo-buy-category" class="search-input" onchange="onBannerBogoBuyCategoryChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        ${renderBogoCategoryOptions(buyCatVal)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label for="banner-bogo-target-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
-                                        Target Category:
+                                    <label for="banner-bogo-buy-qty" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Buy Qty (X):
                                     </label>
-                                    <select id="banner-bogo-target-category" class="search-input" onchange="onBannerBogoCategoryChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
-                                        ${renderRewardCategoryOptions(targetCatVal)}
+                                    <input type="number" id="banner-bogo-buy-qty" class="search-input" min="1" max="10" value="${buyQtyVal}" onchange="onBannerBogoBuyQtyChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                </div>
+                                <div>
+                                    <label for="banner-bogo-reward-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Free Category:
+                                    </label>
+                                    <select id="banner-bogo-reward-category" class="search-input" onchange="onBannerBogoRewardCategoryChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        ${renderBogoCategoryOptions(rewardCatVal)}
                                     </select>
+                                </div>
+                                <div>
+                                    <label for="banner-bogo-free-qty" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
+                                        Free Qty (Y):
+                                    </label>
+                                    <input type="number" id="banner-bogo-free-qty" class="search-input" min="1" max="10" value="${freeQtyVal}" onchange="onBannerBogoFreeQtyChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
                                 </div>
                             </div>
                         </div>

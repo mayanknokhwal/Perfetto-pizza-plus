@@ -113,9 +113,10 @@ async function handleBannersRequest(req, res) {
             const slot3 = (banners && banners[2]) ? {
                 imageUrl: banners[2].url,
                 url: banners[2].url,
-                dealType: banners[2].dealType || 'category_bogo',
-                targetCategory: banners[2].targetCategory || banners[2].bogoCategory || 'Pizza',
-                bogoCategory: banners[2].bogoCategory || banners[2].targetCategory || 'Pizza',
+                buyCategory: banners[2].buyCategory || 'Momos',
+                buyQty: Number(banners[2].buyQty) || 2,
+                rewardCategory: banners[2].rewardCategory || 'Shake',
+                freeQty: Number(banners[2].freeQty) || 1,
                 active: banners[2].enabled !== false,
                 enabled: banners[2].enabled !== false
             } : null;

@@ -88,7 +88,7 @@
             </div>
         </header>
 
-        <!-- STICKY PROMO OFFERS TRACKER STACK (Banner Slots 2 & 3) -->
+        <!-- STICKY PROMO OFFERS TRACKER STACK (Banner Slot 2) -->
         <div class="offers-tracker-stack" id="offers-tracker-stack">
             <!-- TAP-CONDITIONAL PERSISTENT SPEND HUNGER BAR (Banner Slot 2 Free Gift Engine) -->
             <div class="spend-hunger-bar-wrapper" id="spend-hunger-bar-wrapper" style="display: none;">
@@ -106,25 +106,6 @@
                 </div>
                 <div class="spend-hunger-track">
                     <div class="spend-hunger-fill" id="spend-hunger-fill" style="width: 0%;"></div>
-                </div>
-            </div>
-
-            <!-- TAP-CONDITIONAL PERSISTENT BOGO TRACKER BAR (Banner Slot 3 BOGO Engine) -->
-            <div class="spend-hunger-bar-wrapper bogo-tracker-bar-wrapper" id="bogo-tracker-bar-wrapper" style="display: none;">
-                <div class="spend-hunger-inner">
-                    <div class="spend-hunger-left">
-                        <span class="spend-hunger-icon" id="bogo-tracker-icon">🎁</span>
-                        <div class="spend-hunger-text-group">
-                            <span class="spend-hunger-title" id="bogo-tracker-title">BOGO OFFER ACTIVE</span>
-                            <span class="spend-hunger-deficit" id="bogo-tracker-deficit">Add items to unlock your FREE reward!</span>
-                        </div>
-                    </div>
-                    <div class="spend-hunger-right" id="bogo-tracker-right">
-                        <!-- Dynamically populated via JS: badge or Claim/Change button -->
-                    </div>
-                </div>
-                <div class="spend-hunger-track">
-                    <div class="spend-hunger-fill" id="bogo-tracker-fill" style="width: 0%;"></div>
                 </div>
             </div>
         </div>
@@ -898,51 +879,107 @@
             </div>
         </div>
 
-        <!-- BANNER SLOT 3 FREE BOGO REWARD SELECTION MODAL -->
-        <div class="checkout-modal-overlay free-gift-modal-overlay bogo-reward-modal-overlay" id="bogo-reward-modal" aria-hidden="true" style="display: none;">
-            <div class="checkout-modal-card free-gift-modal-card" role="dialog" aria-labelledby="bogo-reward-modal-title">
+        <!-- BANNER SLOT 3: 2-STEP BOGO COMBO DEAL MODAL -->
+        <div class="checkout-modal-overlay free-gift-modal-overlay bogo-combo-modal-overlay" id="bogo-combo-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card free-gift-modal-card bogo-combo-modal-card" role="dialog" aria-labelledby="bogo-combo-modal-title">
                 <!-- MODAL HEADER -->
-                <div class="checkout-modal-header free-gift-modal-header">
-                    <div class="free-gift-badge-pill" id="bogo-reward-badge-pill" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                        <i class="fa-solid fa-gift"></i> <span id="bogo-reward-badge-text">Free BOGO Reward</span>
+                <div class="checkout-modal-header free-gift-modal-header bogo-combo-modal-header">
+                    <div class="bogo-header-top-row">
+                        <div class="free-gift-badge-pill" id="bogo-combo-badge-pill" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <i class="fa-solid fa-gift"></i> <span id="bogo-combo-badge-text">BOGO Combo Deal</span>
+                        </div>
+                        <button type="button" class="checkout-modal-close-btn" onclick="closeBogoComboModal()" aria-label="Close BOGO Modal">
+                            &times;
+                        </button>
                     </div>
-                    <button type="button" class="checkout-modal-close-btn" onclick="closeBogoRewardModal()" aria-label="Close Free BOGO Modal">
-                        &times;
-                    </button>
+                    
+                    <!-- STEP PROGRESS INDICATOR TABS -->
+                    <div class="bogo-step-tabs-row">
+                        <div class="bogo-step-tab active" id="bogo-tab-step1" onclick="goToBogoStep(1)">
+                            <span class="bogo-step-num">1</span>
+                            <span class="bogo-step-label">Select Paid Items</span>
+                        </div>
+                        <div class="bogo-step-arrow"><i class="fa-solid fa-chevron-right"></i></div>
+                        <div class="bogo-step-tab" id="bogo-tab-step2" onclick="goToBogoStep(2)">
+                            <span class="bogo-step-num">2</span>
+                            <span class="bogo-step-label">Choose Free Reward</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- MODAL BODY -->
-                <div class="checkout-modal-body free-gift-modal-body">
-                    <h3 class="section-title-bold" id="bogo-reward-modal-title" style="margin-bottom: 4px;">Choose Your Free Reward</h3>
-                    <p class="free-gift-subheading" id="bogo-reward-modal-subtitle">BOGO deal unlocked! Select any 1 item below as your free reward.</p>
+                <div class="checkout-modal-body free-gift-modal-body bogo-combo-modal-body">
+                    
+                    <!-- STEP 1: QUALIFYING PAID ITEMS SELECTION -->
+                    <div class="bogo-step-pane" id="bogo-step1-pane">
+                        <div class="bogo-step-header-box">
+                            <h3 class="section-title-bold" id="bogo-step1-title">Please select your 2 Momos</h3>
+                            <div class="bogo-step-counter-line">
+                                <span class="bogo-step-desc">Pick qualifying items (Standard original prices apply; discounts not applicable for BOGO):</span>
+                                <span class="bogo-counter-chip" id="bogo-step1-counter-chip">Selected: <strong id="bogo-step1-count-val">0</strong> / <span id="bogo-step1-target-val">2</span></span>
+                            </div>
+                        </div>
 
-                    <!-- Items Grid -->
-                    <div class="free-gift-items-grid" id="bogo-reward-items-grid">
-                        <!-- Populated dynamically via JS -->
-                    </div>
-
-                    <!-- Add-ons Section (Billed at 100% full rate - Add-on Protection) -->
-                    <div class="free-gift-addons-box" id="bogo-reward-addons-box" style="display: none;">
-                        <span class="free-gift-addons-label">Add-ons:</span>
-                        <div class="free-gift-addon-chips" id="bogo-reward-addon-chips">
+                        <!-- Step 1 Items Grid -->
+                        <div class="bogo-combo-items-grid" id="bogo-step1-items-grid">
                             <!-- Populated dynamically via JS -->
                         </div>
+
+                        <!-- Step 1 Footer -->
+                        <div class="bogo-step-footer">
+                            <div class="bogo-step-subtotal-box">
+                                <span class="bogo-subtotal-label">Paid Subtotal:</span>
+                                <span class="bogo-subtotal-val" id="bogo-step1-subtotal">₹0</span>
+                            </div>
+                            <button type="button" class="btn-confirm-free-gift btn-bogo-next" id="btn-bogo-step1-next" onclick="goToBogoStep(2)" disabled>
+                                Next: Choose Free Reward <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Pricing & Confirmation Footer -->
-                    <div class="free-gift-pricing-card">
-                        <div class="spotlight-deal-price-col">
-                            <span class="spotlight-price-label">Reward Total:</span>
-                            <div class="spotlight-deal-price-display">
-                                <span class="spotlight-strike-price" id="bogo-reward-strike-price">₹0</span>
-                                <span class="spotlight-final-price" id="bogo-reward-final-price" style="color: #10b981;">FREE</span>
+                    <!-- STEP 2: FREE REWARD ITEM SELECTION -->
+                    <div class="bogo-step-pane" id="bogo-step2-pane" style="display: none;">
+                        <div class="bogo-step-header-box">
+                            <h3 class="section-title-bold" id="bogo-step2-title">Choose your 1 FREE Shake</h3>
+                            <div class="bogo-step-counter-line">
+                                <span class="bogo-step-desc">Pick your free reward item (Base price is 100% FREE):</span>
+                                <span class="bogo-counter-chip" id="bogo-step2-counter-chip">Selected: <strong id="bogo-step2-count-val">0</strong> / <span id="bogo-step2-target-val">1</span></span>
                             </div>
-                            <span class="spotlight-savings-tag" id="bogo-reward-breakdown-tag">Base Price: ₹0 (FREE)</span>
                         </div>
-                        <button type="button" class="btn-confirm-free-gift" id="btn-confirm-bogo-reward" onclick="confirmClaimBogoReward()">
-                            <i class="fa-solid fa-gift"></i> Claim Free Reward
-                        </button>
+
+                        <!-- Step 2 Items Grid -->
+                        <div class="bogo-combo-items-grid" id="bogo-step2-items-grid">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+
+                        <!-- Step 2 Add-ons Section (Billed at 100% full rate - Add-on Protection) -->
+                        <div class="free-gift-addons-box" id="bogo-step2-addons-box" style="display: none; margin-top: 10px;">
+                            <span class="free-gift-addons-label">Add-ons for Reward:</span>
+                            <div class="free-gift-addon-chips" id="bogo-step2-addon-chips">
+                                <!-- Populated dynamically via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Step 2 Footer & Confirmation -->
+                        <div class="free-gift-pricing-card" style="margin-top: 14px;">
+                            <div class="spotlight-deal-price-col">
+                                <span class="spotlight-price-label">Combo Total:</span>
+                                <div class="spotlight-deal-price-display">
+                                    <span class="spotlight-final-price" id="bogo-step2-total-price" style="color: #10b981;">₹0</span>
+                                </div>
+                                <span class="spotlight-savings-tag" id="bogo-step2-breakdown-tag">Base Reward: ₹0 (FREE)</span>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <button type="button" class="btn-dialog-cancel" onclick="goToBogoStep(1)" style="padding: 10px 14px; border-radius: 12px; font-weight: 700; height: 46px; font-size: 0.85rem;">
+                                    <i class="fa-solid fa-arrow-left"></i> Back
+                                </button>
+                                <button type="button" class="btn-confirm-free-gift" id="btn-confirm-bogo-combo" onclick="confirmClaimBogoCombo()" disabled>
+                                    <i class="fa-solid fa-gift"></i> Claim & Add to Cart
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
                 </div>
             </div>
         </div>
