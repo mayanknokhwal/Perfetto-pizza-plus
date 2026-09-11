@@ -243,6 +243,7 @@ function listenToFirestoreStaffOrders() {
         // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
         mergeLiveOrdersIntoStaff(liveOrders);
         sweepAutoExpiredOrders();
+        startStaffAutoExpireInterval();
     }
 
     try {
@@ -470,6 +471,14 @@ async function sweepAutoExpiredOrders() {
         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
     } catch (e) { }
     renderOrders();
+}
+
+function startStaffAutoExpireInterval() {
+    if (!staffAutoExpireInterval) {
+        staffAutoExpireInterval = setInterval(() => {
+            sweepAutoExpiredOrders();
+        }, 60000);
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -1759,6 +1768,8 @@ async function fetchOrdersFromBackend(force = false) {
         const data = await response.json();
         if (data && data.success && Array.isArray(data.orders)) {
             mergeLiveOrdersIntoStaff(data.orders);
+            sweepAutoExpiredOrders();
+            startStaffAutoExpireInterval();
         }
     } catch (err) {
         console.error('Staff orders sync error:', err);
@@ -2324,6 +2335,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial fetch of settings & check initial auth state
     fetchStaffSettingsFromBackend();
     checkStaffAuthSession();
+    startStaffAutoExpireInterval();
 
     // Dedicated Sound Toggle ALWAYS resets to OFF state on page reload/refresh
     isStaffSoundEnabled = false;

@@ -142,6 +142,15 @@ async function autoRejectExpiredOrderBackend(order) {
     }
 
     order.updatedAt = new Date().toISOString();
+    
+    // Update in-memory orders store
+    if (Array.isArray(global.__perfettoOrdersList)) {
+        const memIdx = global.__perfettoOrdersList.findIndex(o => String(o.orderId || o.id) === String(orderId));
+        if (memIdx >= 0) {
+            global.__perfettoOrdersList[memIdx] = { ...global.__perfettoOrdersList[memIdx], ...order };
+        }
+    }
+
     try {
         await setFirestoreDoc('orders', orderId, order);
     } catch (e) {
@@ -166,6 +175,7 @@ async function sweepExpiredOrdersBackend(ordersList) {
 async function fetchOrdersFromFirestore(forceFresh = false) {
     const now = Date.now();
     if (!forceFresh && global.__perfettoOrdersList && global.__perfettoOrdersList.length > 0 && (now - (global.__lastOrdersFetchTime || 0) < 60000)) {
+        await sweepExpiredOrdersBackend(global.__perfettoOrdersList);
         return global.__perfettoOrdersList.filter(isValidOrder);
     }
 
@@ -218,13 +228,22 @@ async function fetchOrdersFromFirestore(forceFresh = false) {
 
 async function handleOrdersRequest(req, res) {
     try {
-        // 0. Action: Trigger automated midnight cleanup routine
+        // 0. Action: Trigger automated midnight cleanup routine or manual sweeper
         if (req.query?.action === 'midnight_cleanup' || req.body?.action === 'midnight_cleanup') {
             const cleanupResult = await cleanupCompletedOrdersMidnight();
             return res.status(200).json({
                 success: true,
                 message: 'Midnight completed orders cleanup executed successfully',
                 result: cleanupResult,
+            });
+        }
+        if (req.query?.action === 'expire_sweep' || req.body?.action === 'expire_sweep') {
+            const allOrders = await fetchOrdersFromFirestore(true);
+            await sweepExpiredOrdersBackend(allOrders);
+            return res.status(200).json({
+                success: true,
+                message: '3-hour order expiration sweep executed successfully',
+                ordersCount: allOrders.length
             });
         }
 
@@ -249,11 +268,19 @@ async function handleOrdersRequest(req, res) {
             }
 
             if (effectiveOrderId) {
-                const singleDoc = await getFirestoreDoc('orders', String(effectiveOrderId));
+                let singleDoc = await getFirestoreDoc('orders', String(effectiveOrderId));
                 if (singleDoc) {
+                    if (isOrderThreeHoursExpired(singleDoc)) {
+                        await autoRejectExpiredOrderBackend(singleDoc);
+                    }
                     filtered = [singleDoc];
                 } else {
                     filtered = filtered.filter(o => String(o.orderId || o.id) === String(effectiveOrderId));
+                    for (const o of filtered) {
+                        if (isOrderThreeHoursExpired(o)) {
+                            await autoRejectExpiredOrderBackend(o);
+                        }
+                    }
                 }
             } else {
                 if (phone) {

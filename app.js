@@ -10300,7 +10300,7 @@ function isOrderThreeHoursExpired(order) {
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
 
     let createdMs = 0;
-    const raw = order.createdAt || order.created_at || order.timestamp || order.date;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
     if (raw) {
         if (typeof raw === 'number') {
             createdMs = raw < 1e11 ? raw * 1000 : raw;
@@ -10492,6 +10492,15 @@ async function autoRejectExpiredCustomerOrder(order) {
                     customerPhone: customerPhone
                 })
             });
+        }
+    } catch (e) { }
+
+    try {
+        if (typeof renderOrderHistoryDetails === 'function') {
+            renderOrderHistoryDetails();
+        }
+        if (typeof updateProfileTotalsUI === 'function') {
+            updateProfileTotalsUI();
         }
     } catch (e) { }
 }
