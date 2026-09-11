@@ -6620,11 +6620,7 @@
 
                 // 4. Atomically persist 4 Daily Banner Slots directly in Save All Changes workflow
                 if (typeof saveAdminDailyBanners === 'function') {
-                    try {
-                        await saveAdminDailyBanners(adminDailyBannersList);
-                    } catch (bannerErr) {
-                        console.warn('Notice saving daily banners in saveAllChanges:', bannerErr);
-                    }
+                    await saveAdminDailyBanners(adminDailyBannersList);
                 }
 
                 // 5. Atomically persist Store Notice in Save All Changes workflow
@@ -8273,12 +8269,38 @@
                     let buyCat = (buyCatSelect && buyCatSelect.value) ? buyCatSelect.value : (current.buyCategory || 'Momos');
                     if (buyCat.toLowerCase() === 'pizza') buyCat = 'Momos';
                     let buyQty = buyQtyInput ? parseInt(buyQtyInput.value, 10) : (current.buyQty || 2);
-                    if (isNaN(buyQty) || buyQty < 1) buyQty = 2;
 
                     let rewardCat = (rewardCatSelect && rewardCatSelect.value) ? rewardCatSelect.value : (current.rewardCategory || 'Shake');
                     if (rewardCat.toLowerCase() === 'pizza') rewardCat = 'Shake';
                     let freeQty = freeQtyInput ? parseInt(freeQtyInput.value, 10) : (current.freeQty || 1);
-                    if (isNaN(freeQty) || freeQty < 1) freeQty = 1;
+
+                    // PRE-SAVE VALIDATION: Ensure quantities do not exceed available live item counts
+                    const maxBuyAvailable = getAdminCategoryAvailableItemCount(buyCat);
+                    const maxRewardAvailable = getAdminCategoryAvailableItemCount(rewardCat);
+
+                    if (isNaN(buyQty) || buyQty < 1 || buyQty > maxBuyAvailable) {
+                        const errMsg = `Slot #3 Buy Quantity (${buyQty || 0}) exceeds maximum available items (${maxBuyAvailable}) for category "${buyCat}".`;
+                        if (typeof showToast === 'function') {
+                            showToast(`⚠️ ${errMsg}`, 4000);
+                        }
+                        if (buyQtyInput) {
+                            buyQtyInput.value = Math.max(1, Math.min(buyQty || 1, maxBuyAvailable));
+                            buyQtyInput.focus();
+                        }
+                        throw new Error(errMsg);
+                    }
+
+                    if (isNaN(freeQty) || freeQty < 1 || freeQty > maxRewardAvailable) {
+                        const errMsg = `Slot #3 Free Quantity (${freeQty || 0}) exceeds maximum available items (${maxRewardAvailable}) for category "${rewardCat}".`;
+                        if (typeof showToast === 'function') {
+                            showToast(`⚠️ ${errMsg}`, 4000);
+                        }
+                        if (freeQtyInput) {
+                            freeQtyInput.value = Math.max(1, Math.min(freeQty || 1, maxRewardAvailable));
+                            freeQtyInput.focus();
+                        }
+                        throw new Error(errMsg);
+                    }
 
                     bannerItem.buyCategory = buyCat;
                     bannerItem.buyQty = buyQty;
@@ -8512,35 +8534,177 @@
         }
         window.renderBogoCategoryOptions = renderBogoCategoryOptions;
 
+        function getAdminCategoryAvailableItemCount(categoryKeyOrName) {
+            if (!categoryKeyOrName) return 1;
+            const items = (Array.isArray(menuItems) && menuItems.length > 0)
+                ? menuItems
+                : ((typeof DEFAULT_MENU_ITEMS !== 'undefined' && Array.isArray(DEFAULT_MENU_ITEMS)) ? DEFAULT_MENU_ITEMS : []);
+
+            const target = String(categoryKeyOrName).trim().toLowerCase();
+
+            const matchedItems = items.filter(item => {
+                if (!item || !item.name) return false;
+                if (item.available === false) return false; // Active items only
+                const itemCat = String(item.category || '').trim().toLowerCase();
+                if (itemCat === target) return true;
+                if ((itemCat === 'bread' || itemCat === 'bread & sides') && (target === 'bread' || target === 'bread & sides' || target === 'breads')) return true;
+                if ((itemCat === 'burger' || itemCat === 'burgers') && (target === 'burger' || target === 'burgers')) return true;
+                if ((itemCat === 'chinese food' || itemCat === 'chinese') && (target === 'chinese' || target === 'chinese food')) return true;
+                if ((itemCat === 'colo drinks' || itemCat === 'cold drinks') && (target === 'colo drinks' || target === 'cold drinks' || target === 'drinks')) return true;
+                if ((itemCat === 'shake' || itemCat === 'shakes') && (target === 'shake' || target === 'shakes')) return true;
+                if ((itemCat === 'hot cold coffee' || itemCat === 'hot & cold coffee') && (target === 'hot cold coffee' || target === 'hot & cold coffee' || target === 'coffee')) return true;
+                return false;
+            });
+
+            return Math.max(1, matchedItems.length);
+        }
+        window.getAdminCategoryAvailableItemCount = getAdminCategoryAvailableItemCount;
+
+        function updateBogoBuyQtyConstraint() {
+            if (!adminDailyBannersList[2]) return;
+            const buyCat = adminDailyBannersList[2].buyCategory || 'Momos';
+            const maxAvailable = getAdminCategoryAvailableItemCount(buyCat);
+            const buyQtyInput = document.getElementById('banner-bogo-buy-qty');
+            const hintEl = document.getElementById('banner-bogo-buy-qty-hint');
+
+            if (buyQtyInput) {
+                buyQtyInput.max = maxAvailable;
+                let currentVal = parseInt(buyQtyInput.value, 10);
+                if (isNaN(currentVal) || currentVal < 1) {
+                    buyQtyInput.value = 1;
+                    adminDailyBannersList[2].buyQty = 1;
+                } else if (currentVal > maxAvailable) {
+                    buyQtyInput.value = maxAvailable;
+                    adminDailyBannersList[2].buyQty = maxAvailable;
+                    if (typeof showToast === 'function') {
+                        showToast(`Buy quantity clamped to maximum ${maxAvailable} available items for ${buyCat}`, 2200);
+                    }
+                }
+            }
+            if (hintEl) {
+                hintEl.textContent = `Max available: ${maxAvailable} item${maxAvailable === 1 ? '' : 's'}`;
+            }
+        }
+        window.updateBogoBuyQtyConstraint = updateBogoBuyQtyConstraint;
+
         function onBannerBogoBuyCategoryChange(val) {
             if (!adminDailyBannersList[2]) return;
             const clean = (val && val.toLowerCase() !== 'pizza') ? val : 'Momos';
             adminDailyBannersList[2].buyCategory = clean;
+            updateBogoBuyQtyConstraint();
         }
         window.onBannerBogoBuyCategoryChange = onBannerBogoBuyCategoryChange;
 
         function onBannerBogoBuyQtyChange(val) {
             if (!adminDailyBannersList[2]) return;
+            const buyCat = adminDailyBannersList[2].buyCategory || 'Momos';
+            const maxAvailable = getAdminCategoryAvailableItemCount(buyCat);
             let num = parseInt(val, 10);
-            if (isNaN(num) || num < 1) num = 2;
+            const buyQtyInput = document.getElementById('banner-bogo-buy-qty');
+
+            if (!isNaN(num) && num > maxAvailable) {
+                num = maxAvailable;
+                if (buyQtyInput) buyQtyInput.value = num;
+                if (typeof showToast === 'function') {
+                    showToast(`Max available items for category is ${maxAvailable}`, 2000);
+                }
+            }
+            if (isNaN(num) || num < 1) num = 1;
             adminDailyBannersList[2].buyQty = num;
         }
         window.onBannerBogoBuyQtyChange = onBannerBogoBuyQtyChange;
+
+        function onBannerBogoBuyQtyBlur(input) {
+            if (!input || !adminDailyBannersList[2]) return;
+            const buyCat = adminDailyBannersList[2].buyCategory || 'Momos';
+            const maxAvailable = getAdminCategoryAvailableItemCount(buyCat);
+            let num = parseInt(input.value, 10);
+            if (isNaN(num) || num < 1) {
+                num = 1;
+                input.value = 1;
+            } else if (num > maxAvailable) {
+                num = maxAvailable;
+                input.value = maxAvailable;
+                if (typeof showToast === 'function') {
+                    showToast(`Clamped to maximum available ${maxAvailable} items`, 2000);
+                }
+            }
+            adminDailyBannersList[2].buyQty = num;
+        }
+        window.onBannerBogoBuyQtyBlur = onBannerBogoBuyQtyBlur;
+
+        function updateBogoFreeQtyConstraint() {
+            if (!adminDailyBannersList[2]) return;
+            const rewardCat = adminDailyBannersList[2].rewardCategory || 'Shake';
+            const maxAvailable = getAdminCategoryAvailableItemCount(rewardCat);
+            const freeQtyInput = document.getElementById('banner-bogo-free-qty');
+            const hintEl = document.getElementById('banner-bogo-free-qty-hint');
+
+            if (freeQtyInput) {
+                freeQtyInput.max = maxAvailable;
+                let currentVal = parseInt(freeQtyInput.value, 10);
+                if (isNaN(currentVal) || currentVal < 1) {
+                    freeQtyInput.value = 1;
+                    adminDailyBannersList[2].freeQty = 1;
+                } else if (currentVal > maxAvailable) {
+                    freeQtyInput.value = maxAvailable;
+                    adminDailyBannersList[2].freeQty = maxAvailable;
+                    if (typeof showToast === 'function') {
+                        showToast(`Free quantity clamped to maximum ${maxAvailable} available items for ${rewardCat}`, 2200);
+                    }
+                }
+            }
+            if (hintEl) {
+                hintEl.textContent = `Max available: ${maxAvailable} item${maxAvailable === 1 ? '' : 's'}`;
+            }
+        }
+        window.updateBogoFreeQtyConstraint = updateBogoFreeQtyConstraint;
 
         function onBannerBogoRewardCategoryChange(val) {
             if (!adminDailyBannersList[2]) return;
             const clean = (val && val.toLowerCase() !== 'pizza') ? val : 'Shake';
             adminDailyBannersList[2].rewardCategory = clean;
+            updateBogoFreeQtyConstraint();
         }
         window.onBannerBogoRewardCategoryChange = onBannerBogoRewardCategoryChange;
 
         function onBannerBogoFreeQtyChange(val) {
             if (!adminDailyBannersList[2]) return;
+            const rewardCat = adminDailyBannersList[2].rewardCategory || 'Shake';
+            const maxAvailable = getAdminCategoryAvailableItemCount(rewardCat);
             let num = parseInt(val, 10);
+            const freeQtyInput = document.getElementById('banner-bogo-free-qty');
+
+            if (!isNaN(num) && num > maxAvailable) {
+                num = maxAvailable;
+                if (freeQtyInput) freeQtyInput.value = num;
+                if (typeof showToast === 'function') {
+                    showToast(`Max available items for category is ${maxAvailable}`, 2000);
+                }
+            }
             if (isNaN(num) || num < 1) num = 1;
             adminDailyBannersList[2].freeQty = num;
         }
         window.onBannerBogoFreeQtyChange = onBannerBogoFreeQtyChange;
+
+        function onBannerBogoFreeQtyBlur(input) {
+            if (!input || !adminDailyBannersList[2]) return;
+            const rewardCat = adminDailyBannersList[2].rewardCategory || 'Shake';
+            const maxAvailable = getAdminCategoryAvailableItemCount(rewardCat);
+            let num = parseInt(input.value, 10);
+            if (isNaN(num) || num < 1) {
+                num = 1;
+                input.value = 1;
+            } else if (num > maxAvailable) {
+                num = maxAvailable;
+                input.value = maxAvailable;
+                if (typeof showToast === 'function') {
+                    showToast(`Clamped to maximum available ${maxAvailable} items`, 2000);
+                }
+            }
+            adminDailyBannersList[2].freeQty = num;
+        }
+        window.onBannerBogoFreeQtyBlur = onBannerBogoFreeQtyBlur;
 
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
@@ -8660,9 +8824,17 @@
                 let slot3ExtraHtml = '';
                 if (isSlot3) {
                     const buyCatVal = banner.buyCategory || 'Momos';
-                    const buyQtyVal = banner.buyQty || 2;
+                    const buyCatMax = getAdminCategoryAvailableItemCount(buyCatVal);
+                    let buyQtyVal = banner.buyQty || 2;
+                    if (buyQtyVal > buyCatMax) buyQtyVal = buyCatMax;
+                    if (buyQtyVal < 1) buyQtyVal = 1;
+
                     const rewardCatVal = banner.rewardCategory || 'Shake';
-                    const freeQtyVal = banner.freeQty || 1;
+                    const rewardCatMax = getAdminCategoryAvailableItemCount(rewardCatVal);
+                    let freeQtyVal = banner.freeQty || 1;
+                    if (freeQtyVal > rewardCatMax) freeQtyVal = rewardCatMax;
+                    if (freeQtyVal < 1) freeQtyVal = 1;
+
                     slot3ExtraHtml = `
                         <div class="banner-bogo-config-card" style="margin-top: 10px; padding: 12px 14px; background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.4); border-radius: 12px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -8671,7 +8843,7 @@
                                 </span>
                                 <span style="font-size: 0.72rem; color: #94a3b8; font-style: italic;">In-Modal Combo Flow (Pizza Excluded)</span>
                             </div>
-                            <div style="display: grid; grid-template-columns: 1fr 90px 1fr 90px; gap: 10px; align-items: center;">
+                            <div style="display: grid; grid-template-columns: 1fr 115px 1fr 115px; gap: 10px; align-items: start;">
                                 <div>
                                     <label for="banner-bogo-buy-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Buy Category:
@@ -8684,7 +8856,17 @@
                                     <label for="banner-bogo-buy-qty" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Buy Qty (X):
                                     </label>
-                                    <input type="number" id="banner-bogo-buy-qty" class="search-input" min="1" max="10" value="${buyQtyVal}" onchange="onBannerBogoBuyQtyChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                    <input type="number" 
+                                           id="banner-bogo-buy-qty" 
+                                           class="search-input" 
+                                           min="1" 
+                                           max="${buyCatMax}" 
+                                           value="${buyQtyVal}" 
+                                           oninput="onBannerBogoBuyQtyChange(this.value)" 
+                                           onchange="onBannerBogoBuyQtyBlur(this)" 
+                                           onblur="onBannerBogoBuyQtyBlur(this)" 
+                                           style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                    <span id="banner-bogo-buy-qty-hint" style="font-size: 0.70rem; color: #10b981; display: block; margin-top: 4px; font-weight: 600;">Max available: ${buyCatMax} item${buyCatMax === 1 ? '' : 's'}</span>
                                 </div>
                                 <div>
                                     <label for="banner-bogo-reward-category" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
@@ -8698,7 +8880,17 @@
                                     <label for="banner-bogo-free-qty" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Free Qty (Y):
                                     </label>
-                                    <input type="number" id="banner-bogo-free-qty" class="search-input" min="1" max="10" value="${freeQtyVal}" onchange="onBannerBogoFreeQtyChange(this.value)" style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                    <input type="number" 
+                                           id="banner-bogo-free-qty" 
+                                           class="search-input" 
+                                           min="1" 
+                                           max="${rewardCatMax}" 
+                                           value="${freeQtyVal}" 
+                                           oninput="onBannerBogoFreeQtyChange(this.value)" 
+                                           onchange="onBannerBogoFreeQtyBlur(this)" 
+                                           onblur="onBannerBogoFreeQtyBlur(this)" 
+                                           style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                    <span id="banner-bogo-free-qty-hint" style="font-size: 0.70rem; color: #10b981; display: block; margin-top: 4px; font-weight: 600;">Max available: ${rewardCatMax} item${rewardCatMax === 1 ? '' : 's'}</span>
                                 </div>
                             </div>
                         </div>
