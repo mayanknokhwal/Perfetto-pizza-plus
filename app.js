@@ -10967,7 +10967,7 @@ function renderDynamicOfferSlider(customBanners = null) {
                 ` : ''}
                 ${hasSpendOffer ? `
                     <div class="banner-spend-tap-hint">
-                        <i class="fa-solid fa-gift"></i> Tap to Unlock: ${escapeHtml(spendRewardLabel)} on ₹${Number(banner.minSpend)}+
+                        <i class="fa-solid fa-gift"></i> Tap to Unlock
                     </div>
                 ` : ''}
             </div>
