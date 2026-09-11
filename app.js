@@ -5932,8 +5932,8 @@ function updateSpendHungerBar() {
         if (hungerIcon) hungerIcon.textContent = '🎁';
 
         if (currentGiftItem) {
-            // Free gift claimed and in cart
-            if (hungerTitle) hungerTitle.textContent = `Free ${rewardName} Unlocked`;
+            // Free gift claimed and in cart -> Hide dismiss button (guarded locked state)
+            if (hungerTitle) hungerTitle.textContent = `FREE ${rewardName.toUpperCase()} UNLOCKED`;
             if (hungerDeficit) hungerDeficit.textContent = `🎁 Free ${rewardName} in cart! (${currentGiftItem.name})`;
             if (hungerRight) {
                 hungerRight.innerHTML = `
@@ -5944,12 +5944,15 @@ function updateSpendHungerBar() {
             }
         } else {
             // Target reached, gift not yet claimed
-            if (hungerTitle) hungerTitle.textContent = `🎉 Target Reached! (₹${minSpend}+)`;
-            if (hungerDeficit) hungerDeficit.textContent = `Unlocked! Claim your FREE ${rewardName} now!`;
+            if (hungerTitle) hungerTitle.textContent = `🎉 TARGET REACHED! (₹${minSpend}+)`;
+            if (hungerDeficit) hungerDeficit.textContent = `Claim your FREE ${rewardName} now!`;
             if (hungerRight) {
                 hungerRight.innerHTML = `
                     <button type="button" class="btn-hunger-claim" onclick="openFreeGiftSelectionModal()">
                         <i class="fa-solid fa-gift"></i> Claim
+                    </button>
+                    <button type="button" class="btn-hunger-dismiss" onclick="cancelSpendOffer(event)" aria-label="Dismiss Offer" title="Dismiss Offer">
+                        <i class="fa-solid fa-xmark"></i>
                     </button>
                 `;
             }
@@ -5979,16 +5982,59 @@ function updateSpendHungerBar() {
             hungerFill.classList.remove('fill-complete');
         }
         if (hungerIcon) hungerIcon.textContent = '🎯';
-        if (hungerTitle) hungerTitle.textContent = `Free ${rewardName} Offer Active`;
-        if (hungerDeficit) hungerDeficit.textContent = `Add ₹${deficit} more to unlock your FREE ${rewardName}!`;
+        if (hungerTitle) hungerTitle.textContent = `FREE ${rewardName.toUpperCase()} OFFER ACTIVE`;
+        if (hungerDeficit) hungerDeficit.textContent = `Add ₹${deficit} more for FREE ${rewardName}!`;
         if (hungerRight) {
             hungerRight.innerHTML = `
                 <span class="spend-hunger-pill">${progressPct}%</span>
+                <button type="button" class="btn-hunger-dismiss" onclick="cancelSpendOffer(event)" aria-label="Dismiss Offer" title="Dismiss Offer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             `;
         }
     }
 }
 window.updateSpendHungerBar = updateSpendHungerBar;
+
+function cancelSpendOffer(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : { minSpend: 699, rewardType: 'category', rewardCategory: 'Shake' };
+    const minSpend = Number(slot2Config.minSpend) || 699;
+    const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
+        .filter(item => !item.isFreeGift)
+        .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
+    const currentGiftItem = (Array.isArray(cart) ? cart : []).find(item => item.isFreeGift);
+
+    // Guard condition: Cannot cancel if target reached and free gift is unlocked in cart
+    if (qualifyingPaidTotal >= minSpend && currentGiftItem) {
+        return;
+    }
+
+    try {
+        sessionStorage.removeItem('banner2SpendOfferActive');
+    } catch (e) { }
+
+    window.__hasAutoPoppedFreeGiftModal = false;
+
+    // Remove any pending free gift from cart
+    if (currentGiftItem) {
+        cart = cart.filter(item => !item.isFreeGift);
+        saveCartToStorage();
+    }
+
+    if (typeof updateSpendHungerBar === 'function') {
+        updateSpendHungerBar();
+    }
+    if (typeof updateCartUI === 'function') {
+        updateCartUI();
+    }
+
+    showToast('Offer dismissed');
+}
+window.cancelSpendOffer = cancelSpendOffer;
 
 function updateCartUI() {
     // 0. Update persistent spend hunger bar

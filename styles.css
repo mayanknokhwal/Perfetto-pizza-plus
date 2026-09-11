@@ -8970,9 +8970,10 @@ html[lang="hi"] .nav-label {
    ========================================================================== */
 
 /* Tap-Conditional Persistent Spend Hunger Bar */
+/* Tap-Conditional Persistent Spend Hunger Bar */
 .spend-hunger-bar-wrapper {
     position: sticky;
-    top: 64px;
+    top: 60px;
     z-index: 998;
     width: 100%;
     max-width: 500px;
@@ -8982,7 +8983,7 @@ html[lang="hi"] .nav-label {
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1.5px solid rgba(255, 107, 0, 0.35);
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
-    padding: 9px 16px 8px 16px;
+    padding: 7px 12px 6px 12px;
     box-sizing: border-box;
     animation: slideDownHunger 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     transition: all 0.3s ease;
@@ -9009,20 +9010,20 @@ html[lang="hi"] .nav-label {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 6px;
+    gap: 8px;
+    margin-bottom: 4px;
 }
 
 .spend-hunger-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
     flex: 1;
 }
 
 .spend-hunger-icon {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     line-height: 1;
     flex-shrink: 0;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
@@ -9036,29 +9037,32 @@ html[lang="hi"] .nav-label {
 }
 
 .spend-hunger-title {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
     color: var(--primary-orange, #ff6b00);
-    line-height: 1.2;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .spend-hunger-deficit {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 700;
     color: var(--text-main, #f8fafc);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.25;
+    line-height: 1.2;
 }
 
 .spend-hunger-right {
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    gap: 6px;
+    gap: 5px;
 }
 
 .spend-hunger-pill {
@@ -9066,8 +9070,8 @@ html[lang="hi"] .nav-label {
     color: var(--primary-orange, #ff6b00);
     border: 1px solid rgba(255, 107, 0, 0.35);
     border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 0.72rem;
+    padding: 2px 7px;
+    font-size: 0.70rem;
     font-weight: 800;
     white-space: nowrap;
 }
@@ -9083,8 +9087,8 @@ html[lang="hi"] .nav-label {
     color: #ffffff;
     border: none;
     border-radius: 999px;
-    padding: 5px 12px;
-    font-size: 0.76rem;
+    padding: 4px 10px;
+    font-size: 0.74rem;
     font-weight: 800;
     display: inline-flex;
     align-items: center;
@@ -9100,8 +9104,8 @@ html[lang="hi"] .nav-label {
     color: var(--text-main, #e2e8f0);
     border: 1px solid var(--border-color, rgba(255, 255, 255, 0.2));
     border-radius: 999px;
-    padding: 4px 10px;
-    font-size: 0.74rem;
+    padding: 3px 9px;
+    font-size: 0.72rem;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
@@ -9115,9 +9119,47 @@ html[lang="hi"] .nav-label {
     background: rgba(255, 255, 255, 0.22);
 }
 
+.btn-hunger-dismiss {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.70rem;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-hunger-dismiss:hover,
+.btn-hunger-dismiss:active {
+    background: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.6);
+    transform: scale(1.08);
+}
+
+[data-theme="light"] .btn-hunger-dismiss {
+    background: rgba(0, 0, 0, 0.06);
+    color: rgba(0, 0, 0, 0.55);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .btn-hunger-dismiss:hover,
+[data-theme="light"] .btn-hunger-dismiss:active {
+    background: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
 .spend-hunger-track {
     width: 100%;
-    height: 6px;
+    height: 5px;
     background: rgba(148, 163, 184, 0.22);
     border-radius: 999px;
     overflow: hidden;
