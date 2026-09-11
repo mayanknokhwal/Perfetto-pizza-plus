@@ -9476,7 +9476,7 @@ html[lang="hi"] .nav-label {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
-    margin-bottom: 14px;
+    margin-bottom: 24px;
 }
 
 .bogo-combo-item-card {
@@ -9504,19 +9504,41 @@ html[lang="hi"] .nav-label {
     box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
 }
 
+.bogo-card-selected-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #10b981;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+    z-index: 2;
+}
+
 .bogo-item-thumb-wrapper {
     width: 100%;
-    height: 84px;
-    border-radius: 10px;
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
     overflow: hidden;
     margin-bottom: 8px;
     background: rgba(0, 0, 0, 0.2);
+    position: relative;
 }
 
 .bogo-item-thumb {
     width: 100%;
     height: 100%;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
+    border-radius: 8px;
+    display: block;
 }
 
 .bogo-item-name {
@@ -9535,14 +9557,61 @@ html[lang="hi"] .nav-label {
     font-size: 0.84rem;
     font-weight: 800;
     color: var(--text-main);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .bogo-item-price-free {
     font-size: 0.84rem;
     font-weight: 800;
     color: #10b981;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+}
+
+/* Item-Level Add-ons Row on Step 1 item cards */
+.bogo-item-addons-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 2px 2px 2px;
+    margin-top: 4px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.bogo-item-addon-chip {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1.5px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+[data-theme="light"] .bogo-item-addon-chip {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.bogo-item-addon-chip:hover {
+    transform: scale(1.12);
+    border-color: #10b981;
+}
+
+.bogo-item-addon-chip.active {
+    background: rgba(16, 185, 129, 0.22);
+    border-color: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
+    transform: scale(1.08);
+}
+
+.bogo-item-addon-chip .addon-emoji {
+    font-size: 1rem;
+    line-height: 1;
 }
 
 .bogo-stepper-ctrl {
@@ -9589,13 +9658,27 @@ html[lang="hi"] .nav-label {
     color: var(--text-main);
 }
 
+/* Persistently Sticky Modal Footer Bars */
 .bogo-step-footer {
+    position: sticky;
+    bottom: -18px;
+    z-index: 30;
+    background: var(--bg-card);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding-top: 10px;
+    padding: 12px 16px;
+    margin: 10px -16px -18px -16px;
     border-top: 1px solid var(--border-color);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .bogo-step-footer {
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.1);
 }
 
 .bogo-step-subtotal-box {
@@ -9618,6 +9701,24 @@ html[lang="hi"] .nav-label {
     opacity: 0.45;
     cursor: not-allowed;
     filter: grayscale(0.6);
+}
+
+.bogo-step2-footer {
+    position: sticky;
+    bottom: -18px;
+    z-index: 30;
+    background: var(--bg-card);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    margin: 14px -16px -18px -16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .bogo-step2-footer {
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.1);
 }
 
 /* Cart Free Gift Unlock / Progress Banner */

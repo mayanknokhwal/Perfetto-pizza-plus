@@ -12039,7 +12039,7 @@ let currentBogoComboState = {
     config: null,
     buyItems: [],
     rewardItems: [],
-    selectedPaid: {}, // { [itemId]: count }
+    selectedPaid: {}, // { [itemId]: { cheese: false, spicy: false, mayo: false, iceCream: false } }
     selectedFreeItem: null,
     selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
 };
@@ -12130,7 +12130,14 @@ function openBogoComboModal() {
         paidInCart.forEach(pi => {
             const foundBuy = buyItems.find(bi => bi.name === pi.baseName || bi.name === pi.name);
             const key = foundBuy ? (foundBuy.id || foundBuy.name) : pi.name;
-            currentBogoComboState.selectedPaid[key] = (currentBogoComboState.selectedPaid[key] || 0) + (Number(pi.qty) || 1);
+            const itemAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
+            if (Array.isArray(pi.addons)) {
+                itemAddons.cheese = pi.addons.some(a => (a.name || '').toLowerCase().includes('cheese'));
+                itemAddons.mayo = pi.addons.some(a => (a.name || '').toLowerCase().includes('mayo'));
+                itemAddons.spicy = pi.addons.some(a => (a.name || '').toLowerCase().includes('spicy'));
+                itemAddons.iceCream = pi.addons.some(a => (a.name || '').toLowerCase().includes('ice cream'));
+            }
+            currentBogoComboState.selectedPaid[key] = itemAddons;
         });
         const foundFree = rewardItems.find(ri => ri.name === existingReward.baseName || ri.name === existingReward.name);
         if (foundFree) currentBogoComboState.selectedFreeItem = foundFree;
@@ -12164,7 +12171,7 @@ window.closeBogoComboModal = closeBogoComboModal;
 
 function getBogoSelectedPaidTotal() {
     const paid = currentBogoComboState.selectedPaid || {};
-    return Object.values(paid).reduce((sum, count) => sum + (Number(count) || 0), 0);
+    return Object.keys(paid).length;
 }
 
 function goToBogoStep(stepNum) {
@@ -12173,7 +12180,7 @@ function goToBogoStep(stepNum) {
 
     if (stepNum === 2) {
         if (totalPaid < config.buyQty) {
-            showToast(`Please select ${config.buyQty} ${config.buyCategory} to proceed (${totalPaid}/${config.buyQty} selected).`);
+            showToast(`Please select ${config.buyQty} distinct ${config.buyCategory} varieties to proceed (${totalPaid}/${config.buyQty} selected).`);
             return;
         }
     }
@@ -12233,6 +12240,23 @@ function renderBogoStep1UI() {
         }
     }
 
+    // Available addons for qualifying buy category
+    const catName = config.buyCategory || 'Momos';
+    let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
+    const availableAddons = [];
+    if (addonConfig.extraCheese !== undefined && Number(addonConfig.extraCheese) > 0) {
+        availableAddons.push({ key: 'cheese', emoji: '🧀', name: 'Extra Cheese', price: Number(addonConfig.extraCheese) });
+    }
+    if (addonConfig.extraMayo !== undefined && Number(addonConfig.extraMayo) > 0) {
+        availableAddons.push({ key: 'mayo', emoji: '🍥', name: 'Extra Mayo', price: Number(addonConfig.extraMayo) });
+    }
+    if (addonConfig.extraSpicy !== undefined) {
+        availableAddons.push({ key: 'spicy', emoji: '🌶️', name: 'Extra Spicy', price: Number(addonConfig.extraSpicy) });
+    }
+    if (addonConfig.withIceCream !== undefined && Number(addonConfig.withIceCream) > 0) {
+        availableAddons.push({ key: 'iceCream', emoji: '🍨', name: 'With Ice Cream', price: Number(addonConfig.withIceCream) });
+    }
+
     const grid = document.getElementById('bogo-step1-items-grid');
     if (grid) {
         if (!buyItems || buyItems.length === 0) {
@@ -12240,38 +12264,72 @@ function renderBogoStep1UI() {
         } else {
             grid.innerHTML = buyItems.map(item => {
                 const key = item.id || item.name;
-                const selectedQty = selectedPaid[key] || 0;
+                const isSelected = Boolean(selectedPaid[key]);
+                const itemAddons = selectedPaid[key] || {};
                 // Pricing rule: Regular/original base price (no discounts allowed)
                 const regularPrice = Number(item.originalPrice || item.price) || 0;
+
+                // Calculate item-level add-ons total
+                let itemAddonFee = 0;
+                if (isSelected) {
+                    availableAddons.forEach(a => {
+                        if (itemAddons[a.key]) {
+                            itemAddonFee += a.price;
+                        }
+                    });
+                }
+                const itemTotalDisplay = regularPrice + itemAddonFee;
+
                 const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
                 const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
 
                 return `
-                    <div class="bogo-combo-item-card ${selectedQty > 0 ? 'is-selected' : ''}" id="bogo-buy-item-${escapeHtml(key)}">
+                    <div class="bogo-combo-item-card ${isSelected ? 'is-selected' : ''}" 
+                         id="bogo-buy-item-${escapeHtml(key)}" 
+                         onclick="onToggleBogoStep1Item('${escapeHtml(key)}')">
+                        ${isSelected ? '<div class="bogo-card-selected-badge"><i class="fa-solid fa-check"></i></div>' : ''}
                         <div class="bogo-item-thumb-wrapper">
                             <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
                         </div>
                         <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
-                        <div class="bogo-item-price-clean">${formatPrice(regularPrice)}</div>
-                        <div class="bogo-stepper-ctrl">
-                            <button type="button" class="bogo-stepper-btn" onclick="onBogoStep1QtyChange('${escapeHtml(key)}', -1)" aria-label="Decrease quantity">-</button>
-                            <span class="bogo-stepper-val" id="bogo-stepper-val-${escapeHtml(key)}">${selectedQty}</span>
-                            <button type="button" class="bogo-stepper-btn" onclick="onBogoStep1QtyChange('${escapeHtml(key)}', 1)" aria-label="Increase quantity">+</button>
-                        </div>
+                        <div class="bogo-item-price-clean">${formatPrice(itemTotalDisplay)}</div>
+                        ${availableAddons.length > 0 ? `
+                            <div class="bogo-item-addons-row" onclick="event.stopPropagation()">
+                                ${availableAddons.map(a => {
+                                    const isAddonActive = isSelected && Boolean(itemAddons[a.key]);
+                                    return `
+                                        <button type="button" 
+                                                class="bogo-item-addon-chip ${isAddonActive ? 'active active-' + a.key : ''}" 
+                                                id="bogo-step1-addon-${escapeHtml(key)}-${a.key}"
+                                                title="${escapeHtml(a.name)} (+${formatPrice(a.price)})"
+                                                aria-label="${escapeHtml(a.name)}"
+                                                onclick="onToggleBogoStep1ItemAddon(event, '${escapeHtml(key)}', '${a.key}', '${escapeHtml(a.name)}')">
+                                            <span class="addon-emoji">${a.emoji}</span>
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('');
         }
     }
 
-    // Calculate Step 1 subtotal
+    // Calculate Step 1 subtotal (base price + individual item add-ons)
     let subtotal = 0;
-    for (const [key, count] of Object.entries(selectedPaid)) {
-        if (count > 0) {
-            const found = buyItems.find(i => (i.id === key || i.name === key));
-            const regPrice = found ? Number(found.originalPrice || found.price) || 0 : 0;
-            subtotal += regPrice * count;
+    for (const [key, itemAddons] of Object.entries(selectedPaid)) {
+        const found = buyItems.find(i => (i.id === key || i.name === key));
+        const regPrice = found ? Number(found.originalPrice || found.price) || 0 : 0;
+        let itemAddonSum = 0;
+        if (itemAddons) {
+            availableAddons.forEach(a => {
+                if (itemAddons[a.key]) {
+                    itemAddonSum += a.price;
+                }
+            });
         }
+        subtotal += (regPrice + itemAddonSum);
     }
 
     const subtotalEl = document.getElementById('bogo-step1-subtotal');
@@ -12285,28 +12343,51 @@ function renderBogoStep1UI() {
     }
 }
 
-function onBogoStep1QtyChange(key, delta) {
+function onToggleBogoStep1Item(key) {
     const { config } = currentBogoComboState;
     if (!config) return;
 
-    const currentCount = currentBogoComboState.selectedPaid[key] || 0;
-    const currentTotal = getBogoSelectedPaidTotal();
-
-    if (delta > 0 && currentTotal >= config.buyQty) {
-        showToast(`You can only select ${config.buyQty} ${config.buyCategory}.`);
-        return;
-    }
-
-    const nextCount = Math.max(0, currentCount + delta);
-    if (nextCount === 0) {
+    if (currentBogoComboState.selectedPaid[key]) {
+        // Deselect item
         delete currentBogoComboState.selectedPaid[key];
     } else {
-        currentBogoComboState.selectedPaid[key] = nextCount;
+        const currentCount = getBogoSelectedPaidTotal();
+        if (currentCount >= config.buyQty) {
+            showToast(`Please select only ${config.buyQty} distinct varieties. Deselect one to choose another.`);
+            return;
+        }
+        currentBogoComboState.selectedPaid[key] = { cheese: false, spicy: false, mayo: false, iceCream: false };
     }
 
     renderBogoStep1UI();
 }
-window.onBogoStep1QtyChange = onBogoStep1QtyChange;
+window.onToggleBogoStep1Item = onToggleBogoStep1Item;
+
+function onToggleBogoStep1ItemAddon(event, key, addonKey, addonName) {
+    if (event) event.stopPropagation();
+    const { config } = currentBogoComboState;
+    if (!config) return;
+
+    if (!currentBogoComboState.selectedPaid[key]) {
+        const currentCount = getBogoSelectedPaidTotal();
+        if (currentCount >= config.buyQty) {
+            showToast(`Please select only ${config.buyQty} distinct varieties.`);
+            return;
+        }
+        currentBogoComboState.selectedPaid[key] = { cheese: false, spicy: false, mayo: false, iceCream: false };
+    }
+
+    currentBogoComboState.selectedPaid[key][addonKey] = !currentBogoComboState.selectedPaid[key][addonKey];
+
+    const names = { cheese: 'Extra Cheese', mayo: 'Extra Mayo', spicy: 'Extra Spicy', iceCream: 'With Ice Cream' };
+    const toastLabel = addonName || names[addonKey] || addonKey;
+    if (typeof showToast === 'function') {
+        showToast(toastLabel, 1800);
+    }
+
+    renderBogoStep1UI();
+}
+window.onToggleBogoStep1ItemAddon = onToggleBogoStep1ItemAddon;
 
 function renderBogoStep2UI() {
     const { config, rewardItems, selectedPaid, buyItems, selectedFreeItem, selectedAddons } = currentBogoComboState;
@@ -12334,6 +12415,7 @@ function renderBogoStep2UI() {
 
                 return `
                     <div class="bogo-combo-item-card ${isSelected ? 'is-selected' : ''}" onclick="onSelectBogoStep2Item('${escapeHtml(item.id || item.name)}')">
+                        ${isSelected ? '<div class="bogo-card-selected-badge"><i class="fa-solid fa-check"></i></div>' : ''}
                         <div class="bogo-item-thumb-wrapper">
                             <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
                         </div>
@@ -12384,25 +12466,32 @@ function renderBogoStep2UI() {
         addonsBox.style.display = 'none';
     }
 
-    // Calculate Step 1 subtotal
+    // Calculate Step 1 subtotal (base price + individual item add-ons)
+    const buyCat = config.buyCategory || 'Momos';
+    let buyAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(buyCat) : {};
     let step1Subtotal = 0;
-    for (const [key, count] of Object.entries(selectedPaid)) {
-        if (count > 0) {
-            const found = buyItems.find(i => (i.id === key || i.name === key));
-            const regPrice = found ? Number(found.originalPrice || found.price) || 0 : 0;
-            step1Subtotal += regPrice * count;
+    for (const [key, itemAddons] of Object.entries(selectedPaid)) {
+        const found = buyItems.find(i => (i.id === key || i.name === key));
+        const regPrice = found ? Number(found.originalPrice || found.price) || 0 : 0;
+        let itemAddonSum = 0;
+        if (itemAddons) {
+            if (itemAddons.cheese && buyAddonConfig.extraCheese !== undefined) itemAddonSum += Number(buyAddonConfig.extraCheese);
+            if (itemAddons.mayo && buyAddonConfig.extraMayo !== undefined) itemAddonSum += Number(buyAddonConfig.extraMayo);
+            if (itemAddons.spicy && buyAddonConfig.extraSpicy !== undefined) itemAddonSum += Number(buyAddonConfig.extraSpicy);
+            if (itemAddons.iceCream && buyAddonConfig.withIceCream !== undefined) itemAddonSum += Number(buyAddonConfig.withIceCream);
         }
+        step1Subtotal += (regPrice + itemAddonSum);
     }
 
-    // Calculate Add-on fees
-    let addonsPrice = 0;
+    // Calculate Step 2 Add-on fees
+    let rewardAddonsPrice = 0;
     availableAddons.forEach(a => {
         if (selectedAddons[a.key]) {
-            addonsPrice += a.price;
+            rewardAddonsPrice += a.price;
         }
     });
 
-    const totalComboPrice = step1Subtotal + addonsPrice;
+    const totalComboPrice = step1Subtotal + rewardAddonsPrice;
     const totalPriceEl = document.getElementById('bogo-step2-total-price');
     if (totalPriceEl) {
         totalPriceEl.textContent = formatPrice(totalComboPrice);
@@ -12410,8 +12499,8 @@ function renderBogoStep2UI() {
 
     const breakdownTagEl = document.getElementById('bogo-step2-breakdown-tag');
     if (breakdownTagEl) {
-        if (addonsPrice > 0) {
-            breakdownTagEl.textContent = `Base Reward: ₹0 (FREE) + ₹${addonsPrice} add-ons`;
+        if (rewardAddonsPrice > 0) {
+            breakdownTagEl.textContent = `Base Reward: ₹0 (FREE) + ₹${rewardAddonsPrice} reward add-ons`;
         } else {
             breakdownTagEl.textContent = `Base Reward: ₹0 (100% FREE)`;
         }
@@ -12452,7 +12541,7 @@ function confirmClaimBogoCombo() {
 
     const totalPaid = getBogoSelectedPaidTotal();
     if (totalPaid < config.buyQty) {
-        showToast(`Please select ${config.buyQty} qualifying items.`);
+        showToast(`Please select ${config.buyQty} distinct qualifying items.`);
         goToBogoStep(1);
         return;
     }
@@ -12464,66 +12553,94 @@ function confirmClaimBogoCombo() {
     const bogoComboId = 'bogo_combo_' + Date.now();
 
     // 1. Calculate Add-ons for Reward Item
-    const catName = config.rewardCategory || selectedFreeItem.category || 'Shake';
-    let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
-    const addonsList = [];
-    let addonsPrice = 0;
-    if (selectedAddons.cheese && addonConfig.extraCheese !== undefined) {
-        addonsList.push({ name: 'Extra Cheese', price: Number(addonConfig.extraCheese) });
-        addonsPrice += Number(addonConfig.extraCheese);
+    const rewardCatName = config.rewardCategory || selectedFreeItem.category || 'Shake';
+    let rewardAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(rewardCatName) : {};
+    const rewardAddonsList = [];
+    let rewardAddonsPrice = 0;
+    if (selectedAddons.cheese && rewardAddonConfig.extraCheese !== undefined) {
+        rewardAddonsList.push({ name: 'Extra Cheese', price: Number(rewardAddonConfig.extraCheese) });
+        rewardAddonsPrice += Number(rewardAddonConfig.extraCheese);
     }
-    if (selectedAddons.mayo && addonConfig.extraMayo !== undefined) {
-        addonsList.push({ name: 'Extra Mayo', price: Number(addonConfig.extraMayo) });
-        addonsPrice += Number(addonConfig.extraMayo);
+    if (selectedAddons.mayo && rewardAddonConfig.extraMayo !== undefined) {
+        rewardAddonsList.push({ name: 'Extra Mayo', price: Number(rewardAddonConfig.extraMayo) });
+        rewardAddonsPrice += Number(rewardAddonConfig.extraMayo);
     }
-    if (selectedAddons.spicy && addonConfig.extraSpicy !== undefined) {
-        addonsList.push({ name: 'Extra Spicy', price: Number(addonConfig.extraSpicy) });
-        addonsPrice += Number(addonConfig.extraSpicy);
+    if (selectedAddons.spicy && rewardAddonConfig.extraSpicy !== undefined) {
+        rewardAddonsList.push({ name: 'Extra Spicy', price: Number(rewardAddonConfig.extraSpicy) });
+        rewardAddonsPrice += Number(rewardAddonConfig.extraSpicy);
     }
-    if (selectedAddons.iceCream && addonConfig.withIceCream !== undefined) {
-        addonsList.push({ name: 'With Ice Cream', price: Number(addonConfig.withIceCream) });
-        addonsPrice += Number(addonConfig.withIceCream);
+    if (selectedAddons.iceCream && rewardAddonConfig.withIceCream !== undefined) {
+        rewardAddonsList.push({ name: 'With Ice Cream', price: Number(rewardAddonConfig.withIceCream) });
+        rewardAddonsPrice += Number(rewardAddonConfig.withIceCream);
     }
 
-    const addonNames = addonsList.map(a => a.name);
-    const fullRewardName = addonNames.length > 0 ? `${selectedFreeItem.name} (+${addonNames.join(', ')})` : selectedFreeItem.name;
+    const rewardAddonNames = rewardAddonsList.map(a => a.name);
+    const fullRewardName = rewardAddonNames.length > 0 ? `${selectedFreeItem.name} (+${rewardAddonNames.join(', ')})` : selectedFreeItem.name;
     const origRewardPrice = Number(selectedFreeItem.originalPrice || selectedFreeItem.price) || 0;
 
     // 2. Limit to Once Per Order: Remove any existing BOGO combo items in cart
     cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isBogoCombo && !item.isBogoReward && !item.isBogoQualifying);
 
-    // 3. Add Qualifying Paid Items (standard/original base prices, no discounts)
-    for (const [key, qty] of Object.entries(selectedPaid)) {
-        if (qty > 0) {
-            const itemObj = buyItems.find(i => (i.id === key || i.name === key)) || { name: key, price: 0 };
-            const regularPrice = Number(itemObj.originalPrice || itemObj.price) || 0;
-            cart.push({
-                name: itemObj.name,
-                baseName: itemObj.name,
-                price: regularPrice,
-                originalPrice: regularPrice,
-                qty: Number(qty),
-                img: itemObj.img || DEFAULT_FALLBACK_BANNER_LOGO,
-                category: itemObj.category || config.buyCategory,
-                isBogoCombo: true,
-                isBogoQualifying: true,
-                bogoComboId: bogoComboId,
-                bogoBuyQtyRequired: config.buyQty
-            });
+    // 3. Add Qualifying Paid Items (unique varieties at standard/original base prices + item add-ons)
+    const buyCatName = config.buyCategory || 'Momos';
+    let buyAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(buyCatName) : {};
+
+    for (const [key, itemAddons] of Object.entries(selectedPaid)) {
+        const itemObj = buyItems.find(i => (i.id === key || i.name === key)) || { name: key, price: 0 };
+        const regularPrice = Number(itemObj.originalPrice || itemObj.price) || 0;
+
+        const itemAddonsList = [];
+        let itemAddonPrice = 0;
+        if (itemAddons) {
+            if (itemAddons.cheese && buyAddonConfig.extraCheese !== undefined) {
+                itemAddonsList.push({ name: 'Extra Cheese', price: Number(buyAddonConfig.extraCheese) });
+                itemAddonPrice += Number(buyAddonConfig.extraCheese);
+            }
+            if (itemAddons.mayo && buyAddonConfig.extraMayo !== undefined) {
+                itemAddonsList.push({ name: 'Extra Mayo', price: Number(buyAddonConfig.extraMayo) });
+                itemAddonPrice += Number(buyAddonConfig.extraMayo);
+            }
+            if (itemAddons.spicy && buyAddonConfig.extraSpicy !== undefined) {
+                itemAddonsList.push({ name: 'Extra Spicy', price: Number(buyAddonConfig.extraSpicy) });
+                itemAddonPrice += Number(buyAddonConfig.extraSpicy);
+            }
+            if (itemAddons.iceCream && buyAddonConfig.withIceCream !== undefined) {
+                itemAddonsList.push({ name: 'With Ice Cream', price: Number(buyAddonConfig.withIceCream) });
+                itemAddonPrice += Number(buyAddonConfig.withIceCream);
+            }
         }
+
+        const itemAddonNames = itemAddonsList.map(a => a.name);
+        const fullItemName = itemAddonNames.length > 0 ? `${itemObj.name} (+${itemAddonNames.join(', ')})` : itemObj.name;
+        const finalPrice = regularPrice + itemAddonPrice;
+
+        cart.push({
+            name: fullItemName,
+            baseName: itemObj.name,
+            price: finalPrice,
+            originalPrice: finalPrice,
+            qty: 1, // Distinct variety: 1 unit!
+            img: itemObj.img || DEFAULT_FALLBACK_BANNER_LOGO,
+            category: itemObj.category || config.buyCategory,
+            addons: itemAddonsList,
+            isBogoCombo: true,
+            isBogoQualifying: true,
+            bogoComboId: bogoComboId,
+            bogoBuyQtyRequired: config.buyQty
+        });
     }
 
     // 4. Add Free Reward Item (base price ₹0, add-ons charged at full rate)
     cart.push({
         name: fullRewardName,
         baseName: selectedFreeItem.name,
-        price: addonsPrice,
+        price: rewardAddonsPrice,
         basePrice: 0,
-        originalPrice: origRewardPrice + addonsPrice,
+        originalPrice: origRewardPrice + rewardAddonsPrice,
         qty: 1,
         img: selectedFreeItem.img || DEFAULT_FALLBACK_BANNER_LOGO,
         category: selectedFreeItem.category || config.rewardCategory,
-        addons: addonsList,
+        addons: rewardAddonsList,
         isBogoCombo: true,
         isBogoReward: true,
         bogoComboId: bogoComboId,
