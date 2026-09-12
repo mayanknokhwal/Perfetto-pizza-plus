@@ -217,6 +217,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Site Settings Configuration (Combo config, offers, store parameters)
+    match /site_settings/{doc=**} {
+      allow read, write: if true;
+    }
+
     // =========================================================================
     // 7. REWARDS & STORE CONFIGURATION (STANDALONE PATHS)
     // - Public: Unrestricted reading for customer clients to retrieve live reward slabs and configs.

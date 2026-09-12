@@ -488,19 +488,171 @@ async function handleSettingsVersionRequest(req, res) {
     }
 }
 
+const DEFAULT_COMBO_CONFIG = {
+    allow_combo_with_daily_offer: false,
+    combos: {
+        solo: [
+            {
+                id: "solo_deal_1",
+                name: "Solo Meal 1",
+                combo_price: 149,
+                original_price: 219,
+                is_active: true,
+                items: [
+                    { category_id: "Burger", item_id: "bgr-veggie", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Bread", item_id: "brd-garlic", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 1 }
+                ]
+            },
+            {
+                id: "solo_deal_2",
+                name: "Solo Meal 2",
+                combo_price: 169,
+                original_price: 247,
+                is_active: true,
+                items: [
+                    { category_id: "Burger", item_id: "bgr-cheesy", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Bread", item_id: "brd-cheese-corn", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 1 }
+                ]
+            },
+            {
+                id: "solo_deal_3",
+                name: "Solo Meal 3",
+                combo_price: 199,
+                original_price: 318,
+                is_active: true,
+                items: [
+                    { category_id: "Pizza", item_id: "cheese-n-corn", size: "S", variant_id: "S", quantity: 1 },
+                    { category_id: "Bread", item_id: "brd-garlic", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 1 }
+                ]
+            }
+        ],
+        duo: [
+            {
+                id: "duo_deal_1",
+                name: "Duo Meal 1",
+                combo_price: 299,
+                original_price: 437,
+                is_active: true,
+                items: [
+                    { category_id: "Pizza", item_id: "cheese-n-corn", size: "M", variant_id: "M", quantity: 1 },
+                    { category_id: "Bread", item_id: "brd-stuffed", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 2 }
+                ]
+            },
+            {
+                id: "duo_deal_2",
+                name: "Duo Meal 2",
+                combo_price: 329,
+                original_price: 467,
+                is_active: true,
+                items: [
+                    { category_id: "Burger", item_id: "bgr-crispy-paneer", size: "", variant_id: "", quantity: 2 },
+                    { category_id: "Pasta", item_id: "pst-creamy", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 2 }
+                ]
+            },
+            {
+                id: "duo_deal_3",
+                name: "Duo Meal 3",
+                combo_price: 359,
+                original_price: 527,
+                is_active: true,
+                items: [
+                    { category_id: "Pizza", item_id: "farm-house", size: "M", variant_id: "M", quantity: 1 },
+                    { category_id: "Bread", item_id: "brd-perfetto-stuffed", size: "", variant_id: "", quantity: 1 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 2 }
+                ]
+            }
+        ],
+        squad: [
+            {
+                id: "squad_deal_1",
+                name: "Squad Meal 1",
+                combo_price: 499,
+                original_price: 737,
+                is_active: true,
+                items: [
+                    { category_id: "Pizza", item_id: "farm-house", size: "L", variant_id: "L", quantity: 1 },
+                    { category_id: "Burger", item_id: "bgr-veggie", size: "", variant_id: "", quantity: 2 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 3 }
+                ]
+            },
+            {
+                id: "squad_deal_2",
+                name: "Squad Meal 2",
+                combo_price: 549,
+                original_price: 846,
+                is_active: true,
+                items: [
+                    { category_id: "Pizza", item_id: "deluxe-pizza", size: "L", variant_id: "L", quantity: 1 },
+                    { category_id: "Pasta", item_id: "pst-baked-mix", size: "", variant_id: "", quantity: 2 },
+                    { category_id: "Bread", item_id: "brd-perfetto-stuffed", size: "", variant_id: "", quantity: 1 }
+                ]
+            },
+            {
+                id: "squad_deal_3",
+                name: "Squad Meal 3",
+                combo_price: 599,
+                original_price: 907,
+                is_active: true,
+                items: [
+                    { category_id: "Pizza", item_id: "tandoori-pizza", size: "L", variant_id: "L", quantity: 1 },
+                    { category_id: "Momos", item_id: "mmo-paneer-steam", size: "", variant_id: "", quantity: 2 },
+                    { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 4 }
+                ]
+            }
+        ]
+    }
+};
+
+async function handleCombosRequest(req, res) {
+    try {
+        if (req.method === 'GET') {
+            let doc = await getFirestoreDoc('site_settings', 'combo_config') || await getFirestoreDoc('settings', 'combo_config');
+            if (!doc) doc = DEFAULT_COMBO_CONFIG;
+            return res.status(200).json({ success: true, config: doc });
+        }
+        if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+            let body = req.body;
+            if (typeof body === 'string') {
+                try { body = JSON.parse(body); } catch (e) { body = {}; }
+            }
+            const payload = {
+                allow_combo_with_daily_offer: Boolean(body.allow_combo_with_daily_offer),
+                combos: body.combos || DEFAULT_COMBO_CONFIG.combos,
+                key: 'combo_config',
+                updatedAt: new Date().toISOString()
+            };
+            await setFirestoreDoc('site_settings', 'combo_config', payload);
+            try { await setFirestoreDoc('settings', 'combo_config', payload); } catch (e) {}
+            await bumpSettingsVersion();
+            return res.status(200).json({ success: true, config: payload });
+        }
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    } catch (err) {
+        console.error('Error in handleCombosRequest:', err);
+        return res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
+    }
+}
+
 module.exports = {
     handleSettingsRequest,
     handleBannersRequest,
     handleWalletConfigRequest,
     handleStoreNoticeRequest,
     handleSettingsVersionRequest,
+    handleCombosRequest,
     bumpSettingsVersion,
     getSettingsVersion,
     DEFAULT_SETTINGS,
     DEFAULT_DAILY_BANNERS,
     DEFAULT_FALLBACK_BANNER_LOGO,
     DEFAULT_WALLET_CONFIG,
-    DEFAULT_STORE_NOTICE
+    DEFAULT_STORE_NOTICE,
+    DEFAULT_COMBO_CONFIG
 };
 
 

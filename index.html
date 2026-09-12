@@ -1007,6 +1007,52 @@
             </div>
         </div>
 
+        <!-- VALUE COMBOS SELECTION MODAL / BOTTOM SHEET -->
+        <div class="checkout-modal-overlay value-combos-modal-overlay" id="value-combos-modal" aria-hidden="true" style="display: none;" onclick="handleValueCombosBackdropClick(event)">
+            <div class="checkout-modal-card value-combos-modal-card" id="value-combos-modal-card" role="dialog" aria-labelledby="value-combos-modal-title" onclick="event.stopPropagation()">
+                <!-- MODAL HEADER -->
+                <div class="value-combos-modal-header">
+                    <div class="value-combos-header-left">
+                        <div class="value-combos-tier-badge" id="value-combos-modal-badge">
+                            <i class="fa-solid fa-fire"></i> <span id="value-combos-modal-badge-text">SOLO</span>
+                        </div>
+                        <div class="value-combos-header-text">
+                            <h3 class="value-combos-modal-title" id="value-combos-modal-title">Solo Combos</h3>
+                            <p class="value-combos-modal-subtitle" id="value-combos-modal-subtitle">Handcrafted meal combinations at special combo prices</p>
+                        </div>
+                    </div>
+                    <button type="button" class="value-combos-close-btn" id="btn-close-value-combos-modal" onclick="closeValueCombosModal()" aria-label="Close Value Combos">
+                        &times;
+                    </button>
+                </div>
+
+                <!-- MODAL BODY -->
+                <div class="value-combos-modal-body" id="value-combos-modal-body">
+                    <div class="value-combos-deals-container" id="value-combos-deals-container">
+                        <!-- Dynamic deal cards or loading skeleton injected via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OFFER CONFLICT & STACKING MODAL -->
+        <div class="checkout-modal-overlay offer-conflict-overlay" id="offer-conflict-modal" aria-hidden="true" style="display: none;" onclick="handleOfferConflictBackdropClick(event)">
+            <div class="checkout-modal-card offer-conflict-card" role="dialog" aria-labelledby="offer-conflict-title" onclick="event.stopPropagation()">
+                <div class="offer-conflict-icon-wrap" id="offer-conflict-icon-wrap">
+                    <i class="fa-solid fa-arrows-rotate" id="offer-conflict-icon"></i>
+                </div>
+                <div class="offer-conflict-header">
+                    <h3 class="offer-conflict-title" id="offer-conflict-title">Switch to Combo Deal?</h3>
+                    <p class="offer-conflict-message" id="offer-conflict-message">
+                        You can only claim either a Daily Offer or a Value Combo per order. Would you like to remove your Daily Offer and add this Combo?
+                    </p>
+                </div>
+                <div class="offer-conflict-actions-box" id="offer-conflict-actions">
+                    <!-- Dynamic action buttons injected via JS -->
+                </div>
+            </div>
+        </div>
+
         <!-- CUSTOM CLEAR ORDER HISTORY CONFIRMATION MODAL -->
         <div class="checkout-modal-overlay" id="clear-history-confirm-modal" aria-hidden="true" style="display: none;">
             <div class="checkout-modal-card confirm-dialog-card" role="dialog" aria-labelledby="clear-history-dialog-title">

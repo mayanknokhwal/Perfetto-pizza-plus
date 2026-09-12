@@ -15,7 +15,7 @@ const cors = require('cors');
 const { handleMenuRequest } = require('../controllers/menuController');
 const { handleOrdersRequest } = require('../controllers/ordersController');
 const { handleUsersRequest } = require('../controllers/usersController');
-const { handleSettingsRequest, handleBannersRequest, handleWalletConfigRequest, handleStoreNoticeRequest, handleSettingsVersionRequest } = require('../controllers/settingsController');
+const { handleSettingsRequest, handleBannersRequest, handleWalletConfigRequest, handleStoreNoticeRequest, handleSettingsVersionRequest, handleCombosRequest } = require('../controllers/settingsController');
 const { handleAdminAuthRequest } = require('../controllers/adminAuthController');
 const { handlePaymentRequest } = require('../controllers/paymentController');
 const { handleOtpRequest } = require('../controllers/otpController');
@@ -149,6 +149,9 @@ app.all(['/api/wallet/config', '/api/wallet', '/wallet/config', '/wallet', '/api
 // 4.3 Store Notice API: /api/notice, /notice, /api/settings/notice, /settings/notice, /api/store-notice
 app.all(['/api/notice', '/notice', '/api/settings/notice', '/settings/notice', '/api/store-notice'], (req, res) => handleStoreNoticeRequest(req, res));
 
+// 4.35 Value Combos Config API: /api/combos, /combos, /api/settings/combos
+app.all(['/api/combos', '/combos', '/api/settings/combos', '/api/combo-config'], (req, res) => handleCombosRequest(req, res));
+
 // 4.4 Settings Version & Cache Invalidation API: /api/settings/version, /api/version, /api/app-config
 app.all(['/api/settings/version', '/api/version', '/api/app-config', '/settings/version', '/version'], (req, res) => handleSettingsVersionRequest(req, res));
 
@@ -175,6 +178,9 @@ app.use((req, res, next) => {
     }
     if (rawUrl.includes('/banners')) {
         return handleBannersRequest(req, res);
+    }
+    if (rawUrl.includes('/combos')) {
+        return handleCombosRequest(req, res);
     }
     if (rawUrl.includes('/wallet')) {
         return handleWalletConfigRequest(req, res);

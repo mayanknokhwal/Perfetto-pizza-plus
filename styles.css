@@ -10418,4 +10418,843 @@ html[lang="hi"] .nav-label {
         font-size: 0.85rem;
     }
 }
+
+/* --------------------------------------------------------------------------
+   VALUE COMBOS CUSTOMER MODAL / BOTTOM-SHEET & DYNAMIC DEAL CARDS
+   -------------------------------------------------------------------------- */
+.value-combos-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.value-combos-modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.value-combos-modal-card {
+    width: 100%;
+    max-width: 540px;
+    max-height: 88vh;
+    background: var(--bg-surface, #151c2c);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 24px 24px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.value-combos-modal-overlay.active .value-combos-modal-card {
+    transform: translateY(0);
+}
+
+@media (min-width: 641px) {
+    .value-combos-modal-overlay {
+        align-items: center;
+        padding: 20px;
+    }
+    .value-combos-modal-card {
+        border-radius: 24px;
+        max-height: 85vh;
+        transform: scale(0.92) translateY(20px);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    }
+    .value-combos-modal-overlay.active .value-combos-modal-card {
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Modal Header */
+.value-combos-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 14px;
+    background: var(--bg-surface, #151c2c);
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.value-combos-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.value-combos-tier-badge {
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+.value-combos-tier-badge.tier-solo {
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+}
+
+.value-combos-tier-badge.tier-duo {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.value-combos-tier-badge.tier-squad {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.value-combos-header-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.value-combos-modal-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    font-family: var(--font-heading);
+    color: var(--text-main, #ffffff);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.value-combos-modal-subtitle {
+    font-size: 0.78rem;
+    color: var(--text-muted, #94a3b8);
+    margin: 2px 0 0 0;
+    line-height: 1.3;
+}
+
+.value-combos-close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    font-size: 1.4rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-main, #ffffff);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.value-combos-close-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    transform: scale(1.06);
+}
+
+.value-combos-close-btn:active {
+    transform: scale(0.92);
+}
+
+/* Modal Body */
+.value-combos-modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex: 1;
+}
+
+.value-combos-deals-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Individual Deal Card */
+.combo-deal-card {
+    background: var(--bg-card, #0f172a);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.combo-deal-card:hover {
+    border-color: rgba(255, 107, 0, 0.45);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+
+.combo-deal-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.combo-deal-name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.combo-deal-pill {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.68rem;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.combo-deal-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main, #ffffff);
+    margin: 0;
+}
+
+/* 3-Item Breakdown List */
+.combo-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: 14px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.combo-item-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.combo-item-thumb-wrapper {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0b0f19;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.combo-item-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.combo-item-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.combo-item-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-main, #ffffff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.combo-item-meta {
+    font-size: 0.74rem;
+    color: var(--text-muted, #94a3b8);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 1px;
+}
+
+.combo-item-cat-badge {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+}
+
+.combo-item-qty-badge {
+    background: rgba(255, 107, 0, 0.15);
+    color: var(--primary-orange, #ff6b00);
+    border: 1px solid rgba(255, 107, 0, 0.3);
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Price & Savings Action Row */
+.combo-deal-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 4px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.combo-deal-price-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.combo-deal-price-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.combo-selling-price {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #10b981;
+    font-family: var(--font-heading);
+}
+
+.combo-original-price {
+    font-size: 0.88rem;
+    color: var(--text-muted, #94a3b8);
+    text-decoration: line-through;
+}
+
+.combo-savings-pill {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.28);
+    padding: 2px 7px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+}
+
+.btn-select-combo {
+    background: linear-gradient(135deg, #ff6b00 0%, #ea580c 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-select-combo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(234, 88, 12, 0.45);
+}
+
+.btn-select-combo:active {
+    transform: scale(0.95);
+}
+
+.btn-select-combo.btn-added {
+    background: #10b981;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+/* Skeleton Loading Shimmer */
+.combo-skeleton-card {
+    background: var(--bg-card, #0f172a);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border-radius: 18px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.combo-skeleton-line {
+    height: 14px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 75%);
+    background-size: 200% 100%;
+    animation: comboSkeletonShimmer 1.5s infinite;
+}
+
+.combo-skeleton-thumb {
+    width: 46px;
+    height: 46px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.04) 75%);
+    background-size: 200% 100%;
+    animation: comboSkeletonShimmer 1.5s infinite;
+}
+
+@keyframes comboSkeletonShimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Empty State */
+.combo-empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted, #94a3b8);
+}
+
+.combo-empty-state i {
+    font-size: 2.5rem;
+    opacity: 0.6;
+    margin-bottom: 4px;
+}
+
+.combo-empty-state h4 {
+    font-size: 1.1rem;
+    color: var(--text-main, #ffffff);
+    margin: 0;
+}
+
+.combo-empty-state p {
+    font-size: 0.85rem;
+    margin: 0;
+    max-width: 280px;
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] .value-combos-modal-card {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="light"] .value-combos-modal-header {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .value-combos-modal-title {
+    color: #0f172a;
+}
+
+[data-theme="light"] .value-combos-close-btn {
+    background: rgba(0, 0, 0, 0.06);
+    color: #0f172a;
+}
+
+[data-theme="light"] .combo-deal-card {
+    background: #f8fafc;
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .combo-deal-title {
+    color: #0f172a;
+}
+
+[data-theme="light"] .combo-items-list {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .combo-item-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .combo-item-thumb-wrapper {
+    background: #f1f5f9;
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .combo-item-cat-badge {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .combo-deal-pill {
+    background: rgba(0, 0, 0, 0.06);
+    color: #64748b;
+}
+
+[data-theme="light"] .combo-deal-footer-row {
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .combo-empty-state h4 {
+    color: #0f172a;
+}
+
+/* --------------------------------------------------------------------------
+   CART COMBO BUNDLE CARD & EXPANDABLE INCLUDED ITEMS
+   -------------------------------------------------------------------------- */
+.cart-item-card.cart-item-combo {
+    border-color: rgba(255, 107, 0, 0.35);
+    background: linear-gradient(180deg, rgba(255, 107, 0, 0.04) 0%, rgba(15, 23, 42, 0.4) 100%);
+    position: relative;
+}
+
+.cart-combo-badge {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #ff6b00;
+    background: rgba(255, 107, 0, 0.12);
+    border: 1px solid rgba(255, 107, 0, 0.3);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.cart-combo-badge.tier-solo {
+    color: #f97316;
+    border-color: rgba(249, 115, 22, 0.35);
+    background: rgba(249, 115, 22, 0.12);
+}
+
+.cart-combo-badge.tier-duo {
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.cart-combo-badge.tier-squad {
+    color: #10b981;
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.cart-combo-dropdown-toggle {
+    background: none;
+    border: none;
+    padding: 4px 0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-muted, #94a3b8);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s ease;
+    margin-top: 2px;
+}
+
+.cart-combo-dropdown-toggle:hover {
+    color: var(--primary-orange, #ff6b00);
+}
+
+.cart-combo-dropdown-toggle i {
+    font-size: 0.72rem;
+    transition: transform 0.2s ease;
+}
+
+.cart-combo-dropdown-toggle.open i {
+    transform: rotate(180deg);
+}
+
+.cart-combo-items-dropdown {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
+.cart-combo-items-dropdown.open {
+    display: flex;
+}
+
+.cart-combo-sub-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+}
+
+.cart-combo-sub-row:last-child {
+    border-bottom: none;
+}
+
+.cart-combo-sub-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.cart-combo-sub-thumb {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #0b0f19;
+    flex-shrink: 0;
+}
+
+.cart-combo-sub-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-main, #ffffff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cart-combo-sub-qty {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--primary-orange, #ff6b00);
+    background: rgba(255, 107, 0, 0.12);
+    padding: 1px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.btn-cart-remove-combo {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-cart-remove-combo:hover {
+    background: #ef4444;
+    color: #ffffff;
+    transform: scale(1.06);
+}
+
+.btn-cart-remove-combo:active {
+    transform: scale(0.92);
+}
+
+/* Light theme overrides for Cart Combo */
+[data-theme="light"] .cart-item-card.cart-item-combo {
+    background: linear-gradient(180deg, rgba(255, 107, 0, 0.05) 0%, #ffffff 100%);
+    border-color: rgba(255, 107, 0, 0.25);
+}
+
+[data-theme="light"] .cart-combo-items-dropdown {
+    background: #f8fafc;
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .cart-combo-sub-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .cart-combo-sub-row {
+    border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+/* --------------------------------------------------------------------------
+   OFFER CONFLICT & STACKING CONFIRMATION MODAL
+   -------------------------------------------------------------------------- */
+.offer-conflict-overlay {
+    z-index: 100005;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.offer-conflict-card {
+    max-width: 440px;
+    width: 92%;
+    border-radius: 24px;
+    background: var(--bg-surface, #1e293b);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    padding: 26px 22px 22px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    transform: scale(0.92) translateY(16px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.offer-conflict-overlay.active .offer-conflict-card {
+    transform: scale(1) translateY(0);
+}
+
+.offer-conflict-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(245, 158, 11, 0.14);
+    border: 2px solid rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+    font-size: 1.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.2);
+}
+
+.offer-conflict-icon-wrap.swap {
+    background: rgba(59, 130, 246, 0.14);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #3b82f6;
+    box-shadow: 0 0 24px rgba(59, 130, 246, 0.2);
+}
+
+.offer-conflict-icon-wrap.limit {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.2);
+}
+
+.offer-conflict-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.offer-conflict-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    font-family: var(--font-heading);
+    color: var(--text-main, #ffffff);
+    margin: 0;
+    line-height: 1.25;
+}
+
+.offer-conflict-message {
+    font-size: 0.9rem;
+    color: var(--text-muted, #94a3b8);
+    line-height: 1.45;
+    margin: 0;
+}
+
+.offer-conflict-actions-box {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.btn-conflict-action {
+    width: 100%;
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 0.92rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.btn-conflict-primary {
+    background: linear-gradient(135deg, #ff6b00 0%, #ea580c 100%);
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+}
+
+.btn-conflict-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(234, 88, 12, 0.45);
+}
+
+.btn-conflict-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-main, #ffffff);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.btn-conflict-secondary:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.btn-conflict-cancel {
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    padding: 10px 18px;
+    border: 1px solid transparent;
+}
+
+.btn-conflict-cancel:hover {
+    color: var(--text-main, #ffffff);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Light Theme overrides for Conflict Modal */
+[data-theme="light"] .offer-conflict-card {
+    background: #ffffff;
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .offer-conflict-title {
+    color: #0f172a;
+}
+
+[data-theme="light"] .btn-conflict-secondary {
+    background: #f1f5f9;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .btn-conflict-cancel {
+    color: #64748b;
+}
+
+
 

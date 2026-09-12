@@ -3135,6 +3135,506 @@
             box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
             background-color: rgba(239, 68, 68, 0.08) !important;
         }
+
+        /* --------------------------------------------------------------------------
+           VALUE COMBOS MANAGEMENT STYLES
+           -------------------------------------------------------------------------- */
+        .combos-dashboard-container {
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+            width: 100%;
+        }
+
+        .combo-master-card {
+            background-color: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-color);
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .combo-master-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .combo-master-title-box {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .combo-master-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: rgba(255, 107, 0, 0.15);
+            border: 1px solid rgba(255, 107, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: var(--primary-orange);
+            flex-shrink: 0;
+        }
+
+        .combo-master-heading {
+            font-family: var(--font-heading);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin: 0;
+        }
+
+        .combo-master-subheading {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin: 3px 0 0 0;
+        }
+
+        .btn-save-combos-master {
+            padding: 10px 22px;
+            font-size: 0.92rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .combo-stacking-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            gap: 16px;
+        }
+
+        .combo-stacking-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .combo-stacking-label-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .combo-stacking-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .combo-badge-tag {
+            font-size: 0.72rem;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .combo-badge-tag.badge-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+
+        .combo-badge-tag.badge-inactive {
+            background: rgba(148, 163, 184, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .combo-stacking-helper {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
+        .switch-toggle {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+            vertical-align: middle;
+            flex-shrink: 0;
+            margin: 0;
+        }
+
+        .switch-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* Tier Navigation Tabs */
+        .combo-tier-nav-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .combo-tier-nav-tabs {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 8px 10px;
+            overflow-x: auto;
+        }
+
+        .combo-tier-tab-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            font-family: var(--font-heading);
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .combo-tier-tab-btn:hover {
+            color: var(--text-main);
+            background: var(--bg-hover);
+        }
+
+        .combo-tier-tab-btn.active {
+            background: linear-gradient(135deg, rgba(255, 107, 0, 0.2), rgba(255, 107, 0, 0.08));
+            border-color: rgba(255, 107, 0, 0.4);
+            color: var(--primary-orange);
+            box-shadow: 0 2px 10px rgba(255, 107, 0, 0.15);
+        }
+
+        .combo-tier-count-pill {
+            font-size: 0.72rem;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: var(--text-subtle);
+        }
+
+        .combo-tier-tab-btn.active .combo-tier-count-pill {
+            background: rgba(255, 107, 0, 0.3);
+            color: #ffffff;
+        }
+
+        .combo-tier-notice {
+            font-size: 0.83rem;
+            color: var(--text-muted);
+            padding: 0 4px;
+        }
+
+        /* Deal Cards Grid */
+        .combo-deals-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .combo-deal-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 22px 26px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: var(--shadow-card);
+            transition: border-color 0.2s ease;
+        }
+
+        .combo-deal-card:hover {
+            border-color: rgba(255, 107, 0, 0.3);
+        }
+
+        .combo-deal-card.is-inactive {
+            opacity: 0.65;
+            border-style: dashed;
+        }
+
+        .deal-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .deal-card-badge-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .deal-num-badge {
+            background: rgba(255, 107, 0, 0.18);
+            border: 1px solid rgba(255, 107, 0, 0.35);
+            color: var(--primary-orange);
+            font-size: 0.78rem;
+            font-weight: 800;
+            padding: 5px 12px;
+            border-radius: 8px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .deal-name-input {
+            flex: 1;
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            font-weight: 700;
+            padding: 8px 14px;
+            transition: border-color 0.2s ease;
+        }
+
+        .deal-name-input:focus {
+            border-color: var(--primary-orange);
+            outline: none;
+        }
+
+        .deal-card-toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .deal-status-label {
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .deal-status-label.active {
+            color: #10b981;
+        }
+
+        .deal-status-label.inactive {
+            color: var(--text-muted);
+        }
+
+        /* 3 Item Slots */
+        .deal-slots-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .deal-slots-header {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .deal-slots-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .deal-slot-row {
+            display: grid;
+            grid-template-columns: 75px 1.2fr 1.6fr 1fr 85px 95px;
+            gap: 10px;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.45);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+        }
+
+        .deal-slot-tag {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: var(--text-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .deal-slot-select,
+        .deal-slot-qty {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            font-size: 0.86rem;
+            padding: 7px 10px;
+            width: 100%;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.2s ease;
+        }
+
+        .deal-slot-select:focus,
+        .deal-slot-qty:focus {
+            border-color: var(--primary-orange);
+        }
+
+        .deal-slot-line-price {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #10b981;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* Pricing Summary Box */
+        .deal-pricing-box {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 1.2fr;
+            gap: 16px;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            align-items: center;
+        }
+
+        .pricing-col {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .pricing-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .pricing-value-strike {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #94a3b8;
+            text-decoration: line-through;
+        }
+
+        .price-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .price-input-wrapper .currency-symbol {
+            position: absolute;
+            left: 10px;
+            font-weight: 800;
+            color: var(--primary-orange);
+            pointer-events: none;
+            font-size: 1rem;
+        }
+
+        .combo-price-input {
+            background: var(--bg-surface-elevated);
+            border: 1.5px solid rgba(255, 107, 0, 0.4);
+            border-radius: var(--radius-sm);
+            color: var(--text-main);
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            font-weight: 800;
+            padding: 6px 12px 6px 26px;
+            width: 100%;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+
+        .combo-price-input:focus {
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2);
+        }
+
+        .savings-pill {
+            display: inline-block;
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            padding: 6px 12px;
+            border-radius: 8px;
+            width: fit-content;
+        }
+
+        .deal-card-footer {
+            display: flex;
+            justify-content: flex-end;
+            padding-top: 6px;
+        }
+
+        .btn-save-single-deal {
+            background: rgba(255, 107, 0, 0.15);
+            border: 1px solid rgba(255, 107, 0, 0.35);
+            color: var(--primary-orange);
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 7px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-save-single-deal:hover {
+            background: var(--primary-orange);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(255, 107, 0, 0.3);
+        }
+
+        @media (max-width: 900px) {
+            .deal-slot-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            .deal-slot-tag {
+                grid-column: span 2;
+            }
+            .deal-slot-line-price {
+                grid-column: span 2;
+                text-align: left;
+            }
+            .deal-pricing-box {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+        }
     </style>
 </head>
 
@@ -3363,6 +3863,14 @@
                 <a class="nav-link active" id="nav-menu" onclick="switchTab('menu')">
                     <i class="fa-solid fa-utensils"></i>
                     <span>Menu Management</span>
+                </a>
+            </li>
+
+            <!-- VALUE COMBOS MANAGEMENT TAB -->
+            <li>
+                <a class="nav-link" id="nav-combos" onclick="switchTab('combos')">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>Value Combos</span>
                 </a>
             </li>
 
@@ -4476,7 +4984,78 @@
 
             </section>
 
+            <!-- TAB 3: VALUE COMBOS MANAGEMENT SCREEN -->
+            <section class="view-panel" id="panel-combos">
+                <div class="combos-dashboard-container">
+                    <!-- Top Master Card -->
+                    <div class="store-settings-card combo-master-card">
+                        <div class="combo-master-header">
+                            <div class="combo-master-title-box">
+                                <div class="combo-master-icon">
+                                    <i class="fa-solid fa-boxes-stacked"></i>
+                                </div>
+                                <div>
+                                    <h3 class="combo-master-heading">3-Tier Value Combos Manager</h3>
+                                    <p class="combo-master-subheading">Configure individual meal deals for Solo, Duo &amp; Squad tiers, and manage customer cart stacking policy.</p>
+                                </div>
+                            </div>
+                            <div class="combo-master-actions">
+                                <button type="button" class="btn-primary btn-save-combos-master" id="btn-save-all-combos" onclick="saveAdminComboConfig()">
+                                    <i class="fa-solid fa-floppy-disk"></i> <span id="btn-save-all-combos-text">Save Value Combos</span>
+                                </button>
+                            </div>
+                        </div>
 
+                        <!-- Stacking Policy Box -->
+                        <div class="combo-stacking-box">
+                            <div class="combo-stacking-info">
+                                <div class="combo-stacking-label-row">
+                                    <span class="combo-stacking-title">Allow Combo + Daily Offer Together</span>
+                                    <span class="combo-badge-tag badge-inactive" id="combo-stacking-badge">Disabled</span>
+                                </div>
+                                <p class="combo-stacking-helper">
+                                    When enabled, customers can add 1 Combo + up to 1 Daily Offer in the same cart.
+                                </p>
+                            </div>
+                            <div class="combo-stacking-control">
+                                <label class="switch-toggle" for="combo-stacking-toggle">
+                                    <input type="checkbox" id="combo-stacking-toggle" onchange="onComboStackingToggle(this.checked)">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tier Navigation Tabs -->
+                    <div class="combo-tier-nav-container">
+                        <div class="combo-tier-nav-tabs">
+                            <button type="button" class="combo-tier-tab-btn active" id="combo-tab-solo" onclick="switchComboTier('solo')">
+                                <i class="fa-solid fa-user"></i>
+                                <span>Solo Combos</span>
+                                <span class="combo-tier-count-pill" id="count-pill-solo">3 Deals</span>
+                            </button>
+                            <button type="button" class="combo-tier-tab-btn" id="combo-tab-duo" onclick="switchComboTier('duo')">
+                                <i class="fa-solid fa-user-group"></i>
+                                <span>Duo Combos</span>
+                                <span class="combo-tier-count-pill" id="count-pill-duo">3 Deals</span>
+                            </button>
+                            <button type="button" class="combo-tier-tab-btn" id="combo-tab-squad" onclick="switchComboTier('squad')">
+                                <i class="fa-solid fa-users"></i>
+                                <span>Squad Combos</span>
+                                <span class="combo-tier-count-pill" id="count-pill-squad">3 Deals</span>
+                            </button>
+                        </div>
+                        <div class="combo-tier-notice" id="combo-tier-notice">
+                            Managing <strong>Solo Meals</strong> — 3 distinct combo deals. Each tier maintains independent items and promotional pricing without auto-scaling.
+                        </div>
+                    </div>
+
+                    <!-- Deals Grid Container -->
+                    <div class="combo-deals-grid" id="combo-deals-container">
+                        <div class="table-loading-spinner" style="margin: 40px auto;"></div>
+                    </div>
+                </div>
+            </section>
 
             <!-- TAB 4: TEAM & ROLE MANAGEMENT SCREEN -->
             <section class="view-panel" id="panel-team">
@@ -7002,6 +7581,10 @@
                 }, 200);
             }
             if (tabName === 'menu') title.textContent = 'Menu Management';
+            if (tabName === 'combos') {
+                title.textContent = 'Value Combos Management';
+                loadAdminComboConfig();
+            }
             if (tabName === 'team') {
                 title.textContent = 'Team & Role Management';
                 loadTeamManagementData();
@@ -9234,6 +9817,758 @@
             renderAdminBannersUI();
         }
         window.loadAdminDailyBanners = loadAdminDailyBanners;
+
+        // --------------------------------------------------------------------------
+        // VALUE COMBOS MANAGEMENT CONTROLLER (3-TIER MEALS & STACKING POLICY)
+        // --------------------------------------------------------------------------
+        const DEFAULT_COMBO_CONFIG = {
+            allow_combo_with_daily_offer: false,
+            combos: {
+                solo: [
+                    {
+                        id: "solo_deal_1",
+                        name: "Solo Meal 1",
+                        combo_price: 149,
+                        original_price: 219,
+                        is_active: true,
+                        items: [
+                            { category_id: "Burger", item_id: "bgr-veggie", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Bread", item_id: "brd-garlic", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 1 }
+                        ]
+                    },
+                    {
+                        id: "solo_deal_2",
+                        name: "Solo Meal 2",
+                        combo_price: 169,
+                        original_price: 247,
+                        is_active: true,
+                        items: [
+                            { category_id: "Burger", item_id: "bgr-cheesy", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Bread", item_id: "brd-cheese-corn", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 1 }
+                        ]
+                    },
+                    {
+                        id: "solo_deal_3",
+                        name: "Solo Meal 3",
+                        combo_price: 199,
+                        original_price: 318,
+                        is_active: true,
+                        items: [
+                            { category_id: "Pizza", item_id: "cheese-n-corn", size: "S", variant_id: "S", quantity: 1 },
+                            { category_id: "Bread", item_id: "brd-garlic", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 1 }
+                        ]
+                    }
+                ],
+                duo: [
+                    {
+                        id: "duo_deal_1",
+                        name: "Duo Meal 1",
+                        combo_price: 299,
+                        original_price: 437,
+                        is_active: true,
+                        items: [
+                            { category_id: "Pizza", item_id: "cheese-n-corn", size: "M", variant_id: "M", quantity: 1 },
+                            { category_id: "Bread", item_id: "brd-stuffed", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 2 }
+                        ]
+                    },
+                    {
+                        id: "duo_deal_2",
+                        name: "Duo Meal 2",
+                        combo_price: 329,
+                        original_price: 467,
+                        is_active: true,
+                        items: [
+                            { category_id: "Burger", item_id: "bgr-crispy-paneer", size: "", variant_id: "", quantity: 2 },
+                            { category_id: "Pasta", item_id: "pst-creamy", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 2 }
+                        ]
+                    },
+                    {
+                        id: "duo_deal_3",
+                        name: "Duo Meal 3",
+                        combo_price: 359,
+                        original_price: 527,
+                        is_active: true,
+                        items: [
+                            { category_id: "Pizza", item_id: "farm-house", size: "M", variant_id: "M", quantity: 1 },
+                            { category_id: "Bread", item_id: "brd-perfetto-stuffed", size: "", variant_id: "", quantity: 1 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 2 }
+                        ]
+                    }
+                ],
+                squad: [
+                    {
+                        id: "squad_deal_1",
+                        name: "Squad Meal 1",
+                        combo_price: 499,
+                        original_price: 737,
+                        is_active: true,
+                        items: [
+                            { category_id: "Pizza", item_id: "farm-house", size: "L", variant_id: "L", quantity: 1 },
+                            { category_id: "Burger", item_id: "bgr-veggie", size: "", variant_id: "", quantity: 2 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 3 }
+                        ]
+                    },
+                    {
+                        id: "squad_deal_2",
+                        name: "Squad Meal 2",
+                        combo_price: 549,
+                        original_price: 846,
+                        is_active: true,
+                        items: [
+                            { category_id: "Pizza", item_id: "deluxe-pizza", size: "L", variant_id: "L", quantity: 1 },
+                            { category_id: "Pasta", item_id: "pst-baked-mix", size: "", variant_id: "", quantity: 2 },
+                            { category_id: "Bread", item_id: "brd-perfetto-stuffed", size: "", variant_id: "", quantity: 1 }
+                        ]
+                    },
+                    {
+                        id: "squad_deal_3",
+                        name: "Squad Meal 3",
+                        combo_price: 599,
+                        original_price: 907,
+                        is_active: true,
+                        items: [
+                            { category_id: "Pizza", item_id: "tandoori-pizza", size: "L", variant_id: "L", quantity: 1 },
+                            { category_id: "Momos", item_id: "mmo-paneer-steam", size: "", variant_id: "", quantity: 2 },
+                            { category_id: "Colo Drinks", item_id: "drk-coke-300ml", size: "", variant_id: "", quantity: 4 }
+                        ]
+                    }
+                ]
+            }
+        };
+        window.DEFAULT_COMBO_CONFIG = DEFAULT_COMBO_CONFIG;
+
+        let adminComboConfig = JSON.parse(JSON.stringify(DEFAULT_COMBO_CONFIG));
+        let activeComboTier = 'solo';
+
+        function getComboMenuItems() {
+            return (Array.isArray(menuItems) && menuItems.length > 0) ? menuItems : DEFAULT_MENU_ITEMS;
+        }
+
+        function getComboCategories() {
+            const items = getComboMenuItems();
+            const set = new Set();
+            items.forEach(i => {
+                if (i && i.category) set.add(i.category.trim());
+            });
+            return Array.from(set).sort();
+        }
+
+        function getComboProductsByCategory(cat) {
+            const items = getComboMenuItems();
+            if (!cat) return [];
+            return items.filter(i => (i.category || '').trim().toLowerCase() === cat.trim().toLowerCase());
+        }
+
+        function getComboItemUnitPrice(item, size) {
+            if (!item) return 0;
+            if (item.isMultiSize && item.prices) {
+                const s = (size || 'M').toUpperCase();
+                return Number(item.prices[s] || item.prices['M'] || item.prices['S'] || item.price) || 0;
+            }
+            return Number(item.price) || 0;
+        }
+
+        function calculateComboSlotPrice(slot) {
+            if (!slot || !slot.item_id) return 0;
+            const items = getComboMenuItems();
+            const item = items.find(i => String(i.id) === String(slot.item_id));
+            const unit = getComboItemUnitPrice(item, slot.size || slot.variant_id);
+            const qty = Math.max(1, parseInt(slot.quantity, 10) || 1);
+            return unit * qty;
+        }
+
+        function recalculateComboDealOriginalPrice(deal) {
+            if (!deal || !Array.isArray(deal.items)) return 0;
+            let total = 0;
+            deal.items.forEach(slot => {
+                total += calculateComboSlotPrice(slot);
+            });
+            deal.original_price = total;
+            return total;
+        }
+
+        function normalizeAdminComboConfig(raw) {
+            const config = JSON.parse(JSON.stringify(DEFAULT_COMBO_CONFIG));
+            if (!raw || typeof raw !== 'object') return config;
+
+            config.allow_combo_with_daily_offer = Boolean(raw.allow_combo_with_daily_offer);
+
+            const sourceCombos = raw.combos || raw;
+            ['solo', 'duo', 'squad'].forEach(tier => {
+                const defDeals = DEFAULT_COMBO_CONFIG.combos[tier];
+                const rawDeals = sourceCombos && Array.isArray(sourceCombos[tier]) ? sourceCombos[tier] : [];
+                config.combos[tier] = defDeals.map((defDeal, idx) => {
+                    const r = rawDeals[idx];
+                    if (!r || typeof r !== 'object') return JSON.parse(JSON.stringify(defDeal));
+
+                    const dealId = r.id || `${tier}_deal_${idx + 1}`;
+                    const dealName = r.name || defDeal.name || `${tier.toUpperCase()} Meal ${idx + 1}`;
+                    const comboPrice = (r.combo_price !== undefined && !isNaN(Number(r.combo_price))) ? Number(r.combo_price) : defDeal.combo_price;
+                    const isActive = r.is_active !== undefined ? Boolean(r.is_active) : (defDeal.is_active !== false);
+
+                    // Ensure exactly 3 items
+                    const rawItems = Array.isArray(r.items) ? r.items : [];
+                    const items = [0, 1, 2].map(slotIdx => {
+                        const defSlot = defDeal.items[slotIdx] || { category_id: "Burger", item_id: "bgr-veggie", size: "", variant_id: "", quantity: 1 };
+                        const rawSlot = rawItems[slotIdx];
+                        if (!rawSlot || typeof rawSlot !== 'object') return JSON.parse(JSON.stringify(defSlot));
+                        return {
+                            category_id: String(rawSlot.category_id || defSlot.category_id || '').trim(),
+                            item_id: String(rawSlot.item_id || defSlot.item_id || '').trim(),
+                            size: String(rawSlot.size || rawSlot.variant_id || defSlot.size || '').trim(),
+                            variant_id: String(rawSlot.variant_id || rawSlot.size || defSlot.variant_id || '').trim(),
+                            quantity: Math.max(1, parseInt(rawSlot.quantity, 10) || 1)
+                        };
+                    });
+
+                    const dealObj = {
+                        id: dealId,
+                        name: dealName,
+                        combo_price: comboPrice,
+                        original_price: 0,
+                        is_active: isActive,
+                        items: items
+                    };
+                    recalculateComboDealOriginalPrice(dealObj);
+                    return dealObj;
+                });
+            });
+
+            return config;
+        }
+        window.normalizeAdminComboConfig = normalizeAdminComboConfig;
+
+        function renderComboManagerUI() {
+            // Update Stacking toggle & badge
+            const toggleEl = document.getElementById('combo-stacking-toggle');
+            const badgeEl = document.getElementById('combo-stacking-badge');
+            const isStacked = Boolean(adminComboConfig.allow_combo_with_daily_offer);
+
+            if (toggleEl) toggleEl.checked = isStacked;
+            if (badgeEl) {
+                badgeEl.textContent = isStacked ? 'Enabled' : 'Disabled';
+                badgeEl.className = `combo-badge-tag ${isStacked ? 'badge-active' : 'badge-inactive'}`;
+            }
+
+            // Update Tier sub-tabs
+            ['solo', 'duo', 'squad'].forEach(tier => {
+                const btn = document.getElementById(`combo-tab-${tier}`);
+                if (btn) {
+                    if (tier === activeComboTier) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+            });
+
+            // Update notice
+            const noticeEl = document.getElementById('combo-tier-notice');
+            if (noticeEl) {
+                const tierTitle = activeComboTier === 'solo' ? 'Solo Meals' : (activeComboTier === 'duo' ? 'Duo Meals' : 'Squad Meals');
+                noticeEl.innerHTML = `Managing <strong>${tierTitle}</strong> — 3 distinct combo deals. Each tier maintains independent items and promotional pricing without auto-scaling.`;
+            }
+
+            renderComboTierCards(activeComboTier);
+        }
+        window.renderComboManagerUI = renderComboManagerUI;
+
+        function renderComboTierCards(tier) {
+            const container = document.getElementById('combo-deals-container');
+            if (!container) return;
+
+            const deals = (adminComboConfig.combos && adminComboConfig.combos[tier]) || DEFAULT_COMBO_CONFIG.combos[tier];
+            const categories = getComboCategories();
+            const allItems = getComboMenuItems();
+
+            let html = '';
+            deals.forEach((deal, dealIdx) => {
+                const origPrice = recalculateComboDealOriginalPrice(deal);
+                const savings = Math.max(0, origPrice - Number(deal.combo_price || 0));
+                const savingsPercent = origPrice > 0 ? Math.round((savings / origPrice) * 100) : 0;
+                const isActive = deal.is_active !== false;
+
+                html += `
+                <div class="combo-deal-card ${isActive ? '' : 'is-inactive'}" id="deal-card-${tier}-${dealIdx}">
+                    <div class="deal-card-header">
+                        <div class="deal-card-badge-wrap">
+                            <span class="deal-num-badge">Deal #${dealIdx + 1}</span>
+                            <input type="text" class="deal-name-input" id="deal-name-${tier}-${dealIdx}"
+                                   value="${escapeHtml(deal.name || '')}" placeholder="Deal Name (e.g. ${tier.toUpperCase()} Meal ${dealIdx + 1})"
+                                   oninput="onComboNameChange('${tier}', ${dealIdx}, this.value)"
+                                   aria-label="Deal Name">
+                        </div>
+                        <div class="deal-card-toggle-wrap">
+                            <span class="deal-status-label ${isActive ? 'active' : 'inactive'}" id="deal-status-label-${tier}-${dealIdx}">
+                                ${isActive ? 'Active' : 'Inactive'}
+                            </span>
+                            <label class="switch-toggle" for="deal-toggle-${tier}-${dealIdx}">
+                                <input type="checkbox" id="deal-toggle-${tier}-${dealIdx}" ${isActive ? 'checked' : ''}
+                                       onchange="onComboActiveToggle('${tier}', ${dealIdx}, this.checked)">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="deal-slots-section">
+                        <div class="deal-slots-header">
+                            <i class="fa-solid fa-utensils" style="color: var(--primary-orange);"></i>
+                            <span>Deal Combo Items (Exactly 3 Slots)</span>
+                        </div>
+                        <div class="deal-slots-list">
+                `;
+
+                // Exactly 3 item slots
+                deal.items.forEach((slot, slotIdx) => {
+                    const selectedCat = slot.category_id || categories[0] || '';
+                    const catProducts = getComboProductsByCategory(selectedCat);
+                    const selectedItemId = slot.item_id || (catProducts[0] ? catProducts[0].id : '');
+                    const currentItem = allItems.find(i => String(i.id) === String(selectedItemId)) || catProducts[0] || null;
+                    const isMultiSize = currentItem && currentItem.isMultiSize;
+                    const selectedSize = (slot.size || slot.variant_id || (isMultiSize ? 'M' : '')).toUpperCase();
+                    const qty = Math.max(1, parseInt(slot.quantity, 10) || 1);
+                    const linePrice = calculateComboSlotPrice({ item_id: selectedItemId, size: selectedSize, quantity: qty });
+
+                    // Build Category Options
+                    let catOpts = '';
+                    categories.forEach(c => {
+                        const isSel = (c.trim().toLowerCase() === selectedCat.trim().toLowerCase());
+                        catOpts += `<option value="${escapeHtml(c)}" ${isSel ? 'selected' : ''}>${escapeHtml(c)}</option>`;
+                    });
+
+                    // Build Product Options
+                    let prodOpts = '';
+                    catProducts.forEach(p => {
+                        const isSel = (String(p.id) === String(selectedItemId));
+                        const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
+                        prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(p.name)} (₹${basePrice})</option>`;
+                    });
+
+                    // Build Size Options
+                    let sizeOpts = '';
+                    if (isMultiSize && currentItem.prices) {
+                        const sPrice = currentItem.prices.S || currentItem.price;
+                        const mPrice = currentItem.prices.M || currentItem.price;
+                        const lPrice = currentItem.prices.L || currentItem.price;
+                        sizeOpts += `<option value="S" ${selectedSize === 'S' ? 'selected' : ''}>Small (₹${sPrice})</option>`;
+                        sizeOpts += `<option value="M" ${selectedSize === 'M' || !selectedSize ? 'selected' : ''}>Medium (₹${mPrice})</option>`;
+                        sizeOpts += `<option value="L" ${selectedSize === 'L' ? 'selected' : ''}>Large (₹${lPrice})</option>`;
+                    } else {
+                        const regPrice = currentItem ? currentItem.price : 0;
+                        sizeOpts = `<option value="" selected>Regular (₹${regPrice})</option>`;
+                    }
+
+                    html += `
+                        <div class="deal-slot-row" id="slot-row-${tier}-${dealIdx}-${slotIdx}">
+                            <span class="deal-slot-tag">Slot #${slotIdx + 1}</span>
+                            <div>
+                                <select class="deal-slot-select" id="slot-cat-${tier}-${dealIdx}-${slotIdx}"
+                                        onchange="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'category', this.value)"
+                                        aria-label="Item Slot ${slotIdx + 1} Category">
+                                    ${catOpts}
+                                </select>
+                            </div>
+                            <div>
+                                <select class="deal-slot-select" id="slot-prod-${tier}-${dealIdx}-${slotIdx}"
+                                        onchange="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'product', this.value)"
+                                        aria-label="Item Slot ${slotIdx + 1} Product">
+                                    ${prodOpts}
+                                </select>
+                            </div>
+                            <div>
+                                <select class="deal-slot-select" id="slot-size-${tier}-${dealIdx}-${slotIdx}"
+                                        ${isMultiSize ? '' : 'disabled'}
+                                        onchange="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'size', this.value)"
+                                        aria-label="Item Slot ${slotIdx + 1} Size">
+                                    ${sizeOpts}
+                                </select>
+                            </div>
+                            <div>
+                                <input type="number" class="deal-slot-qty" id="slot-qty-${tier}-${dealIdx}-${slotIdx}"
+                                       min="1" max="99" value="${qty}"
+                                       oninput="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'quantity', this.value)"
+                                       onblur="onComboSlotQtyBlur('${tier}', ${dealIdx}, ${slotIdx}, this)"
+                                       aria-label="Item Slot ${slotIdx + 1} Quantity">
+                            </div>
+                            <div class="deal-slot-line-price" id="slot-price-${tier}-${dealIdx}-${slotIdx}">
+                                ₹${linePrice}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
+                    </div>
+
+                    <div class="deal-pricing-box">
+                        <div class="pricing-col original-price-col">
+                            <span class="pricing-label">Total Original Menu Price</span>
+                            <span class="pricing-value-strike" id="deal-orig-${tier}-${dealIdx}">₹${origPrice}</span>
+                        </div>
+                        <div class="pricing-col combo-price-col">
+                            <span class="pricing-label">Combo Offer Price (₹) *</span>
+                            <div class="price-input-wrapper">
+                                <span class="currency-symbol">₹</span>
+                                <input type="number" class="combo-price-input" id="deal-price-${tier}-${dealIdx}"
+                                       min="0" max="9999" step="1" value="${deal.combo_price}"
+                                       oninput="onComboPriceChange('${tier}', ${dealIdx}, this.value)"
+                                       onblur="onComboPriceBlur('${tier}', ${dealIdx}, this)"
+                                       aria-label="Combo Offer Price">
+                            </div>
+                        </div>
+                        <div class="pricing-col savings-col">
+                            <span class="pricing-label">Customer Benefit</span>
+                            <span class="savings-pill" id="deal-savings-${tier}-${dealIdx}">
+                                ${savings > 0 ? `Saves ₹${savings} (${savingsPercent}% OFF)` : 'Standard Price (No Savings)'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="deal-card-footer">
+                        <button type="button" class="btn-save-single-deal" id="btn-save-deal-${tier}-${dealIdx}"
+                                onclick="saveAdminComboConfig('${tier}', ${dealIdx})">
+                            <i class="fa-solid fa-check"></i> <span id="btn-save-deal-text-${tier}-${dealIdx}">Save Deal #${dealIdx + 1}</span>
+                        </button>
+                    </div>
+                </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+        window.renderComboTierCards = renderComboTierCards;
+
+        function switchComboTier(tier) {
+            if (tier === activeComboTier) return;
+            flushComboInputsFromDOM();
+            activeComboTier = tier;
+            renderComboManagerUI();
+        }
+        window.switchComboTier = switchComboTier;
+
+        function onComboStackingToggle(checked) {
+            adminComboConfig.allow_combo_with_daily_offer = Boolean(checked);
+            const badgeEl = document.getElementById('combo-stacking-badge');
+            if (badgeEl) {
+                badgeEl.textContent = checked ? 'Enabled' : 'Disabled';
+                badgeEl.className = `combo-badge-tag ${checked ? 'badge-active' : 'badge-inactive'}`;
+            }
+        }
+        window.onComboStackingToggle = onComboStackingToggle;
+
+        function onComboNameChange(tier, dealIdx, val) {
+            if (adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx]) {
+                adminComboConfig.combos[tier][dealIdx].name = val;
+            }
+        }
+        window.onComboNameChange = onComboNameChange;
+
+        function onComboActiveToggle(tier, dealIdx, checked) {
+            if (adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx]) {
+                adminComboConfig.combos[tier][dealIdx].is_active = Boolean(checked);
+                const labelEl = document.getElementById(`deal-status-label-${tier}-${dealIdx}`);
+                const cardEl = document.getElementById(`deal-card-${tier}-${dealIdx}`);
+                if (labelEl) {
+                    labelEl.textContent = checked ? 'Active' : 'Inactive';
+                    labelEl.className = `deal-status-label ${checked ? 'active' : 'inactive'}`;
+                }
+                if (cardEl) {
+                    if (checked) cardEl.classList.remove('is-inactive');
+                    else cardEl.classList.add('is-inactive');
+                }
+            }
+        }
+        window.onComboActiveToggle = onComboActiveToggle;
+
+        function onComboSlotChange(tier, dealIdx, slotIdx, field, val) {
+            const deal = adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx];
+            if (!deal || !deal.items || !deal.items[slotIdx]) return;
+
+            const slot = deal.items[slotIdx];
+            const allItems = getComboMenuItems();
+
+            if (field === 'category') {
+                slot.category_id = String(val).trim();
+                const catProducts = getComboProductsByCategory(slot.category_id);
+                slot.item_id = catProducts[0] ? String(catProducts[0].id) : '';
+                const newProd = catProducts[0] || null;
+                slot.size = (newProd && newProd.isMultiSize) ? 'M' : '';
+                slot.variant_id = slot.size;
+
+                // Update product select DOM
+                const prodSelect = document.getElementById(`slot-prod-${tier}-${dealIdx}-${slotIdx}`);
+                if (prodSelect) {
+                    let prodOpts = '';
+                    catProducts.forEach(p => {
+                        const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
+                        prodOpts += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (₹${basePrice})</option>`;
+                    });
+                    prodSelect.innerHTML = prodOpts;
+                }
+
+                // Update size select DOM
+                const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
+                if (sizeSelect) {
+                    if (newProd && newProd.isMultiSize && newProd.prices) {
+                        sizeSelect.disabled = false;
+                        sizeSelect.innerHTML = `
+                            <option value="S">Small (₹${newProd.prices.S || newProd.price})</option>
+                            <option value="M" selected>Medium (₹${newProd.prices.M || newProd.price})</option>
+                            <option value="L">Large (₹${newProd.prices.L || newProd.price})</option>
+                        `;
+                    } else {
+                        sizeSelect.disabled = true;
+                        sizeSelect.innerHTML = `<option value="" selected>Regular (₹${newProd ? newProd.price : 0})</option>`;
+                    }
+                }
+            } else if (field === 'product') {
+                slot.item_id = String(val).trim();
+                const prod = allItems.find(i => String(i.id) === String(slot.item_id));
+                slot.size = (prod && prod.isMultiSize) ? 'M' : '';
+                slot.variant_id = slot.size;
+
+                // Update size select DOM
+                const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
+                if (sizeSelect) {
+                    if (prod && prod.isMultiSize && prod.prices) {
+                        sizeSelect.disabled = false;
+                        sizeSelect.innerHTML = `
+                            <option value="S">Small (₹${prod.prices.S || prod.price})</option>
+                            <option value="M" selected>Medium (₹${prod.prices.M || prod.price})</option>
+                            <option value="L">Large (₹${prod.prices.L || prod.price})</option>
+                        `;
+                    } else {
+                        sizeSelect.disabled = true;
+                        sizeSelect.innerHTML = `<option value="" selected>Regular (₹${prod ? prod.price : 0})</option>`;
+                    }
+                }
+            } else if (field === 'size') {
+                slot.size = String(val).trim().toUpperCase();
+                slot.variant_id = slot.size;
+            } else if (field === 'quantity') {
+                slot.quantity = Math.max(1, parseInt(val, 10) || 1);
+            }
+
+            // Update slot line price DOM
+            const linePrice = calculateComboSlotPrice(slot);
+            const linePriceEl = document.getElementById(`slot-price-${tier}-${dealIdx}-${slotIdx}`);
+            if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
+
+            // Recalculate original price & update deal pricing box
+            updateDealPricingDisplay(tier, dealIdx);
+        }
+        window.onComboSlotChange = onComboSlotChange;
+
+        function onComboSlotQtyBlur(tier, dealIdx, slotIdx, input) {
+            let val = parseInt(input.value, 10);
+            if (isNaN(val) || val < 1) val = 1;
+            input.value = String(val);
+            onComboSlotChange(tier, dealIdx, slotIdx, 'quantity', val);
+        }
+        window.onComboSlotQtyBlur = onComboSlotQtyBlur;
+
+        function onComboPriceChange(tier, dealIdx, val) {
+            const deal = adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx];
+            if (!deal) return;
+            deal.combo_price = Math.max(0, parseInt(val, 10) || 0);
+            updateDealPricingDisplay(tier, dealIdx);
+        }
+        window.onComboPriceChange = onComboPriceChange;
+
+        function onComboPriceBlur(tier, dealIdx, input) {
+            let val = parseInt(input.value, 10);
+            if (isNaN(val) || val < 0) val = 0;
+            input.value = String(val);
+            onComboPriceChange(tier, dealIdx, val);
+        }
+        window.onComboPriceBlur = onComboPriceBlur;
+
+        function updateDealPricingDisplay(tier, dealIdx) {
+            const deal = adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx];
+            if (!deal) return;
+
+            const origPrice = recalculateComboDealOriginalPrice(deal);
+            const savings = Math.max(0, origPrice - Number(deal.combo_price || 0));
+            const savingsPercent = origPrice > 0 ? Math.round((savings / origPrice) * 100) : 0;
+
+            const origEl = document.getElementById(`deal-orig-${tier}-${dealIdx}`);
+            const savingsEl = document.getElementById(`deal-savings-${tier}-${dealIdx}`);
+
+            if (origEl) origEl.textContent = `₹${origPrice}`;
+            if (savingsEl) {
+                savingsEl.textContent = savings > 0 ? `Saves ₹${savings} (${savingsPercent}% OFF)` : 'Standard Price (No Savings)';
+            }
+        }
+
+        function flushComboInputsFromDOM() {
+            const toggleEl = document.getElementById('combo-stacking-toggle');
+            if (toggleEl) {
+                adminComboConfig.allow_combo_with_daily_offer = toggleEl.checked;
+            }
+
+            const tier = activeComboTier;
+            if (!adminComboConfig.combos || !adminComboConfig.combos[tier]) return;
+
+            adminComboConfig.combos[tier].forEach((deal, dealIdx) => {
+                const nameInput = document.getElementById(`deal-name-${tier}-${dealIdx}`);
+                const toggleInput = document.getElementById(`deal-toggle-${tier}-${dealIdx}`);
+                const priceInput = document.getElementById(`deal-price-${tier}-${dealIdx}`);
+
+                if (nameInput) deal.name = nameInput.value.trim();
+                if (toggleInput) deal.is_active = toggleInput.checked;
+                if (priceInput) deal.combo_price = Math.max(0, parseInt(priceInput.value, 10) || 0);
+
+                if (Array.isArray(deal.items)) {
+                    deal.items.forEach((slot, slotIdx) => {
+                        const catSelect = document.getElementById(`slot-cat-${tier}-${dealIdx}-${slotIdx}`);
+                        const prodSelect = document.getElementById(`slot-prod-${tier}-${dealIdx}-${slotIdx}`);
+                        const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
+                        const qtyInput = document.getElementById(`slot-qty-${tier}-${dealIdx}-${slotIdx}`);
+
+                        if (catSelect) slot.category_id = catSelect.value.trim();
+                        if (prodSelect) slot.item_id = prodSelect.value.trim();
+                        if (sizeSelect && !sizeSelect.disabled) {
+                            slot.size = sizeSelect.value.trim().toUpperCase();
+                            slot.variant_id = slot.size;
+                        }
+                        if (qtyInput) slot.quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+                    });
+                }
+                recalculateComboDealOriginalPrice(deal);
+            });
+        }
+
+        async function fetchAdminComboConfig() {
+            if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                try {
+                    let doc = await adminFirestore.collection('site_settings').doc('combo_config').get();
+                    if (!doc.exists || !doc.data()) {
+                        doc = await adminFirestore.collection('settings').doc('combo_config').get();
+                    }
+                    if (doc && doc.exists && doc.data()) {
+                        return normalizeAdminComboConfig(doc.data());
+                    }
+                } catch (e) {
+                    console.warn('Firestore fetchAdminComboConfig note:', e.message);
+                }
+            }
+
+            try {
+                const res = await fetch(resolveApiUrl('/api/combos'));
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.success && data.config) {
+                        return normalizeAdminComboConfig(data.config);
+                    }
+                }
+            } catch (e) {}
+
+            return JSON.parse(JSON.stringify(DEFAULT_COMBO_CONFIG));
+        }
+        window.fetchAdminComboConfig = fetchAdminComboConfig;
+
+        async function loadAdminComboConfig() {
+            try {
+                const config = await fetchAdminComboConfig();
+                adminComboConfig = normalizeAdminComboConfig(config);
+            } catch (e) {
+                console.warn('Error loading admin combo config:', e);
+                adminComboConfig = JSON.parse(JSON.stringify(DEFAULT_COMBO_CONFIG));
+            }
+            renderComboManagerUI();
+        }
+        window.loadAdminComboConfig = loadAdminComboConfig;
+
+        async function saveAdminComboConfig(specificTier = null, specificDealIdx = null) {
+            const btnAll = document.getElementById('btn-save-all-combos');
+            const btnAllText = document.getElementById('btn-save-all-combos-text');
+            let singleBtn = null;
+            let singleBtnText = null;
+
+            if (specificTier && specificDealIdx !== null) {
+                singleBtn = document.getElementById(`btn-save-deal-${specificTier}-${specificDealIdx}`);
+                singleBtnText = document.getElementById(`btn-save-deal-text-${specificTier}-${specificDealIdx}`);
+            }
+
+            if (btnAll) {
+                btnAll.disabled = true;
+                if (btnAllText) btnAllText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
+            if (singleBtn) {
+                singleBtn.disabled = true;
+                if (singleBtnText) singleBtnText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+            }
+
+            // Sync current screen inputs into adminComboConfig
+            flushComboInputsFromDOM();
+
+            // Ensure all 9 deals across all tiers have up-to-date original_price
+            ['solo', 'duo', 'squad'].forEach(t => {
+                if (Array.isArray(adminComboConfig.combos[t])) {
+                    adminComboConfig.combos[t].forEach(deal => {
+                        recalculateComboDealOriginalPrice(deal);
+                    });
+                }
+            });
+
+            const payload = {
+                allow_combo_with_daily_offer: Boolean(adminComboConfig.allow_combo_with_daily_offer),
+                combos: adminComboConfig.combos,
+                key: 'combo_config',
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+            };
+
+            let saveSuccess = false;
+            if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                try {
+                    await adminFirestore.collection('site_settings').doc('combo_config').set(payload);
+                    try {
+                        await adminFirestore.collection('settings').doc('combo_config').set(payload);
+                    } catch (mirrorErr) {}
+                    saveSuccess = true;
+                } catch (e) {
+                    console.warn('Firestore saveAdminComboConfig note:', e.message);
+                }
+            }
+
+            try {
+                await fetch(resolveApiUrl('/api/combos'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                saveSuccess = true;
+            } catch (e) {}
+
+            await updateAdminSettingsVersion();
+
+            if (btnAll) {
+                btnAll.disabled = false;
+                if (btnAllText) btnAllText.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
+                setTimeout(() => {
+                    if (btnAllText) btnAllText.innerHTML = 'Save Value Combos';
+                }, 2500);
+            }
+
+            if (singleBtn) {
+                singleBtn.disabled = false;
+                if (singleBtnText) singleBtnText.innerHTML = '<i class="fa-solid fa-check"></i> Saved!';
+                setTimeout(() => {
+                    if (singleBtnText) singleBtnText.innerHTML = `Save Deal #${specificDealIdx + 1}`;
+                }, 2500);
+            }
+
+            if (typeof showToast === 'function') {
+                showToast('✅ Value Combos configuration saved successfully!');
+            }
+
+            renderComboManagerUI();
+            return { success: true, config: adminComboConfig };
+        }
+        window.saveAdminComboConfig = saveAdminComboConfig;
 
         // --------------------------------------------------------------------------
         // WALLET & CASHBACK SLABS CONFIGURATION CONTROLLER (5 SLABS SYSTEM)
@@ -12818,6 +14153,16 @@
         window.openCategoryItemsStep2 = openCategoryItemsStep2;
         window.clearAllActivityLogs = clearAllActivityLogs;
         window.cleanupAllAdminListeners = cleanupAllAdminListeners;
+        window.loadAdminComboConfig = loadAdminComboConfig;
+        window.saveAdminComboConfig = saveAdminComboConfig;
+        window.switchComboTier = switchComboTier;
+        window.onComboStackingToggle = onComboStackingToggle;
+        window.onComboNameChange = onComboNameChange;
+        window.onComboActiveToggle = onComboActiveToggle;
+        window.onComboSlotChange = onComboSlotChange;
+        window.onComboSlotQtyBlur = onComboSlotQtyBlur;
+        window.onComboPriceChange = onComboPriceChange;
+        window.onComboPriceBlur = onComboPriceBlur;
     </script>
 </body>
 
