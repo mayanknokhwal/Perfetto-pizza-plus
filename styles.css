@@ -9119,13 +9119,17 @@ html[lang="hi"] .nav-label {
 }
 
 .spend-hunger-deficit {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 700;
     color: var(--text-main, #f8fafc);
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.25;
+    max-height: 2.6em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.2;
 }
 
 .spend-hunger-right {
