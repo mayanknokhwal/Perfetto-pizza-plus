@@ -3826,6 +3826,28 @@
                         </div>
                     </div>
 
+                    <!-- MAX CLAIMABLE OFFERS PER ORDER CONFIGURATION -->
+                    <div class="banner-max-offers-config-row" style="margin: 14px 0 16px 0; padding: 14px 18px; background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                        <div style="flex: 1; min-width: 260px;">
+                            <label for="admin-max-offers-per-order" style="font-size: 0.92rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Max Claimable Offers Per Order
+                            </label>
+                            <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
+                                Set how many banner deals (Slot #1 Spotlight, Slot #2 Spend Target, Slot #3 BOGO Combo) a customer can claim in a single order.
+                            </span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <select id="admin-max-offers-per-order" 
+                                    class="search-input" 
+                                    onchange="onBannerMaxOffersChange(this.value)"
+                                    style="width: 140px; height: 40px; border-radius: 8px; font-size: 0.90rem; font-weight: 700; background: var(--bg-card); color: var(--primary-orange); border: 1.5px solid var(--border-color); padding: 0 12px; cursor: pointer;">
+                                <option value="1">1 Offer</option>
+                                <option value="2">2 Offers</option>
+                                <option value="3">3 Offers</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <!-- BANNERS LIST CONTAINER (FIXED 4 SLOTS) -->
                     <div class="daily-banners-list" id="admin-banners-list">
                         <!-- Dynamically populated via renderAdminBannersUI() with 4 slots -->
@@ -8116,6 +8138,15 @@
         window.handleBannerImgError = handleBannerImgError;
 
         let adminDailyBannersList = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+        let adminBannerMaxOffers = 1;
+
+        function onBannerMaxOffersChange(val) {
+            const num = parseInt(val, 10);
+            adminBannerMaxOffers = (!isNaN(num) && num >= 1 && num <= 3) ? num : 1;
+            const sel = document.getElementById('admin-max-offers-per-order');
+            if (sel) sel.value = String(adminBannerMaxOffers);
+        }
+        window.onBannerMaxOffersChange = onBannerMaxOffersChange;
 
         function normalizeAdminBanners(raw) {
             const list = Array.isArray(raw) ? raw : [];
@@ -8184,6 +8215,12 @@
                             if (doc.data().slot3.rewardCategory) normalized[2].rewardCategory = doc.data().slot3.rewardCategory;
                             if (doc.data().slot3.freeQty !== undefined) normalized[2].freeQty = Number(doc.data().slot3.freeQty) || 1;
                         }
+                        const maxVal = parseInt(doc.data().max_offers_per_order || doc.data().maxOffersPerOrder, 10);
+                        if (!isNaN(maxVal) && maxVal >= 1 && maxVal <= 3) {
+                            adminBannerMaxOffers = maxVal;
+                            const sel = document.getElementById('admin-max-offers-per-order');
+                            if (sel) sel.value = String(adminBannerMaxOffers);
+                        }
                         return normalized;
                     }
                 } catch (e) {
@@ -8215,6 +8252,12 @@
                             if (data.slot3.buyQty !== undefined) normalized[2].buyQty = Number(data.slot3.buyQty) || 2;
                             if (data.slot3.rewardCategory) normalized[2].rewardCategory = data.slot3.rewardCategory;
                             if (data.slot3.freeQty !== undefined) normalized[2].freeQty = Number(data.slot3.freeQty) || 1;
+                        }
+                        const maxVal = parseInt(data.max_offers_per_order || data.maxOffersPerOrder, 10);
+                        if (!isNaN(maxVal) && maxVal >= 1 && maxVal <= 3) {
+                            adminBannerMaxOffers = maxVal;
+                            const sel = document.getElementById('admin-max-offers-per-order');
+                            if (sel) sel.value = String(adminBannerMaxOffers);
                         }
                         return normalized;
                     }
@@ -8347,11 +8390,19 @@
                 enabled: slots[2].enabled !== false
             };
 
+            const maxOffersSelect = document.getElementById('admin-max-offers-per-order');
+            if (maxOffersSelect) {
+                const parsed = parseInt(maxOffersSelect.value, 10);
+                adminBannerMaxOffers = (!isNaN(parsed) && parsed >= 1 && parsed <= 3) ? parsed : 1;
+            }
+
             const docPayload = {
                 banners: slots,
                 slot1: slot1Data,
                 slot2: slot2Data,
                 slot3: slot3Data,
+                max_offers_per_order: adminBannerMaxOffers,
+                maxOffersPerOrder: adminBannerMaxOffers,
                 count: 4,
                 activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),
@@ -8713,6 +8764,11 @@
             // Ensure exactly 4 slots
             adminDailyBannersList = normalizeAdminBanners(adminDailyBannersList);
             updateAdminBannerCountBadge();
+
+            const maxOffersSelect = document.getElementById('admin-max-offers-per-order');
+            if (maxOffersSelect && adminBannerMaxOffers) {
+                maxOffersSelect.value = String(adminBannerMaxOffers);
+            }
 
             let html = '';
             adminDailyBannersList.forEach((banner, idx) => {
@@ -11083,8 +11139,17 @@
             if (!adminBannersUnsubscribe) {
                 try {
                     adminBannersUnsubscribe = adminFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
-                        if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                            adminDailyBannersList = normalizeAdminBanners(doc.data().banners);
+                        if (doc.exists && doc.data()) {
+                            const data = doc.data();
+                            if (Array.isArray(data.banners) && data.banners.length > 0) {
+                                adminDailyBannersList = normalizeAdminBanners(data.banners);
+                            }
+                            const maxVal = parseInt(data.max_offers_per_order || data.maxOffersPerOrder, 10);
+                            if (!isNaN(maxVal) && maxVal >= 1 && maxVal <= 3) {
+                                adminBannerMaxOffers = maxVal;
+                                const sel = document.getElementById('admin-max-offers-per-order');
+                                if (sel) sel.value = String(adminBannerMaxOffers);
+                            }
                             renderAdminBannersUI();
                         }
                     }, (err) => {

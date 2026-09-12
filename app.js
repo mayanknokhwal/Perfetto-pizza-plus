@@ -2331,6 +2331,11 @@ async function fetchLiveBannersFromBackend() {
                         freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
                     };
                 });
+                const rawMaxOffers = parseInt(data.max_offers_per_order || data.maxOffersPerOrder, 10);
+                if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
+                    customerMaxOffersPerOrder = rawMaxOffers;
+                    localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+                }
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
                 if (typeof renderDynamicOfferSlider === 'function') {
                     renderDynamicOfferSlider(normalized);
@@ -5869,6 +5874,96 @@ function setupFastFoodCards() {
 // --------------------------------------------------------------------------
 // 6. CART MANAGEMENT & CALCULATIONS
 // --------------------------------------------------------------------------
+let customerMaxOffersPerOrder = (function () {
+    try {
+        const saved = localStorage.getItem('perfetto_max_offers_per_order');
+        if (saved) {
+            const parsed = parseInt(saved, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) return parsed;
+        }
+    } catch (e) { }
+    return 1;
+})();
+
+try {
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'perfetto_max_offers_per_order' && e.newValue) {
+            const parsed = parseInt(e.newValue, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) {
+                customerMaxOffersPerOrder = parsed;
+            }
+        }
+    });
+} catch (e) { }
+
+function setCustomerMaxOffersPerOrder(val) {
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) {
+        customerMaxOffersPerOrder = parsed;
+        if (typeof window !== 'undefined') window.customerMaxOffersPerOrder = parsed;
+        try {
+            localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+        } catch (e) { }
+    }
+}
+window.setCustomerMaxOffersPerOrder = setCustomerMaxOffersPerOrder;
+window.customerMaxOffersPerOrder = customerMaxOffersPerOrder;
+
+function getCustomerMaxOffersPerOrder() {
+    if (typeof window !== 'undefined' && window.customerMaxOffersPerOrder && window.customerMaxOffersPerOrder >= 1 && window.customerMaxOffersPerOrder <= 3) {
+        customerMaxOffersPerOrder = window.customerMaxOffersPerOrder;
+        return customerMaxOffersPerOrder;
+    }
+    if (customerMaxOffersPerOrder && customerMaxOffersPerOrder >= 1 && customerMaxOffersPerOrder <= 3) {
+        return customerMaxOffersPerOrder;
+    }
+    try {
+        const saved = localStorage.getItem('perfetto_max_offers_per_order');
+        if (saved) {
+            const parsed = parseInt(saved, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) {
+                customerMaxOffersPerOrder = parsed;
+                if (typeof window !== 'undefined') window.customerMaxOffersPerOrder = parsed;
+                return customerMaxOffersPerOrder;
+            }
+        }
+    } catch (e) { }
+    return 1;
+}
+window.getCustomerMaxOffersPerOrder = getCustomerMaxOffersPerOrder;
+
+function getActiveBannerOfferTypes(currentCart = cart) {
+    const list = Array.isArray(currentCart) ? currentCart : [];
+    const offers = new Set();
+    if (list.some(i => (i.isSpotlightDeal || i.isBannerDeal) && !i.isFreeGift && !i.isBogoCombo && !i.isBogoReward && !i.isBogoQualifying)) {
+        offers.add('spotlight');
+    }
+    if (list.some(i => i.isFreeGift)) {
+        offers.add('freeGift');
+    }
+    if (list.some(i => i.isBogoCombo || i.isBogoReward || i.isBogoQualifying)) {
+        offers.add('bogoCombo');
+    }
+    return offers;
+}
+window.getActiveBannerOfferTypes = getActiveBannerOfferTypes;
+
+function canClaimBannerOffer(offerType, currentCart = cart) {
+    const activeOffers = getActiveBannerOfferTypes(currentCart);
+    if (activeOffers.has(offerType)) {
+        return true; // Already active in cart: adjusting/re-claiming does not increase distinct active offers
+    }
+    const maxLimit = getCustomerMaxOffersPerOrder();
+    return activeOffers.size < maxLimit;
+}
+window.canClaimBannerOffer = canClaimBannerOffer;
+
+function showOfferLimitToast() {
+    const maxLimit = getCustomerMaxOffersPerOrder();
+    showToast(`Offer limit reached: You can only apply ${maxLimit} banner offer(s) per order.`);
+}
+window.showOfferLimitToast = showOfferLimitToast;
+
 function addToCart(name, price, img, addons = [], originalPrice = null, options = {}) {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
@@ -5886,7 +5981,8 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
 
     const effPrice = Math.round(Number(price) || 0);
     const origPrice = originalPrice !== null ? Math.round(Number(originalPrice) || 0) : effPrice;
-    const isBannerDeal = Boolean(options && options.isBannerDeal);
+    const isBannerDeal = Boolean(options && (options.isBannerDeal || options.isSpotlightDeal));
+    const isSpotlightDeal = Boolean(options && (options.isSpotlightDeal || options.isBannerDeal));
 
     // Build item name and identifier taking add-ons into account
     const addonNames = Array.isArray(addons)
@@ -5896,13 +5992,14 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         ? `${name} (+${addonNames.join(', ')})`
         : name;
 
-    const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal) === isBannerDeal);
+    const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal) === isBannerDeal);
     if (existingIndex > -1) {
         cart[existingIndex].qty += 1;
         cart[existingIndex].price = effPrice;
         cart[existingIndex].originalPrice = origPrice;
         if (isBannerDeal) {
             cart[existingIndex].isBannerDeal = true;
+            cart[existingIndex].isSpotlightDeal = true;
             cart[existingIndex].appliedPrice = effPrice;
         }
     } else {
@@ -5915,6 +6012,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
             img: img || '',
             addons: addons,
             isBannerDeal: isBannerDeal,
+            isSpotlightDeal: isSpotlightDeal,
             appliedPrice: isBannerDeal ? effPrice : undefined
         });
     }
@@ -6024,6 +6122,9 @@ function updateSpendHungerBar() {
 
             // The exact moment the total hits the target, trigger the modal automatically
             if (!window.__hasAutoPoppedFreeGiftModal && !isAutoOpeningFreeGiftModal) {
+                if (!canClaimBannerOffer('freeGift')) {
+                    return;
+                }
                 window.__hasAutoPoppedFreeGiftModal = true;
                 isAutoOpeningFreeGiftModal = true;
                 setTimeout(() => {
@@ -6061,23 +6162,38 @@ function updateSpendHungerBar() {
 }
 window.updateSpendHungerBar = updateSpendHungerBar;
 
+function removeFreeGiftFromCart() {
+    cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isFreeGift);
+    try {
+        sessionStorage.removeItem('banner2SpendOfferActive');
+    } catch (e) { }
+    window.__hasAutoPoppedFreeGiftModal = false;
+    saveCartToStorage();
+    if (typeof updateSpendHungerBar === 'function') {
+        updateSpendHungerBar();
+    }
+    if (typeof updateCartUI === 'function') {
+        updateCartUI();
+    }
+    showToast('Free gift removed from cart');
+}
+window.removeFreeGiftFromCart = removeFreeGiftFromCart;
+
+function removeBogoComboFromCart() {
+    cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isBogoCombo && !item.isBogoReward && !item.isBogoQualifying);
+    saveCartToStorage();
+    if (typeof updateCartUI === 'function') {
+        updateCartUI();
+    }
+    showToast('BOGO combo removed from cart');
+}
+window.removeBogoComboFromCart = removeBogoComboFromCart;
+
 function cancelSpendOffer(event) {
     if (event) {
         event.preventDefault();
         event.stopPropagation();
     }
-    const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : { minSpend: 699, rewardType: 'category', rewardCategory: 'Shake' };
-    const minSpend = Number(slot2Config.minSpend) || 699;
-    const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
-        .filter(item => !item.isFreeGift)
-        .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
-    const currentGiftItem = (Array.isArray(cart) ? cart : []).find(item => item.isFreeGift);
-
-    // Guard condition: Cannot cancel if target reached and free gift is unlocked in cart
-    if (qualifyingPaidTotal >= minSpend && currentGiftItem) {
-        return;
-    }
-
     try {
         sessionStorage.removeItem('banner2SpendOfferActive');
     } catch (e) { }
@@ -6085,6 +6201,7 @@ function cancelSpendOffer(event) {
     window.__hasAutoPoppedFreeGiftModal = false;
 
     // Remove any pending free gift from cart
+    const currentGiftItem = (Array.isArray(cart) ? cart : []).find(item => item.isFreeGift);
     if (currentGiftItem) {
         cart = cart.filter(item => !item.isFreeGift);
         saveCartToStorage();
@@ -6302,6 +6419,9 @@ function updateCartUI() {
                         <span class="free-gift-qty-tag" title="Standard reward item (Free)"><i class="fa-solid fa-lock"></i> 1x FREE</span>
                         <button type="button" class="btn-cart-change-gift" onclick="${changeAction}" title="${isBogo ? 'Edit BOGO combo' : 'Swap your free reward'}">
                             <i class="fa-solid fa-arrows-rotate"></i> ${changeLabel}
+                        </button>
+                        <button type="button" class="btn-cart-remove-deal" onclick="${isBogo ? 'removeBogoComboFromCart()' : 'removeFreeGiftFromCart()'}" title="${isBogo ? 'Remove BOGO Combo' : 'Remove Free Gift'}">
+                            <i class="fa-solid fa-trash-can"></i>
                         </button>
                     </div>
                 </div>
@@ -11328,6 +11448,10 @@ function handleBannerSlideClick(slideIndex, bannerId) {
     const isSlot2 = (banner.id === 'b2');
 
     if (isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0) {
+        if (!canClaimBannerOffer('spotlight')) {
+            showOfferLimitToast();
+            return;
+        }
         try {
             sessionStorage.setItem('banner1OfferActive', 'true');
         } catch (e) { }
@@ -11336,6 +11460,10 @@ function handleBannerSlideClick(slideIndex, bannerId) {
     }
 
     if (isSlot2 && Number(banner.minSpend) > 0) {
+        if (!canClaimBannerOffer('freeGift')) {
+            showOfferLimitToast();
+            return;
+        }
         try {
             sessionStorage.setItem('banner2SpendOfferActive', 'true');
         } catch (e) { }
@@ -11372,6 +11500,10 @@ function handleBannerSlideClick(slideIndex, bannerId) {
 
     const isSlot3 = (banner.id === 'b3');
     if (isSlot3) {
+        if (!canClaimBannerOffer('bogoCombo')) {
+            showOfferLimitToast();
+            return;
+        }
         // Do NOT redirect or scroll away. Open self-contained in-modal combo deal directly.
         if (typeof openBogoComboModal === 'function') {
             openBogoComboModal();
@@ -11392,6 +11524,10 @@ let currentSpotlightState = {
 };
 
 function openSpotlightBannerModal(targetProductId, discountPercent) {
+    if (!canClaimBannerOffer('spotlight')) {
+        showOfferLimitToast();
+        return;
+    }
     try {
         sessionStorage.setItem('banner1OfferActive', 'true');
     } catch (e) { }
@@ -11647,6 +11783,10 @@ function claimSpotlightDealToCart() {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
     }
+    if (!canClaimBannerOffer('spotlight')) {
+        showOfferLimitToast();
+        return;
+    }
 
     const product = currentSpotlightState.product;
     const size = currentSpotlightState.selectedSize;
@@ -11711,9 +11851,10 @@ function claimSpotlightDealToCart() {
     const originalTotalPrice = origBasePrice + addonsTotal;
     const itemName = isMultiSize ? `${product.name} (${size})` : product.name;
 
-    // Add to cart with isBannerDeal: true and appliedPrice: finalDiscountedPrice
+    // Add to cart with isBannerDeal: true, isSpotlightDeal: true and appliedPrice: finalDiscountedPrice
     addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
         isBannerDeal: true,
+        isSpotlightDeal: true,
         appliedPrice: finalDiscountedPrice
     });
 
@@ -11771,6 +11912,11 @@ window.getBannerSlot2Config = getBannerSlot2Config;
 function openFreeGiftSelectionModal() {
     const modal = document.getElementById('free-gift-modal');
     if (!modal) return;
+
+    if (!canClaimBannerOffer('freeGift')) {
+        showOfferLimitToast();
+        return;
+    }
 
     const config = getBannerSlot2Config();
     currentFreeGiftState.slotConfig = config;
@@ -12007,6 +12153,16 @@ function confirmClaimFreeGift() {
     const { selectedItem, slotConfig, selectedAddons } = currentFreeGiftState;
     if (!selectedItem) return;
 
+    if (getCustomerShopStatus() === 'closed') {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
+    }
+
+    if (!canClaimBannerOffer('freeGift')) {
+        showOfferLimitToast();
+        return;
+    }
+
     // Check that qualifying paid total in cart is still >= minSpend
     const minSpend = Number(slotConfig.minSpend) || 699;
     const qualifyingPaidTotal = cart
@@ -12134,6 +12290,11 @@ window.getBannerSlot3Config = getBannerSlot3Config;
 function openBogoComboModal() {
     const modal = document.getElementById('bogo-combo-modal');
     if (!modal) return;
+
+    if (!canClaimBannerOffer('bogoCombo')) {
+        showOfferLimitToast();
+        return;
+    }
 
     const config = getBannerSlot3Config();
     if (config.enabled === false) {
@@ -12612,6 +12773,16 @@ window.onToggleBogoComboAddon = onToggleBogoComboAddon;
 function confirmClaimBogoCombo() {
     const { config, buyItems, selectedPaid, selectedFreeItem, selectedAddons } = currentBogoComboState;
     if (!config) return;
+
+    if (getCustomerShopStatus() === 'closed') {
+        showToast('This time shop is closed. We are not accepting orders right now.');
+        return;
+    }
+
+    if (!canClaimBannerOffer('bogoCombo')) {
+        showOfferLimitToast();
+        return;
+    }
 
     const totalPaid = getBogoSelectedPaidTotal();
     if (totalPaid < config.buyQty) {
@@ -13618,6 +13789,11 @@ function listenToRealtimeMenuAndRates() {
                 let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
                 if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
                     const docData = doc.data() || {};
+                    const rawMaxOffers = parseInt(docData.max_offers_per_order || docData.maxOffersPerOrder, 10);
+                    if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
+                        customerMaxOffersPerOrder = rawMaxOffers;
+                        localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+                    }
                     const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
                     const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
                     const slot3Data = (docData.slot3 && typeof docData.slot3 === 'object') ? docData.slot3 : {};

@@ -126,6 +126,8 @@ async function handleBannersRequest(req, res) {
                 slot1: slot1,
                 slot2: slot2,
                 slot3: slot3,
+                max_offers_per_order: global.__perfettoMaxOffersPerOrder || 1,
+                maxOffersPerOrder: global.__perfettoMaxOffersPerOrder || 1,
                 count: banners.length,
                 activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
@@ -139,7 +141,8 @@ async function handleBannersRequest(req, res) {
             }
 
             const rawBanners = Array.isArray(body) ? body : (body.banners || []);
-            const result = await saveDailyBannersToFirestore(rawBanners);
+            const extra = (typeof body === 'object' && !Array.isArray(body)) ? body : {};
+            const result = await saveDailyBannersToFirestore(rawBanners, extra);
 
             return res.status(200).json({
                 success: true,
@@ -148,6 +151,8 @@ async function handleBannersRequest(req, res) {
                 slot1: result.slot1 || null,
                 slot2: result.slot2 || null,
                 slot3: result.slot3 || null,
+                max_offers_per_order: result.max_offers_per_order || 1,
+                maxOffersPerOrder: result.maxOffersPerOrder || 1,
                 count: result.banners.length,
                 activeCount: result.banners.filter(b => b.enabled).length
             });
