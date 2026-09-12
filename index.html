@@ -176,7 +176,42 @@
                     </div>
                 </section>
 
-                <!-- 2. 'FAST FOOD' SECTION -->
+                <!-- 2. 'VALUE COMBOS' SECTION (Phase 1 Layout) -->
+                <section class="value-combos-section" id="section-value-combos">
+                    <div class="value-combos-header-row">
+                        <div class="value-combos-title-wrap">
+                            <h2 class="section-title-bold" data-i18n="value_combos">VALUE COMBOS</h2>
+                            <p class="value-combos-subtitle" data-i18n="value_combos_tagline">Solo, Duo &amp; Squad Meals</p>
+                        </div>
+                    </div>
+                    <div class="value-combos-track" id="value-combos-track">
+                        <!-- Card 1: Solo -->
+                        <div class="value-combo-card" data-combo-tier="solo" role="button" tabindex="0" aria-label="Solo Value Combo" onclick="handleValueComboClick('solo')">
+                            <div class="value-combo-img-wrapper">
+                                <img src="https://i.ibb.co/mCCRVZ09/solo.webp" alt="Solo Value Combo" class="value-combo-img" loading="lazy">
+                                <span class="value-combo-badge value-combo-badge-solo">SOLO</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 2: Duo -->
+                        <div class="value-combo-card" data-combo-tier="duo" role="button" tabindex="0" aria-label="Duo Value Combo" onclick="handleValueComboClick('duo')">
+                            <div class="value-combo-img-wrapper">
+                                <img src="https://i.ibb.co/VYf2Lk2M/duo.webp" alt="Duo Value Combo" class="value-combo-img" loading="lazy">
+                                <span class="value-combo-badge value-combo-badge-duo">DUO</span>
+                            </div>
+                        </div>
+
+                        <!-- Card 3: Squad -->
+                        <div class="value-combo-card" data-combo-tier="squad" role="button" tabindex="0" aria-label="Squad Value Combo" onclick="handleValueComboClick('squad')">
+                            <div class="value-combo-img-wrapper">
+                                <img src="https://i.ibb.co/q3DzcGvK/squad.webp" alt="Squad Value Combo" class="value-combo-img" loading="lazy">
+                                <span class="value-combo-badge value-combo-badge-squad">SQUAD</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. 'FAST FOOD' SECTION -->
                 <section class="fast-food-section">
                     <h2 class="section-title-bold" data-i18n="fast_food_title">FAST FOOD</h2>
 

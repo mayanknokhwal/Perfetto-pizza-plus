@@ -22,6 +22,8 @@
             cancel: "Cancel",
             shop_closed_banner: "This time shop is closed. We are not accepting orders right now.",
             daily_offer: "DAILY OFFER",
+            value_combos: "VALUE COMBOS",
+            value_combos_tagline: "Solo, Duo & Squad Meals",
             change_language: "Language / भाषा",
             choose_language_header: "Choose your language / अपनी भाषा चुनें",
 
@@ -185,6 +187,8 @@
             cancel: "रद्द करें",
             shop_closed_banner: "इस समय रेस्टोरेंट बंद है। अभी ऑर्डर स्वीकार नहीं किए जा रहे हैं।",
             daily_offer: "दैनिक ऑफ़र",
+            value_combos: "वैल्यू कॉम्बो",
+            value_combos_tagline: "सोलो, डुओ और स्क्वाड मील्स",
             change_language: "भाषा / Language",
             choose_language_header: "अपनी भाषा चुनें / Choose your language",
 

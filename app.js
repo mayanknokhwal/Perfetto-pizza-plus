@@ -13376,6 +13376,18 @@ function confirmClaimBogoCombo() {
 window.confirmClaimBogoCombo = confirmClaimBogoCombo;
 
 // --------------------------------------------------------------------------
+// VALUE COMBOS SECTION (Phase 1: Visual & Layout Tap Interactions)
+// --------------------------------------------------------------------------
+function handleValueComboClick(tier) {
+    // Phase 1: Visual/placeholder-only feedback without database/cart side-effects
+    const tierName = tier ? (tier.charAt(0).toUpperCase() + tier.slice(1)) : 'Value';
+    if (typeof showToast === 'function') {
+        showToast(`🍽️ ${tierName} Combo Meal • Deals coming soon!`);
+    }
+}
+window.handleValueComboClick = handleValueComboClick;
+
+// --------------------------------------------------------------------------
 // 9. WHATSAPP DP STYLE LOGO POPUP MODAL
 // --------------------------------------------------------------------------
 function initLogoModal() {
