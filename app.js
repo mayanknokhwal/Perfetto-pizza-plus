@@ -6109,13 +6109,50 @@ function updateQuantity(index, change) {
         showToast('This time shop is closed. We are not accepting orders right now.');
         return;
     }
-    if (cart[index] && (cart[index].isFreeGift || cart[index].isBogoReward)) {
-        // Locked standard item controls on the free gift or BOGO reward: cannot change quantity or delete via standard controls
+    const item = cart[index];
+    if (!item) return;
+
+    // BOGO Combo Bundle Scaling & Cap Enforcement
+    if (item.isBogoCombo || item.isBogoQualifying || item.isBogoReward) {
+        const linkedComboId = item.bogoComboId;
+        const comboItems = cart.filter(i =>
+            (i.isBogoCombo || i.isBogoQualifying || i.isBogoReward) &&
+            (!linkedComboId || i.bogoComboId === linkedComboId)
+        );
+        const currentComboQty = Number(item.qty) || 1;
+
+        if (change > 0) {
+            const maxQty = getCustomerMaxQtyPerOffer();
+            if (currentComboQty >= maxQty) {
+                showToast(`Max limit of ${maxQty} BOGO combos reached.`);
+                return;
+            }
+        }
+
+        const newComboQty = currentComboQty + change;
+        if (newComboQty <= 0) {
+            cart = cart.filter(i =>
+                !( (i.isBogoCombo || i.isBogoQualifying || i.isBogoReward) &&
+                   (!linkedComboId || i.bogoComboId === linkedComboId) )
+            );
+            showToast('BOGO combo removed from cart');
+        } else {
+            comboItems.forEach(ci => {
+                ci.qty = newComboQty;
+            });
+        }
+        saveCartToStorage();
+        updateCartUI();
         return;
     }
-    if (change > 0 && cart[index]) {
-        const item = cart[index];
-        const isOfferDeal = Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo || item.isBogoReward || item.isBogoQualifying);
+
+    if (cart[index].isFreeGift) {
+        // Locked standard item controls on the free gift: cannot change quantity via standard controls
+        return;
+    }
+
+    if (change > 0) {
+        const isOfferDeal = Boolean(item.isBannerDeal || item.isSpotlightDeal);
         if (isOfferDeal) {
             const maxQty = getCustomerMaxQtyPerOffer();
             if (item.qty >= maxQty) {
@@ -6124,6 +6161,7 @@ function updateQuantity(index, change) {
             }
         }
     }
+
     cart[index].qty += change;
     if (cart[index].qty <= 0) {
         cart.splice(index, 1);
@@ -6450,16 +6488,20 @@ function updateCartUI() {
                 (!linkedComboId || item.bogoComboId === linkedComboId)
             );
             const totalQualifyingQty = qualifyingItemsInCombo.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+            const expectedRewardQty = Math.floor(totalQualifyingQty / requiredBuyQty);
 
-            if (totalQualifyingQty < requiredBuyQty) {
+            if (expectedRewardQty <= 0) {
                 cart = cart.filter(item => item !== rewardItem);
+                bogoCartChanged = true;
+            } else if (rewardItem.qty > expectedRewardQty) {
+                rewardItem.qty = expectedRewardQty;
                 bogoCartChanged = true;
             }
         });
 
         if (bogoCartChanged) {
             saveCartToStorage();
-            showToast('⚠️ Free BOGO reward removed: Qualifying items deleted from cart.');
+            showToast('⚠️ Free BOGO reward adjusted: Qualifying items deleted from cart.');
         }
     }
 
@@ -6627,7 +6669,7 @@ function updateCartUI() {
                         ${priceMarkup}
                     </div>
                     <div class="free-gift-cart-controls">
-                        <span class="free-gift-qty-tag" title="Standard reward item (Free)"><i class="fa-solid fa-lock"></i> ${item.qty || 1}x FREE</span>
+                        <span class="free-gift-qty-tag" title="${isBogo ? `BOGO Reward (${item.qty || 1}x FREE with combo)` : 'Standard reward item (Free)'}"><i class="fa-solid fa-gift"></i> ${item.qty || 1}x FREE</span>
                         <button type="button" class="btn-cart-change-gift" onclick="${changeAction}" title="${isBogo ? 'Edit BOGO combo' : 'Swap your free reward'}">
                             <i class="fa-solid fa-arrows-rotate"></i> ${changeLabel}
                         </button>
@@ -6640,8 +6682,12 @@ function updateCartUI() {
             }
 
             const isOfferDeal = Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo || item.isBogoReward || item.isBogoQualifying);
+            const isBogoItem = Boolean(item.isBogoCombo || item.isBogoReward || item.isBogoQualifying);
             const maxQty = getCustomerMaxQtyPerOffer();
             const isMaxQtyReached = isOfferDeal && (item.qty >= maxQty);
+            const maxLimitTitle = isBogoItem
+                ? `Max limit of ${maxQty} BOGO combos reached`
+                : `Max limit of ${maxQty} reached for this deal`;
 
             return `
             <div class="cart-item-card">
@@ -6654,7 +6700,7 @@ function updateCartUI() {
                 <div class="qty-control">
                     <button class="qty-btn" onclick="updateQuantity(${index}, -1)">-</button>
                     <span class="qty-val">${item.qty}</span>
-                    <button class="qty-btn ${isMaxQtyReached ? 'qty-btn-disabled' : ''}" ${isMaxQtyReached ? `disabled title="Max limit of ${maxQty} reached for this deal"` : ''} onclick="updateQuantity(${index}, 1)">+</button>
+                    <button class="qty-btn ${isMaxQtyReached ? 'qty-btn-disabled' : ''}" ${isMaxQtyReached ? `disabled title="${maxLimitTitle}"` : ''} onclick="updateQuantity(${index}, 1)">+</button>
                 </div>
             </div>
             `;
@@ -13134,7 +13180,11 @@ function confirmClaimBogoCombo() {
     const fullRewardName = rewardAddonNames.length > 0 ? `${selectedFreeItem.name} (+${rewardAddonNames.join(', ')})` : selectedFreeItem.name;
     const origRewardPrice = Number(selectedFreeItem.originalPrice || selectedFreeItem.price) || 0;
 
-    // 2. Limit to Once Per Order: Remove any existing BOGO combo items in cart
+    // 2. Preserve existing combo quantity if updating, or default to 1
+    const existingBogo = (Array.isArray(cart) ? cart : []).find(item => item.isBogoCombo);
+    const initialComboQty = existingBogo ? (Number(existingBogo.qty) || 1) : 1;
+
+    // Remove any existing BOGO combo items in cart before re-adding
     cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isBogoCombo && !item.isBogoReward && !item.isBogoQualifying);
 
     // 3. Add Qualifying Paid Items (unique varieties at standard/original base prices + item add-ons)
@@ -13175,7 +13225,7 @@ function confirmClaimBogoCombo() {
             baseName: itemObj.name,
             price: finalPrice,
             originalPrice: finalPrice,
-            qty: 1, // Distinct variety: 1 unit!
+            qty: initialComboQty,
             img: itemObj.img || '',
             category: itemObj.category || getCategoryStandardKey(config.buyCategory),
             addons: itemAddonsList,
@@ -13193,7 +13243,7 @@ function confirmClaimBogoCombo() {
         price: rewardAddonsPrice,
         basePrice: 0,
         originalPrice: origRewardPrice + rewardAddonsPrice,
-        qty: 1,
+        qty: initialComboQty,
         img: selectedFreeItem.img || '',
         category: selectedFreeItem.category || getCategoryStandardKey(config.rewardCategory),
         addons: rewardAddonsList,
