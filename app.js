@@ -11396,7 +11396,50 @@ window.handleBannerImgError = handleBannerImgError;
 
 let offerSliderAutoScrollInterval = null;
 let offerSliderPauseTimeout = null;
+let offerSliderAnimationTimeout = null;
+let offerSliderCurrentTrackIndex = 1;
+let offerSliderIsAnimating = false;
+let offerSliderWasSwipeGesture = false;
 let currentOfferSlideIndex = 0;
+
+function createBannerSlideHTML(banner, originalIdx, isClone = false) {
+    const safeUrl = resolveBannerUrl(banner.url);
+    const isSlot1 = (banner.id === 'b1');
+    const hasSpotlight = isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0;
+    const isSlot2 = (banner.id === 'b2');
+    const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
+    const isSlot3 = (banner.id === 'b3');
+    const hasBogoOffer = isSlot3 && (banner.enabled !== false);
+    const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
+    const spendRewardLabel = hasSpendOffer ? (isPizza ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${getCategoryDisplayName(banner.rewardCategory) || 'Gift'}`) : '';
+
+    return `
+        <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''} ${hasBogoOffer ? 'offer-slide-bogo' : ''} ${!safeUrl ? 'banner-skeleton-slide' : ''} ${isClone ? 'offer-slide-clone' : ''}" 
+             data-banner-id="${banner.id || ('b' + (originalIdx + 1))}" 
+             data-slide-index="${originalIdx}"
+             ${isClone ? 'data-is-clone="true"' : ''}
+             ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
+             ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
+             onclick="handleBannerSlideClick(${originalIdx}, '${escapeHtml(banner.id || ('b' + (originalIdx + 1)))}')">
+            ${safeUrl ? `<img src="${safeUrl}" alt="Daily Offer ${originalIdx + 1}" class="offer-img" onerror="handleBannerImgError(this)">` : `<div class="banner-skeleton-shimmer"></div>`}
+            ${hasSpotlight ? `
+                <div class="banner-spotlight-tap-hint">
+                    <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
+                </div>
+            ` : ''}
+            ${hasSpendOffer ? `
+                <div class="banner-spend-tap-hint">
+                    <i class="fa-solid fa-gift"></i> Tap to Unlock
+                </div>
+            ` : ''}
+            ${hasBogoOffer ? `
+                <div class="banner-bogo-tap-hint">
+                    <i class="fa-solid fa-gift"></i> BOGO Combo Deal
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
 
 function renderDynamicOfferSlider(customBanners = null) {
     let rawBanners = customBanners;
@@ -11418,7 +11461,6 @@ function renderDynamicOfferSlider(customBanners = null) {
     // Filter only currently enabled banners from the 4 slots
     let activeBanners = rawBanners.slice(0, 4).filter(b => b && b.enabled !== false);
     if (activeBanners.length === 0) {
-        // Fallback to slot 1 if all are somehow marked false
         activeBanners = [rawBanners[0] || DEFAULT_DAILY_BANNERS[0]];
     }
 
@@ -11428,60 +11470,32 @@ function renderDynamicOfferSlider(customBanners = null) {
     const dotsContainer = document.getElementById('offer-dots');
     if (!track || !dotsContainer) return;
 
-    if (currentOfferSlideIndex >= activeBanners.length) {
-        currentOfferSlideIndex = 0;
-    }
+    const bannerCount = activeBanners.length;
 
-    // Render track slides dynamically for active banners
-    track.innerHTML = activeBanners.map((banner, idx) => {
-        const safeUrl = resolveBannerUrl(banner.url);
-        const isSlot1 = (banner.id === 'b1');
-        const hasSpotlight = isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0;
-        const isSlot2 = (banner.id === 'b2');
-        const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
-        const isSlot3 = (banner.id === 'b3');
-        const hasBogoOffer = isSlot3 && (banner.enabled !== false);
-        const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
-        const spendRewardLabel = hasSpendOffer ? (isPizza ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${getCategoryDisplayName(banner.rewardCategory) || 'Gift'}`) : '';
-        return `
-            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''} ${hasBogoOffer ? 'offer-slide-bogo' : ''} ${!safeUrl ? 'banner-skeleton-slide' : ''}" 
-                 data-banner-id="${banner.id || ('b' + (idx + 1))}" 
-                 data-slide-index="${idx}"
-                 ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
-                 ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
-                 onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')">
-                ${safeUrl ? `<img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">` : `<div class="banner-skeleton-shimmer"></div>`}
-                ${hasSpotlight ? `
-                    <div class="banner-spotlight-tap-hint">
-                        <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
-                    </div>
-                ` : ''}
-                ${hasSpendOffer ? `
-                    <div class="banner-spend-tap-hint">
-                        <i class="fa-solid fa-gift"></i> Tap to Unlock
-                    </div>
-                ` : ''}
-                ${hasBogoOffer ? `
-                    <div class="banner-bogo-tap-hint">
-                        <i class="fa-solid fa-gift"></i> BOGO Combo Deal
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }).join('');
-
-    // Single Banner Mode: Hide indicator dots completely
-    if (activeBanners.length <= 1) {
+    // SINGLE BANNER MODE: exactly 1 active banner
+    if (bannerCount <= 1) {
+        track.innerHTML = createBannerSlideHTML(activeBanners[0], 0, false);
         dotsContainer.style.display = 'none';
         dotsContainer.innerHTML = '';
-    } else {
-        dotsContainer.style.display = 'flex';
-        dotsContainer.innerHTML = activeBanners.map((_, idx) => 
-            `<span class="dot ${idx === currentOfferSlideIndex ? 'active' : ''}" data-index="${idx}"></span>`
-        ).join('');
+        initOfferSlider(1);
+        return;
     }
 
-    initOfferSlider(activeBanners.length);
+    // MULTI BANNER MODE (2, 3, or 4 active banners):
+    // Construct infinite looping track: [Clone of Last, Original 0, Original 1, ..., Original N-1, Clone of First]
+    const cloneBeforeHTML = createBannerSlideHTML(activeBanners[bannerCount - 1], bannerCount - 1, true);
+    const originalSlidesHTML = activeBanners.map((banner, idx) => createBannerSlideHTML(banner, idx, false)).join('');
+    const cloneAfterHTML = createBannerSlideHTML(activeBanners[0], 0, true);
+
+    track.innerHTML = `${cloneBeforeHTML}${originalSlidesHTML}${cloneAfterHTML}`;
+
+    // Indicator dots: exactly activeBanners.length dots
+    dotsContainer.style.display = 'flex';
+    dotsContainer.innerHTML = activeBanners.map((_, idx) => 
+        `<span class="dot ${idx === 0 ? 'active' : ''}" data-index="${idx}"></span>`
+    ).join('');
+
+    initOfferSlider(bannerCount);
 }
 window.renderDynamicOfferSlider = renderDynamicOfferSlider;
 
@@ -11491,7 +11505,7 @@ function initOfferSlider(activeBannerCount) {
     const dotsContainer = document.getElementById('offer-dots');
     if (!wrapper || !track || !dotsContainer) return;
 
-    // Clear any running timers
+    // Clear any previous running timers
     if (offerSliderAutoScrollInterval) {
         clearInterval(offerSliderAutoScrollInterval);
         offerSliderAutoScrollInterval = null;
@@ -11500,9 +11514,14 @@ function initOfferSlider(activeBannerCount) {
         clearTimeout(offerSliderPauseTimeout);
         offerSliderPauseTimeout = null;
     }
+    if (offerSliderAnimationTimeout) {
+        clearTimeout(offerSliderAnimationTimeout);
+        offerSliderAnimationTimeout = null;
+    }
+    offerSliderIsAnimating = false;
 
     const slides = Array.from(track.querySelectorAll('.offer-slide'));
-    const totalSlides = slides.length;
+    const totalTrackItems = slides.length;
 
     // Detach all previous swipe/drag listeners clean
     wrapper.ontouchstart = null;
@@ -11516,9 +11535,8 @@ function initOfferSlider(activeBannerCount) {
 
     // --------------------------------------------------------------------------
     // SINGLE BANNER MODE: Exactly 1 banner is active
-    // Disable swiping/touch gestures and auto-scroll completely; fixed & static.
     // --------------------------------------------------------------------------
-    if (totalSlides <= 1) {
+    if (activeBannerCount <= 1 || totalTrackItems <= 1) {
         track.style.display = 'block';
         track.style.width = '100%';
         track.style.transform = 'translateX(0%)';
@@ -11531,39 +11549,36 @@ function initOfferSlider(activeBannerCount) {
         dotsContainer.style.display = 'none';
         dotsContainer.innerHTML = '';
         wrapper.style.cursor = 'default';
+        currentOfferSlideIndex = 0;
+        window.currentOfferSlideIndex = 0;
         return;
     }
 
     // --------------------------------------------------------------------------
-    // MULTI BANNER MODE: 2 to 4 banners active
-    // 3s auto-scroll loop + 5.5s pause/hold delay after user touch/drag
+    // MULTI BANNER MODE: 2, 3, or 4 banners with smooth seamless infinite loop
     // --------------------------------------------------------------------------
+    const N = activeBannerCount;
+    const M = totalTrackItems; // N + 2
+    const dots = Array.from(dotsContainer.querySelectorAll('.dot'));
+
     dotsContainer.style.display = 'flex';
     wrapper.style.cursor = 'grab';
 
-    const dots = Array.from(dotsContainer.querySelectorAll('.dot'));
-
     track.style.display = 'flex';
-    track.style.width = `${totalSlides * 100}%`;
+    track.style.width = `${M * 100}%`;
 
     slides.forEach(slide => {
-        slide.style.flex = `0 0 ${100 / totalSlides}%`;
-        slide.style.width = `${100 / totalSlides}%`;
-        slide.style.minWidth = `${100 / totalSlides}%`;
+        slide.style.flex = `0 0 ${100 / M}%`;
+        slide.style.width = `${100 / M}%`;
+        slide.style.minWidth = `${100 / M}%`;
     });
 
-    function goToSlide(index, animated = true) {
-        currentOfferSlideIndex = (index % totalSlides + totalSlides) % totalSlides;
-        if (animated) {
-            track.style.transition = 'transform 0.5s ease-in-out';
-        } else {
-            track.style.transition = 'none';
-        }
-        const pct = -(currentOfferSlideIndex * (100 / totalSlides));
-        track.style.transform = `translateX(${pct}%)`;
+    const TRANSITION_DURATION = 600; // ms: soft, silky smooth slide transition
+    const TRANSITION_CURVE = 'cubic-bezier(0.25, 1, 0.5, 1)'; // smooth deceleration curve
 
+    function updateDots(activeOriginalIdx) {
         dots.forEach((dot, idx) => {
-            if (idx === currentOfferSlideIndex) {
+            if (idx === activeOriginalIdx) {
                 dot.classList.add('active');
             } else {
                 dot.classList.remove('active');
@@ -11571,22 +11586,86 @@ function initOfferSlider(activeBannerCount) {
         });
     }
 
-    // Set initial slide position
-    goToSlide(currentOfferSlideIndex, false);
+    // Track position helper
+    function getTrackPercentage(trackIdx) {
+        return -(trackIdx * (100 / M));
+    }
+
+    function moveTo(targetIndex, animated = true) {
+        if (offerSliderIsAnimating && animated) return;
+
+        if (offerSliderAnimationTimeout) {
+            clearTimeout(offerSliderAnimationTimeout);
+            offerSliderAnimationTimeout = null;
+        }
+
+        offerSliderCurrentTrackIndex = targetIndex;
+        const activeOriginalIdx = (offerSliderCurrentTrackIndex - 1 + N) % N;
+        currentOfferSlideIndex = activeOriginalIdx;
+        window.currentOfferSlideIndex = activeOriginalIdx;
+        updateDots(activeOriginalIdx);
+
+        const targetPct = getTrackPercentage(offerSliderCurrentTrackIndex);
+
+        if (animated) {
+            offerSliderIsAnimating = true;
+            track.style.transition = `transform ${TRANSITION_DURATION}ms ${TRANSITION_CURVE}`;
+            track.style.transform = `translateX(${targetPct}%)`;
+
+            const onTransitionEnd = () => {
+                track.removeEventListener('transitionend', onTransitionEnd);
+                if (offerSliderAnimationTimeout) {
+                    clearTimeout(offerSliderAnimationTimeout);
+                    offerSliderAnimationTimeout = null;
+                }
+
+                // If at the end clone (Clone of Slide 0 at index N + 1)
+                // Instantly teleport to Original Slide 0 (index 1) with NO animation
+                if (offerSliderCurrentTrackIndex === N + 1) {
+                    track.style.transition = 'none';
+                    offerSliderCurrentTrackIndex = 1;
+                    track.style.transform = `translateX(${getTrackPercentage(1)}%)`;
+                    void track.offsetHeight; // Force immediate layout reflow
+                }
+                // If at the start clone (Clone of Slide N - 1 at index 0)
+                // Instantly teleport to Original Slide N - 1 (index N) with NO animation
+                else if (offerSliderCurrentTrackIndex === 0) {
+                    track.style.transition = 'none';
+                    offerSliderCurrentTrackIndex = N;
+                    track.style.transform = `translateX(${getTrackPercentage(N)}%)`;
+                    void track.offsetHeight; // Force immediate layout reflow
+                }
+
+                offerSliderIsAnimating = false;
+            };
+
+            track.addEventListener('transitionend', onTransitionEnd, { once: true });
+            // Safety timeout to guarantee teleport even if tab is throttled or transitionend is missed
+            offerSliderAnimationTimeout = setTimeout(onTransitionEnd, TRANSITION_DURATION + 40);
+        } else {
+            offerSliderIsAnimating = false;
+            track.style.transition = 'none';
+            track.style.transform = `translateX(${targetPct}%)`;
+        }
+    }
+
+    // Set initial position: Original Slide 0 is at track index 1
+    offerSliderCurrentTrackIndex = 1;
+    moveTo(1, false);
 
     function nextSlide() {
-        goToSlide(currentOfferSlideIndex + 1, true);
+        moveTo(offerSliderCurrentTrackIndex + 1, true);
     }
 
     function prevSlide() {
-        goToSlide(currentOfferSlideIndex - 1, true);
+        moveTo(offerSliderCurrentTrackIndex - 1, true);
     }
 
     function startAutoScroll() {
         stopAutoScroll();
         offerSliderAutoScrollInterval = setInterval(() => {
             nextSlide();
-        }, 3000); // 3 seconds autoplay loop
+        }, 3800); // ~3.8s autoplay interval
     }
 
     function stopAutoScroll() {
@@ -11599,10 +11678,10 @@ function initOfferSlider(activeBannerCount) {
     function handleUserInteractionEnd() {
         stopAutoScroll();
         if (offerSliderPauseTimeout) clearTimeout(offerSliderPauseTimeout);
-        // 5.5 seconds hold delay after manual swipe/drag before resuming 3s auto-scroll
+        // 4.5s hold delay after manual swipe/drag before resuming autoplay
         offerSliderPauseTimeout = setTimeout(() => {
             startAutoScroll();
-        }, 5500);
+        }, 4500);
     }
 
     // Dot click navigation
@@ -11610,7 +11689,16 @@ function initOfferSlider(activeBannerCount) {
         dot.onclick = (e) => {
             e.stopPropagation();
             stopAutoScroll();
-            goToSlide(idx, true);
+            if (offerSliderIsAnimating) return;
+
+            // If user is at last slide and clicks first dot, glide forward to clone!
+            if (offerSliderCurrentTrackIndex === N && idx === 0) {
+                moveTo(N + 1, true);
+            } else if (offerSliderCurrentTrackIndex === 1 && idx === N - 1) {
+                moveTo(0, true);
+            } else {
+                moveTo(idx + 1, true);
+            }
             handleUserInteractionEnd();
         };
     });
@@ -11619,23 +11707,44 @@ function initOfferSlider(activeBannerCount) {
     let startX = 0;
     let currentX = 0;
     let isDragging = false;
-    let wasSwipeGesture = false;
 
     function onStart(clientX) {
         stopAutoScroll();
         if (offerSliderPauseTimeout) clearTimeout(offerSliderPauseTimeout);
+
+        // If user touches while in motion, immediately complete active animation
+        if (offerSliderIsAnimating) {
+            if (offerSliderAnimationTimeout) {
+                clearTimeout(offerSliderAnimationTimeout);
+                offerSliderAnimationTimeout = null;
+            }
+            if (offerSliderCurrentTrackIndex === N + 1) {
+                track.style.transition = 'none';
+                offerSliderCurrentTrackIndex = 1;
+                track.style.transform = `translateX(${getTrackPercentage(1)}%)`;
+                void track.offsetHeight;
+            } else if (offerSliderCurrentTrackIndex === 0) {
+                track.style.transition = 'none';
+                offerSliderCurrentTrackIndex = N;
+                track.style.transform = `translateX(${getTrackPercentage(N)}%)`;
+                void track.offsetHeight;
+            }
+            offerSliderIsAnimating = false;
+        }
+
         startX = clientX;
         currentX = startX;
         isDragging = true;
-        wasSwipeGesture = false;
+        offerSliderWasSwipeGesture = false;
         wrapper.style.cursor = 'grabbing';
     }
 
     function onMove(clientX) {
         if (!isDragging) return;
         currentX = clientX;
-        if (Math.abs(currentX - startX) > 10) {
-            wasSwipeGesture = true;
+        const diffX = currentX - startX;
+        if (Math.abs(diffX) > 10) {
+            offerSliderWasSwipeGesture = true;
         }
     }
 
@@ -11653,7 +11762,9 @@ function initOfferSlider(activeBannerCount) {
             }
         }
         handleUserInteractionEnd();
-        setTimeout(() => { wasSwipeGesture = false; }, 150);
+        setTimeout(() => {
+            offerSliderWasSwipeGesture = false;
+        }, 150);
     }
 
     wrapper.ontouchstart = (e) => {
@@ -11700,12 +11811,12 @@ function initOfferSlider(activeBannerCount) {
         }
     };
 
-    // Start initial 3-second autoplay loop
+    // Start initial autoplay loop
     startAutoScroll();
 }
 
 function handleBannerSlideClick(slideIndex, bannerId) {
-    if (typeof wasSwipeGesture !== 'undefined' && wasSwipeGesture) return;
+    if (offerSliderWasSwipeGesture) return;
     const activeBanners = window.__currentActiveBanners || [];
     const banner = activeBanners[slideIndex] || activeBanners.find(b => b.id === bannerId);
     if (!banner) return;
