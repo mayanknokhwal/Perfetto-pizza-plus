@@ -3826,25 +3826,54 @@
                         </div>
                     </div>
 
-                    <!-- MAX CLAIMABLE OFFERS PER ORDER CONFIGURATION -->
-                    <div class="banner-max-offers-config-row" style="margin: 14px 0 16px 0; padding: 14px 18px; background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-                        <div style="flex: 1; min-width: 260px;">
-                            <label for="admin-max-offers-per-order" style="font-size: 0.92rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Max Claimable Offers Per Order
-                            </label>
-                            <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                                Set how many banner deals (Slot #1 Spotlight, Slot #2 Spend Target, Slot #3 BOGO Combo) a customer can claim in a single order.
-                            </span>
+                    <!-- BANNER RESTRICTION SETTINGS (MAX OFFERS & MAX QUANTITY) -->
+                    <div class="banner-restrictions-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 14px 0 16px 0;">
+                        <!-- 1. MAX CLAIMABLE OFFERS PER ORDER -->
+                        <div class="banner-max-offers-config-row" style="padding: 14px 18px; background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 14px;">
+                            <div style="flex: 1;">
+                                <label for="admin-max-offers-per-order" style="font-size: 0.92rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Max Claimable Offers Per Order
+                                </label>
+                                <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
+                                    How many distinct banner deals a customer can claim in a single order.
+                                </span>
+                            </div>
+                            <div>
+                                <select id="admin-max-offers-per-order" 
+                                        class="search-input" 
+                                        onchange="onBannerMaxOffersChange(this.value)"
+                                        style="width: 125px; height: 40px; border-radius: 8px; font-size: 0.90rem; font-weight: 700; background: var(--bg-card); color: var(--primary-orange); border: 1.5px solid var(--border-color); padding: 0 12px; cursor: pointer;">
+                                    <option value="1">1 Offer</option>
+                                    <option value="2">2 Offers</option>
+                                    <option value="3">3 Offers</option>
+                                </select>
+                            </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <select id="admin-max-offers-per-order" 
-                                    class="search-input" 
-                                    onchange="onBannerMaxOffersChange(this.value)"
-                                    style="width: 140px; height: 40px; border-radius: 8px; font-size: 0.90rem; font-weight: 700; background: var(--bg-card); color: var(--primary-orange); border: 1.5px solid var(--border-color); padding: 0 12px; cursor: pointer;">
-                                <option value="1">1 Offer</option>
-                                <option value="2">2 Offers</option>
-                                <option value="3">3 Offers</option>
-                            </select>
+
+                        <!-- 2. MAX QUANTITY PER OFFER (STRICT RANGE 1 - 9) -->
+                        <div class="banner-max-qty-config-row" style="padding: 14px 18px; background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 14px;">
+                            <div style="flex: 1;">
+                                <label for="admin-max-qty-per-offer" style="font-size: 0.92rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                    <i class="fa-solid fa-calculator" style="color: var(--primary-orange);"></i> Max Quantity Per Offer
+                                </label>
+                                <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
+                                    Max units of a banner deal (1 to 9) a customer can claim in an order.
+                                </span>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                                <input type="number" 
+                                       id="admin-max-qty-per-offer" 
+                                       min="1" 
+                                       max="9" 
+                                       step="1" 
+                                       value="1" 
+                                       class="search-input"
+                                       oninput="handleAdminMaxQtyInput(this)"
+                                       onchange="handleAdminMaxQtyChange(this)"
+                                       onblur="handleAdminMaxQtyBlur(this)"
+                                       style="width: 80px; height: 40px; text-align: center; border-radius: 8px; font-size: 1rem; font-weight: 800; background: var(--bg-card); color: var(--primary-orange); border: 1.5px solid var(--border-color); padding: 0 8px;">
+                                <span id="admin-max-qty-validation-hint" style="font-size: 0.72rem; color: #ef4444; display: none;">Strict range: 1–9</span>
+                            </div>
                         </div>
                     </div>
 
@@ -8146,35 +8175,34 @@
         // --------------------------------------------------------------------------
         // DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (FIXED 4 PERSISTENT SLOTS)
         // --------------------------------------------------------------------------
-        const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+        const DEFAULT_FALLBACK_BANNER_LOGO = '';
         const DEFAULT_DAILY_BANNERS = [
-            { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true },
-            { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true },
-            { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true },
-            { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
+            { id: 'b1', url: '', enabled: true },
+            { id: 'b2', url: '', enabled: true },
+            { id: 'b3', url: '', enabled: true },
+            { id: 'b4', url: '', enabled: true }
         ];
 
         window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
         window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
 
         function resolveBannerUrl(url) {
-            if (!url || typeof url !== 'string') return DEFAULT_FALLBACK_BANNER_LOGO;
+            if (!url || typeof url !== 'string') return '';
             const trimmed = url.trim();
-            if (!trimmed || trimmed.length < 4) return DEFAULT_FALLBACK_BANNER_LOGO;
+            if (!trimmed || trimmed.length < 4) return '';
             return trimmed;
         }
         window.resolveBannerUrl = resolveBannerUrl;
 
         function handleBannerImgError(imgEl) {
             if (!imgEl) return;
-            if (imgEl.src !== DEFAULT_FALLBACK_BANNER_LOGO) {
-                imgEl.src = DEFAULT_FALLBACK_BANNER_LOGO;
-            }
+            imgEl.style.display = 'none';
         }
         window.handleBannerImgError = handleBannerImgError;
 
         let adminDailyBannersList = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
         let adminBannerMaxOffers = 1;
+        let adminBannerMaxQty = 1;
 
         function onBannerMaxOffersChange(val) {
             const num = parseInt(val, 10);
@@ -8184,11 +8212,60 @@
         }
         window.onBannerMaxOffersChange = onBannerMaxOffersChange;
 
+        function setBannerSaveButtonsDisabled(disabled) {
+            const btnSaveBanners = document.getElementById('btn-save-daily-banners');
+            const btnSaveAll = document.getElementById('btn-admin-save-all');
+            if (btnSaveBanners) btnSaveBanners.disabled = disabled;
+            if (btnSaveAll) btnSaveAll.disabled = disabled;
+        }
+
+        function handleAdminMaxQtyInput(inputEl) {
+            if (!inputEl) return;
+            const rawVal = inputEl.value.trim();
+            const hint = document.getElementById('admin-max-qty-validation-hint');
+            const num = parseInt(rawVal, 10);
+
+            if (!rawVal || isNaN(num) || num < 1 || num > 9) {
+                if (hint) hint.style.display = 'block';
+                inputEl.style.borderColor = '#ef4444';
+                setBannerSaveButtonsDisabled(true);
+            } else {
+                if (hint) hint.style.display = 'none';
+                inputEl.style.borderColor = 'var(--border-color)';
+                setBannerSaveButtonsDisabled(false);
+                adminBannerMaxQty = num;
+            }
+        }
+
+        function handleAdminMaxQtyBlur(inputEl) {
+            if (!inputEl) return;
+            let num = parseInt(inputEl.value, 10);
+            if (isNaN(num) || num < 1) {
+                num = 1;
+            } else if (num > 9) {
+                num = 9;
+            }
+            inputEl.value = String(num);
+            adminBannerMaxQty = num;
+            const hint = document.getElementById('admin-max-qty-validation-hint');
+            if (hint) hint.style.display = 'none';
+            inputEl.style.borderColor = 'var(--border-color)';
+            setBannerSaveButtonsDisabled(false);
+        }
+
+        function handleAdminMaxQtyChange(inputEl) {
+            handleAdminMaxQtyBlur(inputEl);
+        }
+
+        window.handleAdminMaxQtyInput = handleAdminMaxQtyInput;
+        window.handleAdminMaxQtyBlur = handleAdminMaxQtyBlur;
+        window.handleAdminMaxQtyChange = handleAdminMaxQtyChange;
+
         function normalizeAdminBanners(raw) {
             const list = Array.isArray(raw) ? raw : [];
             let normalized = [];
             for (let i = 0; i < 4; i++) {
-                const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: DEFAULT_FALLBACK_BANNER_LOGO, enabled: true };
+                const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: '', enabled: true };
                 const bannerObj = {
                     id: (item.id && String(item.id).trim()) || `b${i + 1}`,
                     url: resolveBannerUrl(item.url),
@@ -8257,6 +8334,12 @@
                             const sel = document.getElementById('admin-max-offers-per-order');
                             if (sel) sel.value = String(adminBannerMaxOffers);
                         }
+                        const maxQtyVal = parseInt(doc.data().max_qty_per_offer || doc.data().maxQtyPerOffer, 10);
+                        if (!isNaN(maxQtyVal) && maxQtyVal >= 1 && maxQtyVal <= 9) {
+                            adminBannerMaxQty = maxQtyVal;
+                            const qtyInput = document.getElementById('admin-max-qty-per-offer');
+                            if (qtyInput) qtyInput.value = String(adminBannerMaxQty);
+                        }
                         return normalized;
                     }
                 } catch (e) {
@@ -8294,6 +8377,12 @@
                             adminBannerMaxOffers = maxVal;
                             const sel = document.getElementById('admin-max-offers-per-order');
                             if (sel) sel.value = String(adminBannerMaxOffers);
+                        }
+                        const maxQtyVal = parseInt(data.max_qty_per_offer || data.maxQtyPerOffer, 10);
+                        if (!isNaN(maxQtyVal) && maxQtyVal >= 1 && maxQtyVal <= 9) {
+                            adminBannerMaxQty = maxQtyVal;
+                            const qtyInput = document.getElementById('admin-max-qty-per-offer');
+                            if (qtyInput) qtyInput.value = String(adminBannerMaxQty);
                         }
                         return normalized;
                     }
@@ -8432,6 +8521,12 @@
                 adminBannerMaxOffers = (!isNaN(parsed) && parsed >= 1 && parsed <= 3) ? parsed : 1;
             }
 
+            const maxQtyInput = document.getElementById('admin-max-qty-per-offer');
+            if (maxQtyInput) {
+                const parsedQty = parseInt(maxQtyInput.value, 10);
+                adminBannerMaxQty = (!isNaN(parsedQty) && parsedQty >= 1 && parsedQty <= 9) ? parsedQty : 1;
+            }
+
             const docPayload = {
                 banners: slots,
                 slot1: slot1Data,
@@ -8439,6 +8534,8 @@
                 slot3: slot3Data,
                 max_offers_per_order: adminBannerMaxOffers,
                 maxOffersPerOrder: adminBannerMaxOffers,
+                max_qty_per_offer: adminBannerMaxQty,
+                maxQtyPerOffer: adminBannerMaxQty,
                 count: 4,
                 activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),

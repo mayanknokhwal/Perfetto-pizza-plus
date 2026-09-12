@@ -129,6 +129,8 @@ async function handleBannersRequest(req, res) {
                 slot3: slot3,
                 max_offers_per_order: global.__perfettoMaxOffersPerOrder || 1,
                 maxOffersPerOrder: global.__perfettoMaxOffersPerOrder || 1,
+                max_qty_per_offer: global.__perfettoMaxQtyPerOffer || 1,
+                maxQtyPerOffer: global.__perfettoMaxQtyPerOffer || 1,
                 count: banners.length,
                 activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
@@ -155,6 +157,8 @@ async function handleBannersRequest(req, res) {
                 slot3: result.slot3 || null,
                 max_offers_per_order: result.max_offers_per_order || 1,
                 maxOffersPerOrder: result.maxOffersPerOrder || 1,
+                max_qty_per_offer: result.max_qty_per_offer || 1,
+                maxQtyPerOffer: result.maxQtyPerOffer || 1,
                 count: result.banners.length,
                 activeCount: result.banners.filter(b => b.enabled).length
             });

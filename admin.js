@@ -219,13 +219,13 @@ export function normalizeStoreNotice(raw) {
 // --------------------------------------------------------------------------
 // 4-SLOT PERSISTENT DAILY BANNERS CONFIGURATION & HELPERS
 // --------------------------------------------------------------------------
-export const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+export const DEFAULT_FALLBACK_BANNER_LOGO = '';
 
 export const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
-    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
-    { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
+    { id: 'b1', url: '', enabled: true, targetProductId: '', discountPercent: 0 },
+    { id: 'b2', url: '', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: '', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+    { id: 'b4', url: '', enabled: true }
 ];
 
 /**
@@ -238,10 +238,10 @@ export function normalizeDailyBanners(raw) {
     const list = Array.isArray(raw) ? raw : [];
     let normalized = [];
     for (let i = 0; i < 4; i++) {
-        const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: DEFAULT_FALLBACK_BANNER_LOGO, enabled: true };
+        const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: '', enabled: true };
         const url = (item.url && typeof item.url === 'string' && item.url.trim().length >= 4)
             ? item.url.trim()
-            : DEFAULT_FALLBACK_BANNER_LOGO;
+            : '';
         const bannerObj = {
             id: (item.id && String(item.id).trim()) || `b${i + 1}`,
             url,

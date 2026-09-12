@@ -2336,6 +2336,11 @@ async function fetchLiveBannersFromBackend() {
                     customerMaxOffersPerOrder = rawMaxOffers;
                     localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
                 }
+                const rawMaxQty = parseInt(data.max_qty_per_offer || data.maxQtyPerOffer, 10);
+                if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
+                    customerMaxQtyPerOffer = rawMaxQty;
+                    localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
+                }
                 localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
                 if (typeof renderDynamicOfferSlider === 'function') {
                     renderDynamicOfferSlider(normalized);
@@ -5932,6 +5937,64 @@ function getCustomerMaxOffersPerOrder() {
 }
 window.getCustomerMaxOffersPerOrder = getCustomerMaxOffersPerOrder;
 
+let customerMaxQtyPerOffer = (function () {
+    try {
+        const saved = localStorage.getItem('perfetto_max_qty_per_offer');
+        if (saved) {
+            const parsed = parseInt(saved, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) return parsed;
+        }
+    } catch (e) { }
+    return 1;
+})();
+
+try {
+    window.addEventListener('storage', (e) => {
+        if (e.key === 'perfetto_max_qty_per_offer' && e.newValue) {
+            const parsed = parseInt(e.newValue, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
+                customerMaxQtyPerOffer = parsed;
+            }
+        }
+    });
+} catch (e) { }
+
+function setCustomerMaxQtyPerOffer(val) {
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
+        customerMaxQtyPerOffer = parsed;
+        if (typeof window !== 'undefined') window.customerMaxQtyPerOffer = parsed;
+        try {
+            localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
+        } catch (e) { }
+    }
+}
+window.setCustomerMaxQtyPerOffer = setCustomerMaxQtyPerOffer;
+window.customerMaxQtyPerOffer = customerMaxQtyPerOffer;
+
+function getCustomerMaxQtyPerOffer() {
+    if (typeof window !== 'undefined' && window.customerMaxQtyPerOffer && window.customerMaxQtyPerOffer >= 1 && window.customerMaxQtyPerOffer <= 9) {
+        customerMaxQtyPerOffer = window.customerMaxQtyPerOffer;
+        return customerMaxQtyPerOffer;
+    }
+    if (customerMaxQtyPerOffer && customerMaxQtyPerOffer >= 1 && customerMaxQtyPerOffer <= 9) {
+        return customerMaxQtyPerOffer;
+    }
+    try {
+        const saved = localStorage.getItem('perfetto_max_qty_per_offer');
+        if (saved) {
+            const parsed = parseInt(saved, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
+                customerMaxQtyPerOffer = parsed;
+                if (typeof window !== 'undefined') window.customerMaxQtyPerOffer = parsed;
+                return customerMaxQtyPerOffer;
+            }
+        }
+    } catch (e) { }
+    return 1;
+}
+window.getCustomerMaxQtyPerOffer = getCustomerMaxQtyPerOffer;
+
 function getActiveBannerOfferTypes(currentCart = cart) {
     const list = Array.isArray(currentCart) ? currentCart : [];
     const offers = new Set();
@@ -5960,14 +6023,14 @@ window.canClaimBannerOffer = canClaimBannerOffer;
 
 function showOfferLimitToast() {
     const maxLimit = getCustomerMaxOffersPerOrder();
-    showToast(`Offer limit reached: You can only apply ${maxLimit} banner offer(s) per order.`);
+    showToast(`Limit reached: ${maxLimit} offer${maxLimit > 1 ? 's' : ''} per order`);
 }
 window.showOfferLimitToast = showOfferLimitToast;
 
 function addToCart(name, price, img, addons = [], originalPrice = null, options = {}) {
     if (getCustomerShopStatus() === 'closed') {
         showToast('This time shop is closed. We are not accepting orders right now.');
-        return;
+        return false;
     }
 
     // Check if item is marked out-of-stock in latest menu data
@@ -5976,12 +6039,12 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     const menuItem = allItems.find(i => (i.name && i.name.toLowerCase() === cleanName.toLowerCase()));
     if (menuItem && menuItem.available === false) {
         showToast(`⚠️ "${cleanName}" is currently out of stock.`);
-        return;
+        return false;
     }
 
     const effPrice = Math.round(Number(price) || 0);
     const origPrice = originalPrice !== null ? Math.round(Number(originalPrice) || 0) : effPrice;
-    const isBannerDeal = Boolean(options && (options.isBannerDeal || options.isSpotlightDeal));
+    const isBannerDeal = Boolean(options && (options.isBannerDeal || options.isSpotlightDeal || options.isFreeGift || options.isBogoCombo));
     const isSpotlightDeal = Boolean(options && (options.isSpotlightDeal || options.isBannerDeal));
 
     // Build item name and identifier taking add-ons into account
@@ -5992,8 +6055,15 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         ? `${name} (+${addonNames.join(', ')})`
         : name;
 
-    const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal) === isBannerDeal);
+    const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo) === isBannerDeal);
     if (existingIndex > -1) {
+        if (isBannerDeal || cart[existingIndex].isBannerDeal || cart[existingIndex].isSpotlightDeal || cart[existingIndex].isBogoCombo || cart[existingIndex].isBogoQualifying) {
+            const maxQty = getCustomerMaxQtyPerOffer();
+            if (cart[existingIndex].qty >= maxQty) {
+                showToast(`Max limit of ${maxQty} reached for this deal.`);
+                return false;
+            }
+        }
         cart[existingIndex].qty += 1;
         cart[existingIndex].price = effPrice;
         cart[existingIndex].originalPrice = origPrice;
@@ -6019,9 +6089,11 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     saveCartToStorage();
     updateCartUI();
 
-    // Display clean single-line notification with primary item name (and size if applicable)
-    const cleanToastItemName = String(name || '').replace(/\s*\(\+.*?\)$/i, '').trim();
-    showToast(`Added ${cleanToastItemName} to your cart!`);
+    if (!options || !options.skipToast) {
+        const cleanToastItemName = String(name || '').replace(/\s*\(\+.*?\)$/i, '').trim();
+        showToast(`Added ${cleanToastItemName} to your cart!`);
+    }
+    return true;
 }
 
 function updateQuantity(index, change) {
@@ -6032,6 +6104,17 @@ function updateQuantity(index, change) {
     if (cart[index] && (cart[index].isFreeGift || cart[index].isBogoReward)) {
         // Locked standard item controls on the free gift or BOGO reward: cannot change quantity or delete via standard controls
         return;
+    }
+    if (change > 0 && cart[index]) {
+        const item = cart[index];
+        const isOfferDeal = Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo || item.isBogoReward || item.isBogoQualifying);
+        if (isOfferDeal) {
+            const maxQty = getCustomerMaxQtyPerOffer();
+            if (item.qty >= maxQty) {
+                showToast(`Max limit of ${maxQty} reached for this deal.`);
+                return;
+            }
+        }
     }
     cart[index].qty += change;
     if (cart[index].qty <= 0) {
@@ -6428,6 +6511,10 @@ function updateCartUI() {
                 `;
             }
 
+            const isOfferDeal = Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo || item.isBogoReward || item.isBogoQualifying);
+            const maxQty = getCustomerMaxQtyPerOffer();
+            const isMaxQtyReached = isOfferDeal && (item.qty >= maxQty);
+
             return `
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
@@ -6439,7 +6526,7 @@ function updateCartUI() {
                 <div class="qty-control">
                     <button class="qty-btn" onclick="updateQuantity(${index}, -1)">-</button>
                     <span class="qty-val">${item.qty}</span>
-                    <button class="qty-btn" onclick="updateQuantity(${index}, 1)">+</button>
+                    <button class="qty-btn ${isMaxQtyReached ? 'qty-btn-disabled' : ''}" ${isMaxQtyReached ? `disabled title="Max limit of ${maxQty} reached for this deal"` : ''} onclick="updateQuantity(${index}, 1)">+</button>
                 </div>
             </div>
             `;
@@ -11051,7 +11138,7 @@ function confirmClearCustomerOrderHistory() {
 // 7. TOAST NOTIFICATION SYSTEM
 // --------------------------------------------------------------------------
 let toastTimeout = null;
-function showToast(msg, duration = 2400) {
+function showToast(msg, duration = 3500) {
     // Immediately clear any active timer to prevent stacked or flickering notifications
     if (toastTimeout) {
         clearTimeout(toastTimeout);
@@ -11100,31 +11187,35 @@ function showToast(msg, duration = 2400) {
 
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
-// 8. DAILY BANNERS DATA & FALLBACK LOGO SYSTEM (SEAMLESS DYNAMIC AUTO-CAROUSEL)
+// 8. DAILY BANNERS DATA & SKELETON SHIMMER SYSTEM (SEAMLESS DYNAMIC AUTO-CAROUSEL)
 // --------------------------------------------------------------------------
-const DEFAULT_FALLBACK_BANNER_LOGO = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+const DEFAULT_FALLBACK_BANNER_LOGO = '';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/GQtdNF4v/free-cold-drink.png', enabled: true, targetProductId: '', discountPercent: 0 },
-    { id: 'b2', url: 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
-    { id: 'b4', url: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png', enabled: true }
+    { id: 'b1', url: '', enabled: true, targetProductId: '', discountPercent: 0 },
+    { id: 'b2', url: '', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: '', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+    { id: 'b4', url: '', enabled: true }
 ];
 
 window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
 window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
 
 function resolveBannerUrl(url) {
-    if (!url || typeof url !== 'string') return DEFAULT_FALLBACK_BANNER_LOGO;
+    if (!url || typeof url !== 'string') return '';
     const trimmed = url.trim();
-    if (!trimmed || trimmed.length < 4) return DEFAULT_FALLBACK_BANNER_LOGO;
+    if (!trimmed || trimmed.length < 4) return '';
     return trimmed;
 }
 window.resolveBannerUrl = resolveBannerUrl;
 
 function handleBannerImgError(imgEl) {
     if (!imgEl) return;
-    if (imgEl.src !== DEFAULT_FALLBACK_BANNER_LOGO) {
-        imgEl.src = DEFAULT_FALLBACK_BANNER_LOGO;
+    imgEl.style.display = 'none';
+    const parent = imgEl.parentElement;
+    if (parent && !parent.querySelector('.banner-skeleton-shimmer')) {
+        const shimmer = document.createElement('div');
+        shimmer.className = 'banner-skeleton-shimmer';
+        parent.appendChild(shimmer);
     }
 }
 window.handleBannerImgError = handleBannerImgError;
@@ -11179,13 +11270,13 @@ function renderDynamicOfferSlider(customBanners = null) {
         const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
         const spendRewardLabel = hasSpendOffer ? (isPizza ? `Free ${(banner.rewardPizzaSize || 'Medium')} Pizza` : `Free ${getCategoryDisplayName(banner.rewardCategory) || 'Gift'}`) : '';
         return `
-            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''} ${hasBogoOffer ? 'offer-slide-bogo' : ''}" 
+            <div class="offer-slide ${hasSpotlight ? 'offer-slide-spotlight' : ''} ${hasSpendOffer ? 'offer-slide-spend-target' : ''} ${hasBogoOffer ? 'offer-slide-bogo' : ''} ${!safeUrl ? 'banner-skeleton-slide' : ''}" 
                  data-banner-id="${banner.id || ('b' + (idx + 1))}" 
                  data-slide-index="${idx}"
                  ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
                  ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
                  onclick="handleBannerSlideClick(${idx}, '${escapeHtml(banner.id || ('b' + (idx + 1)))}')">
-                <img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">
+                ${safeUrl ? `<img src="${safeUrl}" alt="Daily Offer ${idx + 1}" class="offer-img" onerror="handleBannerImgError(this)">` : `<div class="banner-skeleton-shimmer"></div>`}
                 ${hasSpotlight ? `
                     <div class="banner-spotlight-tap-hint">
                         <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
@@ -11592,7 +11683,7 @@ function openSpotlightBannerModal(targetProductId, discountPercent) {
 
     const imgEl = document.getElementById('spotlight-deal-img');
     if (imgEl) {
-        imgEl.src = product.img || DEFAULT_FALLBACK_BANNER_LOGO;
+        imgEl.src = product.img || '';
         imgEl.alt = product.name;
     }
 
@@ -11851,12 +11942,23 @@ function claimSpotlightDealToCart() {
     const originalTotalPrice = origBasePrice + addonsTotal;
     const itemName = isMultiSize ? `${product.name} (${size})` : product.name;
 
+    const maxQty = getCustomerMaxQtyPerOffer();
+    const addonNames = addonsList.map(a => a.name);
+    const fullItemName = addonNames.length > 0 ? `${itemName} (+${addonNames.join(', ')})` : itemName;
+    const existingItem = (Array.isArray(cart) ? cart : []).find(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal));
+    if (existingItem && existingItem.qty >= maxQty) {
+        showToast(`Max limit of ${maxQty} reached for this deal.`);
+        return;
+    }
+
     // Add to cart with isBannerDeal: true, isSpotlightDeal: true and appliedPrice: finalDiscountedPrice
-    addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
+    const added = addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
         isBannerDeal: true,
         isSpotlightDeal: true,
-        appliedPrice: finalDiscountedPrice
+        appliedPrice: finalDiscountedPrice,
+        skipToast: true
     });
+    if (!added) return;
 
     closeSpotlightDealModal();
     showToast(`🎉 Claimed ${dPercent}% OFF deal on ${itemName}!`);
@@ -11899,7 +12001,7 @@ function getBannerSlot2Config() {
     const isPizza = cat.toLowerCase() === 'pizza';
     return {
         id: 'b2',
-        url: b2.url || 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png',
+        url: b2.url || '',
         minSpend: Number(b2.minSpend) || 699,
         rewardCategory: cat,
         rewardType: isPizza ? 'pizza' : (b2.rewardType || 'category'),
@@ -12005,14 +12107,14 @@ function renderFreeGiftItemsGrid() {
             origP = (item.prices && item.prices[pizzaSizeKey]) ? item.prices[pizzaSizeKey] : (item.price || 249);
         }
 
-        const safeImg = item.img || 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png';
+        const safeImg = item.img || '';
         const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
 
         return `
             <div class="free-gift-item-card ${isSelected ? 'selected' : ''}" onclick="onSelectFreeGiftItem('${escapeHtml(item.id || item.name)}')">
                 ${isSelected ? '<div class="free-gift-selected-check"><i class="fa-solid fa-check"></i></div>' : ''}
                 <div class="free-gift-item-thumb-wrapper">
-                    <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="free-gift-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                    <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="free-gift-item-thumb" onerror="this.style.display='none'">
                 </div>
                 <div class="free-gift-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
                 <div class="free-gift-price-line">
@@ -12229,7 +12331,7 @@ function confirmClaimFreeGift() {
         basePrice: 0,
         originalPrice: origBasePrice + addonsPrice,
         qty: 1,
-        img: selectedItem.img || 'https://i.ibb.co/kVpH7yM2/free-kitkat-shake.png',
+        img: selectedItem.img || '',
         addons: addonsList,
         isFreeGift: true
     });
@@ -12277,7 +12379,7 @@ function getBannerSlot3Config() {
 
     return {
         id: 'b3',
-        url: b3.url || 'https://i.ibb.co/VYqnBKbM/free-medium-pizza.png',
+        url: b3.url || '',
         buyCategory: buyCat,
         buyQty: buyQty,
         rewardCategory: rewardCat,
@@ -12492,7 +12594,7 @@ function renderBogoStep1UI() {
                 }
                 const itemTotalDisplay = regularPrice + itemAddonFee;
 
-                const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
+                const safeImg = item.img || '';
                 const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
 
                 return `
@@ -12501,7 +12603,7 @@ function renderBogoStep1UI() {
                          onclick="onToggleBogoStep1Item('${escapeHtml(key)}')">
                         ${isSelected ? '<div class="bogo-card-selected-badge"><i class="fa-solid fa-check"></i></div>' : ''}
                         <div class="bogo-item-thumb-wrapper">
-                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.style.display='none'">
                         </div>
                         <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
                         <div class="bogo-item-price-clean">${formatPrice(itemTotalDisplay)}</div>
@@ -12641,7 +12743,7 @@ function renderBogoStep2UI() {
             grid.innerHTML = rewardItems.map(item => {
                 const key = item.id || item.name;
                 const isSelected = selectedFreeItem && (selectedFreeItem.id === item.id || selectedFreeItem.name === item.name);
-                const safeImg = item.img || DEFAULT_FALLBACK_BANNER_LOGO;
+                const safeImg = item.img || '';
                 const displayName = typeof tItem === 'function' ? tItem(item.name) : item.name;
 
                 return `
@@ -12650,7 +12752,7 @@ function renderBogoStep2UI() {
                          onclick="onSelectBogoStep2Item('${escapeHtml(key)}')">
                         ${isSelected ? '<div class="bogo-card-selected-badge"><i class="fa-solid fa-check"></i></div>' : ''}
                         <div class="bogo-item-thumb-wrapper">
-                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.src='${DEFAULT_FALLBACK_BANNER_LOGO}'">
+                            <img src="${safeImg}" alt="${escapeHtml(item.name)}" class="bogo-item-thumb" onerror="this.style.display='none'">
                         </div>
                         <div class="bogo-item-name" title="${escapeHtml(item.name)}">${displayName}</div>
                         <div class="bogo-reward-card-bottom-row">
@@ -12865,7 +12967,7 @@ function confirmClaimBogoCombo() {
             price: finalPrice,
             originalPrice: finalPrice,
             qty: 1, // Distinct variety: 1 unit!
-            img: itemObj.img || DEFAULT_FALLBACK_BANNER_LOGO,
+            img: itemObj.img || '',
             category: itemObj.category || getCategoryStandardKey(config.buyCategory),
             addons: itemAddonsList,
             isBogoCombo: true,
@@ -12883,7 +12985,7 @@ function confirmClaimBogoCombo() {
         basePrice: 0,
         originalPrice: origRewardPrice + rewardAddonsPrice,
         qty: 1,
-        img: selectedFreeItem.img || DEFAULT_FALLBACK_BANNER_LOGO,
+        img: selectedFreeItem.img || '',
         category: selectedFreeItem.category || getCategoryStandardKey(config.rewardCategory),
         addons: rewardAddonsList,
         isBogoCombo: true,
@@ -13745,6 +13847,11 @@ async function checkAndSyncSettingsVersion(options = {}) {
                                         customerMaxOffersPerOrder = rawMaxOffers;
                                         localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
                                     }
+                                    const rawMaxQty = parseInt(data.max_qty_per_offer || data.maxQtyPerOffer, 10);
+                                    if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
+                                        customerMaxQtyPerOffer = rawMaxQty;
+                                        localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
+                                    }
                                     if (typeof renderDynamicOfferSlider === 'function') {
                                         renderDynamicOfferSlider(data.banners);
                                     }
@@ -13951,6 +14058,11 @@ function listenToRealtimeMenuAndRates() {
                     if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
                         customerMaxOffersPerOrder = rawMaxOffers;
                         localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+                    }
+                    const rawMaxQty = parseInt(docData.max_qty_per_offer || docData.maxQtyPerOffer, 10);
+                    if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
+                        customerMaxQtyPerOffer = rawMaxQty;
+                        localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
                     }
                     const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
                     const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
