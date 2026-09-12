@@ -498,7 +498,7 @@ function getItemEffectiveDiscount(item) {
 
 function calculateDiscountedPrice(basePrice, discountPercent) {
     if (!discountPercent || discountPercent <= 0) return Math.round(Number(basePrice) || 0);
-    const clamped = Math.min(90, Math.max(0, Number(discountPercent) || 0));
+    const clamped = Math.min(95, Math.max(0, Number(discountPercent) || 0));
     return Math.round((Number(basePrice) || 0) * (1 - clamped / 100));
 }
 
@@ -11405,7 +11405,7 @@ let currentOfferSlideIndex = 0;
 function createBannerSlideHTML(banner, originalIdx, isClone = false) {
     const safeUrl = resolveBannerUrl(banner.url);
     const isSlot1 = (banner.id === 'b1');
-    const hasSpotlight = isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0;
+    const hasSpotlight = isSlot1 && Boolean(banner.targetProductId && String(banner.targetProductId).trim()) && Number(banner.discountPercent) >= 2;
     const isSlot2 = (banner.id === 'b2');
     const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
     const isSlot3 = (banner.id === 'b3');
@@ -11823,7 +11823,7 @@ function handleBannerSlideClick(slideIndex, bannerId) {
     const isSlot1 = (banner.id === 'b1');
     const isSlot2 = (banner.id === 'b2');
 
-    if (isSlot1 && banner.targetProductId && Number(banner.discountPercent) > 0) {
+    if (isSlot1 && banner.targetProductId && String(banner.targetProductId).trim() && Number(banner.discountPercent) >= 2) {
         if (!canClaimBannerOffer('spotlight')) {
             showOfferLimitToast();
             return;
@@ -11942,7 +11942,7 @@ function openSpotlightBannerModal(targetProductId, discountPercent) {
         return;
     }
 
-    const dPercent = Math.min(90, Math.max(1, Math.round(Number(discountPercent) || 0)));
+    const dPercent = Math.min(95, Math.max(2, Math.round(Number(discountPercent) || 2)));
 
     let initialSize = 'M';
     if (product.prices && typeof product.prices === 'object') {

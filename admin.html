@@ -8274,7 +8274,7 @@
                 if (i === 0) {
                     bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
                     const rawDisc = parseInt(item.discountPercent, 10);
-                    bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
+                    bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc >= 2) ? Math.min(95, rawDisc) : 2;
                 }
                 if (i === 1) {
                     const rawSpend = parseInt(item.minSpend, 10);
@@ -8408,12 +8408,27 @@
                 if (i === 0) {
                     const spotlightSelect = document.getElementById('banner-spotlight-product');
                     const discountInput = document.getElementById('banner-discount-percent');
-                    const targetProd = spotlightSelect ? spotlightSelect.value : (current.targetProductId || '');
-                    let disc = discountInput ? parseInt(discountInput.value, 10) : (current.discountPercent || 0);
-                    if (isNaN(disc) || disc < 0) disc = 0;
-                    if (disc > 90) disc = 90;
+                    const targetProd = spotlightSelect ? spotlightSelect.value.trim() : (current.targetProductId || '');
+                    let disc = discountInput ? parseInt(discountInput.value, 10) : (current.discountPercent || 2);
+
+                    // Disallow saving if discount value is outside 2% to 95%
+                    if (isNaN(disc) || disc < 2 || disc > 95) {
+                        const clamped = Math.max(2, Math.min(isNaN(disc) ? 2 : disc, 95));
+                        if (discountInput) {
+                            discountInput.value = clamped;
+                            discountInput.focus();
+                        }
+                        const errMsg = `Slot #1 Discount Percentage must be between 2% and 95%.`;
+                        if (typeof showToast === 'function') {
+                            showToast(`⚠️ ${errMsg}`, 4000);
+                        }
+                        throw new Error(errMsg);
+                    }
+
+                    // Category/item selection is strictly optional:
+                    // Admin can leave it empty without blocking save or triggering errors
                     bannerItem.targetProductId = targetProd || '';
-                    bannerItem.discountPercent = targetProd ? disc : 0;
+                    bannerItem.discountPercent = disc;
                 }
                 if (i === 1) {
                     const minSpendInput = document.getElementById('banner-min-spend');
@@ -8677,11 +8692,37 @@
         function onBannerDiscountChange(val) {
             if (!adminDailyBannersList[0]) return;
             let num = parseInt(val, 10);
-            if (isNaN(num) || num < 0) num = 0;
-            if (num > 90) num = 90;
-            adminDailyBannersList[0].discountPercent = num;
+            if (!isNaN(num) && num > 95) {
+                num = 95;
+                const discountInput = document.getElementById('banner-discount-percent');
+                if (discountInput) discountInput.value = 95;
+                if (typeof showToast === 'function') {
+                    showToast('Slot #1 discount maximum is 95%', 2000);
+                }
+            }
+            adminDailyBannersList[0].discountPercent = isNaN(num) ? '' : num;
         }
         window.onBannerDiscountChange = onBannerDiscountChange;
+
+        function onBannerDiscountBlur(input) {
+            if (!input || !adminDailyBannersList[0]) return;
+            let num = parseInt(input.value, 10);
+            if (isNaN(num) || num < 2) {
+                num = 2;
+                input.value = 2;
+                if (typeof showToast === 'function') {
+                    showToast('Slot #1 discount clamped to minimum 2%', 2000);
+                }
+            } else if (num > 95) {
+                num = 95;
+                input.value = 95;
+                if (typeof showToast === 'function') {
+                    showToast('Slot #1 discount clamped to maximum 95%', 2000);
+                }
+            }
+            adminDailyBannersList[0].discountPercent = num;
+        }
+        window.onBannerDiscountBlur = onBannerDiscountBlur;
 
         function onBannerMinSpendChange(val) {
             if (!adminDailyBannersList[1]) return;
@@ -8943,11 +8984,13 @@
                                         <input type="number" 
                                                id="banner-discount-percent" 
                                                class="search-input banner-discount-input" 
-                                               min="1" 
-                                               max="90" 
+                                               min="2" 
+                                               max="95" 
                                                value="${discVal}" 
                                                placeholder="e.g. 30" 
                                                oninput="onBannerDiscountChange(this.value)"
+                                               onchange="onBannerDiscountBlur(this)"
+                                               onblur="onBannerDiscountBlur(this)"
                                                style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.88rem; font-weight: 700; background: var(--bg-card); color: #10b981; border: 1px solid var(--border-color); padding: 0 28px 0 10px;">
                                         <span style="position: absolute; right: 10px; font-weight: 800; font-size: 0.85rem; color: #10b981;">%</span>
                                     </div>

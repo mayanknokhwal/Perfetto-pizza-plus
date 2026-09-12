@@ -250,7 +250,7 @@ export function normalizeDailyBanners(raw) {
         if (i === 0) {
             bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
             const rawDisc = parseInt(item.discountPercent, 10);
-            bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
+            bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc >= 2) ? Math.min(95, rawDisc) : 2;
         }
         if (i === 1) {
             const rawSpend = parseInt(item.minSpend, 10);
