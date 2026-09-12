@@ -13647,6 +13647,163 @@ let customerFirestore = null;
 let menuRealtimeUnsubscribe = null;
 let settingsRealtimeUnsubscribe = null;
 let storeConfigRealtimeUnsubscribe = null;
+let settingsVersionRealtimeUnsubscribe = null;
+const SETTINGS_VERSION_STORAGE_KEY = 'app_settings_version';
+let lastSettingsVersionCheckTime = 0;
+let isSettingsSyncInProgress = false;
+
+// Centralized Settings Version Invalidation & In-Place Synchronization
+async function checkAndSyncSettingsVersion(options = {}) {
+    try {
+        const now = Date.now();
+        // Debounce checks triggered by tab focus / visibilitychange (minimum 3s gap)
+        if (!options.force && options.incomingVersion === undefined && (now - lastSettingsVersionCheckTime < 3000)) {
+            return;
+        }
+        lastSettingsVersionCheckTime = now;
+
+        let remoteVersion = null;
+        if (options.incomingVersion !== undefined && options.incomingVersion !== null) {
+            remoteVersion = Number(options.incomingVersion) || 0;
+        } else if (customerFirestore) {
+            try {
+                const docSnap = await customerFirestore.collection('app_config').doc('metadata').get();
+                if (docSnap.exists && docSnap.data()) {
+                    remoteVersion = Number(docSnap.data().settings_version || docSnap.data().updatedAt || 0);
+                } else {
+                    const fallbackSnap = await customerFirestore.collection('settings').doc('metadata').get();
+                    if (fallbackSnap.exists && fallbackSnap.data()) {
+                        remoteVersion = Number(fallbackSnap.data().settings_version || fallbackSnap.data().updatedAt || 0);
+                    }
+                }
+            } catch (err) {
+                // Firestore read fallback
+            }
+        }
+
+        // Fallback to REST API endpoint if remoteVersion not yet obtained
+        if (!remoteVersion) {
+            try {
+                const res = await fetch(resolveApiUrl('/api/settings/version'));
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.settings_version) {
+                        remoteVersion = Number(data.settings_version) || 0;
+                    }
+                }
+            } catch (err) { }
+        }
+
+        if (!remoteVersion || remoteVersion <= 0) {
+            return;
+        }
+
+        const localVersionStr = localStorage.getItem(SETTINGS_VERSION_STORAGE_KEY);
+        if (!localVersionStr) {
+            // First run: record current active version without clearing local cache
+            localStorage.setItem(SETTINGS_VERSION_STORAGE_KEY, String(remoteVersion));
+            return;
+        }
+
+        const localVersion = Number(localVersionStr) || 0;
+        if (remoteVersion > localVersion) {
+            console.log(`🔄 [Config Sync] Remote settings updated (${remoteVersion} > ${localVersion}). Refreshing cached catalog & settings...`);
+            // Commit new version immediately to prevent duplicate or infinite reload cycles
+            localStorage.setItem(SETTINGS_VERSION_STORAGE_KEY, String(remoteVersion));
+
+            // Clear stale catalog and configuration caches (safely preserving cart, profile & phone)
+            const staleCacheKeys = [
+                MENU_STORAGE_KEY,
+                'perfetto_category_addons',
+                'perfetto_daily_banners',
+                'perfetto_wallet_config',
+                'perfetto_store_notice'
+            ];
+            staleCacheKeys.forEach((key) => {
+                try { localStorage.removeItem(key); } catch (e) { }
+            });
+            try {
+                sessionStorage.removeItem('perfetto_menu_cache');
+                sessionStorage.removeItem('perfetto_banners_cache');
+            } catch (e) { }
+
+            // Silently re-fetch latest menu items, banners, and store configurations into app state
+            if (isSettingsSyncInProgress) return;
+            isSettingsSyncInProgress = true;
+            try {
+                await Promise.allSettled([
+                    fetchLiveMenuFromBackend(),
+                    fetchLiveSettingsFromBackend(),
+                    (async () => {
+                        try {
+                            const res = await fetch(resolveApiUrl('/api/banners'));
+                            if (res.ok) {
+                                const data = await res.json();
+                                if (data && data.success && Array.isArray(data.banners)) {
+                                    const rawMaxOffers = parseInt(data.max_offers_per_order || data.maxOffersPerOrder, 10);
+                                    if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
+                                        customerMaxOffersPerOrder = rawMaxOffers;
+                                        localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+                                    }
+                                    if (typeof renderDynamicOfferSlider === 'function') {
+                                        renderDynamicOfferSlider(data.banners);
+                                    }
+                                }
+                            }
+                        } catch (e) { }
+                    })(),
+                    fetchLiveNoticeFromBackend()
+                ]);
+
+                if (typeof updateCartUI === 'function') {
+                    updateCartUI();
+                }
+            } finally {
+                isSettingsSyncInProgress = false;
+            }
+        }
+    } catch (e) {
+        console.warn('Config version sync notice:', e);
+    }
+}
+
+function listenToSettingsVersionRealtime() {
+    if (!customerFirestore || settingsVersionRealtimeUnsubscribe) return;
+    try {
+        settingsVersionRealtimeUnsubscribe = customerFirestore.collection('app_config').doc('metadata').onSnapshot((doc) => {
+            if (doc.exists && doc.data()) {
+                const data = doc.data();
+                const ver = Number(data.settings_version || data.updatedAt || 0);
+                if (ver > 0) {
+                    checkAndSyncSettingsVersion({ incomingVersion: ver });
+                }
+            }
+        }, (err) => {
+            console.warn('Firestore app_config/metadata real-time notice:', err.message);
+        });
+    } catch (e) {
+        console.warn('Error setting up settings version real-time listener:', e);
+    }
+}
+
+function initSettingsVersionVisibilityHooks() {
+    if (window.__settingsVersionHooksInitialized) return;
+    window.__settingsVersionHooksInitialized = true;
+
+    const debouncedCheck = () => {
+        checkAndSyncSettingsVersion();
+    };
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            debouncedCheck();
+        }
+    });
+
+    window.addEventListener('focus', () => {
+        debouncedCheck();
+    });
+}
 
 // Centralized Firebase Configuration for Real-time sync
 const firebaseConfig = window.FIREBASE_CONFIG || {
@@ -13676,6 +13833,7 @@ async function initFirebaseRealtimeSync() {
             // 2. Initialize Firestore Real-Time Listeners
             if (firebase.firestore) {
                 customerFirestore = firebase.firestore();
+                listenToSettingsVersionRealtime();
                 listenToRealtimeMenuAndRates();
                 listenToCustomerActiveOrders();
                 setupStoreNoticeRealtimeListener();
@@ -14352,6 +14510,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof initFirstVisitLanguageModal === 'function') {
         initFirstVisitLanguageModal();
     }
+    // Check and synchronize app settings version on startup
+    checkAndSyncSettingsVersion();
+    initSettingsVersionVisibilityHooks();
+
     // 1. Initial live menu, settings & store notice fetch
     fetchLiveMenuFromBackend();
     fetchLiveSettingsFromBackend();
@@ -14465,6 +14627,10 @@ function cleanupAllCustomerListeners() {
             customerWalletRealtimeUnsubscribe();
             customerWalletRealtimeUnsubscribe = null;
         }
+        if (typeof settingsVersionRealtimeUnsubscribe === 'function') {
+            settingsVersionRealtimeUnsubscribe();
+            settingsVersionRealtimeUnsubscribe = null;
+        }
         if (customerOrdersUnsubscribeMap && customerOrdersUnsubscribeMap.size > 0) {
             customerOrdersUnsubscribeMap.forEach((unsub) => {
                 if (typeof unsub === 'function') {
@@ -14539,3 +14705,4 @@ window.openFirstUnclaimedScratchCard = openFirstUnclaimedScratchCard;
 window.handleClaimScratchReward = handleClaimScratchReward;
 window.triggerScratchCelebrationConfetti = triggerScratchCelebrationConfetti;
 window.updateSpendHungerBar = updateSpendHungerBar;
+window.checkAndSyncSettingsVersion = checkAndSyncSettingsVersion;

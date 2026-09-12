@@ -66,6 +66,7 @@ async function handleSettingsRequest(req, res) {
             // Persist to Firestore under both storeSettings and store_config
             await setFirestoreDoc('settings', 'storeSettings', global.__perfettoStoreSettings);
             await setFirestoreDoc('settings', 'store_config', global.__perfettoStoreSettings);
+            await bumpSettingsVersion();
 
             return res.status(200).json({
                 success: true,
@@ -143,6 +144,7 @@ async function handleBannersRequest(req, res) {
             const rawBanners = Array.isArray(body) ? body : (body.banners || []);
             const extra = (typeof body === 'object' && !Array.isArray(body)) ? body : {};
             const result = await saveDailyBannersToFirestore(rawBanners, extra);
+            await bumpSettingsVersion();
 
             return res.status(200).json({
                 success: true,
@@ -286,6 +288,7 @@ async function handleWalletConfigRequest(req, res) {
                     updatedAt: updatedConfig.updatedAt
                 });
             } catch (e) {}
+            await bumpSettingsVersion();
 
             return res.status(200).json({
                 success: true,
@@ -397,6 +400,7 @@ async function handleStoreNoticeRequest(req, res) {
 
             global.__perfettoStoreNotice = updatedNotice;
             await setFirestoreDoc('settings', 'store_notice', updatedNotice);
+            await bumpSettingsVersion();
 
             return res.status(200).json({
                 success: true,
@@ -415,11 +419,79 @@ async function handleStoreNoticeRequest(req, res) {
     }
 }
 
+/**
+ * Bumps central settings_version timestamp in Firestore (app_config/metadata)
+ * and in-memory runtime cache.
+ */
+async function bumpSettingsVersion(customVer) {
+    const version = Number(customVer) || Date.now();
+    global.__perfettoSettingsVersion = version;
+    const payload = {
+        settings_version: version,
+        settingsVersion: version,
+        updatedAt: new Date().toISOString()
+    };
+    try {
+        await setFirestoreDoc('app_config', 'metadata', payload);
+    } catch (e) {
+        console.warn('Failed to write settings_version to app_config/metadata:', e.message);
+    }
+    try {
+        await setFirestoreDoc('settings', 'metadata', payload);
+    } catch (e) { }
+    return version;
+}
+
+async function getSettingsVersion(options = {}) {
+    const now = Date.now();
+    if (!options.force && global.__perfettoSettingsVersion && (now - (global.__perfettoSettingsVersionTimestamp || 0) < 3000)) {
+        return global.__perfettoSettingsVersion;
+    }
+    try {
+        const doc = await getFirestoreDoc('app_config', 'metadata') || await getFirestoreDoc('settings', 'metadata');
+        if (doc && (doc.settings_version || doc.settingsVersion)) {
+            global.__perfettoSettingsVersion = Number(doc.settings_version || doc.settingsVersion);
+            global.__perfettoSettingsVersionTimestamp = now;
+            return global.__perfettoSettingsVersion;
+        }
+    } catch (e) { }
+    if (!global.__perfettoSettingsVersion) {
+        global.__perfettoSettingsVersion = Date.now();
+        global.__perfettoSettingsVersionTimestamp = now;
+    }
+    return global.__perfettoSettingsVersion;
+}
+
+async function handleSettingsVersionRequest(req, res) {
+    try {
+        if (req.method === 'GET') {
+            const version = await getSettingsVersion();
+            return res.status(200).json({ success: true, settings_version: version });
+        }
+        if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+            let body = req.body;
+            if (typeof body === 'string') {
+                try { body = JSON.parse(body); } catch (e) { body = {}; }
+            }
+            const incomingVer = Number(body?.settings_version || body?.settingsVersion || body?.version) || Date.now();
+            const version = await bumpSettingsVersion(incomingVer);
+            return res.status(200).json({ success: true, settings_version: version });
+        }
+        return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+    } catch (err) {
+        console.error('Error in handleSettingsVersionRequest:', err);
+        return res.status(500).json({ success: false, message: err.message || 'Internal Server Error' });
+    }
+}
+
 module.exports = {
     handleSettingsRequest,
     handleBannersRequest,
     handleWalletConfigRequest,
     handleStoreNoticeRequest,
+    handleSettingsVersionRequest,
+    bumpSettingsVersion,
+    getSettingsVersion,
     DEFAULT_SETTINGS,
     DEFAULT_DAILY_BANNERS,
     DEFAULT_FALLBACK_BANNER_LOGO,

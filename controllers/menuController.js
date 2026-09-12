@@ -436,6 +436,11 @@ async function handleMenuRequest(req, res) {
                 updatedAt: new Date().toISOString()
             });
 
+            try {
+                const { bumpSettingsVersion } = require('./settingsController');
+                await bumpSettingsVersion();
+            } catch (verErr) { }
+
             return res.status(200).json({
                 success: true,
                 message: isReset ? 'Menu reset to defaults in Firestore' : 'Bulk menu updated successfully in Firestore',

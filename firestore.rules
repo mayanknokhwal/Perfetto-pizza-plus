@@ -212,6 +212,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // App Config & Central Settings Version Metadata
+    match /app_config/{configDoc} {
+      allow read, write: if true;
+    }
+
     // =========================================================================
     // 7. REWARDS & STORE CONFIGURATION (STANDALONE PATHS)
     // - Public: Unrestricted reading for customer clients to retrieve live reward slabs and configs.

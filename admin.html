@@ -6545,6 +6545,38 @@
             }
         });
 
+        // CENTRAL SETTINGS VERSION INVALIDATION HELPER
+        async function updateAdminSettingsVersion() {
+            const version = Date.now();
+            const payload = {
+                settings_version: version,
+                settingsVersion: version,
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString()
+            };
+            if (typeof adminFirestore !== 'undefined' && adminFirestore) {
+                try {
+                    await adminFirestore.collection('app_config').doc('metadata').set(payload, { merge: true });
+                } catch (e) {
+                    console.warn('Failed to update app_config/metadata version:', e.message);
+                }
+                try {
+                    await adminFirestore.collection('settings').doc('metadata').set(payload, { merge: true });
+                } catch (e) { }
+            }
+            try {
+                const url = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/version') : '/api/settings/version';
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ settings_version: version })
+                }).catch(() => {});
+            } catch (e) { }
+            return version;
+        }
+        window.updateAdminSettingsVersion = updateAdminSettingsVersion;
+
         // 6. GLOBAL SAVE BUTTON (EXPLICIT BATCH COMMIT ON "SAVE ALL CHANGES")
         async function saveAllChanges() {
             const saveBtn = document.getElementById('btn-admin-save-all');
@@ -6744,9 +6776,11 @@
                         renderCategoryGrid();
                     }
 
+                    await updateAdminSettingsVersion();
                     showToast('✅ All changes (Store, Wallet & Menu) saved and published to Firestore!');
                     logAdminActivity(`Saved all changes in batch (${modifiedIds.length} menu items, store settings, and 5 wallet slabs)`);
                 } else {
+                    await updateAdminSettingsVersion();
                     saveToLocalStorage();
                     updateUnsavedChangesUI();
                     showToast('✅ All store settings & wallet configurations saved to Firestore successfully!');
@@ -7964,6 +7998,8 @@
                     manualOverride: manualOverrideVal,
                 });
 
+                await updateAdminSettingsVersion();
+
                 // Clear dirty flags now that save has persisted successfully
                 isCustomerCarePhoneDirty = false;
                 isCustomerCareToggleDirty = false;
@@ -8430,6 +8466,7 @@
                 });
             } catch (e) { }
 
+            await updateAdminSettingsVersion();
             adminDailyBannersList = slots;
             renderAdminBannersUI();
             return { success: true, banners: slots, slot1: slot1Data, slot2: slot2Data, slot3: slot3Data };
@@ -9567,6 +9604,7 @@
                 } catch (e) {}
 
                 adminWalletConfig = docPayload;
+                await updateAdminSettingsVersion();
 
                 if (showToastMsg) {
                     showToast('✅ Wallet & Cashback settings saved to Firestore (settings/wallet_config)!');
@@ -9917,6 +9955,7 @@
                 // Display a visual success notification to the admin ONLY after the remote database confirms the write
                 localStorage.setItem('perfetto_store_notice', JSON.stringify(serializablePayload));
                 adminStoreNotice = serializablePayload;
+                await updateAdminSettingsVersion();
 
                 if (showToastMsg) {
                     showToast('✅ Store Notice saved successfully to Firestore and published to app!');

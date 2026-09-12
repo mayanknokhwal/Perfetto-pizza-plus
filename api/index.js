@@ -15,7 +15,7 @@ const cors = require('cors');
 const { handleMenuRequest } = require('../controllers/menuController');
 const { handleOrdersRequest } = require('../controllers/ordersController');
 const { handleUsersRequest } = require('../controllers/usersController');
-const { handleSettingsRequest, handleBannersRequest, handleWalletConfigRequest, handleStoreNoticeRequest } = require('../controllers/settingsController');
+const { handleSettingsRequest, handleBannersRequest, handleWalletConfigRequest, handleStoreNoticeRequest, handleSettingsVersionRequest } = require('../controllers/settingsController');
 const { handleAdminAuthRequest } = require('../controllers/adminAuthController');
 const { handlePaymentRequest } = require('../controllers/paymentController');
 const { handleOtpRequest } = require('../controllers/otpController');
@@ -148,6 +148,9 @@ app.all(['/api/wallet/config', '/api/wallet', '/wallet/config', '/wallet', '/api
 
 // 4.3 Store Notice API: /api/notice, /notice, /api/settings/notice, /settings/notice, /api/store-notice
 app.all(['/api/notice', '/notice', '/api/settings/notice', '/settings/notice', '/api/store-notice'], (req, res) => handleStoreNoticeRequest(req, res));
+
+// 4.4 Settings Version & Cache Invalidation API: /api/settings/version, /api/version, /api/app-config
+app.all(['/api/settings/version', '/api/version', '/api/app-config', '/settings/version', '/version'], (req, res) => handleSettingsVersionRequest(req, res));
 
 // 5. Admin & Staff Auth & Team API: /api/admin-auth, /admin-auth, /api/admin, /api/team, /team
 app.all(['/api/admin-auth', '/admin-auth', '/api/admin', '/api/team', '/team'], (req, res) => handleAdminAuthRequest(req, res));
