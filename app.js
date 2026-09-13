@@ -421,6 +421,37 @@ const MENU_CATEGORY_MAP = {
 };
 window.MENU_CATEGORY_MAP = MENU_CATEGORY_MAP;
 
+// Strict category restriction scope for non-applicable add-ons (Beverages, Rice, Salad, Desserts)
+const INELIGIBLE_ADDON_CATEGORIES = new Set([
+    'hot cold coffee',
+    'hot & cold coffee',
+    'coffee',
+    'colo drinks',
+    'cold drinks',
+    'mojito',
+    'rice',
+    'salad',
+    'desserts'
+]);
+
+function isCategoryAddonIneligible(category) {
+    if (!category) return false;
+    const clean = String(category).trim().toLowerCase();
+    return INELIGIBLE_ADDON_CATEGORIES.has(clean);
+}
+window.isCategoryAddonIneligible = isCategoryAddonIneligible;
+
+function cleanCustomerCategoryAddons(addonsMap) {
+    if (!addonsMap || typeof addonsMap !== 'object') return {};
+    const sanitized = {};
+    Object.keys(addonsMap).forEach(key => {
+        if (!isCategoryAddonIneligible(key)) {
+            sanitized[key] = addonsMap[key];
+        }
+    });
+    return sanitized;
+}
+
 function getCategoryStandardKey(cat) {
     if (!cat) return '';
     const clean = String(cat).trim().toLowerCase();
@@ -455,21 +486,28 @@ function isProductAvailable(item) {
 }
 window.isProductAvailable = isProductAvailable;
 
-let customerCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+let customerCategoryAddons = cleanCustomerCategoryAddons(JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS)));
 let customerCategoryDiscounts = {};
 
 function getCustomerCategoryAddons(categoryName) {
+    if (isCategoryAddonIneligible(categoryName)) {
+        return {};
+    }
+    const stdKey = getCategoryStandardKey(categoryName);
+    if (isCategoryAddonIneligible(stdKey)) {
+        return {};
+    }
+
     try {
         const saved = localStorage.getItem('perfetto_category_addons');
         if (saved) {
             const parsed = JSON.parse(saved);
             if (parsed && typeof parsed === 'object') {
-                customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...parsed };
+                customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...parsed });
             }
         }
     } catch (e) { }
 
-    const stdKey = getCategoryStandardKey(categoryName);
     return customerCategoryAddons[categoryName] || customerCategoryAddons[stdKey] || DEFAULT_CATEGORY_ADDONS[categoryName] || DEFAULT_CATEGORY_ADDONS[stdKey] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
 }
 
@@ -534,6 +572,7 @@ function getPizzaSizeAddonRates(size = 'M') {
 const cardSelectedAddons = {}; // itemId -> { cheese: boolean, spicy: boolean, mayo: boolean }
 
 function toggleCardAddon(categoryName, itemId, addonType, event) {
+    if (isCategoryAddonIneligible(categoryName)) return;
     if (event) {
         event.stopPropagation();
         event.preventDefault();
@@ -752,6 +791,9 @@ function toggleShakeIceCreamAddon(itemId, event) {
 window.toggleShakeIceCreamAddon = toggleShakeIceCreamAddon;
 
 function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
+    if (isCategoryAddonIneligible(categoryName)) {
+        return addToCart(itemName, basePrice, itemImg, [], basePrice);
+    }
     const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false, iceCream: false };
     const catAddons = getCustomerCategoryAddons(categoryName);
     
@@ -2233,7 +2275,7 @@ async function fetchLiveMenuFromBackend() {
         if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
             if (data.categoryAddons) {
                 try {
-                    customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons };
+                    customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons });
                     localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
                 } catch (e) { }
             }
@@ -6223,6 +6265,14 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         if (!verifyDailyOfferWithComboStacking(offerType, () => addToCart(name, price, img, addons, originalPrice, options))) {
             return false;
         }
+    }
+
+    // Strip and disallow any add-ons if product belongs to an ineligible category
+    if ((menuItem && isCategoryAddonIneligible(menuItem.category)) || 
+        (options && isCategoryAddonIneligible(options.category)) || 
+        isCategoryAddonIneligible(cleanName)) {
+        addons = [];
+        name = name.replace(/\s*\(\+.*?\)$/i, '').trim();
     }
 
     // Build item name and identifier taking add-ons into account
@@ -12398,6 +12448,12 @@ function renderSpotlightAddonsSection() {
     const product = currentSpotlightState.product;
     const cat = product.category || '';
 
+    if (isCategoryAddonIneligible(cat)) {
+        addonsSection.style.display = 'none';
+        addonChipsContainer.innerHTML = '';
+        return;
+    }
+
     if (cat === 'Shake') {
         addonsSection.style.display = 'block';
         const shakeAddons = getCustomerCategoryAddons('Shake');
@@ -12493,7 +12549,9 @@ function updateSpotlightPricingDisplay() {
 
     // Add-on Protection: 100% full price without discount
     let addonsTotal = 0;
-    if (cat === 'Shake') {
+    if (isCategoryAddonIneligible(cat)) {
+        addonsTotal = 0;
+    } else if (cat === 'Shake') {
         const shakeAddons = getCustomerCategoryAddons('Shake');
         const iceCreamRate = shakeAddons.withIceCream !== undefined ? shakeAddons.withIceCream : 30;
         if (sel.iceCream) addonsTotal += iceCreamRate;
@@ -12562,7 +12620,9 @@ function claimSpotlightDealToCart() {
     const addonsList = [];
     let addonsTotal = 0;
 
-    if (cat === 'Shake') {
+    if (isCategoryAddonIneligible(cat)) {
+        // Ineligible category: no addons allowed
+    } else if (cat === 'Shake') {
         const shakeAddons = getCustomerCategoryAddons('Shake');
         const iceCreamRate = shakeAddons.withIceCream !== undefined ? shakeAddons.withIceCream : 30;
         if (sel.iceCream) {
@@ -15939,7 +15999,7 @@ async function fetchMenuFromFirestoreDirect() {
         if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
             if (doc.data().categoryAddons) {
                 try {
-                    customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
+                    customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons });
                     localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
                 } catch (e) { }
             }

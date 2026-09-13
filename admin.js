@@ -344,15 +344,18 @@ export function normalizeCategoryDiscounts(raw) {
 }
 
 // --------------------------------------------------------------------------
-// STRICT MENU PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE LADDER)
+// STRICT MENU PRICE VALIDATION (MINIMUM ₹9, MAXIMUM ₹999 & PIZZA SIZE LADDER)
 // --------------------------------------------------------------------------
-export const MIN_MENU_ITEM_PRICE = 10;
+export const MIN_MENU_ITEM_PRICE = 9;
+export const MAX_MENU_ITEM_PRICE = 999;
+export const MIN_ADDON_PRICE = 0;
+export const MAX_ADDON_PRICE = 99;
 
 /**
  * Validates a single menu item's price against strict pricing rules:
- * 1. Minimum price constraint: All core products must be >= ₹10.
+ * 1. Price Range constraint: All core products must be >= ₹9 and <= ₹999.
  * 2. Strict Pizza Size Price Ladder: Small < Medium < Large (Medium >= Small + 1, Large >= Medium + 1).
- * Note: Category add-ons are strictly exempt and must not be validated by this function.
+ * Note: Category add-ons are strictly exempt from core menu item validation.
  * @param {Object} item 
  * @returns {{ isValid: boolean, error?: string, field?: string, itemId?: string }}
  */
@@ -371,27 +374,27 @@ export function validateMenuItemPrice(item) {
         const pM = Number(prices.M);
         const pL = Number(prices.L);
 
-        // 1. Universal minimum constraint (>= ₹10)
-        if (isNaN(pS) || pS < MIN_MENU_ITEM_PRICE) {
+        // 1. Universal boundary constraints (₹9 to ₹999)
+        if (isNaN(pS) || pS < MIN_MENU_ITEM_PRICE || pS > MAX_MENU_ITEM_PRICE) {
             return {
                 isValid: false,
-                error: `${itemName} Small price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+                error: `${itemName} Small price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`,
                 field: 'S',
                 itemId
             };
         }
-        if (isNaN(pM) || pM < MIN_MENU_ITEM_PRICE) {
+        if (isNaN(pM) || pM < MIN_MENU_ITEM_PRICE || pM > MAX_MENU_ITEM_PRICE) {
             return {
                 isValid: false,
-                error: `${itemName} Medium price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+                error: `${itemName} Medium price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`,
                 field: 'M',
                 itemId
             };
         }
-        if (isNaN(pL) || pL < MIN_MENU_ITEM_PRICE) {
+        if (isNaN(pL) || pL < MIN_MENU_ITEM_PRICE || pL > MAX_MENU_ITEM_PRICE) {
             return {
                 isValid: false,
-                error: `${itemName} Large price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+                error: `${itemName} Large price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`,
                 field: 'L',
                 itemId
             };
@@ -420,15 +423,32 @@ export function validateMenuItemPrice(item) {
 
     // Single-price item validation
     const singlePrice = Number(item.price);
-    if (isNaN(singlePrice) || singlePrice < MIN_MENU_ITEM_PRICE) {
+    if (isNaN(singlePrice) || singlePrice < MIN_MENU_ITEM_PRICE || singlePrice > MAX_MENU_ITEM_PRICE) {
         return {
             isValid: false,
-            error: `${itemName} price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`,
+            error: `${itemName} price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`,
             field: 'price',
             itemId
         };
     }
 
+    return { isValid: true };
+}
+
+/**
+ * Validates an add-on's price (₹0 to ₹99 allowed, ₹0 allows free add-on status)
+ * @param {number|string} price 
+ * @param {string} [addonName='Add-on'] 
+ * @returns {{ isValid: boolean, error?: string }}
+ */
+export function validateAddonPrice(price, addonName = 'Add-on') {
+    const num = Number(price);
+    if (isNaN(num) || num < MIN_ADDON_PRICE || num > MAX_ADDON_PRICE) {
+        return {
+            isValid: false,
+            error: `${addonName} price must be between ₹${MIN_ADDON_PRICE} and ₹${MAX_ADDON_PRICE}`
+        };
+    }
     return { isValid: true };
 }
 

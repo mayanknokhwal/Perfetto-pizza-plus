@@ -131,6 +131,14 @@ service cloud.firestore {
       }
     }
 
+    match /menu_items/{itemId} {
+      allow read, write: if true;
+
+      match /{subcollection=**} {
+        allow read, write: if true;
+      }
+    }
+
     // =========================================================================
     // 4. CATEGORIES CATALOG
     // - Public: Browse food and beverage categories (Pizza, Burger, Shake, etc.).

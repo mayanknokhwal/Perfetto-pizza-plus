@@ -213,15 +213,54 @@ const DEFAULT_CATEGORY_ADDONS = {
         extraCheese: 25,
         extraSpicy: 0,
         extraMayo: 20
+    },
+    "Momos": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
+    },
+    "Side Orders": {
+        extraCheese: 25,
+        extraSpicy: 0,
+        extraMayo: 20
     }
 };
+
+const INELIGIBLE_ADDON_CATEGORIES = new Set([
+    'hot cold coffee',
+    'hot & cold coffee',
+    'coffee',
+    'colo drinks',
+    'cold drinks',
+    'mojito',
+    'rice',
+    'salad',
+    'desserts'
+]);
+
+function isCategoryAddonIneligible(category) {
+    if (!category) return false;
+    const clean = String(category).trim().toLowerCase();
+    return INELIGIBLE_ADDON_CATEGORIES.has(clean);
+}
+
+function cleanCategoryAddons(addonsMap) {
+    if (!addonsMap || typeof addonsMap !== 'object') return {};
+    const sanitized = {};
+    Object.keys(addonsMap).forEach(key => {
+        if (!isCategoryAddonIneligible(key)) {
+            sanitized[key] = addonsMap[key];
+        }
+    });
+    return sanitized;
+}
 
 // Initialize in-memory runtime store
 if (!global.__perfettoMenuState) {
     global.__perfettoMenuState = JSON.parse(JSON.stringify(DEFAULT_MENU_ITEMS));
 }
 if (!global.__perfettoCategoryAddons) {
-    global.__perfettoCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+    global.__perfettoCategoryAddons = cleanCategoryAddons(JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS)));
 }
 if (!global.__perfettoCategoryDiscounts) {
     global.__perfettoCategoryDiscounts = {};
@@ -292,7 +331,7 @@ async function handleMenuRequest(req, res) {
                 success: true,
                 count: items.length,
                 items: items,
-                categoryAddons: categoryAddons || DEFAULT_CATEGORY_ADDONS,
+                categoryAddons: cleanCategoryAddons(categoryAddons || DEFAULT_CATEGORY_ADDONS),
                 categoryDiscounts: categoryDiscounts || global.__perfettoCategoryDiscounts || {}
             });
         }
@@ -309,19 +348,19 @@ async function handleMenuRequest(req, res) {
                 return res.status(400).json({ success: false, message: 'Missing required field: id' });
             }
 
-            // Strict price validation (min ₹10 rule and pizza size ladder)
+            // Strict price validation (min ₹9, max ₹999 and pizza size ladder)
             if (prices !== undefined && typeof prices === 'object') {
                 const pS = Number(prices.S);
                 const pM = Number(prices.M);
                 const pL = Number(prices.L);
-                if (isNaN(pS) || pS < 10) {
-                    return res.status(400).json({ success: false, message: 'Small price cannot be less than ₹10' });
+                if (isNaN(pS) || pS < 9 || pS > 999) {
+                    return res.status(400).json({ success: false, message: 'Small price must be between ₹9 and ₹999' });
                 }
-                if (isNaN(pM) || pM < 10) {
-                    return res.status(400).json({ success: false, message: 'Medium price cannot be less than ₹10' });
+                if (isNaN(pM) || pM < 9 || pM > 999) {
+                    return res.status(400).json({ success: false, message: 'Medium price must be between ₹9 and ₹999' });
                 }
-                if (isNaN(pL) || pL < 10) {
-                    return res.status(400).json({ success: false, message: 'Large price cannot be less than ₹10' });
+                if (isNaN(pL) || pL < 9 || pL > 999) {
+                    return res.status(400).json({ success: false, message: 'Large price must be between ₹9 and ₹999' });
                 }
                 if (pM <= pS) {
                     return res.status(400).json({ success: false, message: 'Medium price must be at least ₹1 higher than Small price' });
@@ -331,8 +370,8 @@ async function handleMenuRequest(req, res) {
                 }
             } else if (price !== undefined) {
                 const numPrice = Number(price);
-                if (isNaN(numPrice) || numPrice < 10) {
-                    return res.status(400).json({ success: false, message: 'Price cannot be less than ₹10' });
+                if (isNaN(numPrice) || numPrice < 9 || numPrice > 999) {
+                    return res.status(400).json({ success: false, message: 'Price must be between ₹9 and ₹999' });
                 }
             }
 
@@ -412,7 +451,7 @@ async function handleMenuRequest(req, res) {
             }
             const isReset = body?.reset === true || req.query?.reset === 'true';
             const rawItems = isReset ? DEFAULT_MENU_ITEMS : (Array.isArray(body) ? body : (body?.items || []));
-            const newAddons = body?.categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS;
+            const newAddons = cleanCategoryAddons(body?.categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS);
             const newDiscounts = body?.categoryDiscounts || global.__perfettoCategoryDiscounts || {};
 
             if (!Array.isArray(rawItems) || rawItems.length === 0) {
@@ -441,14 +480,14 @@ async function handleMenuRequest(req, res) {
                         const pS = Number(p.S);
                         const pM = Number(p.M);
                         const pL = Number(p.L);
-                        if (isNaN(pS) || pS < 10) {
-                            return res.status(400).json({ success: false, message: `${itemName} Small price cannot be less than ₹10` });
+                        if (isNaN(pS) || pS < 9 || pS > 999) {
+                            return res.status(400).json({ success: false, message: `${itemName} Small price must be between ₹9 and ₹999` });
                         }
-                        if (isNaN(pM) || pM < 10) {
-                            return res.status(400).json({ success: false, message: `${itemName} Medium price cannot be less than ₹10` });
+                        if (isNaN(pM) || pM < 9 || pM > 999) {
+                            return res.status(400).json({ success: false, message: `${itemName} Medium price must be between ₹9 and ₹999` });
                         }
-                        if (isNaN(pL) || pL < 10) {
-                            return res.status(400).json({ success: false, message: `${itemName} Large price cannot be less than ₹10` });
+                        if (isNaN(pL) || pL < 9 || pL > 999) {
+                            return res.status(400).json({ success: false, message: `${itemName} Large price must be between ₹9 and ₹999` });
                         }
                         if (pM <= pS) {
                             return res.status(400).json({ success: false, message: `${itemName} Medium price must be at least ₹1 higher than Small price` });
@@ -458,8 +497,8 @@ async function handleMenuRequest(req, res) {
                         }
                     } else {
                         const sPrice = Number(item.price);
-                        if (isNaN(sPrice) || sPrice < 10) {
-                            return res.status(400).json({ success: false, message: `${itemName} price cannot be less than ₹10` });
+                        if (isNaN(sPrice) || sPrice < 9 || sPrice > 999) {
+                            return res.status(400).json({ success: false, message: `${itemName} price must be between ₹9 and ₹999` });
                         }
                     }
                 }

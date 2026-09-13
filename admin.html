@@ -1336,13 +1336,18 @@
 
         /* STRICT PRICE VALIDATION ERROR STYLING */
         .price-field-invalid {
+            border-color: #ef4444 !important;
             color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
+            background-color: rgba(239, 68, 68, 0.08) !important;
         }
 
         .size-input-group.price-group-invalid,
         .single-price-wrapper.price-group-invalid,
+        .addon-input-wrapper.price-group-invalid,
         .size-input-group:has(.price-field-invalid),
-        .single-price-wrapper:has(.price-field-invalid) {
+        .single-price-wrapper:has(.price-field-invalid),
+        .addon-input-wrapper:has(.price-field-invalid) {
             border-color: #ef4444 !important;
             box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
             background-color: rgba(239, 68, 68, 0.08) !important;
@@ -3119,7 +3124,7 @@
             }
         }
 
-        /* ADMIN MENU PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE LADDER) */
+        /* ADMIN MENU & ADD-ON PRICE VALIDATION (₹9-₹999 MENU, ₹0-₹99 ADDONS) */
         .price-field-invalid {
             border-color: #ef4444 !important;
             color: #ef4444 !important;
@@ -3129,8 +3134,10 @@
 
         .size-input-group.price-group-invalid,
         .single-price-wrapper.price-group-invalid,
+        .addon-input-wrapper.price-group-invalid,
         .size-input-group:has(.price-field-invalid),
-        .single-price-wrapper:has(.price-field-invalid) {
+        .single-price-wrapper:has(.price-field-invalid),
+        .addon-input-wrapper:has(.price-field-invalid) {
             border-color: #ef4444 !important;
             box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4) !important;
             background-color: rgba(239, 68, 68, 0.08) !important;
@@ -3970,8 +3977,7 @@
 
                 <!-- PROMINENT GLOBAL SAVE BUTTON -->
                 <button class="btn-primary" id="btn-admin-save-all" onclick="saveAllChanges()" title="Save all pending changes to Firestore">
-                    <i class="fa-solid fa-floppy-disk"></i> <span id="save-all-btn-text">Save All Changes</span>
-                    <span id="save-all-badge" class="save-all-badge" style="display: none;">0</span>
+                    <i class="fa-solid fa-floppy-disk" id="save-all-btn-icon"></i> <span id="save-all-btn-text">Save All Changes</span>
                 </button>
 
                 <!-- LOCK PORTAL HEADER BUTTON -->
@@ -4831,7 +4837,7 @@
                                 </label>
                                 <div class="addon-input-wrapper">
                                     <span class="addon-currency">₹</span>
-                                    <input type="number" id="addon-extra-cheese-input" min="0" step="1" class="addon-price-field" placeholder="25" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                    <input type="number" id="addon-extra-cheese-input" min="0" max="99" step="1" class="addon-price-field" placeholder="25" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
                                 </div>
                             </div>
                             <div class="addon-input-group">
@@ -4840,7 +4846,7 @@
                                 </label>
                                 <div class="addon-input-wrapper">
                                     <span class="addon-currency">₹</span>
-                                    <input type="number" id="addon-extra-spicy-input" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                    <input type="number" id="addon-extra-spicy-input" min="0" max="99" step="1" class="addon-price-field" placeholder="0" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
                                 </div>
                             </div>
                             <div class="addon-input-group" id="addon-group-extra-mayo">
@@ -4849,7 +4855,7 @@
                                 </label>
                                 <div class="addon-input-wrapper">
                                     <span class="addon-currency">₹</span>
-                                    <input type="number" id="addon-extra-mayo-input" min="0" step="1" class="addon-price-field" placeholder="20" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
+                                    <input type="number" id="addon-extra-mayo-input" min="0" max="99" step="1" class="addon-price-field" placeholder="20" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handleCategoryAddonChange()" onchange="handleCategoryAddonChange()">
                                 </div>
                             </div>
                         </div>
@@ -4862,7 +4868,7 @@
                                 </label>
                                 <div class="addon-input-wrapper">
                                     <span class="addon-currency">₹</span>
-                                    <input type="number" id="addon-shake-icecream-input" min="0" step="1" class="addon-price-field" placeholder="30" oninput="handleShakeAddonChange()" onchange="handleShakeAddonChange()">
+                                    <input type="number" id="addon-shake-icecream-input" min="0" max="99" step="1" class="addon-price-field" placeholder="30" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handleShakeAddonChange()" onchange="handleShakeAddonChange()">
                                 </div>
                             </div>
                         </div>
@@ -4875,21 +4881,21 @@
                                     <label for="addon-pizza-cheese-s"><i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-cheese-s" min="0" step="1" class="addon-price-field" placeholder="30" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-cheese-s" min="0" max="99" step="1" class="addon-price-field" placeholder="30" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                                 <div class="addon-input-group">
                                     <label for="addon-pizza-spicy-s"><i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-spicy-s" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-spicy-s" min="0" max="99" step="1" class="addon-price-field" placeholder="0" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                                 <div class="addon-input-group">
                                     <label for="addon-pizza-mayo-s"><span style="font-size: 0.95rem; line-height: 1;">🍥</span> Extra Mayo Price</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-mayo-s" min="0" step="1" class="addon-price-field" placeholder="20" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-mayo-s" min="0" max="99" step="1" class="addon-price-field" placeholder="20" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                             </div>
@@ -4900,21 +4906,21 @@
                                     <label for="addon-pizza-cheese-m"><i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-cheese-m" min="0" step="1" class="addon-price-field" placeholder="50" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-cheese-m" min="0" max="99" step="1" class="addon-price-field" placeholder="50" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                                 <div class="addon-input-group">
                                     <label for="addon-pizza-spicy-m"><i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-spicy-m" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-spicy-m" min="0" max="99" step="1" class="addon-price-field" placeholder="0" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                                 <div class="addon-input-group">
                                     <label for="addon-pizza-mayo-m"><span style="font-size: 0.95rem; line-height: 1;">🍥</span> Extra Mayo Price</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-mayo-m" min="0" step="1" class="addon-price-field" placeholder="30" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-mayo-m" min="0" max="99" step="1" class="addon-price-field" placeholder="30" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                             </div>
@@ -4925,21 +4931,21 @@
                                     <label for="addon-pizza-cheese-l"><i class="fa-solid fa-cheese" style="color: #f59e0b;"></i> Extra Cheese</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-cheese-l" min="0" step="1" class="addon-price-field" placeholder="70" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-cheese-l" min="0" max="99" step="1" class="addon-price-field" placeholder="70" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                                 <div class="addon-input-group">
                                     <label for="addon-pizza-spicy-l"><i class="fa-solid fa-pepper-hot" style="color: #ef4444;"></i> Extra Spicy</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-spicy-l" min="0" step="1" class="addon-price-field" placeholder="0" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-spicy-l" min="0" max="99" step="1" class="addon-price-field" placeholder="0" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                                 <div class="addon-input-group">
                                     <label for="addon-pizza-mayo-l"><span style="font-size: 0.95rem; line-height: 1;">🍥</span> Extra Mayo Price</label>
                                     <div class="addon-input-wrapper">
                                         <span class="addon-currency">₹</span>
-                                        <input type="number" id="addon-pizza-mayo-l" min="0" step="1" class="addon-price-field" placeholder="40" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
+                                        <input type="number" id="addon-pizza-mayo-l" min="0" max="99" step="1" class="addon-price-field" placeholder="40" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="handlePizzaAddonChange()" onchange="handlePizzaAddonChange()">
                                     </div>
                                 </div>
                             </div>
@@ -5516,47 +5522,47 @@
                 extraSpicy: 0,
                 extraMayo: 20
             },
-            "Desserts": {
-                extraCheese: 25,
-                extraSpicy: 0,
-                extraMayo: 20
-            },
-            "Salad": {
-                extraCheese: 25,
-                extraSpicy: 0,
-                extraMayo: 20
-            },
             "Side Orders": {
-                extraCheese: 25,
-                extraSpicy: 0,
-                extraMayo: 20
-            },
-            "Colo Drinks": {
-                extraCheese: 25,
-                extraSpicy: 0,
-                extraMayo: 20
-            },
-            "Hot Cold Coffee": {
-                extraCheese: 25,
-                extraSpicy: 0,
-                extraMayo: 20
-            },
-            "Mojito": {
-                extraCheese: 25,
-                extraSpicy: 0,
-                extraMayo: 20
-            },
-            "Rice": {
                 extraCheese: 25,
                 extraSpicy: 0,
                 extraMayo: 20
             }
         };
 
+        // Strict category restriction scope for non-applicable add-ons (Beverages, Rice, Salad, Desserts)
+        const INELIGIBLE_ADDON_CATEGORIES = new Set([
+            'hot cold coffee',
+            'hot & cold coffee',
+            'coffee',
+            'colo drinks',
+            'cold drinks',
+            'mojito',
+            'rice',
+            'salad',
+            'desserts'
+        ]);
+
+        function isCategoryAddonIneligible(category) {
+            if (!category) return false;
+            const clean = String(category).trim().toLowerCase();
+            return INELIGIBLE_ADDON_CATEGORIES.has(clean);
+        }
+
+        function cleanCategoryAddons(addonsMap) {
+            if (!addonsMap || typeof addonsMap !== 'object') return {};
+            const sanitized = {};
+            Object.keys(addonsMap).forEach(key => {
+                if (!isCategoryAddonIneligible(key)) {
+                    sanitized[key] = addonsMap[key];
+                }
+            });
+            return sanitized;
+        }
+
         let menuItems = [];
         let committedMenuItems = []; // Cloud-synced pristine snapshot
-        let categoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
-        let committedCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
+        let categoryAddons = cleanCategoryAddons(JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS)));
+        let committedCategoryAddons = cleanCategoryAddons(JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS)));
         let categoryDiscounts = {};
         let committedCategoryDiscounts = {};
         let pendingMenuUpdates = {}; // Map of itemId / category_addon_* / category_discount_* -> update payload
@@ -5571,18 +5577,19 @@
             const saveBadge = document.getElementById('save-all-badge');
             const saveText = document.getElementById('save-all-btn-text');
 
-            if (saveBtn && saveBadge && saveText) {
+            if (saveBadge) {
+                saveBadge.style.display = 'none';
+            }
+
+            if (saveBtn && saveText) {
+                if (!saveBtn.disabled) {
+                    saveText.textContent = 'Save All Changes';
+                }
                 if (pendingCount > 0) {
                     saveBtn.classList.add('btn-has-pending-changes');
-                    saveBadge.style.display = 'inline-flex';
-                    saveBadge.textContent = pendingCount;
-                    saveText.textContent = `Save All Changes (${pendingCount})`;
-                    saveBtn.title = `${pendingCount} unsaved menu change(s) in draft. Click to commit and publish to Firestore.`;
+                    saveBtn.title = `${pendingCount} unsaved menu change(s) in draft. Click Save All Changes to commit to Firestore.`;
                 } else {
                     saveBtn.classList.remove('btn-has-pending-changes');
-                    saveBadge.style.display = 'none';
-                    saveBadge.textContent = '0';
-                    saveText.textContent = 'Save All Changes';
                     saveBtn.title = 'No pending changes to save';
                 }
             }
@@ -5920,7 +5927,7 @@
                         menuItems = freshItems;
                         committedMenuItems = JSON.parse(JSON.stringify(freshItems));
                         if (docSnap.data().categoryAddons) {
-                            categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...docSnap.data().categoryAddons };
+                            categoryAddons = cleanCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...docSnap.data().categoryAddons });
                             committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
                         }
                         if (docSnap.data().categoryDiscounts) {
@@ -5954,6 +5961,7 @@
                                         categoryAddons[catId] = { ...(categoryAddons[catId] || {}), ...addonFields };
                                     }
                                 });
+                                categoryAddons = cleanCategoryAddons(categoryAddons);
                                 committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
                                 committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
                             }
@@ -5989,7 +5997,7 @@
                     menuItems = sanitizeAdminMenuItems(data.items.filter(item => item.category && item.name));
                     committedMenuItems = JSON.parse(JSON.stringify(menuItems));
                     if (data.categoryAddons) {
-                        categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons };
+                        categoryAddons = cleanCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons });
                         committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
                     }
                     if (data.categoryDiscounts) {
@@ -6163,80 +6171,84 @@
                 if (discountDraftBadge) discountDraftBadge.style.display = isDiscountModified ? 'inline-flex' : 'none';
             }
 
-            // Handle Category Add-ons Pricing Bar (Available across all categories)
+            // Handle Category Add-ons Pricing Bar (Hidden for ineligible beverage, side, and dessert categories)
             const addonsBar = document.getElementById('category-addons-bar');
             if (addonsBar) {
-                addonsBar.style.display = 'flex';
-                const catNameEl = document.getElementById('addons-cat-name');
-                if (catNameEl) catNameEl.textContent = categoryName;
-
-                const stdInputs = document.getElementById('standard-category-addons-inputs');
-                const pizzaInputs = document.getElementById('pizza-category-addons-inputs');
-                const shakeInputs = document.getElementById('shake-category-addons-inputs');
-
-                if (categoryName === 'Pizza') {
-                    if (stdInputs) stdInputs.style.display = 'none';
-                    if (pizzaInputs) pizzaInputs.style.display = 'flex';
-                    if (shakeInputs) shakeInputs.style.display = 'none';
-
-                    const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
-                    const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
-
-                    const sCheese = document.getElementById('addon-pizza-cheese-s');
-                    const sSpicy = document.getElementById('addon-pizza-spicy-s');
-                    const sMayo = document.getElementById('addon-pizza-mayo-s');
-                    const mCheese = document.getElementById('addon-pizza-cheese-m');
-                    const mSpicy = document.getElementById('addon-pizza-spicy-m');
-                    const mMayo = document.getElementById('addon-pizza-mayo-m');
-                    const lCheese = document.getElementById('addon-pizza-cheese-l');
-                    const lSpicy = document.getElementById('addon-pizza-spicy-l');
-                    const lMayo = document.getElementById('addon-pizza-mayo-l');
-
-                    if (sCheese) sCheese.value = sizes.S?.extraCheese ?? 30;
-                    if (sSpicy) sSpicy.value = sizes.S?.extraSpicy ?? 0;
-                    if (sMayo) sMayo.value = sizes.S?.extraMayo ?? 20;
-                    if (mCheese) mCheese.value = sizes.M?.extraCheese ?? 50;
-                    if (mSpicy) mSpicy.value = sizes.M?.extraSpicy ?? 0;
-                    if (mMayo) mMayo.value = sizes.M?.extraMayo ?? 30;
-                    if (lCheese) lCheese.value = sizes.L?.extraCheese ?? 70;
-                    if (lSpicy) lSpicy.value = sizes.L?.extraSpicy ?? 0;
-                    if (lMayo) lMayo.value = sizes.L?.extraMayo ?? 40;
-
-                    const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Pizza']);
-                    const draftBadge = document.getElementById('addons-draft-badge');
-                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
-                } else if (categoryName === 'Shake') {
-                    if (stdInputs) stdInputs.style.display = 'none';
-                    if (pizzaInputs) pizzaInputs.style.display = 'none';
-                    if (shakeInputs) shakeInputs.style.display = 'flex';
-
-                    const iceCreamInput = document.getElementById('addon-shake-icecream-input');
-                    const currentAddons = categoryAddons['Shake'] || { withIceCream: 30 };
-                    if (iceCreamInput) iceCreamInput.value = currentAddons.withIceCream !== undefined ? currentAddons.withIceCream : 30;
-
-                    const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Shake']);
-                    const draftBadge = document.getElementById('addons-draft-badge');
-                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                if (isCategoryAddonIneligible(categoryName)) {
+                    addonsBar.style.display = 'none';
                 } else {
-                    if (stdInputs) stdInputs.style.display = 'flex';
-                    if (pizzaInputs) pizzaInputs.style.display = 'none';
-                    if (shakeInputs) shakeInputs.style.display = 'none';
+                    addonsBar.style.display = 'flex';
+                    const catNameEl = document.getElementById('addons-cat-name');
+                    if (catNameEl) catNameEl.textContent = (CATEGORY_META[categoryName] && CATEGORY_META[categoryName].name) || categoryName;
 
-                    const cheeseInput = document.getElementById('addon-extra-cheese-input');
-                    const spicyInput = document.getElementById('addon-extra-spicy-input');
-                    const mayoInput = document.getElementById('addon-extra-mayo-input');
-                    const mayoGroup = document.getElementById('addon-group-extra-mayo');
+                    const stdInputs = document.getElementById('standard-category-addons-inputs');
+                    const pizzaInputs = document.getElementById('pizza-category-addons-inputs');
+                    const shakeInputs = document.getElementById('shake-category-addons-inputs');
 
-                    const defaultAddon = DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
-                    const currentAddons = categoryAddons[categoryName] || defaultAddon;
-                    if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : defaultAddon.extraCheese;
-                    if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : defaultAddon.extraSpicy;
-                    if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : defaultAddon.extraMayo;
-                    if (mayoGroup) mayoGroup.style.display = 'flex';
+                    if (categoryName === 'Pizza') {
+                        if (stdInputs) stdInputs.style.display = 'none';
+                        if (pizzaInputs) pizzaInputs.style.display = 'flex';
+                        if (shakeInputs) shakeInputs.style.display = 'none';
 
-                    const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
-                    const draftBadge = document.getElementById('addons-draft-badge');
-                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                        const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
+                        const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
+
+                        const sCheese = document.getElementById('addon-pizza-cheese-s');
+                        const sSpicy = document.getElementById('addon-pizza-spicy-s');
+                        const sMayo = document.getElementById('addon-pizza-mayo-s');
+                        const mCheese = document.getElementById('addon-pizza-cheese-m');
+                        const mSpicy = document.getElementById('addon-pizza-spicy-m');
+                        const mMayo = document.getElementById('addon-pizza-mayo-m');
+                        const lCheese = document.getElementById('addon-pizza-cheese-l');
+                        const lSpicy = document.getElementById('addon-pizza-spicy-l');
+                        const lMayo = document.getElementById('addon-pizza-mayo-l');
+
+                        if (sCheese) sCheese.value = sizes.S?.extraCheese ?? 30;
+                        if (sSpicy) sSpicy.value = sizes.S?.extraSpicy ?? 0;
+                        if (sMayo) sMayo.value = sizes.S?.extraMayo ?? 20;
+                        if (mCheese) mCheese.value = sizes.M?.extraCheese ?? 50;
+                        if (mSpicy) mSpicy.value = sizes.M?.extraSpicy ?? 0;
+                        if (mMayo) mMayo.value = sizes.M?.extraMayo ?? 30;
+                        if (lCheese) lCheese.value = sizes.L?.extraCheese ?? 70;
+                        if (lSpicy) lSpicy.value = sizes.L?.extraSpicy ?? 0;
+                        if (lMayo) lMayo.value = sizes.L?.extraMayo ?? 40;
+
+                        const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Pizza']);
+                        const draftBadge = document.getElementById('addons-draft-badge');
+                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                    } else if (categoryName === 'Shake') {
+                        if (stdInputs) stdInputs.style.display = 'none';
+                        if (pizzaInputs) pizzaInputs.style.display = 'none';
+                        if (shakeInputs) shakeInputs.style.display = 'flex';
+
+                        const iceCreamInput = document.getElementById('addon-shake-icecream-input');
+                        const currentAddons = categoryAddons['Shake'] || { withIceCream: 30 };
+                        if (iceCreamInput) iceCreamInput.value = currentAddons.withIceCream !== undefined ? currentAddons.withIceCream : 30;
+
+                        const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Shake']);
+                        const draftBadge = document.getElementById('addons-draft-badge');
+                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                    } else {
+                        if (stdInputs) stdInputs.style.display = 'flex';
+                        if (pizzaInputs) pizzaInputs.style.display = 'none';
+                        if (shakeInputs) shakeInputs.style.display = 'none';
+
+                        const cheeseInput = document.getElementById('addon-extra-cheese-input');
+                        const spicyInput = document.getElementById('addon-extra-spicy-input');
+                        const mayoInput = document.getElementById('addon-extra-mayo-input');
+                        const mayoGroup = document.getElementById('addon-group-extra-mayo');
+
+                        const defaultAddon = DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
+                        const currentAddons = categoryAddons[categoryName] || defaultAddon;
+                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : defaultAddon.extraCheese;
+                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : defaultAddon.extraSpicy;
+                        if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : defaultAddon.extraMayo;
+                        if (mayoGroup) mayoGroup.style.display = 'flex';
+
+                        const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
+                        const draftBadge = document.getElementById('addons-draft-badge');
+                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                    }
                 }
             }
 
@@ -6254,7 +6266,7 @@
 
         // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Standard categories)
         function handleCategoryAddonChange() {
-            if (!activeCategory || activeCategory === 'Pizza' || activeCategory === 'Shake') return;
+            if (!activeCategory || activeCategory === 'Pizza' || activeCategory === 'Shake' || isCategoryAddonIneligible(activeCategory)) return;
 
             const cheeseInput = document.getElementById('addon-extra-cheese-input');
             const spicyInput = document.getElementById('addon-extra-spicy-input');
@@ -6820,15 +6832,15 @@
                         <div class="size-prices-grid">
                             <div class="size-input-group">
                                 <span class="size-tag tag-s">S</span>
-                                <input type="number" class="price-field-sm price-field-s" id="search-price-s-${item.id}" value="${p.S}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                                <input type="number" class="price-field-sm price-field-s" id="search-price-s-${item.id}" value="${p.S}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                             </div>
                             <div class="size-input-group">
                                 <span class="size-tag tag-m">M</span>
-                                <input type="number" class="price-field-sm price-field-m" id="search-price-m-${item.id}" value="${p.M}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                                <input type="number" class="price-field-sm price-field-m" id="search-price-m-${item.id}" value="${p.M}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                             </div>
                             <div class="size-input-group">
                                 <span class="size-tag tag-l">L</span>
-                                <input type="number" class="price-field-sm price-field-l" id="search-price-l-${item.id}" value="${p.L}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                                <input type="number" class="price-field-sm price-field-l" id="search-price-l-${item.id}" value="${p.L}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                             </div>
                         </div>
                     `;
@@ -6836,7 +6848,7 @@
                     priceHtml = `
                         <div class="single-price-wrapper">
                             <span class="price-currency">₹</span>
-                            <input type="number" class="price-field-single price-field-val" id="search-price-single-${item.id}" value="${item.price || 0}" min="10" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
+                            <input type="number" class="price-field-single price-field-val" id="search-price-single-${item.id}" value="${item.price || 0}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', true)" onchange="handleSingleItemPriceChange('${item.id}', true)">
                         </div>
                     `;
                 }
@@ -6973,15 +6985,15 @@
                         <div class="size-prices-grid">
                             <div class="size-input-group">
                                  <span class="size-tag tag-s">S</span>
-                                 <input type="number" class="price-field-sm price-field-s" id="price-s-${item.id}" value="${p.S}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                                 <input type="number" class="price-field-sm price-field-s" id="price-s-${item.id}" value="${p.S}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                             </div>
                             <div class="size-input-group">
                                  <span class="size-tag tag-m">M</span>
-                                 <input type="number" class="price-field-sm price-field-m" id="price-m-${item.id}" value="${p.M}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                                 <input type="number" class="price-field-sm price-field-m" id="price-m-${item.id}" value="${p.M}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                             </div>
                             <div class="size-input-group">
                                  <span class="size-tag tag-l">L</span>
-                                 <input type="number" class="price-field-sm price-field-l" id="price-l-${item.id}" value="${p.L}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                                 <input type="number" class="price-field-sm price-field-l" id="price-l-${item.id}" value="${p.L}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                             </div>
                         </div>
                     `;
@@ -6989,7 +7001,7 @@
                     priceHtml = `
                         <div class="single-price-wrapper">
                             <span class="price-currency">₹</span>
-                            <input type="number" class="price-field-single price-field-val" id="price-single-${item.id}" value="${item.price || 0}" min="10" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
+                            <input type="number" class="price-field-single price-field-val" id="price-single-${item.id}" value="${item.price || 0}" min="9" max="999" step="1" onkeydown="handlePriceInputKeyDown(event)" onpaste="handlePriceInputPaste(event)" oninput="debouncedHandlePriceChange('${item.id}', false)" onchange="handleSingleItemPriceChange('${item.id}', false)">
                         </div>
                     `;
                 }
@@ -7247,8 +7259,50 @@
             updateUnsavedChangesUI();
         }
 
-        // 5.1 STRICT PRICE VALIDATION (MINIMUM ₹10 & PIZZA SIZE PRICE LADDER)
-        const MIN_MENU_ITEM_PRICE = 10;
+        // 5.1 STRICT PRICE VALIDATION & DIGIT SANITIZATION
+        const MIN_MENU_ITEM_PRICE = 9;
+        const MAX_MENU_ITEM_PRICE = 999;
+        const MIN_ADDON_PRICE = 0;
+        const MAX_ADDON_PRICE = 99;
+
+        // Strictly intercept keydown to prevent negative sign, plus sign, decimals, exponential 'e', and non-digits
+        function handlePriceInputKeyDown(e) {
+            const allowedKeys = ['Backspace', 'Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'Delete', 'Home', 'End'];
+            if (allowedKeys.includes(e.key)) return;
+            if (e.ctrlKey || e.metaKey) return;
+            // Block '-', '+', '.', 'e', 'E', ',', and any non-digit character
+            if (!/^\d$/.test(e.key)) {
+                e.preventDefault();
+            }
+        }
+
+        // Strictly sanitize paste data to allow only whole positive integers
+        function handlePriceInputPaste(e) {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+            const cleaned = pasteData.replace(/\D/g, '');
+            if (cleaned) {
+                document.execCommand('insertText', false, cleaned);
+            }
+        }
+
+        window.handlePriceInputKeyDown = handlePriceInputKeyDown;
+        window.handlePriceInputPaste = handlePriceInputPaste;
+
+        // Global delegated capturing keydown and paste listeners across all price inputs
+        document.addEventListener('keydown', function(e) {
+            const t = e.target;
+            if (t && t.matches && t.matches('input.addon-price-field, input.price-field-sm, input.price-field-single, input[id^="addon-"], input[id^="price-"], input[id^="search-price-"], input[id*="price"], input[class*="price"]')) {
+                handlePriceInputKeyDown(e);
+            }
+        }, true);
+
+        document.addEventListener('paste', function(e) {
+            const t = e.target;
+            if (t && t.matches && t.matches('input.addon-price-field, input.price-field-sm, input.price-field-single, input[id^="addon-"], input[id^="price-"], input[id^="search-price-"], input[id*="price"], input[class*="price"]')) {
+                handlePriceInputPaste(e);
+            }
+        }, true);
 
         function validateMenuPricesForSave() {
             // Clear any prior validation highlights
@@ -7258,8 +7312,9 @@
             let firstInvalidEl = null;
             let firstErrorMsg = '';
 
+            // 1. Validate all menu items in store (min ₹9, max ₹999, ladder)
             for (const item of menuItems) {
-                // Category add-ons (Extra Cheese, Mayo, Spicy, etc.) are explicitly exempt
+                // Category add-ons (Extra Cheese, Mayo, Spicy, etc.) are validated separately
                 if (item.isAddon || item.category === 'Addons' || item.category === 'addon') continue;
 
                 const itemName = item.name || 'Item';
@@ -7274,19 +7329,16 @@
                     let errorMsg = '';
                     let invalidFieldKey = '';
 
-                    // 1. Universal minimum price constraint (>= ₹10)
-                    if (isNaN(pS) || pS < MIN_MENU_ITEM_PRICE) {
-                        errorMsg = `Error: ${itemName} Small price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                    if (isNaN(pS) || pS < MIN_MENU_ITEM_PRICE || pS > MAX_MENU_ITEM_PRICE) {
+                        errorMsg = `Error: ${itemName} Small price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`;
                         invalidFieldKey = 's';
-                    } else if (isNaN(pM) || pM < MIN_MENU_ITEM_PRICE) {
-                        errorMsg = `Error: ${itemName} Medium price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                    } else if (isNaN(pM) || pM < MIN_MENU_ITEM_PRICE || pM > MAX_MENU_ITEM_PRICE) {
+                        errorMsg = `Error: ${itemName} Medium price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`;
                         invalidFieldKey = 'm';
-                    } else if (isNaN(pL) || pL < MIN_MENU_ITEM_PRICE) {
-                        errorMsg = `Error: ${itemName} Large price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                    } else if (isNaN(pL) || pL < MIN_MENU_ITEM_PRICE || pL > MAX_MENU_ITEM_PRICE) {
+                        errorMsg = `Error: ${itemName} Large price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`;
                         invalidFieldKey = 'l';
-                    }
-                    // 2. Strict Pizza Size Price Ladder (Small < Medium < Large => Medium >= Small + 1, Large >= Medium + 1)
-                    else if (pM <= pS) {
+                    } else if (pM <= pS) {
                         errorMsg = `Error: ${itemName} Medium price must be at least ₹1 higher than Small price`;
                         invalidFieldKey = 'm';
                     } else if (pL <= pM) {
@@ -7307,8 +7359,8 @@
                     }
                 } else {
                     const singlePrice = Number(item.price);
-                    if (isNaN(singlePrice) || singlePrice < MIN_MENU_ITEM_PRICE) {
-                        const errorMsg = `Error: ${itemName} price cannot be less than ₹${MIN_MENU_ITEM_PRICE}`;
+                    if (isNaN(singlePrice) || singlePrice < MIN_MENU_ITEM_PRICE || singlePrice > MAX_MENU_ITEM_PRICE) {
+                        const errorMsg = `Error: ${itemName} price must be between ₹${MIN_MENU_ITEM_PRICE} and ₹${MAX_MENU_ITEM_PRICE}`;
                         const el = document.getElementById(`price-single-${item.id}`) ||
                                    document.getElementById(`search-price-single-${item.id}`);
                         if (el) {
@@ -7320,6 +7372,46 @@
                         if (!firstErrorMsg) firstErrorMsg = errorMsg;
                     }
                 }
+            }
+
+            // 2. Validate all active and stored Category Add-on rates (min ₹0, max ₹99)
+            const addonsBar = document.getElementById('category-addons-bar');
+            const isAddonsBarVisible = addonsBar && addonsBar.style.display !== 'none';
+            if (isAddonsBarVisible) {
+                const activeAddonInputs = addonsBar.querySelectorAll('input.addon-price-field, input[id^="addon-"]');
+                activeAddonInputs.forEach(input => {
+                    if (input.type === 'checkbox' || input.type === 'radio') return;
+                    const val = Number(input.value);
+                    if (isNaN(val) || val < MIN_ADDON_PRICE || val > MAX_ADDON_PRICE || input.value.trim() === '') {
+                        input.classList.add('price-field-invalid');
+                        const grp = input.closest('.addon-input-wrapper, .size-input-group');
+                        if (grp) grp.classList.add('price-group-invalid');
+                        if (!firstInvalidEl) firstInvalidEl = input;
+                        if (!firstErrorMsg) firstErrorMsg = `Error: Add-on price must be between ₹${MIN_ADDON_PRICE} and ₹${MAX_ADDON_PRICE}`;
+                    }
+                });
+            }
+
+            for (const [catName, addons] of Object.entries(categoryAddons || {})) {
+                if (!addons || isCategoryAddonIneligible(catName)) continue;
+                if (addons.sizes) {
+                    for (const [sz, szPrices] of Object.entries(addons.sizes)) {
+                        for (const [addonKey, pVal] of Object.entries(szPrices || {})) {
+                            const num = Number(pVal);
+                            if (isNaN(num) || num < MIN_ADDON_PRICE || num > MAX_ADDON_PRICE) {
+                                if (!firstErrorMsg) firstErrorMsg = `Error: ${catName} Size ${sz} ${addonKey} add-on price must be between ₹${MIN_ADDON_PRICE} and ₹${MAX_ADDON_PRICE}`;
+                            }
+                        }
+                    }
+                }
+                ['extraCheese', 'extraSpicy', 'extraMayo', 'withIceCream'].forEach(field => {
+                    if (addons[field] !== undefined) {
+                        const num = Number(addons[field]);
+                        if (isNaN(num) || num < MIN_ADDON_PRICE || num > MAX_ADDON_PRICE) {
+                            if (!firstErrorMsg) firstErrorMsg = `Error: ${catName} ${field} add-on price must be between ₹${MIN_ADDON_PRICE} and ₹${MAX_ADDON_PRICE}`;
+                        }
+                    }
+                });
             }
 
             if (firstErrorMsg) {
@@ -7334,12 +7426,35 @@
             return true;
         }
 
-        // Global live input listener to immediately remove error styling on user correction
+        // Global live input listener to dynamically toggle validation borders
         document.addEventListener('input', function(e) {
-            if (e.target && e.target.classList && (e.target.classList.contains('price-field-invalid') || e.target.classList.contains('price-field-sm') || e.target.classList.contains('price-field-single'))) {
-                e.target.classList.remove('price-field-invalid');
-                const grp = e.target.closest('.size-input-group, .single-price-wrapper');
-                if (grp) grp.classList.remove('price-group-invalid');
+            const target = e.target;
+            if (!target || !target.matches) return;
+
+            if (target.matches('input.addon-price-field, input[id^="addon-"]')) {
+                const val = Number(target.value);
+                const isInvalid = isNaN(val) || val < MIN_ADDON_PRICE || val > MAX_ADDON_PRICE || target.value.trim() === '';
+                if (isInvalid) {
+                    target.classList.add('price-field-invalid');
+                    const grp = target.closest('.addon-input-wrapper, .size-input-group');
+                    if (grp) grp.classList.add('price-group-invalid');
+                } else {
+                    target.classList.remove('price-field-invalid');
+                    const grp = target.closest('.addon-input-wrapper, .size-input-group');
+                    if (grp) grp.classList.remove('price-group-invalid');
+                }
+            } else if (target.matches('input.price-field-sm, input.price-field-single, input[id^="price-"], input[id^="search-price-"]')) {
+                const val = Number(target.value);
+                const isInvalid = isNaN(val) || val < MIN_MENU_ITEM_PRICE || val > MAX_MENU_ITEM_PRICE || target.value.trim() === '';
+                if (isInvalid) {
+                    target.classList.add('price-field-invalid');
+                    const grp = target.closest('.size-input-group, .single-price-wrapper');
+                    if (grp) grp.classList.add('price-group-invalid');
+                } else {
+                    target.classList.remove('price-field-invalid');
+                    const grp = target.closest('.size-input-group, .single-price-wrapper');
+                    if (grp) grp.classList.remove('price-group-invalid');
+                }
             }
         });
 
@@ -7375,14 +7490,15 @@
         }
         window.updateAdminSettingsVersion = updateAdminSettingsVersion;
 
-        // 6. GLOBAL SAVE BUTTON (EXPLICIT BATCH COMMIT ON "SAVE ALL CHANGES")
+        // 6. GLOBAL SAVE BUTTON (ATOMIC BATCH COMMIT ON "SAVE ALL CHANGES")
         async function saveAllChanges() {
             const saveBtn = document.getElementById('btn-admin-save-all');
             const saveBtnText = document.getElementById('save-all-btn-text');
-            const origText = saveBtnText ? saveBtnText.innerHTML : 'Save All Changes';
+            const saveBtnIcon = document.getElementById('save-all-btn-icon');
 
             if (saveBtn) saveBtn.disabled = true;
-            if (saveBtnText) saveBtnText.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving All...';
+            if (saveBtnIcon) saveBtnIcon.className = 'fa-solid fa-spinner fa-spin';
+            if (saveBtnText) saveBtnText.textContent = 'Saving...';
 
             try {
                 // 1. Flush active category discount input if in category view
@@ -7401,8 +7517,9 @@
                         }
                     }
 
-                    // Flush active Category Add-on inputs if in category view
-                    if (activeCategory === 'Pizza') {
+                    // Flush active Category Add-on inputs if in category view AND category is eligible
+                    if (activeCategory && !isCategoryAddonIneligible(activeCategory)) {
+                        if (activeCategory === 'Pizza') {
                         const sCheese = parseFloat(document.getElementById('addon-pizza-cheese-s')?.value) || 0;
                         const sSpicy = parseFloat(document.getElementById('addon-pizza-spicy-s')?.value) || 0;
                         const sMayo = parseFloat(document.getElementById('addon-pizza-mayo-s')?.value) || 0;
@@ -7440,6 +7557,7 @@
                         }
                     }
                 }
+            }
 
                 // 2. Flush all active DOM inputs into menuItems and pendingMenuUpdates
                 menuItems.forEach(item => {
@@ -7462,12 +7580,12 @@
                         const priceL = document.getElementById(`price-l-${item.id}`) || document.getElementById(`search-price-l-${item.id}`);
 
                         if (!item.prices) item.prices = { S: 199, M: 299, L: 399 };
-                        if (priceS) item.prices.S = parseFloat(priceS.value) || 0;
-                        if (priceM) item.prices.M = parseFloat(priceM.value) || 0;
-                        if (priceL) item.prices.L = parseFloat(priceL.value) || 0;
+                        if (priceS && priceS.value !== '') item.prices.S = parseFloat(priceS.value) || 0;
+                        if (priceM && priceM.value !== '') item.prices.M = parseFloat(priceM.value) || 0;
+                        if (priceL && priceL.value !== '') item.prices.L = parseFloat(priceL.value) || 0;
                     } else {
                         const singlePrice = document.getElementById(`price-single-${item.id}`) || document.getElementById(`search-price-single-${item.id}`);
-                        if (singlePrice) {
+                        if (singlePrice && singlePrice.value !== '') {
                             item.price = parseFloat(singlePrice.value) || 0;
                         }
                     }
@@ -7497,34 +7615,30 @@
                     }
                 });
 
-                // 2.1 Enforce strict price validation (min ₹10 and pizza size ladder)
+                // 2.1 Enforce strict price validation (min ₹9, max ₹999, ladder, add-on 0-99)
                 if (!validateMenuPricesForSave()) {
-                    if (saveBtn) saveBtn.disabled = false;
-                    if (saveBtnText) saveBtnText.innerHTML = origText;
                     return;
                 }
 
-                // 2. Atomically validate and persist Store Settings
+                // 2.2 Persist Store Settings if function exists
                 if (typeof saveOrderSettings === 'function') {
                     const settingsSuccess = await saveOrderSettings(false);
                     if (settingsSuccess === false) {
-                        if (saveBtn) saveBtn.disabled = false;
-                        if (saveBtnText) saveBtnText.innerHTML = origText;
                         return;
                     }
                 }
 
-                // 3. Atomically validate and persist Wallet & Cashback 5-Slab Configuration
+                // 2.3 Persist Wallet & Cashback 5-Slab Configuration
                 if (typeof saveWalletSettings === 'function') {
                     await saveWalletSettings(false);
                 }
 
-                // 4. Atomically persist 4 Daily Banner Slots directly in Save All Changes workflow
+                // 2.4 Persist Daily Banners
                 if (typeof saveAdminDailyBanners === 'function') {
                     await saveAdminDailyBanners(adminDailyBannersList);
                 }
 
-                // 5. Atomically persist Store Notice in Save All Changes workflow
+                // 2.5 Persist Store Notice
                 if (typeof saveStoreNotice === 'function') {
                     try {
                         await saveStoreNotice(false);
@@ -7536,144 +7650,164 @@
                 const modifiedIds = Object.keys(pendingMenuUpdates);
                 const hasAddonDiff = JSON.stringify(categoryAddons) !== JSON.stringify(committedCategoryAddons);
                 const hasDiscountDiff = JSON.stringify(categoryDiscounts) !== JSON.stringify(committedCategoryDiscounts);
-                const hasMenuOrCategoryChanges = modifiedIds.length > 0 || hasAddonDiff || hasDiscountDiff;
 
-                // 5. Commit menu updates if any were modified
-                if (hasMenuOrCategoryChanges) {
-                    showToast('Saving all store settings, wallet configurations & batch menu changes...');
+                // 3. Consolidated Single Atomic Firestore Batch Write
+                if (adminFirestore) {
+                    const batch = adminFirestore.batch();
 
-                    if (adminFirestore) {
-                        try {
-                            const batch = adminFirestore.batch();
-
-                            modifiedIds.forEach(itemId => {
-                                const item = menuItems.find(i => String(i.id) === String(itemId));
-                                if (item) {
-                                    const isAvail = item.available !== false && item.is_available !== false;
-                                    const docRefMenu = adminFirestore.collection('menu').doc(String(itemId));
-                                    const docRefMenuItems = adminFirestore.collection('menu_items').doc(String(itemId));
-                                    const updatePayload = {
-                                        id: String(item.id),
-                                        name: item.name,
-                                        category: item.category,
-                                        available: isAvail,
-                                        is_available: isAvail,
-                                        out_of_stock: !isAvail,
-                                        isDiscountActive: Boolean(item.isDiscountActive),
-                                        appliedDiscountPercent: item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0,
-                                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                                    };
-                                    if (item.isMultiSize || item.prices) {
-                                        updatePayload.prices = item.prices;
-                                        updatePayload.isMultiSize = true;
-                                    } else {
-                                        updatePayload.price = item.price;
-                                        updatePayload.isMultiSize = false;
-                                    }
-                                    batch.set(docRefMenu, updatePayload, { merge: true });
-                                    batch.set(docRefMenuItems, updatePayload, { merge: true });
-                                }
-                            });
-
-                            // Save category-level documents to categories/{catId} (including master discount and custom add-on pricing)
-                            const allCategoryKeys = new Set([...Object.keys(categoryDiscounts), ...Object.keys(categoryAddons), ...Object.keys(CATEGORY_META || {})]);
-                            allCategoryKeys.forEach(catId => {
-                                const catDocRef = adminFirestore.collection('categories').doc(catId);
-                                const catPayload = {
-                                    id: catId,
-                                    name: (CATEGORY_META[catId] && CATEGORY_META[catId].name) || catId,
-                                    masterDiscountPercent: categoryDiscounts[catId] || 0,
-                                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                                };
-                                if (categoryAddons[catId]) {
-                                    catPayload.addons = categoryAddons[catId];
-                                    if (categoryAddons[catId].sizes) {
-                                        catPayload.sizes = categoryAddons[catId].sizes;
-                                    }
-                                    if (categoryAddons[catId].extraCheese !== undefined) {
-                                        catPayload.extraCheese = categoryAddons[catId].extraCheese;
-                                    }
-                                    if (categoryAddons[catId].extraSpicy !== undefined) {
-                                        catPayload.extraSpicy = categoryAddons[catId].extraSpicy;
-                                    }
-                                    if (categoryAddons[catId].extraMayo !== undefined) {
-                                        catPayload.extraMayo = categoryAddons[catId].extraMayo;
-                                    }
-                                    if (categoryAddons[catId].withIceCream !== undefined) {
-                                        catPayload.withIceCream = categoryAddons[catId].withIceCream;
-                                    }
-                                }
-                                batch.set(catDocRef, catPayload, { merge: true });
-                            });
-
-                            const settingsMenuRef = adminFirestore.collection('settings').doc('menu');
-                            batch.set(settingsMenuRef, {
-                                items: menuItems,
-                                categoryAddons: categoryAddons,
-                                categoryDiscounts: categoryDiscounts,
-                                lastUpdated: Date.now()
-                            }, { merge: true });
-
-                            const settingsAddonsRef = adminFirestore.collection('settings').doc('category_addons');
-                            batch.set(settingsAddonsRef, categoryAddons, { merge: true });
-
-                            const settingsDiscountsRef = adminFirestore.collection('settings').doc('category_discounts');
-                            batch.set(settingsDiscountsRef, categoryDiscounts, { merge: true });
-
-                            await batch.commit();
-                        } catch (firestoreErr) {
-                            console.error('Firestore batch commit error:', firestoreErr);
+                    // Modified menu items
+                    modifiedIds.forEach(itemId => {
+                        const item = menuItems.find(i => String(i.id) === String(itemId));
+                        if (item) {
+                            const isAvail = item.available !== false && item.is_available !== false;
+                            const docRefMenu = adminFirestore.collection('menu').doc(String(itemId));
+                            const docRefMenuItems = adminFirestore.collection('menu_items').doc(String(itemId));
+                            const updatePayload = {
+                                id: String(item.id),
+                                name: item.name,
+                                category: item.category,
+                                available: isAvail,
+                                is_available: isAvail,
+                                out_of_stock: !isAvail,
+                                isDiscountActive: Boolean(item.isDiscountActive),
+                                appliedDiscountPercent: item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0,
+                                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                                    ? firebase.firestore.FieldValue.serverTimestamp()
+                                    : new Date().toISOString()
+                            };
+                            if (item.isMultiSize || item.prices) {
+                                updatePayload.prices = item.prices;
+                                updatePayload.isMultiSize = true;
+                            } else {
+                                updatePayload.price = item.price;
+                                updatePayload.isMultiSize = false;
+                            }
+                            batch.set(docRefMenu, updatePayload, { merge: true });
+                            batch.set(docRefMenuItems, updatePayload, { merge: true });
                         }
-                    }
+                    });
 
-                    try {
-                        const res = await apiCall('/menu', {
-                            method: 'PUT',
-                            body: JSON.stringify({ items: menuItems, categoryAddons: categoryAddons, categoryDiscounts: categoryDiscounts })
-                        });
-                        if (!res.ok) {
-                            const errData = await res.json().catch(() => ({}));
-                            console.warn('Menu bulk save notice:', errData.message || `HTTP ${res.status}`);
+                    // Save category-level documents to categories/{catId} (master discount & custom add-on pricing)
+                    const allCategoryKeys = new Set([...Object.keys(categoryDiscounts), ...Object.keys(categoryAddons), ...Object.keys(CATEGORY_META || {})]);
+                    allCategoryKeys.forEach(catId => {
+                        const catDocRef = adminFirestore.collection('categories').doc(catId);
+                        const catPayload = {
+                            id: catId,
+                            name: (CATEGORY_META[catId] && CATEGORY_META[catId].name) || catId,
+                            masterDiscountPercent: categoryDiscounts[catId] || 0,
+                            updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                                ? firebase.firestore.FieldValue.serverTimestamp()
+                                : new Date().toISOString()
+                        };
+                        if (categoryAddons[catId] && !isCategoryAddonIneligible(catId)) {
+                            catPayload.addons = categoryAddons[catId];
+                            if (categoryAddons[catId].sizes) {
+                                catPayload.sizes = categoryAddons[catId].sizes;
+                            }
+                            if (categoryAddons[catId].extraCheese !== undefined) {
+                                catPayload.extraCheese = categoryAddons[catId].extraCheese;
+                            }
+                            if (categoryAddons[catId].extraSpicy !== undefined) {
+                                catPayload.extraSpicy = categoryAddons[catId].extraSpicy;
+                            }
+                            if (categoryAddons[catId].extraMayo !== undefined) {
+                                catPayload.extraMayo = categoryAddons[catId].extraMayo;
+                            }
+                            if (categoryAddons[catId].withIceCream !== undefined) {
+                                catPayload.withIceCream = categoryAddons[catId].withIceCream;
+                            }
                         }
-                    } catch (err) {
-                        console.warn('Backend API bulk save notice:', err.message);
-                    }
+                        batch.set(catDocRef, catPayload, { merge: true });
+                    });
 
-                    committedMenuItems = JSON.parse(JSON.stringify(menuItems));
-                    committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
-                    committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
-                    pendingMenuUpdates = {};
-                    saveToLocalStorage();
-                    try {
-                        localStorage.setItem(CATEGORY_DISCOUNTS_STORAGE_KEY, JSON.stringify(categoryDiscounts));
-                    } catch (e) {}
-                    updateStats();
-                    updateUnsavedChangesUI();
+                    // Settings documents
+                    const settingsMenuRef = adminFirestore.collection('settings').doc('menu');
+                    batch.set(settingsMenuRef, {
+                        items: menuItems,
+                        categoryAddons: categoryAddons,
+                        categoryDiscounts: categoryDiscounts,
+                        lastUpdated: Date.now()
+                    }, { merge: true });
 
-                    if (currentSearchQuery.trim() !== '') {
-                        renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
-                    } else if (activeCategory) {
-                        renderCategoryItemsTable();
-                    } else {
-                        renderCategoryGrid();
-                    }
+                    const settingsAddonsRef = adminFirestore.collection('settings').doc('category_addons');
+                    batch.set(settingsAddonsRef, categoryAddons, { merge: true });
 
-                    await updateAdminSettingsVersion();
-                    showToast('✅ All changes (Store, Wallet & Menu) saved and published to Firestore!');
-                    logAdminActivity(`Saved all changes in batch (${modifiedIds.length} menu items, store settings, and 5 wallet slabs)`);
-                } else {
-                    await updateAdminSettingsVersion();
-                    saveToLocalStorage();
-                    updateUnsavedChangesUI();
-                    showToast('✅ All store settings & wallet configurations saved to Firestore successfully!');
-                    logAdminActivity('Saved all store and wallet configurations to Firestore');
+                    const settingsDiscountsRef = adminFirestore.collection('settings').doc('category_discounts');
+                    batch.set(settingsDiscountsRef, categoryDiscounts, { merge: true });
+
+                    // Version invalidation metadata in same atomic batch
+                    const version = Date.now();
+                    const versionPayload = {
+                        settings_version: version,
+                        settingsVersion: version,
+                        updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                            ? firebase.firestore.FieldValue.serverTimestamp()
+                            : new Date().toISOString()
+                    };
+                    const appConfigRef = adminFirestore.collection('app_config').doc('metadata');
+                    batch.set(appConfigRef, versionPayload, { merge: true });
+
+                    const settingsMetaRef = adminFirestore.collection('settings').doc('metadata');
+                    batch.set(settingsMetaRef, versionPayload, { merge: true });
+
+                    // Atomic commit: MUST complete without error before proceeding
+                    await batch.commit();
                 }
+
+                // Call backend API for server runtime cache parity
+                try {
+                    const res = await apiCall('/menu', {
+                        method: 'PUT',
+                        body: JSON.stringify({ items: menuItems, categoryAddons: categoryAddons, categoryDiscounts: categoryDiscounts })
+                    });
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        console.warn('Menu bulk save notice:', errData.message || `HTTP ${res.status}`);
+                    }
+                } catch (err) {
+                    console.warn('Backend API bulk save notice:', err.message);
+                }
+
+                // Notify version API endpoint in background
+                try {
+                    const url = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/version') : '/api/settings/version';
+                    fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ settings_version: Date.now() })
+                    }).catch(() => {});
+                } catch (e) { }
+
+                // 4. ONLY upon batch commit success: clear drafts, refresh memory models, update UI
+                committedMenuItems = JSON.parse(JSON.stringify(menuItems));
+                committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
+                pendingMenuUpdates = {};
+                saveToLocalStorage();
+                try {
+                    localStorage.setItem(CATEGORY_DISCOUNTS_STORAGE_KEY, JSON.stringify(categoryDiscounts));
+                } catch (e) {}
+                updateStats();
+                updateUnsavedChangesUI();
+
+                if (currentSearchQuery.trim() !== '') {
+                    renderGlobalSearchResults(currentSearchQuery.toLowerCase().trim(), currentSearchQuery);
+                } else if (activeCategory) {
+                    renderCategoryItemsTable();
+                } else {
+                    renderCategoryGrid();
+                }
+
+                // Trigger single success toast
+                showToast('All Changes Saved Successfully');
+                logAdminActivity(`Saved all changes in batch (${modifiedIds.length} menu items, store settings, and wallet configuration)`);
             } catch (err) {
                 console.error('Error during Save All Changes:', err);
                 showToast('❌ Error saving changes: ' + err.message);
             } finally {
                 if (saveBtn) saveBtn.disabled = false;
-                if (saveBtnText) saveBtnText.innerHTML = origText;
+                if (saveBtnIcon) saveBtnIcon.className = 'fa-solid fa-floppy-disk';
+                if (saveBtnText) saveBtnText.textContent = 'Save All Changes';
             }
         }
         window.saveAllChanges = saveAllChanges;
@@ -13196,7 +13330,7 @@
                         }
 
                         if (doc.data().categoryAddons) {
-                            categoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
+                            categoryAddons = cleanCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons });
                             committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
                         }
 
