@@ -39,6 +39,7 @@ async function apiCall(endpoint, options = {}) {
 const STAFF_SESSION_STORAGE_KEY = 'perfetto_staff_session_user';
 const STAFF_LOCAL_STORAGE_KEY = 'perfetto_staff_user_session';
 const STAFF_VERIFIED_PHONE_KEY = 'perfetto_staff_verified_phone';
+const STAFF_ORDERS_STORAGE_KEY = 'perfetto_staff_orders';
 const MASTER_ADMIN_PHONE_NUM = '9414503886';
 const STAFF_MSG91_CONFIG = {
     widgetId: "3668716b4f68313937363038",
@@ -468,7 +469,7 @@ async function sweepAutoExpiredOrders() {
         }
     }
     try {
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
     } catch (e) { }
     renderOrders();
 }
@@ -830,7 +831,7 @@ function handleStaffInstantBlockedLockdown(userName, userPhone) {
         sessionStorage.removeItem(STAFF_SESSION_STORAGE_KEY);
         localStorage.removeItem(STAFF_LOCAL_STORAGE_KEY);
         localStorage.removeItem(STAFF_VERIFIED_PHONE_KEY);
-        localStorage.removeItem('perfettoCustomerOrders');
+        localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
     } catch(e) {}
 
     currentStaffUser = null;
@@ -1645,7 +1646,7 @@ async function handleStaffLogout() {
             localStorage.removeItem('perfetto_staff_verified_phone');
             localStorage.removeItem('staff_user');
             localStorage.removeItem('perfetto_staff_session');
-            localStorage.removeItem('perfettoCustomerOrders');
+            localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
 
             sessionStorage.setItem('perfetto_staff_logged_out', 'true');
             localStorage.setItem('perfetto_staff_logged_out', 'true');
@@ -1696,7 +1697,7 @@ function processAutoAcceptanceForOnlineOrders() {
     });
     if (changed) {
         try {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
         } catch (e) { }
     }
 }
@@ -1732,7 +1733,7 @@ function isValidStaffOrder(order) {
 function loadCustomerOrders() {
     // 1. Instant load from LocalStorage
     try {
-        const stored = localStorage.getItem('perfettoCustomerOrders');
+        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY) || localStorage.getItem('perfettoCustomerOrders');
         if (stored) {
             const customerOrders = JSON.parse(stored);
             if (Array.isArray(customerOrders)) {
@@ -1864,7 +1865,7 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     sweepAutoExpiredOrders();
 
     try {
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
     } catch (e) { }
 
     renderOrders();
@@ -2497,7 +2498,7 @@ function updateLiveTimers() {
 }
 
 window.addEventListener('storage', (e) => {
-    if (!e.key || e.key === 'perfettoCustomerOrders') {
+    if (!e.key || e.key === 'perfettoCustomerOrders' || e.key === STAFF_ORDERS_STORAGE_KEY) {
         syncCustomerOrders();
     }
 });
@@ -3424,6 +3425,7 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             order.prepStartedAt = nowIso;
         }
 
+        let shouldCreditCashbackOnDelivery = false;
         if (isDelivered) {
             if (!order.deliveredAt) order.deliveredAt = nowIso;
             if (!order.completedAt) order.completedAt = nowIso;
@@ -3434,16 +3436,29 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
                 order.wonCashback = 0;
                 order.earnedCashback = 0;
             } else {
-                const isCardScratched = Boolean(order.scratchRevealed || order.scratchCard?.revealed);
-                if (isCardScratched) {
-                    order.rewardStatus = 'active_credited';
+                const prevRewardStatus = String(order.rewardStatus || (order.scratchCard && order.scratchCard.status) || '').trim().toLowerCase();
+                const wasAlreadyCredited = (prevRewardStatus === 'credited' || prevRewardStatus === 'active_credited');
+                const isCardScratched = Boolean(order.scratchRevealed || (order.scratchCard && order.scratchCard.revealed) || order.rewardStatus === 'pending_delivery');
+                const wonRewardAmt = Number(order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)) || 0);
+
+                if (isCardScratched && wonRewardAmt > 0 && !wasAlreadyCredited) {
+                    shouldCreditCashbackOnDelivery = true;
+                    order.rewardStatus = 'credited';
                     order.scratchRevealed = true;
                     order.scratchClaimed = true;
                     if (!order.scratchCard) order.scratchCard = {};
-                    order.scratchCard.status = 'active_credited';
+                    order.scratchCard.status = 'credited';
                     order.scratchCard.revealed = true;
                     order.scratchCard.claimed = true;
                     order.scratchCard.claimedAt = nowIso;
+                } else if (wasAlreadyCredited) {
+                    order.rewardStatus = 'credited';
+                    order.scratchRevealed = true;
+                    order.scratchClaimed = true;
+                    if (!order.scratchCard) order.scratchCard = {};
+                    order.scratchCard.status = 'credited';
+                    order.scratchCard.revealed = true;
+                    order.scratchCard.claimed = true;
                 } else {
                     // Unrevealed fallback: card awaits user scratching in Order History
                     order.rewardStatus = 'unscratched';
@@ -3473,14 +3488,50 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             }
         }
 
-        // 1. Save updated staffOrders to localStorage
+        if (!extraPayload || typeof extraPayload !== 'object') extraPayload = {};
+        if (shouldCreditCashbackOnDelivery) {
+            extraPayload.shouldCreditCashbackOnDelivery = true;
+        }
+
+        // 1. Save updated staffOrders to staff storage
         try {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
         } catch (e) {
             console.error('Error saving updated order status:', e);
         }
 
-        // 2. Persist to Firestore & backend API
+        // 2. Selectively update order status in customer orders cache without wiping order history
+        try {
+            const rawCust = localStorage.getItem('perfettoCustomerOrders');
+            if (rawCust) {
+                const custOrders = JSON.parse(rawCust);
+                if (Array.isArray(custOrders)) {
+                    const cIdx = custOrders.findIndex(o => String(o.id || o.orderId) === rawId);
+                    if (cIdx >= 0) {
+                        custOrders[cIdx].status = effectiveStatus;
+                        custOrders[cIdx].updatedAt = nowIso;
+                        if (isDelivered) {
+                            custOrders[cIdx].deliveredAt = nowIso;
+                            custOrders[cIdx].completedAt = nowIso;
+                            if (shouldCreditCashbackOnDelivery) {
+                                custOrders[cIdx].rewardStatus = 'credited';
+                                custOrders[cIdx].scratchClaimed = true;
+                                custOrders[cIdx].scratchRevealed = true;
+                                if (custOrders[cIdx].scratchCard) {
+                                    custOrders[cIdx].scratchCard.status = 'credited';
+                                    custOrders[cIdx].scratchCard.claimed = true;
+                                    custOrders[cIdx].scratchCard.revealed = true;
+                                    custOrders[cIdx].scratchCard.claimedAt = nowIso;
+                                }
+                            }
+                        }
+                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(custOrders));
+                    }
+                }
+            }
+        } catch (e) { }
+
+        // 3. Persist to Firestore & backend API
         await syncOrderStatusToBackend(order.id, effectiveStatus, extraPayload);
 
         let msg = `Order #${order.id} updated to ${effectiveStatus.toUpperCase()}`;
@@ -3731,7 +3782,7 @@ async function handleAdminDeleteOrder(orderId) {
     // 1. Instantly remove from local state and UI
     staffOrders = staffOrders.filter(o => String(o.id || o.orderId) !== String(orderId));
     try {
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
     } catch (e) { }
     renderOrders();
 
@@ -3831,34 +3882,57 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     )
                 ));
 
-                const wasAlreadyClaimed = Boolean(
-                    order?.scratchClaimed ||
+                const isExplicitCreditRequest = Boolean(extraPayload?.shouldCreditCashbackOnDelivery);
+                const wasAlreadyClaimed = !isExplicitCreditRequest && Boolean(
                     order?.rewardStatus === 'active_credited' ||
                     order?.rewardStatus === 'credited' ||
-                    order?.scratchCard?.claimed ||
-                    order?.scratchCard?.status === 'active_credited'
+                    order?.scratchCard?.status === 'active_credited' ||
+                    order?.scratchCard?.status === 'credited'
                 );
 
                 const rawPhone = order?.customerPhone || order?.phone || order?.customer?.phone || extraPayload?.customerPhone || '';
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
                 const isWalletSystemActive = (staffWalletConfig && staffWalletConfig.enabled !== false);
-                const shouldCreditCashback = (isWalletSystemActive && cashbackAmount > 0 && !wasAlreadyClaimed && order?.rewardStatus !== 'voided');
+                const shouldCreditCashback = (isWalletSystemActive && cashbackAmount > 0 && (isExplicitCreditRequest || (!wasAlreadyClaimed && order?.rewardStatus !== 'voided')));
+
+                const validityDays = Math.max(1, parseInt(
+                    order?.scratchExpiryDays ??
+                    order?.cashbackExpiryDays ??
+                    order?.scratchCard?.expiryDays ??
+                    order?.scratchCard?.cashbackExpiryDays ??
+                    extraPayload?.scratchExpiryDays ??
+                    extraPayload?.cashbackExpiryDays ??
+                    staffWalletConfig?.cashbackExpiryDays ??
+                    staffWalletConfig?.expiryDays ??
+                    1,
+                    10
+                ));
+
+                const nowMs = Date.now();
+                const expiresAtMs = nowMs + (validityDays * 24 * 60 * 60 * 1000);
+                const expiresAt = new Date(expiresAtMs).toISOString();
+                const creditedAtIso = new Date(nowMs).toISOString();
 
                 fsUpdate.status = 'delivered';
                 fsUpdate.deliveredAt = serverTs;
                 fsUpdate.completedAt = serverTs;
 
                 if (isWalletSystemActive && cashbackAmount > 0) {
-                    fsUpdate.rewardStatus = 'active_credited';
+                    fsUpdate.rewardStatus = 'credited';
                     fsUpdate.scratchClaimed = true;
                     fsUpdate.scratchRevealed = true;
                     fsUpdate.wonCashback = cashbackAmount;
                     fsUpdate.earnedCashback = cashbackAmount;
-                    fsUpdate['scratchCard.status'] = 'active_credited';
+                    fsUpdate.scratchExpiryDays = validityDays;
+                    fsUpdate.scratchExpiresAt = expiresAtMs;
+                    fsUpdate['scratchCard.status'] = 'credited';
                     fsUpdate['scratchCard.claimed'] = true;
                     fsUpdate['scratchCard.revealed'] = true;
-                    fsUpdate['scratchCard.claimedAt'] = new Date().toISOString();
+                    fsUpdate['scratchCard.claimedAt'] = creditedAtIso;
+                    fsUpdate['scratchCard.expiryDays'] = validityDays;
+                    fsUpdate['scratchCard.expiresAt'] = expiresAtMs;
+                    fsUpdate['scratchCard.expiresAtISO'] = expiresAt;
                 } else if (!isWalletSystemActive) {
                     fsUpdate.rewardStatus = 'none';
                     fsUpdate.wonCashback = 0;
@@ -3866,18 +3940,13 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     fsUpdate['scratchCard.status'] = 'none';
                 }
 
-                console.log(`[STAFF OTP] Executing atomic delivery batch for Order #${rawId} (Cashback: ₹${cashbackAmount}, Credit Eligible: ${shouldCreditCashback})...`);
+                console.log(`[STAFF OTP] Executing atomic delivery batch for Order #${rawId} (Cashback: ₹${cashbackAmount}, Credit Eligible: ${shouldCreditCashback}, Validity: ${validityDays}d, Expires: ${expiresAt})...`);
                 const batch = db.batch();
                 const orderRef = db.collection('orders').doc(exactDocId);
                 batch.set(orderRef, fsUpdate, { merge: true });
 
                 if (shouldCreditCashback && cleanPhone && FieldValue) {
                     const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-                    const activeDays = (staffWalletConfig && (staffWalletConfig.cashbackExpiryDays || staffWalletConfig.expiryDays))
-                        ? Math.min(30, Math.max(1, Number(staffWalletConfig.cashbackExpiryDays || staffWalletConfig.expiryDays)))
-                        : 15;
-                    const now = new Date();
-                    const expiresAt = new Date(now.getTime() + activeDays * 24 * 60 * 60 * 1000).toISOString();
 
                     const ledgerRecord = {
                         id: txId,
@@ -3890,8 +3959,9 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         orderId: String(rawId),
                         timestamp: serverTs,
                         createdAt: serverTs,
+                        creditedAt: creditedAtIso,
                         expiresAt: expiresAt,
-                        expiryDays: activeDays,
+                        expiryDays: validityDays,
                         status: "active"
                     };
 
@@ -3905,10 +3975,11 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         orderId: String(rawId),
                         title: `Cashback for Order #${rawId}`,
                         description: `Cashback for Order #${rawId}`,
-                        createdAt: now.toISOString(),
+                        createdAt: creditedAtIso,
+                        creditedAt: creditedAtIso,
                         expiresAt: expiresAt,
-                        expiryDays: activeDays,
-                        cashbackExpiryDays: activeDays,
+                        expiryDays: validityDays,
+                        cashbackExpiryDays: validityDays,
                         status: 'active'
                     };
 
@@ -3918,7 +3989,7 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         phone: cleanPhone,
                         balance: FieldValue.increment(cashbackAmount),
                         transactions: FieldValue.arrayUnion(inDocTxEntry),
-                        lastCreditedAt: new Date().toISOString(),
+                        lastCreditedAt: creditedAtIso,
                         updatedAt: serverTs
                     }, { merge: true });
 
@@ -3932,7 +4003,7 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         walletBalance: FieldValue.increment(cashbackAmount),
                         balance: FieldValue.increment(cashbackAmount),
                         walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
-                        lastCreditedAt: new Date().toISOString(),
+                        lastCreditedAt: creditedAtIso,
                         updatedAt: serverTs
                     }, { merge: true });
 
@@ -3946,7 +4017,7 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         walletBalance: FieldValue.increment(cashbackAmount),
                         balance: FieldValue.increment(cashbackAmount),
                         walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
-                        lastCreditedAt: new Date().toISOString(),
+                        lastCreditedAt: creditedAtIso,
                         updatedAt: serverTs
                     }, { merge: true });
 
@@ -4064,7 +4135,7 @@ async function executeStaffMidnightCleanup() {
     staffOrders = staffOrders.filter(o => !isFinishedStaffOrder(o));
 
     try {
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
     } catch (e) { }
 
     renderOrders();
@@ -4217,7 +4288,7 @@ async function handleDeleteAllCompletedOrders() {
         // 3. Clear completed orders array in local state & localStorage
         staffOrders = staffOrders.filter(o => !completedStatuses.includes(String(o.status || '').toLowerCase()));
         try {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(staffOrders));
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
         } catch (e) { }
 
         // 4. Trigger backend server cleanup for synchronized memory caches

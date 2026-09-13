@@ -5467,10 +5467,40 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         }
     }
 
-    let activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
+    let activeDays = null;
     let expiresAt = null;
 
-    // Honor custom promotional expiry options if provided (e.g., festival boosts or 1-day flash cash)
+    // 1. Honor per-order immutable validity window if crediting from an existing order
+    let targetOrder = null;
+    if (activeScratchOrder && (String(activeScratchOrder.id || activeScratchOrder.orderId) === effectiveOrderId)) {
+        targetOrder = activeScratchOrder;
+    } else {
+        try {
+            const stored = localStorage.getItem('perfettoCustomerOrders');
+            if (stored) {
+                const orders = JSON.parse(stored);
+                if (Array.isArray(orders)) {
+                    targetOrder = orders.find(o => String(o.id || o.orderId) === effectiveOrderId);
+                }
+            }
+        } catch (e) { }
+    }
+
+    if (targetOrder) {
+        const orderDays = targetOrder.scratchExpiryDays || targetOrder.cashbackExpiryDays || (targetOrder.scratchCard && (targetOrder.scratchCard.expiryDays || targetOrder.scratchCard.cashbackExpiryDays));
+        if (orderDays) {
+            activeDays = Math.max(1, parseInt(orderDays, 10));
+        }
+        const orderExp = targetOrder.scratchExpiresAt || (targetOrder.scratchCard && (targetOrder.scratchCard.expiresAt || targetOrder.scratchCard.expiresAtISO));
+        if (orderExp) {
+            const expMs = typeof orderExp === 'number' ? orderExp : new Date(orderExp).getTime();
+            if (!isNaN(expMs) && expMs > Date.now()) {
+                expiresAt = new Date(expMs).toISOString();
+            }
+        }
+    }
+
+    // 2. Honor custom promotional expiry options if provided (e.g., festival boosts or 1-day flash cash)
     if (customExpiryOptions && typeof customExpiryOptions === 'object') {
         if (customExpiryOptions.expiryDays) {
             activeDays = Math.max(1, parseInt(customExpiryOptions.expiryDays, 10) || activeDays);
@@ -5485,22 +5515,12 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         }
     }
 
-    // Honor per-transaction immutable deadline if crediting from an existing scratch order
-    if (!expiresAt && activeScratchOrder && (String(activeScratchOrder.id || activeScratchOrder.orderId) === String(orderId))) {
-        if (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays) {
-            activeDays = activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays;
-        }
-        if (activeScratchOrder.scratchExpiresAt) {
-            const expMs = typeof activeScratchOrder.scratchExpiresAt === 'number'
-                ? activeScratchOrder.scratchExpiresAt
-                : new Date(activeScratchOrder.scratchExpiresAt).getTime();
-            if (!isNaN(expMs) && expMs > 0) {
-                expiresAt = new Date(expMs).toISOString();
-            }
-        }
+    if (!activeDays) {
+        activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
     }
+
     const now = new Date();
-    // Expiration date calculated at the time of claim based on the active admin config (claimed_at + expiry_days)
+    // Expiration date calculated strictly using the validity window granted (claimed_at + expiry_days)
     if (!expiresAt) {
         expiresAt = new Date(now.getTime() + activeDays * 24 * 60 * 60 * 1000).toISOString();
     }
@@ -5510,7 +5530,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     currentCustomerWallet.cashbackExpiryDays = activeDays;
     currentCustomerWallet.lastCreditedAt = now.toISOString();
 
-    const campaignName = (customExpiryOptions && customExpiryOptions.campaign) || (activeScratchOrder && activeScratchOrder.rewardTitle) || 'Order Cashback';
+    const campaignName = (customExpiryOptions && customExpiryOptions.campaign) || (targetOrder && targetOrder.rewardTitle) || (activeScratchOrder && activeScratchOrder.rewardTitle) || 'Order Cashback';
     const txDesc = (customExpiryOptions && customExpiryOptions.description)
         ? customExpiryOptions.description
         : (customExpiryOptions && customExpiryOptions.campaign ? `${customExpiryOptions.campaign} (+₹${earnedCashback})` : `credited +₹${earnedCashback} for Order #${effectiveOrderId}`);
@@ -5524,6 +5544,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         orderId: effectiveOrderId,
         description: txDesc,
         createdAt: now.toISOString(),
+        creditedAt: now.toISOString(),
         claimedAt: now.toISOString(),
         expiresAt: expiresAt,
         expiryDays: activeDays,
@@ -5551,6 +5572,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
                 createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                     ? firebase.firestore.FieldValue.serverTimestamp()
                     : now.toISOString(),
+                creditedAt: now.toISOString(),
                 expiresAt: expiresAt,
                 expiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
@@ -5665,6 +5687,13 @@ function updateProfileWalletUI() {
                 if (!isNaN(expMs) && expMs > nowMs && expMs < earliestExpMs) {
                     earliestExpMs = expMs;
                 }
+            }
+        }
+
+        if (earliestExpMs === Infinity && currentCustomerWallet && currentCustomerWallet.expiresAt) {
+            const expMs = typeof currentCustomerWallet.expiresAt === 'number' ? currentCustomerWallet.expiresAt : new Date(currentCustomerWallet.expiresAt).getTime();
+            if (!isNaN(expMs) && expMs > nowMs) {
+                earliestExpMs = expMs;
             }
         }
 
@@ -11494,7 +11523,7 @@ function renderOrderHistoryDetails() {
         });
 
         if (clearBtn) {
-            clearBtn.style.display = (Array.isArray(orders) && orders.length > 0) ? 'inline-flex' : 'none';
+            clearBtn.style.display = hasClearableOrders ? 'inline-flex' : 'none';
         }
 
         if (Array.isArray(orders) && orders.length > 0) {
@@ -11536,14 +11565,15 @@ function renderOrderHistoryDetails() {
                 const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
                     ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
                     : false;
+                const isAlreadyCredited = (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited');
 
-                if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired && o.rewardStatus !== 'active_credited' && !alreadyCreditedInWallet) {
+                if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet) {
                     if (orderCashback > 0) {
                         o.scratchClaimed = true;
-                        o.rewardStatus = 'active_credited';
+                        o.rewardStatus = 'credited';
                         if (o.scratchCard) {
                             o.scratchCard.claimed = true;
-                            o.scratchCard.status = 'active_credited';
+                            o.scratchCard.status = 'credited';
                             o.scratchCard.claimedAt = new Date().toISOString();
                         }
                         const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
@@ -11551,12 +11581,12 @@ function renderOrderHistoryDetails() {
                         isScratchClaimed = true;
                         safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
-                } else if (alreadyCreditedInWallet || o.rewardStatus === 'active_credited') {
+                } else if (alreadyCreditedInWallet || isAlreadyCredited) {
                     o.scratchClaimed = true;
-                    o.rewardStatus = 'active_credited';
+                    o.rewardStatus = 'credited';
                     if (o.scratchCard) {
                         o.scratchCard.claimed = true;
-                        o.scratchCard.status = 'active_credited';
+                        o.scratchCard.status = 'credited';
                     }
                     isScratchClaimed = true;
                 }
@@ -11654,8 +11684,15 @@ function renderOrderHistoryDetails() {
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(emptyMsg)}</span>`;
 }
 
-function clearCustomerOrderHistory() {
-    confirmClearCustomerOrderHistory();
+function openClearHistoryModal() {
+    const modal = document.getElementById('clear-history-confirm-modal');
+    if (!modal) {
+        confirmClearCustomerOrderHistory();
+        return;
+    }
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
 }
 
 function closeClearHistoryModal() {
@@ -11665,6 +11702,14 @@ function closeClearHistoryModal() {
     modal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
 }
+
+function clearCustomerOrderHistory() {
+    openClearHistoryModal();
+}
+
+window.openClearHistoryModal = openClearHistoryModal;
+window.closeClearHistoryModal = closeClearHistoryModal;
+window.clearCustomerOrderHistory = clearCustomerOrderHistory;
 
 function confirmClearCustomerOrderHistory() {
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
@@ -11744,6 +11789,7 @@ function confirmClearCustomerOrderHistory() {
         updateProfileTotalsUI();
     }
 }
+window.confirmClearCustomerOrderHistory = confirmClearCustomerOrderHistory;
 
 // --------------------------------------------------------------------------
 // 7. TOAST NOTIFICATION SYSTEM
@@ -16444,14 +16490,16 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
                     : false;
 
-                if (!isScratchClaimed && !isCardExpired && target.rewardStatus !== 'active_credited' && !alreadyCreditedInWallet && orderCashback > 0) {
+                const isAlreadyCredited = (target.rewardStatus === 'active_credited' || target.rewardStatus === 'credited' || freshOrderData.rewardStatus === 'active_credited' || freshOrderData.rewardStatus === 'credited');
+
+                if (!isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet && orderCashback > 0) {
                     target.scratchClaimed = true;
                     target.scratchRevealed = true;
-                    target.rewardStatus = 'active_credited';
+                    target.rewardStatus = 'credited';
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
                         target.scratchCard.revealed = true;
-                        target.scratchCard.status = 'active_credited';
+                        target.scratchCard.status = 'credited';
                         target.scratchCard.claimedAt = new Date().toISOString();
                     }
                     const phone = target.customerPhone || target.phone || ((currentUserProfile && currentUserProfile.phone) || '');
@@ -16461,14 +16509,14 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                         ? `🎉 बधाई हो! ऑर्डर #${orderId} डिलीवर हो गया - ₹${orderCashback} कैशबैक आपके वॉलेट में जोड़ दिया गया है!` 
                         : `🎉 Order #${orderId} Delivered! ₹${orderCashback} Cashback has been credited to your wallet!`);
                     updated = true;
-                } else if (alreadyCreditedInWallet || target.rewardStatus === 'active_credited' || freshOrderData.rewardStatus === 'active_credited') {
+                } else if (alreadyCreditedInWallet || isAlreadyCredited) {
                     target.scratchClaimed = true;
                     target.scratchRevealed = true;
-                    target.rewardStatus = 'active_credited';
+                    target.rewardStatus = 'credited';
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
                         target.scratchCard.revealed = true;
-                        target.scratchCard.status = 'active_credited';
+                        target.scratchCard.status = 'credited';
                     }
                     updated = true;
                 }
