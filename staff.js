@@ -3873,29 +3873,43 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
 
                 if (shouldCreditCashback && cleanPhone && FieldValue) {
                     const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+                    const activeDays = (staffWalletConfig && (staffWalletConfig.cashbackExpiryDays || staffWalletConfig.expiryDays))
+                        ? Math.min(30, Math.max(1, Number(staffWalletConfig.cashbackExpiryDays || staffWalletConfig.expiryDays)))
+                        : 15;
+                    const now = new Date();
+                    const expiresAt = new Date(now.getTime() + activeDays * 24 * 60 * 60 * 1000).toISOString();
+
                     const ledgerRecord = {
                         id: txId,
                         amount: cashbackAmount,
+                        initialAmount: cashbackAmount,
+                        remainingAmount: cashbackAmount,
                         type: "CREDIT",
                         title: `Cashback for Order #${rawId}`,
                         description: `Cashback for Order #${rawId}`,
                         orderId: String(rawId),
                         timestamp: serverTs,
                         createdAt: serverTs,
-                        status: "completed"
+                        expiresAt: expiresAt,
+                        expiryDays: activeDays,
+                        status: "active"
                     };
 
                     const inDocTxEntry = {
                         id: txId,
                         type: 'credit',
                         amount: cashbackAmount,
+                        initialAmount: cashbackAmount,
                         originalAmount: cashbackAmount,
                         remainingAmount: cashbackAmount,
                         orderId: String(rawId),
                         title: `Cashback for Order #${rawId}`,
                         description: `Cashback for Order #${rawId}`,
-                        createdAt: new Date().toISOString(),
-                        status: 'completed'
+                        createdAt: now.toISOString(),
+                        expiresAt: expiresAt,
+                        expiryDays: activeDays,
+                        cashbackExpiryDays: activeDays,
+                        status: 'active'
                     };
 
                     // 1. Wallets collection: wallets/{cleanPhone}

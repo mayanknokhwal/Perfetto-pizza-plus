@@ -4680,10 +4680,15 @@ function reconcileWalletTranches(wallet) {
                 debits.push({ tx, amount: amt, time: isNaN(debitTime) ? nowMs : debitTime });
             }
         } else if (tx.type === 'credit') {
-            if (tx.originalAmount === undefined) {
-                tx.originalAmount = (tx.amount !== undefined) ? Math.max(0, Number(tx.amount) || 0) : 0;
+            if (tx.initialAmount === undefined) {
+                tx.initialAmount = (tx.originalAmount !== undefined)
+                    ? Number(tx.originalAmount)
+                    : ((tx.amount !== undefined) ? Math.max(0, Number(tx.amount) || 0) : 0);
             }
-            tx.remainingAmount = Math.max(0, Number(tx.originalAmount));
+            if (tx.originalAmount === undefined) {
+                tx.originalAmount = tx.initialAmount;
+            }
+            tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
             tx.status = 'active';
 
             const createdTime = tx.createdAt ? new Date(tx.createdAt).getTime() : 0;
@@ -4723,7 +4728,7 @@ function reconcileWalletTranches(wallet) {
             if (avail <= needed) {
                 needed -= avail;
                 c.tx.remainingAmount = 0;
-                c.tx.status = 'used';
+                c.tx.status = 'redeemed';
             } else {
                 c.tx.remainingAmount = avail - needed;
                 needed = 0;
@@ -4743,7 +4748,7 @@ function reconcileWalletTranches(wallet) {
                 if (avail <= needed) {
                     needed -= avail;
                     c.tx.remainingAmount = 0;
-                    c.tx.status = 'used';
+                    c.tx.status = 'redeemed';
                 } else {
                     c.tx.remainingAmount = avail - needed;
                     needed = 0;
@@ -4766,13 +4771,13 @@ function reconcileWalletTranches(wallet) {
             if (c.expiresAtMs < earliestExpiryMs) {
                 earliestExpiryMs = c.expiresAtMs;
             }
-            if (c.tx.remainingAmount < c.tx.originalAmount) {
+            if (c.tx.remainingAmount < c.tx.initialAmount) {
                 c.tx.status = 'partially_used';
             } else {
                 c.tx.status = 'active';
             }
         } else {
-            c.tx.status = 'used';
+            c.tx.status = 'redeemed';
         }
     });
 
@@ -4781,7 +4786,7 @@ function reconcileWalletTranches(wallet) {
     wallet.nonExpiredBalance = reconciledBalance;
     if (earliestExpiryMs < Infinity) {
         wallet.expiresAt = new Date(earliestExpiryMs).toISOString();
-    } else if (reconciledBalance === 0) {
+    } else {
         wallet.expiresAt = null;
     }
 
@@ -4809,16 +4814,16 @@ function getActiveCreditTranches() {
         : [];
     return txList.filter(tx => {
         if (!tx || tx.type !== 'credit') return false;
-        const remaining = Number(tx.remainingAmount) || 0;
-        if (remaining <= 0 || tx.status === 'used' || tx.status === 'expired') return false;
+        const remaining = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
+        if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired') return false;
         if (tx.expiresAt) {
-            const expMs = new Date(tx.expiresAt).getTime();
+            const expMs = typeof tx.expiresAt === 'number' ? tx.expiresAt : new Date(tx.expiresAt).getTime();
             if (!isNaN(expMs) && expMs <= nowMs) return false;
         }
         return true;
     }).sort((a, b) => {
-        const timeA = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
-        const timeB = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
+        const timeA = a.expiresAt ? (typeof a.expiresAt === 'number' ? a.expiresAt : new Date(a.expiresAt).getTime()) : Infinity;
+        const timeB = b.expiresAt ? (typeof b.expiresAt === 'number' ? b.expiresAt : new Date(b.expiresAt).getTime()) : Infinity;
         return timeA - timeB;
     });
 }
@@ -5501,7 +5506,6 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     }
 
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
-    currentCustomerWallet.expiresAt = expiresAt;
     currentCustomerWallet.expiryDays = activeDays;
     currentCustomerWallet.cashbackExpiryDays = activeDays;
     currentCustomerWallet.lastCreditedAt = now.toISOString();
@@ -5514,6 +5518,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     existingTx.unshift({
         type: 'credit',
         amount: earnedCashback,
+        initialAmount: earnedCashback,
         originalAmount: earnedCashback,
         remainingAmount: earnedCashback,
         orderId: effectiveOrderId,
@@ -5539,6 +5544,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
             const txData = {
                 type: 'credit',
                 amount: earnedCashback,
+                initialAmount: earnedCashback,
                 remainingAmount: earnedCashback,
                 orderId: String(orderId),
                 description: txDesc,
@@ -5558,7 +5564,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
             const userUpdatePayload = {
                 walletBalance: updatedWalletBalance,
                 balance: updatedWalletBalance,
-                walletExpiresAt: expiresAt,
+                walletExpiresAt: currentCustomerWallet.expiresAt || expiresAt,
                 walletExpiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
                 walletTransactions: currentCustomerWallet.transactions,
@@ -5578,7 +5584,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
             await walletRef.set({
                 phone: cleanPhone,
                 balance: updatedWalletBalance,
-                expiresAt: expiresAt,
+                expiresAt: currentCustomerWallet.expiresAt || expiresAt,
                 expiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
                 transactions: currentCustomerWallet.transactions,
@@ -5650,52 +5656,30 @@ function updateProfileWalletUI() {
     } else {
         const activeTranches = getActiveCreditTranches();
         const nowMs = Date.now();
-        let earliestTranche = null;
+        let earliestExpMs = Infinity;
 
         for (const tranche of activeTranches) {
-            if (tranche.expiresAt) {
-                const expMs = new Date(tranche.expiresAt).getTime();
-                if (expMs > nowMs) {
-                    earliestTranche = tranche;
-                    break;
+            const rem = Number(tranche.remainingAmount !== undefined ? tranche.remainingAmount : (tranche.initialAmount !== undefined ? tranche.initialAmount : tranche.amount)) || 0;
+            if (rem > 0 && tranche.expiresAt) {
+                const expMs = typeof tranche.expiresAt === 'number' ? tranche.expiresAt : new Date(tranche.expiresAt).getTime();
+                if (!isNaN(expMs) && expMs > nowMs && expMs < earliestExpMs) {
+                    earliestExpMs = expMs;
                 }
             }
         }
 
-        if (earliestTranche) {
-            const expMs = new Date(earliestTranche.expiresAt).getTime();
-            const days = Math.max(1, Math.ceil((expMs - nowMs) / (24 * 60 * 60 * 1000)));
-            const trancheAmt = earliestTranche.remainingAmount !== undefined
-                ? Number(earliestTranche.remainingAmount)
-                : Number(earliestTranche.amount);
-
+        if (earliestExpMs < Infinity) {
+            const daysLeft = Math.max(1, Math.ceil((earliestExpMs - nowMs) / (1000 * 60 * 60 * 24)));
             if (expiryTag && expiryText) {
                 expiryTag.style.display = 'flex';
                 if (isHindi) {
-                    expiryText.textContent = (trancheAmt < balance)
-                        ? `₹${trancheAmt} ${days} दिनों में समाप्त`
-                        : (days === 1 ? '1 दिन में समाप्त' : `${days} दिनों में समाप्त`);
+                    expiryText.textContent = daysLeft <= 1 ? '1 दिन में समाप्त' : `${daysLeft} दिनों में समाप्त`;
                 } else {
-                    expiryText.textContent = (trancheAmt < balance)
-                        ? `₹${trancheAmt} expires in ${days === 1 ? '1 day' : `${days} days`}`
-                        : (days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`);
+                    expiryText.textContent = daysLeft <= 1 ? 'Expires in 1 day' : `Expires in ${daysLeft} days`;
                 }
             }
-        } else if (currentCustomerWallet && currentCustomerWallet.expiresAt) {
-            const expMs = typeof currentCustomerWallet.expiresAt === 'number'
-                ? currentCustomerWallet.expiresAt
-                : new Date(currentCustomerWallet.expiresAt).getTime();
-            if (!isNaN(expMs) && expMs > nowMs) {
-                const days = Math.max(1, Math.ceil((expMs - nowMs) / (24 * 60 * 60 * 1000)));
-                if (expiryTag && expiryText) {
-                    expiryTag.style.display = 'flex';
-                    expiryText.textContent = formatExpiryDaysLabel(days, isHindi);
-                }
-            } else if (expiryTag) {
-                expiryTag.style.display = 'none';
-            }
-        } else if (expiryTag) {
-            expiryTag.style.display = 'none';
+        } else {
+            if (expiryTag) expiryTag.style.display = 'none';
         }
     }
 
@@ -5773,7 +5757,7 @@ function renderProfileWalletTxList() {
                 ? Number(tx.remainingAmount)
                 : (tx.status === 'used' ? 0 : amt);
 
-            if (tx.status === 'used' || remaining <= 0) {
+            if (tx.status === 'redeemed' || tx.status === 'used' || remaining <= 0) {
                 expiryNotice = '<span class="tx-badge-used"><i class="fa-solid fa-check"></i> Redeemed</span>';
             } else if (tx.expiresAt) {
                 const expTime = new Date(tx.expiresAt).getTime();

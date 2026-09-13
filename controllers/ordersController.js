@@ -564,10 +564,6 @@ async function handleOrdersRequest(req, res) {
 
                     // Settle wallet redemption debit on order creation if wallet cash was used
                     if (usedWallet > 0) {
-                        const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
-                        const newBal = Math.max(0, currentBal - usedWallet);
-                        userDoc.walletBalance = newBal;
-                        userDoc.balance = newBal;
                         userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
                         if (!userDoc.walletTransactions.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === String(finalOrderId))) {
                             userDoc.walletTransactions.unshift({
@@ -579,8 +575,57 @@ async function handleOrdersRequest(req, res) {
                                 createdAt: orderDoc.createdAt,
                                 status: 'completed'
                             });
-                            if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;
                         }
+
+                        // FIFO deduction across active credits
+                        const nowMs = Date.now();
+                        const credits = userDoc.walletTransactions
+                            .filter(tx => tx && tx.type === 'credit')
+                            .map(tx => {
+                                const initial = Number(tx.initialAmount !== undefined ? tx.initialAmount : (tx.originalAmount !== undefined ? tx.originalAmount : tx.amount)) || 0;
+                                tx.initialAmount = initial;
+                                tx.originalAmount = initial;
+                                tx.remainingAmount = Math.max(0, Number(tx.remainingAmount !== undefined ? tx.remainingAmount : initial));
+                                const expMs = tx.expiresAt ? new Date(tx.expiresAt).getTime() : Infinity;
+                                return { tx, expiresAtMs: isNaN(expMs) ? Infinity : expMs };
+                            });
+
+                        let needed = usedWallet;
+                        const eligible = credits
+                            .filter(c => c.tx.remainingAmount > 0 && c.expiresAtMs > nowMs)
+                            .sort((a, b) => a.expiresAtMs - b.expiresAtMs);
+
+                        for (const c of eligible) {
+                            if (needed <= 0) break;
+                            const avail = c.tx.remainingAmount;
+                            if (avail <= 0) continue;
+                            if (avail <= needed) {
+                                needed -= avail;
+                                c.tx.remainingAmount = 0;
+                                c.tx.status = 'redeemed';
+                            } else {
+                                c.tx.remainingAmount = avail - needed;
+                                needed = 0;
+                                c.tx.status = 'partially_used';
+                            }
+                        }
+
+                        // Compute remaining unexpired balance
+                        let activeSum = 0;
+                        credits.forEach(c => {
+                            if (c.expiresAtMs <= nowMs) {
+                                c.tx.remainingAmount = 0;
+                                c.tx.status = 'expired';
+                            } else if (c.tx.remainingAmount > 0) {
+                                activeSum += c.tx.remainingAmount;
+                            }
+                        });
+
+                        const newBal = Math.max(0, activeSum);
+                        userDoc.walletBalance = newBal;
+                        userDoc.balance = newBal;
+                        if (userDoc.walletTransactions.length > 50) userDoc.walletTransactions.length = 50;
+
                         await setFirestoreDoc('wallets', newOrderCleanPhone, {
                             phone: newOrderCleanPhone,
                             balance: newBal,
@@ -735,6 +780,7 @@ async function handleOrdersRequest(req, res) {
                                 id: `tx_credit_${targetId}`,
                                 type: 'credit',
                                 amount: wonAmt,
+                                initialAmount: wonAmt,
                                 originalAmount: wonAmt,
                                 remainingAmount: wonAmt,
                                 orderId: String(targetId),
