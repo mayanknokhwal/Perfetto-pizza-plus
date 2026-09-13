@@ -6645,46 +6645,63 @@ function updateCartUI() {
                 const origPriceFormatted = hasDiscount ? formatPrice(item.originalPrice) : '';
                 const subItems = Array.isArray(item.items) ? item.items : [];
                 const isDropdownOpen = Boolean(window.__openComboDropdowns && window.__openComboDropdowns[index]);
+                const comboAddonsTotal = Number(item.addonsTotal) || 0;
 
                 let subItemsHtml = '';
                 subItems.forEach(sub => {
                     const subName = escapeHtml(sub.name || sub.base_name || 'Item');
                     const subImg = escapeHtml(sub.img || 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png');
                     const subQty = sub.quantity || 1;
+                    const subAddons = Array.isArray(sub.addons) ? sub.addons : [];
+                    let subAddonsHtml = '';
+                    if (subAddons.length > 0) {
+                        subAddonsHtml = `
+                            <div class="cart-combo-sub-addons">
+                                ${subAddons.map(a => `<span class="cart-combo-sub-addon-chip">${a.icon ? a.icon + ' ' : ''}${escapeHtml(a.name)} (+₹${a.price})</span>`).join('')}
+                            </div>
+                        `;
+                    }
+
                     subItemsHtml += `
                         <div class="cart-combo-sub-row">
-                            <div class="cart-combo-sub-left">
-                                <img src="${subImg}" alt="${subName}" class="cart-combo-sub-thumb" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
-                                <span class="cart-combo-sub-name">${subName}</span>
+                            <div class="cart-combo-sub-top">
+                                <div class="cart-combo-sub-left">
+                                    <img src="${subImg}" alt="${subName}" class="cart-combo-sub-thumb" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+                                    <span class="cart-combo-sub-name">${subName}</span>
+                                </div>
+                                <span class="cart-combo-sub-qty">×${subQty}</span>
                             </div>
-                            <span class="cart-combo-sub-qty">×${subQty}</span>
+                            ${subAddonsHtml}
                         </div>
                     `;
                 });
 
                 return `
                 <div class="cart-item-card cart-item-combo" id="cart-combo-${index}">
-                    <img src="${item.img}" alt="${escapeHtml(item.combo_name || item.name)}" class="cart-item-img">
-                    <div class="cart-item-info">
-                        <h5 class="cart-item-name">
-                            ${escapeHtml(item.combo_name || item.baseName || item.name)}
-                            <span class="cart-combo-badge ${tierClass}"><i class="fa-solid fa-box-open"></i> ${tierLabel} Combo</span>
-                        </h5>
-                        <div class="cart-combo-price-wrap">
-                            <span class="cart-item-price">
-                                ${hasDiscount ? `<span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${origPriceFormatted}</span>` : ''}
-                                ${comboPriceFormatted}
-                            </span>
+                    <div class="cart-combo-main-row">
+                        <img src="${item.img}" alt="${escapeHtml(item.combo_name || item.name)}" class="cart-item-img cart-combo-thumb">
+                        <div class="cart-item-info cart-combo-info">
+                            <div class="cart-combo-header-line">
+                                <h5 class="cart-item-name cart-combo-title">${escapeHtml(item.combo_name || item.baseName || item.name)}</h5>
+                                <span class="cart-combo-badge ${tierClass}"><i class="fa-solid fa-box-open"></i> ${tierLabel} Combo</span>
+                            </div>
+                            <div class="cart-combo-price-wrap">
+                                <span class="cart-item-price">
+                                    ${hasDiscount ? `<span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${origPriceFormatted}</span>` : ''}
+                                    ${comboPriceFormatted}
+                                </span>
+                                ${comboAddonsTotal > 0 ? `<span class="cart-combo-addons-total-badge">+₹${comboAddonsTotal} Add-ons</span>` : ''}
+                            </div>
+                            <button type="button" class="cart-combo-dropdown-toggle ${isDropdownOpen ? 'open' : ''}" onclick="toggleComboCartDropdown(${index})" aria-expanded="${isDropdownOpen}">
+                                <span>View Included Items (${subItems.length})</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </button>
                         </div>
-                        <button type="button" class="cart-combo-dropdown-toggle ${isDropdownOpen ? 'open' : ''}" onclick="toggleComboCartDropdown(${index})" aria-expanded="${isDropdownOpen}">
-                            <span>View Included Items (${subItems.length})</span>
-                            <i class="fa-solid fa-chevron-down"></i>
-                        </button>
-                    </div>
-                    <div class="combo-cart-controls">
-                        <button type="button" class="btn-cart-remove-combo" onclick="removeComboFromCart(${index})" title="Remove Combo" aria-label="Remove Combo">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
+                        <div class="combo-cart-controls">
+                            <button type="button" class="btn-cart-remove-combo" onclick="removeComboFromCart(${index})" title="Remove Combo" aria-label="Remove Combo">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="cart-combo-items-dropdown ${isDropdownOpen ? 'open' : ''}" id="combo-dropdown-${index}">
                         ${subItemsHtml}
@@ -7381,6 +7398,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
     const orderItems = cart.map(item => {
         if (item.type === 'combo' || item.isComboBundle) {
+            const comboAddonsNotes = (Array.isArray(item.selectedAddonsList) && item.selectedAddonsList.length > 0)
+                ? item.selectedAddonsList.map(a => `${a.itemName}: ${a.name} (+₹${a.price})`).join(', ')
+                : '';
             return {
                 id: item.combo_id || item.id || 'combo',
                 name: `${item.qty || 1}x ${item.combo_name || item.name}`,
@@ -7389,11 +7409,13 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
                 combo_id: item.combo_id || '',
                 combo_name: item.combo_name || item.name,
                 combo_price: item.combo_price || item.price,
+                basePrice: item.basePrice || item.price,
                 originalPrice: item.originalPrice || item.price,
+                addonsTotal: item.addonsTotal || 0,
                 price: item.price,
                 qty: item.qty || 1,
-                notes: `Value Combo Bundle (${(item.tier || 'SOLO').toUpperCase()})`,
-                addons: [],
+                notes: `Value Combo Bundle (${(item.tier || 'SOLO').toUpperCase()})${comboAddonsNotes ? ` | Customizations: ${comboAddonsNotes}` : ''}`,
+                addons: item.selectedAddonsList || [],
                 items: Array.isArray(item.items) ? item.items.map(sub => ({
                     name: sub.name || sub.base_name || 'Item',
                     category_id: sub.category_id || '',
@@ -7401,7 +7423,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
                     size: sub.size || '',
                     size_label: sub.size_label || '',
                     quantity: sub.quantity || 1,
-                    img: sub.img || ''
+                    img: sub.img || '',
+                    addons: Array.isArray(sub.addons) ? sub.addons : [],
+                    addons_total: sub.addons_total || 0
                 })) : []
             };
         }
@@ -11175,7 +11199,10 @@ function renderOrderHistoryDetails() {
                 const isDelivered = o.status === 'completed' || o.status === 'delivered';
                 const itemsText = (o.items || []).map(i => {
                     if (i.type === 'combo' && Array.isArray(i.items) && i.items.length > 0) {
-                        const subNames = i.items.map(s => `${(s.quantity && s.quantity > 1) ? s.quantity + 'x ' : ''}${s.name}`).join(', ');
+                        const subNames = i.items.map(s => {
+                            const addonStr = (s.addons && s.addons.length > 0) ? ` (+${s.addons.map(a => a.name).join(', ')})` : '';
+                            return `${(s.quantity && s.quantity > 1) ? s.quantity + 'x ' : ''}${s.name}${addonStr}`;
+                        }).join(', ');
                         return `${escapeHtml(i.name)} [${escapeHtml(subNames)}]`;
                     }
                     return escapeHtml(i.name);
@@ -13840,18 +13867,168 @@ function renderComboSkeleton(container) {
 }
 
 /**
+ * Determines available add-ons for a combo meal item based on category & size
+ */
+function getAvailableAddonsForComboItem(item) {
+    if (!item) return [];
+    const cat = getCategoryStandardKey(item.category_id || '');
+    const cleanCat = (item.category_id || '').trim();
+
+    if (cat === 'Pizza') {
+        const rates = getPizzaSizeAddonRates(item.size || 'M');
+        const addons = [];
+        if (rates.extraCheese !== undefined && rates.extraCheese >= 0) addons.push({ id: 'extraCheese', name: 'Extra Cheese', icon: '🧀', price: Number(rates.extraCheese) || 0 });
+        if (rates.extraSpicy !== undefined && rates.extraSpicy >= 0) addons.push({ id: 'extraSpicy', name: 'Extra Spicy', icon: '🌶️', price: Number(rates.extraSpicy) || 0 });
+        if (rates.extraMayo !== undefined && rates.extraMayo >= 0) addons.push({ id: 'extraMayo', name: 'Extra Mayo', icon: '🍶', price: Number(rates.extraMayo) || 0 });
+        return addons;
+    }
+
+    if (cat === 'Shake') {
+        const shakeAddons = getCustomerCategoryAddons('Shake');
+        const iceCreamRate = shakeAddons.withIceCream !== undefined ? Number(shakeAddons.withIceCream) : 10;
+        return [{ id: 'withIceCream', name: 'With Ice Cream', icon: '🍨', price: iceCreamRate }];
+    }
+
+    if (['Burger', 'Wrap', 'Bread', 'Sandwich', 'Momos', 'Pasta', 'Chinese Food', 'Noodles', 'Spring Rolls'].includes(cat) ||
+        ['burger', 'wrap', 'bread', 'sandwich', 'momos', 'pasta', 'chinese', 'noodles', 'spring rolls'].includes(cleanCat.toLowerCase())) {
+        const catAddons = getCustomerCategoryAddons(cat || cleanCat);
+        const cheeseRate = catAddons.extraCheese !== undefined ? Number(catAddons.extraCheese) : 25;
+        const spicyRate = catAddons.extraSpicy !== undefined ? Number(catAddons.extraSpicy) : 0;
+        const mayoRate = catAddons.extraMayo !== undefined ? Number(catAddons.extraMayo) : 20;
+        return [
+            { id: 'extraCheese', name: 'Extra Cheese', icon: '🧀', price: cheeseRate },
+            { id: 'extraSpicy', name: 'Extra Spicy', icon: '🌶️', price: spicyRate },
+            { id: 'extraMayo', name: 'Extra Mayo', icon: '🍶', price: mayoRate }
+        ];
+    }
+
+    return [];
+}
+window.getAvailableAddonsForComboItem = getAvailableAddonsForComboItem;
+
+window.__comboModalSelectedAddons = window.__comboModalSelectedAddons || {};
+window.__comboModalOpenAccordions = window.__comboModalOpenAccordions || {};
+
+function toggleComboAddonsAccordion(tier, dealId) {
+    // Retained for backward compatibility
+}
+window.toggleComboAddonsAccordion = toggleComboAddonsAccordion;
+
+function toggleComboDealAddon(tier, dealId, slotIdx, addonId, addonName, addonPrice, addonIcon) {
+    const dealKey = `${tier}_${dealId}`;
+    if (!window.__comboModalSelectedAddons[dealKey]) {
+        window.__comboModalSelectedAddons[dealKey] = {};
+    }
+    if (!window.__comboModalSelectedAddons[dealKey][slotIdx]) {
+        window.__comboModalSelectedAddons[dealKey][slotIdx] = {};
+    }
+
+    const currentMap = window.__comboModalSelectedAddons[dealKey][slotIdx];
+    const isCurrentlyActive = Boolean(currentMap[addonId]);
+    const numPrice = Number(addonPrice) || 0;
+
+    if (isCurrentlyActive) {
+        delete currentMap[addonId];
+        if (typeof showToast === 'function') {
+            showToast(`Removed ${addonName}`, 2000);
+        }
+    } else {
+        currentMap[addonId] = {
+            id: addonId,
+            name: addonName,
+            price: numPrice,
+            icon: addonIcon || ''
+        };
+        if (typeof showToast === 'function') {
+            const priceLabel = numPrice > 0 ? ` (+₹${numPrice})` : '';
+            showToast(`Added ${addonName}${priceLabel}`, 2000);
+        }
+    }
+
+    // Update Button DOM class & aria-pressed
+    const btnEl = document.getElementById(`btn-addon-${tier}-${dealId}-${slotIdx}-${addonId}`);
+    if (btnEl) {
+        if (currentMap[addonId]) {
+            btnEl.classList.add('active');
+            btnEl.setAttribute('aria-pressed', 'true');
+        } else {
+            btnEl.classList.remove('active');
+            btnEl.setAttribute('aria-pressed', 'false');
+        }
+    }
+
+    // Recalculate totals for this deal
+    updateComboDealCardPricing(tier, dealId);
+}
+window.toggleComboDealAddon = toggleComboDealAddon;
+
+function updateComboDealCardPricing(tier, dealId) {
+    const dealKey = `${tier}_${dealId}`;
+    const selected = window.__comboModalSelectedAddons[dealKey] || {};
+
+    let totalAddonsPrice = 0;
+    Object.values(selected).forEach(slotMap => {
+        if (slotMap && typeof slotMap === 'object') {
+            Object.values(slotMap).forEach(addon => {
+                totalAddonsPrice += (Number(addon.price) || 0);
+            });
+        }
+    });
+
+    const card = document.getElementById(`deal-card-${tier}-${dealId}`);
+    if (!card) return;
+
+    const basePrice = Number(card.getAttribute('data-base-price')) || 0;
+    const baseOrigPrice = Number(card.getAttribute('data-base-orig-price')) || basePrice;
+
+    // Rule: Add-ons are charged at 100% full price without discount
+    const finalPrice = basePrice + totalAddonsPrice;
+    const finalOrigPrice = baseOrigPrice + totalAddonsPrice;
+    const savings = Math.max(0, finalOrigPrice - finalPrice);
+    const savingsPercent = finalOrigPrice > 0 ? Math.round((savings / finalOrigPrice) * 100) : 0;
+
+    // Update Price Line
+    const priceLine = card.querySelector('.combo-deal-price-line');
+    if (priceLine) {
+        priceLine.innerHTML = `
+            <span class="combo-selling-price">₹${finalPrice}</span>
+            ${finalOrigPrice > finalPrice ? `<del class="combo-original-price">₹${finalOrigPrice}</del>` : ''}
+        `;
+    }
+
+    // Update Savings Pill
+    const savingsPill = card.querySelector('.combo-savings-pill');
+    if (savingsPill) {
+        if (savings > 0) {
+            savingsPill.style.display = 'inline-flex';
+            savingsPill.innerHTML = `<i class="fa-solid fa-tag"></i> Save ₹${savings}${savingsPercent > 0 ? ` (${savingsPercent}% OFF)` : ''}`;
+        } else {
+            savingsPill.style.display = 'none';
+        }
+    }
+
+    // Update Button Text
+    const btn = document.getElementById(`btn-select-combo-${tier}-${dealId}`);
+    if (btn && !btn.classList.contains('btn-added')) {
+        btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add Combo • ₹${finalPrice}`;
+    }
+}
+window.updateComboDealCardPricing = updateComboDealCardPricing;
+
+/**
  * Renders all active deals for the given tier (solo, duo, squad)
+ * with horizontal touch-scroll showcase and inline icon add-on toggles
  */
 function renderCustomerComboTierDeals(tier) {
     const container = document.getElementById('value-combos-deals-container');
     if (!container) return;
 
-    const config = customerComboConfig || DEFAULT_CUSTOMER_COMBO_CONFIG;
+    const config = customerComboConfig || safeStorage.getJSON(COMBO_CONFIG_STORAGE_KEY) || DEFAULT_CUSTOMER_COMBO_CONFIG;
     const combosMap = (config && config.combos) ? config.combos : {};
-    const allDeals = Array.isArray(combosMap[tier]) ? combosMap[tier] : [];
+    const tierDeals = Array.isArray(combosMap[tier]) ? combosMap[tier] : [];
 
-    // Filter deals where is_active is true (or not explicitly false)
-    const activeDeals = allDeals.filter(d => d.is_active !== false);
+    // Filter deals: must be active (is_active !== false)
+    const activeDeals = tierDeals.filter(d => d.is_active !== false);
 
     if (activeDeals.length === 0) {
         container.innerHTML = `
@@ -13867,41 +14044,90 @@ function renderCustomerComboTierDeals(tier) {
     let html = '';
     activeDeals.forEach((deal, idx) => {
         const dealName = escapeHtml(deal.name || `${tier.toUpperCase()} Deal #${idx + 1}`);
-        const comboPrice = Math.max(0, Number(deal.combo_price) || 0);
+        const baseComboPrice = Math.max(0, Number(deal.combo_price) || 0);
 
-        // Resolve each of the 3 item slots
-        const slots = Array.isArray(deal.items) ? deal.items : [];
+        // Resolve each active item slot (ignoring any empty/none slots)
+        const rawSlots = Array.isArray(deal.items) ? deal.items : [];
+        const slots = rawSlots.filter(s => s && s.category_id && String(s.category_id).toLowerCase() !== 'none' && s.item_id);
         const resolvedItems = slots.map(slot => resolveComboItemProduct(slot));
 
         // Calculate original price from items if missing or zero
         let calcOriginalPrice = resolvedItems.reduce((sum, item) => sum + (item.total_price || 0), 0);
-        const originalPrice = (Number(deal.original_price) > 0) ? Number(deal.original_price) : calcOriginalPrice;
-        const savings = Math.max(0, originalPrice - comboPrice);
-        const savingsPercent = originalPrice > 0 ? Math.round((savings / originalPrice) * 100) : 0;
+        const baseOriginalPrice = (Number(deal.original_price) > 0) ? Number(deal.original_price) : calcOriginalPrice;
 
-        let itemsHtml = '';
-        resolvedItems.forEach(item => {
-            itemsHtml += `
-                <div class="combo-item-row">
-                    <div class="combo-item-thumb-wrapper">
-                        <img src="${escapeHtml(item.img)}" alt="${escapeHtml(item.name)}" class="combo-item-thumb" loading="lazy" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+        const dealIdSafe = escapeHtml(deal.id || `deal_${idx + 1}`);
+        const dealKey = `${tier}_${dealIdSafe}`;
+
+        // Retrieve existing selected add-ons if any
+        const selectedAddonsMap = window.__comboModalSelectedAddons[dealKey] || {};
+        let initialAddonsTotal = 0;
+        Object.values(selectedAddonsMap).forEach(slotMap => {
+            if (slotMap && typeof slotMap === 'object') {
+                Object.values(slotMap).forEach(a => {
+                    initialAddonsTotal += (Number(a.price) || 0);
+                });
+            }
+        });
+
+        const currentFinalPrice = baseComboPrice + initialAddonsTotal;
+        const currentOriginalPrice = baseOriginalPrice + initialAddonsTotal;
+        const savings = Math.max(0, currentOriginalPrice - currentFinalPrice);
+        const savingsPercent = currentOriginalPrice > 0 ? Math.round((savings / currentOriginalPrice) * 100) : 0;
+
+        // 1. Build Horizontal Scroll Showcase with Inline Add-on Icon Buttons
+        let galleryHtml = '';
+        resolvedItems.forEach((item, slotIdx) => {
+            const itemName = escapeHtml(item.name || 'Item');
+            const itemBaseName = escapeHtml(item.base_name || item.name || 'Item');
+            const itemCat = escapeHtml(item.category_id || 'Meal');
+            const itemSize = item.size_label ? ` • ${escapeHtml(item.size_label)}` : '';
+            const availableAddons = getAvailableAddonsForComboItem(item);
+            const slotSelected = selectedAddonsMap[slotIdx] || {};
+
+            let inlineAddonsHtml = '';
+            if (availableAddons.length > 0) {
+                const buttonsHtml = availableAddons.map(addon => {
+                    const isSelected = Boolean(slotSelected[addon.id]);
+                    const cleanAddonName = escapeHtml(addon.name);
+                    return `
+                        <button type="button" 
+                                class="combo-inline-addon-btn ${isSelected ? 'active' : ''}" 
+                                id="btn-addon-${tier}-${dealIdSafe}-${slotIdx}-${addon.id}"
+                                onclick="toggleComboDealAddon('${tier}', '${dealIdSafe}', ${slotIdx}, '${addon.id}', '${cleanAddonName}', ${addon.price}, '${addon.icon}')"
+                                title="${cleanAddonName}"
+                                aria-label="${cleanAddonName}"
+                                aria-pressed="${isSelected}">
+                            ${addon.icon}
+                        </button>
+                    `;
+                }).join('');
+
+                inlineAddonsHtml = `
+                    <div class="combo-tile-addons">
+                        ${buttonsHtml}
                     </div>
-                    <div class="combo-item-info">
-                        <span class="combo-item-name">${escapeHtml(item.name)}</span>
-                        <div class="combo-item-meta">
-                            <span class="combo-item-cat-badge">${escapeHtml(item.category_id || 'Meal Item')}</span>
-                            ${item.size_label ? `<span>• ${escapeHtml(item.size_label)}</span>` : ''}
-                        </div>
+                `;
+            }
+
+            galleryHtml += `
+                <div class="combo-gallery-tile">
+                    <div class="combo-tile-media">
+                        <img src="${escapeHtml(item.img)}" alt="${itemName}" class="combo-tile-img" loading="lazy" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+                        <span class="combo-tile-qty-badge">x${item.quantity}</span>
                     </div>
-                    <div class="combo-item-qty-badge">×${item.quantity}</div>
+                    <div class="combo-tile-info">
+                        <span class="combo-tile-name" title="${itemName}">${itemBaseName}</span>
+                        ${inlineAddonsHtml}
+                    </div>
                 </div>
             `;
         });
 
-        const dealIdSafe = escapeHtml(deal.id || `deal_${idx + 1}`);
-
         html += `
-            <div class="combo-deal-card" id="deal-card-${tier}-${dealIdSafe}">
+            <div class="combo-deal-card" 
+                 id="deal-card-${tier}-${dealIdSafe}"
+                 data-base-price="${baseComboPrice}"
+                 data-base-orig-price="${baseOriginalPrice}">
                 <div class="combo-deal-header-row">
                     <div class="combo-deal-name-wrap">
                         <span class="combo-deal-pill">Deal #${idx + 1}</span>
@@ -13909,15 +14135,15 @@ function renderCustomerComboTierDeals(tier) {
                     </div>
                 </div>
 
-                <div class="combo-items-list">
-                    ${itemsHtml}
+                <div class="combo-items-gallery">
+                    ${galleryHtml}
                 </div>
 
                 <div class="combo-deal-footer-row">
                     <div class="combo-deal-price-box">
                         <div class="combo-deal-price-line">
-                            <span class="combo-selling-price">₹${comboPrice}</span>
-                            ${originalPrice > comboPrice ? `<del class="combo-original-price">₹${originalPrice}</del>` : ''}
+                            <span class="combo-selling-price">₹${currentFinalPrice}</span>
+                            ${currentOriginalPrice > currentFinalPrice ? `<del class="combo-original-price">₹${currentOriginalPrice}</del>` : ''}
                         </div>
                         ${savings > 0 ? `
                             <span class="combo-savings-pill">
@@ -13925,8 +14151,11 @@ function renderCustomerComboTierDeals(tier) {
                             </span>
                         ` : ''}
                     </div>
-                    <button type="button" class="btn-select-combo" id="btn-select-combo-${tier}-${dealIdSafe}" onclick="selectValueCombo('${tier}', '${dealIdSafe}')">
-                        <i class="fa-solid fa-plus"></i> Add Combo
+                    <button type="button" 
+                            class="btn-select-combo" 
+                            id="btn-select-combo-${tier}-${dealIdSafe}" 
+                            onclick="selectValueCombo('${tier}', '${dealIdSafe}')">
+                        <i class="fa-solid fa-plus"></i> Add Combo • ₹${currentFinalPrice}
                     </button>
                 </div>
             </div>
@@ -14316,7 +14545,12 @@ async function addValueComboToCart(dealPayload, force = false) {
         name: `${dealPayload.name || 'Value Combo'} (${(dealPayload.tier || 'SOLO').toUpperCase()} Combo)`,
         baseName: dealPayload.name || 'Value Combo',
         price: Math.max(0, Number(dealPayload.comboPrice) || 0),
+        basePrice: Math.max(0, Number(dealPayload.baseComboPrice) || Number(dealPayload.comboPrice) || 0),
         originalPrice: Math.max(0, Number(dealPayload.originalPrice) || Number(dealPayload.comboPrice) || 0),
+        baseOriginalPrice: Math.max(0, Number(dealPayload.baseOriginalPrice) || Number(dealPayload.originalPrice) || 0),
+        addonsTotal: Number(dealPayload.addonsTotal) || 0,
+        selectedAddons: dealPayload.selectedAddons || {},
+        selectedAddonsList: dealPayload.selectedAddonsList || [],
         qty: 1,
         img: (items[0] && items[0].img) || 'https://i.ibb.co/mCCRVZ09/solo.webp',
         items: items,
@@ -14368,8 +14602,8 @@ window.removeComboFromCart = removeComboFromCart;
 
 /**
  * Handle Selection of a Combo Deal:
- * Dispatches 'perfetto:valueComboSelected' event, evaluates stacking rules,
- * adds combo bundle line item to cart, and provides tactile feedback.
+ * Dispatches 'perfetto:valueComboSelected' event, calculates 100% full-price add-on totals,
+ * evaluates stacking rules, adds combo bundle line item to cart, and provides tactile feedback.
  */
 async function selectValueCombo(tier, dealId) {
     const config = customerComboConfig || DEFAULT_CUSTOMER_COMBO_CONFIG;
@@ -14377,21 +14611,53 @@ async function selectValueCombo(tier, dealId) {
     const tierDeals = Array.isArray(combosMap[tier]) ? combosMap[tier] : [];
     const deal = tierDeals.find((d, idx) => (d.id === dealId || `deal_${idx + 1}` === dealId || String(idx) === String(dealId)));
 
-    if (!deal) return;
-
-    // Resolve full item details for cart readiness
-    const slots = Array.isArray(deal.items) ? deal.items : [];
+    // Resolve full item details for cart readiness (ignoring any empty/none slots)
+    const rawSlots = Array.isArray(deal.items) ? deal.items : [];
+    const slots = rawSlots.filter(s => s && s.category_id && String(s.category_id).toLowerCase() !== 'none' && s.item_id);
     const resolvedItems = slots.map(slot => resolveComboItemProduct(slot));
-    const comboPrice = Math.max(0, Number(deal.combo_price) || 0);
-    const originalPrice = (Number(deal.original_price) > 0) ? Number(deal.original_price) : resolvedItems.reduce((sum, i) => sum + (i.total_price || 0), 0);
+    const baseComboPrice = Math.max(0, Number(deal.combo_price) || 0);
+    const baseOriginalPrice = (Number(deal.original_price) > 0) ? Number(deal.original_price) : resolvedItems.reduce((sum, i) => sum + (i.total_price || 0), 0);
+
+    // Retrieve selected add-ons for this deal
+    const dealKey = `${tier}_${dealId}`;
+    const selectedAddonsMap = (window.__comboModalSelectedAddons && window.__comboModalSelectedAddons[dealKey]) || {};
+    let totalAddonsPrice = 0;
+    const allSelectedList = [];
+
+    resolvedItems.forEach((item, slotIdx) => {
+        const slotAddons = selectedAddonsMap[slotIdx] || {};
+        const addonList = Object.values(slotAddons);
+        const subAddonsTotal = addonList.reduce((sum, a) => sum + (Number(a.price) || 0), 0);
+        totalAddonsPrice += subAddonsTotal;
+
+        item.addons = addonList;
+        item.addons_total = subAddonsTotal;
+
+        addonList.forEach(a => {
+            allSelectedList.push({
+                slotIndex: slotIdx,
+                itemName: item.name,
+                ...a
+            });
+        });
+    });
+
+    // Rule: Add-ons are charged at 100% full price without discount
+    const finalComboPrice = baseComboPrice + totalAddonsPrice;
+    const finalOriginalPrice = baseOriginalPrice + totalAddonsPrice;
 
     const payload = {
         tier: tier,
         dealId: deal.id || dealId,
         name: deal.name || `${tier.toUpperCase()} Deal`,
-        comboPrice: comboPrice,
-        originalPrice: originalPrice,
-        savings: Math.max(0, originalPrice - comboPrice),
+        comboPrice: finalComboPrice,
+        baseComboPrice: baseComboPrice,
+        originalPrice: finalOriginalPrice,
+        baseOriginalPrice: baseOriginalPrice,
+        addonsTotal: totalAddonsPrice,
+        selectedAddons: selectedAddonsMap,
+        selectedAddonsList: allSelectedList,
+        savings: Math.max(0, finalOriginalPrice - finalComboPrice),
         items: resolvedItems,
         allow_combo_with_daily_offer: Boolean(config.allow_combo_with_daily_offer)
     };
@@ -14421,7 +14687,7 @@ async function selectValueCombo(tier, dealId) {
         setTimeout(() => {
             if (btn) {
                 btn.classList.remove('btn-added');
-                btn.innerHTML = '<i class="fa-solid fa-plus"></i> Add Combo';
+                btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add Combo • ₹${finalComboPrice}`;
             }
         }, 2200);
     }

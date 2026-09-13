@@ -10634,83 +10634,147 @@ html[lang="hi"] .nav-label {
     margin: 0;
 }
 
-/* 3-Item Breakdown List */
-.combo-items-list {
+/* Horizontal Scroll Showcase for Combo Items */
+.combo-items-gallery {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 10px;
+    padding: 6px 2px 10px 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+}
+
+.combo-items-gallery::-webkit-scrollbar {
+    display: none;
+}
+
+.combo-gallery-tile {
+    flex: 0 0 108px;
+    width: 108px;
+    scroll-snap-align: start;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    background: rgba(0, 0, 0, 0.18);
-    border-radius: 14px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.combo-item-row {
-    display: flex;
     align-items: center;
-    gap: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    padding: 8px 6px;
+    box-sizing: border-box;
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-.combo-item-thumb-wrapper {
+.combo-gallery-tile:hover {
+    border-color: rgba(255, 107, 0, 0.35);
+    background: rgba(255, 107, 0, 0.03);
+}
+
+.combo-tile-media {
     position: relative;
-    width: 46px;
-    height: 46px;
-    border-radius: 10px;
+    width: 94px;
+    height: 94px;
+    border-radius: 12px;
     overflow: hidden;
     background: #0b0f19;
-    flex-shrink: 0;
     border: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
 }
 
-.combo-item-thumb {
+.combo-tile-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
 }
 
-.combo-item-info {
-    flex: 1;
+.combo-tile-qty-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(15, 23, 42, 0.88);
+    color: var(--primary-orange, #ff6b00);
+    border: 1px solid rgba(255, 107, 0, 0.4);
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    line-height: 1.2;
+}
+
+.combo-tile-info {
+    width: 100%;
+    margin-top: 6px;
     display: flex;
     flex-direction: column;
-    min-width: 0;
+    align-items: center;
+    text-align: center;
+    gap: 2px;
 }
 
-.combo-item-name {
-    font-size: 0.88rem;
+.combo-tile-name {
+    font-size: 0.76rem;
     font-weight: 700;
     color: var(--text-main, #ffffff);
-    white-space: nowrap;
+    line-height: 1.2;
+    white-space: normal;
+    word-break: keep-all;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+    min-height: 28px;
 }
 
-.combo-item-meta {
-    font-size: 0.74rem;
-    color: var(--text-muted, #94a3b8);
+/* Inline Add-on Icon Buttons directly beneath Products */
+.combo-tile-addons {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    margin-top: 1px;
+    margin-top: 6px;
+    min-height: 28px;
+    width: 100%;
 }
 
-.combo-item-cat-badge {
-    background: rgba(255, 255, 255, 0.06);
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-}
-
-.combo-item-qty-badge {
-    background: rgba(255, 107, 0, 0.15);
-    color: var(--primary-orange, #ff6b00);
-    border: 1px solid rgba(255, 107, 0, 0.3);
-    padding: 2px 8px;
+.combo-inline-addon-btn {
+    width: 28px;
+    height: 28px;
     border-radius: 8px;
-    font-size: 0.78rem;
-    font-weight: 800;
-    white-space: nowrap;
-    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    padding: 0;
+    user-select: none;
+    touch-action: manipulation;
+    color: var(--text-main, #ffffff);
+}
+
+.combo-inline-addon-btn:hover {
+    border-color: rgba(255, 107, 0, 0.5);
+    transform: translateY(-1px);
+    background: rgba(255, 107, 0, 0.1);
+}
+
+.combo-inline-addon-btn:active {
+    transform: scale(0.92);
+}
+
+.combo-inline-addon-btn.active {
+    background: rgba(255, 107, 0, 0.22);
+    border: 1.5px solid var(--primary-orange, #ff6b00);
+    box-shadow: 0 0 10px rgba(255, 107, 0, 0.55);
+    transform: scale(1.08);
 }
 
 /* Price & Savings Action Row */
@@ -10887,22 +10951,41 @@ html[lang="hi"] .nav-label {
     color: #0f172a;
 }
 
-[data-theme="light"] .combo-items-list {
+[data-theme="light"] .combo-gallery-tile {
     background: #ffffff;
-    border-color: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.08);
 }
 
-[data-theme="light"] .combo-item-name {
-    color: #0f172a;
-}
-
-[data-theme="light"] .combo-item-thumb-wrapper {
+[data-theme="light"] .combo-tile-media {
     background: #f1f5f9;
     border-color: rgba(0, 0, 0, 0.06);
 }
 
-[data-theme="light"] .combo-item-cat-badge {
-    background: rgba(0, 0, 0, 0.05);
+[data-theme="light"] .combo-tile-name {
+    color: #0f172a;
+}
+
+[data-theme="light"] .combo-tile-qty-badge {
+    background: rgba(255, 255, 255, 0.95);
+    color: #ff6b00;
+    border-color: rgba(255, 107, 0, 0.35);
+}
+
+[data-theme="light"] .combo-inline-addon-btn {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #0f172a;
+}
+
+[data-theme="light"] .combo-inline-addon-btn:hover {
+    background: rgba(255, 107, 0, 0.08);
+    border-color: rgba(255, 107, 0, 0.4);
+}
+
+[data-theme="light"] .combo-inline-addon-btn.active {
+    background: rgba(255, 107, 0, 0.16);
+    border-color: var(--primary-orange, #ff6b00);
+    box-shadow: 0 0 8px rgba(255, 107, 0, 0.35);
 }
 
 [data-theme="light"] .combo-deal-pill {
@@ -10922,25 +11005,77 @@ html[lang="hi"] .nav-label {
    CART COMBO BUNDLE CARD & EXPANDABLE INCLUDED ITEMS
    -------------------------------------------------------------------------- */
 .cart-item-card.cart-item-combo {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    padding: 14px;
+    gap: 0 !important;
     border-color: rgba(255, 107, 0, 0.35);
     background: linear-gradient(180deg, rgba(255, 107, 0, 0.04) 0%, rgba(15, 23, 42, 0.4) 100%);
     position: relative;
+    box-sizing: border-box;
+}
+
+.cart-combo-main-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.cart-combo-thumb {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    object-fit: cover;
+    background-color: var(--bg-input, #0b0f19);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    flex-shrink: 0;
+}
+
+.cart-combo-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.cart-combo-header-line {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+}
+
+.cart-combo-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main, #ffffff);
+    line-height: 1.25;
+    margin: 0;
+    white-space: normal;
+    word-break: keep-all;
 }
 
 .cart-combo-badge {
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 800;
     color: #ff6b00;
     background: rgba(255, 107, 0, 0.12);
     border: 1px solid rgba(255, 107, 0, 0.3);
     border-radius: 999px;
-    padding: 2px 8px;
-    margin-left: 6px;
+    padding: 2px 7px;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    flex-shrink: 0;
 }
 
 .cart-combo-badge.tier-solo {
@@ -10961,6 +11096,23 @@ html[lang="hi"] .nav-label {
     background: rgba(16, 185, 129, 0.12);
 }
 
+.cart-combo-price-wrap {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.cart-combo-addons-total-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 1px 6px;
+    border-radius: 6px;
+}
+
 .cart-combo-dropdown-toggle {
     background: none;
     border: none;
@@ -10973,7 +11125,7 @@ html[lang="hi"] .nav-label {
     align-items: center;
     gap: 6px;
     transition: color 0.2s ease;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 
 .cart-combo-dropdown-toggle:hover {
@@ -10989,17 +11141,24 @@ html[lang="hi"] .nav-label {
     transform: rotate(180deg);
 }
 
+.combo-cart-controls {
+    flex-shrink: 0;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+}
+
 .cart-combo-items-dropdown {
     display: none;
     flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-    padding: 8px 10px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    grid-column: 1 / -1;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .cart-combo-items-dropdown.open {
@@ -11008,15 +11167,22 @@ html[lang="hi"] .nav-label {
 
 .cart-combo-sub-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 3px 0;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+    flex-direction: column;
+    gap: 4px;
+    padding: 5px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
 }
 
 .cart-combo-sub-row:last-child {
     border-bottom: none;
+}
+
+.cart-combo-sub-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
 }
 
 .cart-combo-sub-left {
@@ -11024,11 +11190,12 @@ html[lang="hi"] .nav-label {
     align-items: center;
     gap: 8px;
     min-width: 0;
+    flex: 1;
 }
 
 .cart-combo-sub-thumb {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 6px;
     object-fit: cover;
     background: #0b0f19;
@@ -11036,12 +11203,11 @@ html[lang="hi"] .nav-label {
 }
 
 .cart-combo-sub-name {
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 700;
     color: var(--text-main, #ffffff);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: keep-all;
 }
 
 .cart-combo-sub-qty {
@@ -11052,6 +11218,27 @@ html[lang="hi"] .nav-label {
     padding: 1px 6px;
     border-radius: 4px;
     flex-shrink: 0;
+}
+
+.cart-combo-sub-addons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-left: 40px;
+    margin-top: 2px;
+}
+
+.cart-combo-sub-addon-chip {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
 }
 
 .btn-cart-remove-combo {
@@ -11083,6 +11270,10 @@ html[lang="hi"] .nav-label {
 [data-theme="light"] .cart-item-card.cart-item-combo {
     background: linear-gradient(180deg, rgba(255, 107, 0, 0.05) 0%, #ffffff 100%);
     border-color: rgba(255, 107, 0, 0.25);
+}
+
+[data-theme="light"] .cart-combo-title {
+    color: #0f172a;
 }
 
 [data-theme="light"] .cart-combo-items-dropdown {

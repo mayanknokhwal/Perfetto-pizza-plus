@@ -3511,6 +3511,23 @@
             white-space: nowrap;
         }
 
+        .deal-slot-row.is-empty-slot {
+            opacity: 0.6;
+            background: rgba(15, 23, 42, 0.2);
+            border-style: dashed;
+        }
+
+        .deal-slot-row.is-empty-slot .deal-slot-line-price {
+            color: var(--text-subtle);
+        }
+
+        .deal-slot-select:disabled,
+        .deal-slot-qty:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
         /* Pricing Summary Box */
         .deal-pricing-box {
             display: grid;
@@ -9974,7 +9991,7 @@
         }
 
         function calculateComboSlotPrice(slot) {
-            if (!slot || !slot.item_id) return 0;
+            if (!slot || !slot.item_id || !slot.category_id || slot.category_id === 'none') return 0;
             const items = getComboMenuItems();
             const item = items.find(i => String(i.id) === String(slot.item_id));
             const unit = getComboItemUnitPrice(item, slot.size || slot.variant_id);
@@ -10004,25 +10021,40 @@
                 const rawDeals = sourceCombos && Array.isArray(sourceCombos[tier]) ? sourceCombos[tier] : [];
                 config.combos[tier] = defDeals.map((defDeal, idx) => {
                     const r = rawDeals[idx];
-                    if (!r || typeof r !== 'object') return JSON.parse(JSON.stringify(defDeal));
+                    if (!r || typeof r !== 'object') {
+                        const copy = JSON.parse(JSON.stringify(defDeal));
+                        while (copy.items.length < 5) {
+                            copy.items.push({ category_id: "", item_id: "", size: "", variant_id: "", quantity: 1 });
+                        }
+                        return copy;
+                    }
 
                     const dealId = r.id || `${tier}_deal_${idx + 1}`;
                     const dealName = r.name || defDeal.name || `${tier.toUpperCase()} Meal ${idx + 1}`;
                     const comboPrice = (r.combo_price !== undefined && !isNaN(Number(r.combo_price))) ? Number(r.combo_price) : defDeal.combo_price;
                     const isActive = r.is_active !== undefined ? Boolean(r.is_active) : (defDeal.is_active !== false);
 
-                    // Ensure exactly 3 items
-                    const rawItems = Array.isArray(r.items) ? r.items : [];
-                    const items = [0, 1, 2].map(slotIdx => {
-                        const defSlot = defDeal.items[slotIdx] || { category_id: "Burger", item_id: "bgr-veggie", size: "", variant_id: "", quantity: 1 };
+                    // Support up to 5 items (Slot #1 through Slot #5)
+                    const hasExplicitItems = Array.isArray(r.items);
+                    const rawItems = hasExplicitItems ? r.items : (Array.isArray(defDeal.items) ? defDeal.items : []);
+                    const items = [0, 1, 2, 3, 4].map(slotIdx => {
                         const rawSlot = rawItems[slotIdx];
-                        if (!rawSlot || typeof rawSlot !== 'object') return JSON.parse(JSON.stringify(defSlot));
+                        if (rawSlot && typeof rawSlot === 'object' && rawSlot.category_id && rawSlot.item_id) {
+                            return {
+                                category_id: String(rawSlot.category_id || '').trim(),
+                                item_id: String(rawSlot.item_id || '').trim(),
+                                size: String(rawSlot.size || rawSlot.variant_id || '').trim(),
+                                variant_id: String(rawSlot.variant_id || rawSlot.size || '').trim(),
+                                quantity: Math.max(1, parseInt(rawSlot.quantity, 10) || 1)
+                            };
+                        }
+                        // Default empty slot
                         return {
-                            category_id: String(rawSlot.category_id || defSlot.category_id || '').trim(),
-                            item_id: String(rawSlot.item_id || defSlot.item_id || '').trim(),
-                            size: String(rawSlot.size || rawSlot.variant_id || defSlot.size || '').trim(),
-                            variant_id: String(rawSlot.variant_id || rawSlot.size || defSlot.variant_id || '').trim(),
-                            quantity: Math.max(1, parseInt(rawSlot.quantity, 10) || 1)
+                            category_id: "",
+                            item_id: "",
+                            size: "",
+                            variant_id: "",
+                            quantity: 1
                         };
                     });
 
@@ -10115,40 +10147,47 @@
                     <div class="deal-slots-section">
                         <div class="deal-slots-header">
                             <i class="fa-solid fa-utensils" style="color: var(--primary-orange);"></i>
-                            <span>Deal Combo Items (Exactly 3 Slots)</span>
+                            <span>Deal Combo Items (Up to 5 Slots)</span>
                         </div>
                         <div class="deal-slots-list">
                 `;
 
-                // Exactly 3 item slots
+                // Exactly 5 item slots (Slot #1 through Slot #5)
                 deal.items.forEach((slot, slotIdx) => {
-                    const selectedCat = slot.category_id || categories[0] || '';
-                    const catProducts = getComboProductsByCategory(selectedCat);
+                    const isEmpty = !slot || !slot.category_id || slot.category_id === 'none' || !slot.item_id;
+                    const selectedCat = slot.category_id || '';
+                    const catProducts = selectedCat ? getComboProductsByCategory(selectedCat) : [];
                     const selectedItemId = slot.item_id || (catProducts[0] ? catProducts[0].id : '');
                     const currentItem = allItems.find(i => String(i.id) === String(selectedItemId)) || catProducts[0] || null;
                     const isMultiSize = currentItem && currentItem.isMultiSize;
                     const selectedSize = (slot.size || slot.variant_id || (isMultiSize ? 'M' : '')).toUpperCase();
                     const qty = Math.max(1, parseInt(slot.quantity, 10) || 1);
-                    const linePrice = calculateComboSlotPrice({ item_id: selectedItemId, size: selectedSize, quantity: qty });
+                    const linePrice = isEmpty ? 0 : calculateComboSlotPrice({ category_id: selectedCat, item_id: selectedItemId, size: selectedSize, quantity: qty });
 
-                    // Build Category Options
-                    let catOpts = '';
+                    // Build Category Options (starts with None)
+                    let catOpts = `<option value="" ${isEmpty ? 'selected' : ''}>None (Empty Slot)</option>`;
                     categories.forEach(c => {
-                        const isSel = (c.trim().toLowerCase() === selectedCat.trim().toLowerCase());
+                        const isSel = (!isEmpty && c.trim().toLowerCase() === selectedCat.trim().toLowerCase());
                         catOpts += `<option value="${escapeHtml(c)}" ${isSel ? 'selected' : ''}>${escapeHtml(c)}</option>`;
                     });
 
                     // Build Product Options
                     let prodOpts = '';
-                    catProducts.forEach(p => {
-                        const isSel = (String(p.id) === String(selectedItemId));
-                        const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
-                        prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(p.name)} (₹${basePrice})</option>`;
-                    });
+                    if (isEmpty || catProducts.length === 0) {
+                        prodOpts = `<option value="" selected>-- None --</option>`;
+                    } else {
+                        catProducts.forEach(p => {
+                            const isSel = (String(p.id) === String(selectedItemId));
+                            const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
+                            prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(p.name)} (₹${basePrice})</option>`;
+                        });
+                    }
 
                     // Build Size Options
                     let sizeOpts = '';
-                    if (isMultiSize && currentItem.prices) {
+                    if (isEmpty) {
+                        sizeOpts = `<option value="" selected>-- None --</option>`;
+                    } else if (isMultiSize && currentItem && currentItem.prices) {
                         const sPrice = currentItem.prices.S || currentItem.price;
                         const mPrice = currentItem.prices.M || currentItem.price;
                         const lPrice = currentItem.prices.L || currentItem.price;
@@ -10161,7 +10200,7 @@
                     }
 
                     html += `
-                        <div class="deal-slot-row" id="slot-row-${tier}-${dealIdx}-${slotIdx}">
+                        <div class="deal-slot-row ${isEmpty ? 'is-empty-slot' : ''}" id="slot-row-${tier}-${dealIdx}-${slotIdx}">
                             <span class="deal-slot-tag">Slot #${slotIdx + 1}</span>
                             <div>
                                 <select class="deal-slot-select" id="slot-cat-${tier}-${dealIdx}-${slotIdx}"
@@ -10172,6 +10211,7 @@
                             </div>
                             <div>
                                 <select class="deal-slot-select" id="slot-prod-${tier}-${dealIdx}-${slotIdx}"
+                                        ${isEmpty ? 'disabled' : ''}
                                         onchange="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'product', this.value)"
                                         aria-label="Item Slot ${slotIdx + 1} Product">
                                     ${prodOpts}
@@ -10179,7 +10219,7 @@
                             </div>
                             <div>
                                 <select class="deal-slot-select" id="slot-size-${tier}-${dealIdx}-${slotIdx}"
-                                        ${isMultiSize ? '' : 'disabled'}
+                                        ${(!isEmpty && isMultiSize) ? '' : 'disabled'}
                                         onchange="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'size', this.value)"
                                         aria-label="Item Slot ${slotIdx + 1} Size">
                                     ${sizeOpts}
@@ -10188,6 +10228,7 @@
                             <div>
                                 <input type="number" class="deal-slot-qty" id="slot-qty-${tier}-${dealIdx}-${slotIdx}"
                                        min="1" max="99" value="${qty}"
+                                       ${isEmpty ? 'disabled' : ''}
                                        oninput="onComboSlotChange('${tier}', ${dealIdx}, ${slotIdx}, 'quantity', this.value)"
                                        onblur="onComboSlotQtyBlur('${tier}', ${dealIdx}, ${slotIdx}, this)"
                                        aria-label="Item Slot ${slotIdx + 1} Quantity">
@@ -10289,40 +10330,76 @@
 
             const slot = deal.items[slotIdx];
             const allItems = getComboMenuItems();
+            const rowEl = document.getElementById(`slot-row-${tier}-${dealIdx}-${slotIdx}`);
+            const prodSelect = document.getElementById(`slot-prod-${tier}-${dealIdx}-${slotIdx}`);
+            const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
+            const qtyInput = document.getElementById(`slot-qty-${tier}-${dealIdx}-${slotIdx}`);
+            const linePriceEl = document.getElementById(`slot-price-${tier}-${dealIdx}-${slotIdx}`);
 
             if (field === 'category') {
-                slot.category_id = String(val).trim();
-                const catProducts = getComboProductsByCategory(slot.category_id);
-                slot.item_id = catProducts[0] ? String(catProducts[0].id) : '';
-                const newProd = catProducts[0] || null;
-                slot.size = (newProd && newProd.isMultiSize) ? 'M' : '';
-                slot.variant_id = slot.size;
+                const catVal = String(val || '').trim();
+                if (!catVal || catVal === 'none') {
+                    // Selected None (Empty Slot)
+                    slot.category_id = '';
+                    slot.item_id = '';
+                    slot.size = '';
+                    slot.variant_id = '';
+                    slot.quantity = 1;
 
-                // Update product select DOM
-                const prodSelect = document.getElementById(`slot-prod-${tier}-${dealIdx}-${slotIdx}`);
-                if (prodSelect) {
-                    let prodOpts = '';
-                    catProducts.forEach(p => {
-                        const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
-                        prodOpts += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (₹${basePrice})</option>`;
-                    });
-                    prodSelect.innerHTML = prodOpts;
-                }
-
-                // Update size select DOM
-                const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
-                if (sizeSelect) {
-                    if (newProd && newProd.isMultiSize && newProd.prices) {
-                        sizeSelect.disabled = false;
-                        sizeSelect.innerHTML = `
-                            <option value="S">Small (₹${newProd.prices.S || newProd.price})</option>
-                            <option value="M" selected>Medium (₹${newProd.prices.M || newProd.price})</option>
-                            <option value="L">Large (₹${newProd.prices.L || newProd.price})</option>
-                        `;
-                    } else {
-                        sizeSelect.disabled = true;
-                        sizeSelect.innerHTML = `<option value="" selected>Regular (₹${newProd ? newProd.price : 0})</option>`;
+                    if (rowEl) rowEl.classList.add('is-empty-slot');
+                    if (prodSelect) {
+                        prodSelect.innerHTML = '<option value="" selected>-- None --</option>';
+                        prodSelect.disabled = true;
                     }
+                    if (sizeSelect) {
+                        sizeSelect.innerHTML = '<option value="" selected>-- None --</option>';
+                        sizeSelect.disabled = true;
+                    }
+                    if (qtyInput) {
+                        qtyInput.value = '1';
+                        qtyInput.disabled = true;
+                    }
+                    if (linePriceEl) linePriceEl.textContent = '₹0';
+                } else {
+                    slot.category_id = catVal;
+                    if (rowEl) rowEl.classList.remove('is-empty-slot');
+                    if (qtyInput) qtyInput.disabled = false;
+
+                    const catProducts = getComboProductsByCategory(slot.category_id);
+                    slot.item_id = catProducts[0] ? String(catProducts[0].id) : '';
+                    const newProd = catProducts[0] || null;
+                    slot.size = (newProd && newProd.isMultiSize) ? 'M' : '';
+                    slot.variant_id = slot.size;
+
+                    // Update product select DOM
+                    if (prodSelect) {
+                        prodSelect.disabled = false;
+                        let prodOpts = '';
+                        catProducts.forEach(p => {
+                            const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
+                            prodOpts += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (₹${basePrice})</option>`;
+                        });
+                        prodSelect.innerHTML = prodOpts;
+                    }
+
+                    // Update size select DOM
+                    if (sizeSelect) {
+                        if (newProd && newProd.isMultiSize && newProd.prices) {
+                            sizeSelect.disabled = false;
+                            sizeSelect.innerHTML = `
+                                <option value="S">Small (₹${newProd.prices.S || newProd.price})</option>
+                                <option value="M" selected>Medium (₹${newProd.prices.M || newProd.price})</option>
+                                <option value="L">Large (₹${newProd.prices.L || newProd.price})</option>
+                            `;
+                        } else {
+                            sizeSelect.disabled = true;
+                            sizeSelect.innerHTML = `<option value="" selected>Regular (₹${newProd ? newProd.price : 0})</option>`;
+                        }
+                    }
+
+                    // Update slot line price DOM
+                    const linePrice = calculateComboSlotPrice(slot);
+                    if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
                 }
             } else if (field === 'product') {
                 slot.item_id = String(val).trim();
@@ -10331,7 +10408,6 @@
                 slot.variant_id = slot.size;
 
                 // Update size select DOM
-                const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
                 if (sizeSelect) {
                     if (prod && prod.isMultiSize && prod.prices) {
                         sizeSelect.disabled = false;
@@ -10345,17 +10421,19 @@
                         sizeSelect.innerHTML = `<option value="" selected>Regular (₹${prod ? prod.price : 0})</option>`;
                     }
                 }
+
+                const linePrice = calculateComboSlotPrice(slot);
+                if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
             } else if (field === 'size') {
                 slot.size = String(val).trim().toUpperCase();
                 slot.variant_id = slot.size;
+                const linePrice = calculateComboSlotPrice(slot);
+                if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
             } else if (field === 'quantity') {
                 slot.quantity = Math.max(1, parseInt(val, 10) || 1);
+                const linePrice = calculateComboSlotPrice(slot);
+                if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
             }
-
-            // Update slot line price DOM
-            const linePrice = calculateComboSlotPrice(slot);
-            const linePriceEl = document.getElementById(`slot-price-${tier}-${dealIdx}-${slotIdx}`);
-            if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
 
             // Recalculate original price & update deal pricing box
             updateDealPricingDisplay(tier, dealIdx);
@@ -10428,13 +10506,24 @@
                         const sizeSelect = document.getElementById(`slot-size-${tier}-${dealIdx}-${slotIdx}`);
                         const qtyInput = document.getElementById(`slot-qty-${tier}-${dealIdx}-${slotIdx}`);
 
-                        if (catSelect) slot.category_id = catSelect.value.trim();
-                        if (prodSelect) slot.item_id = prodSelect.value.trim();
-                        if (sizeSelect && !sizeSelect.disabled) {
-                            slot.size = sizeSelect.value.trim().toUpperCase();
-                            slot.variant_id = slot.size;
+                        const catVal = catSelect ? catSelect.value.trim() : '';
+                        if (!catVal || catVal === 'none') {
+                            slot.category_id = '';
+                            slot.item_id = '';
+                            slot.size = '';
+                            slot.variant_id = '';
+                            slot.quantity = 1;
+                        } else {
+                            slot.category_id = catVal;
+                            if (prodSelect) slot.item_id = prodSelect.value.trim();
+                            if (sizeSelect && !sizeSelect.disabled) {
+                                slot.size = sizeSelect.value.trim().toUpperCase();
+                                slot.variant_id = slot.size;
+                            }
+                            if (qtyInput && !qtyInput.disabled) {
+                                slot.quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
+                            }
                         }
-                        if (qtyInput) slot.quantity = Math.max(1, parseInt(qtyInput.value, 10) || 1);
                     });
                 }
                 recalculateComboDealOriginalPrice(deal);
@@ -10505,6 +10594,32 @@
             // Sync current screen inputs into adminComboConfig
             flushComboInputsFromDOM();
 
+            // Validation: minimum 1 valid item required per deal (allowing 1 to 5 items)
+            for (const tierKey of ['solo', 'duo', 'squad']) {
+                const tierDeals = adminComboConfig.combos[tierKey] || [];
+                for (let dIdx = 0; dIdx < tierDeals.length; dIdx++) {
+                    if (specificTier && specificDealIdx !== null && (tierKey !== specificTier || dIdx !== specificDealIdx)) {
+                        continue;
+                    }
+                    const deal = tierDeals[dIdx];
+                    const activeSlots = (deal.items || []).filter(s => s && s.category_id && s.category_id !== 'none' && s.item_id);
+                    if (activeSlots.length < 1) {
+                        if (btnAll) {
+                            btnAll.disabled = false;
+                            if (btnAllText) btnAllText.innerHTML = 'Save Value Combos';
+                        }
+                        if (singleBtn) {
+                            singleBtn.disabled = false;
+                            if (singleBtnText) singleBtnText.innerHTML = `Save Deal #${specificDealIdx + 1}`;
+                        }
+                        if (typeof showToast === 'function') {
+                            showToast(`⚠️ Validation failed: ${deal.name || ('Deal #' + (dIdx + 1))} must have at least 1 valid item slot.`, 3500);
+                        }
+                        return false;
+                    }
+                }
+            }
+
             // Ensure all 9 deals across all tiers have up-to-date original_price
             ['solo', 'duo', 'squad'].forEach(t => {
                 if (Array.isArray(adminComboConfig.combos[t])) {
@@ -10514,9 +10629,25 @@
                 }
             });
 
+            // Clean payload: Filter out None/empty slots before writing to Firestore
+            const cleanedCombos = {};
+            ['solo', 'duo', 'squad'].forEach(t => {
+                cleanedCombos[t] = (adminComboConfig.combos[t] || []).map(deal => {
+                    const activeItems = (deal.items || []).filter(s => s && s.category_id && s.category_id !== 'none' && s.item_id);
+                    return {
+                        id: deal.id,
+                        name: deal.name,
+                        combo_price: deal.combo_price,
+                        original_price: deal.original_price,
+                        is_active: deal.is_active !== false,
+                        items: activeItems
+                    };
+                });
+            });
+
             const payload = {
                 allow_combo_with_daily_offer: Boolean(adminComboConfig.allow_combo_with_daily_offer),
-                combos: adminComboConfig.combos,
+                combos: cleanedCombos,
                 key: 'combo_config',
                 updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
             };
