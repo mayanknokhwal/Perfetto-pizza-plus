@@ -4802,12 +4802,12 @@
                                 <i class="fa-solid fa-percent" style="color: #ff6b00;"></i> Category Master Discount (<span id="discount-cat-name">Category</span>)
                                 <span class="draft-badge" id="category-discount-draft-badge" style="display: none;"><i class="fa-solid fa-pen"></i> Unsaved Draft</span>
                             </div>
-                            <div class="category-discount-desc">Set master discount % (1% – 90%). Items with "Discount Active" enabled automatically inherit this discount.</div>
+                            <div class="category-discount-desc">Set master discount % (2% – 90%). Items with "Discount Active" enabled automatically inherit this discount.</div>
                         </div>
                         <div class="category-discount-input-wrapper">
                             <label for="category-discount-input" style="font-size: 0.82rem; font-weight: 700; color: #cbd5e1;">Master Discount:</label>
                             <div class="discount-field-box">
-                                <input type="number" id="category-discount-input" min="0" max="90" step="1" placeholder="0" class="discount-num-input" oninput="handleCategoryDiscountInputChange()" onchange="handleCategoryDiscountInputChange()">
+                                <input type="number" id="category-discount-input" min="2" max="90" step="1" placeholder="2" class="discount-num-input" oninput="handleCategoryDiscountInputChange(false)" onchange="handleCategoryDiscountInputChange(true)" onblur="handleCategoryDiscountInputBlur()">
                                 <span class="discount-percent-symbol">% OFF</span>
                             </div>
                         </div>
@@ -5515,6 +5515,41 @@
                 extraCheese: 25,
                 extraSpicy: 0,
                 extraMayo: 20
+            },
+            "Desserts": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Salad": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Side Orders": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Colo Drinks": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Hot Cold Coffee": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Mojito": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
+            },
+            "Rice": {
+                extraCheese: 25,
+                extraSpicy: 0,
+                extraMayo: 20
             }
         };
 
@@ -5673,45 +5708,85 @@
             let updated = [...items];
             let modified = false;
 
+            const mergeWithExisting = (templates, existingList) => {
+                return templates.map(tmpl => {
+                    const found = existingList.find(ex => ex && (ex.id === tmpl.id || (ex.name && ex.name.toLowerCase() === tmpl.name.toLowerCase())));
+                    if (found) {
+                        const isAvail = (found.is_available !== undefined)
+                            ? Boolean(found.is_available)
+                            : (found.available !== undefined ? Boolean(found.available) : (found.out_of_stock !== undefined ? !found.out_of_stock : true));
+                        return {
+                            ...tmpl,
+                            ...found,
+                            available: isAvail,
+                            is_available: isAvail,
+                            out_of_stock: !isAvail,
+                            price: found.price !== undefined ? found.price : tmpl.price,
+                            prices: found.prices || tmpl.prices,
+                            img: found.img || tmpl.img
+                        };
+                    }
+                    return { ...tmpl, available: true, is_available: true, out_of_stock: false };
+                });
+            };
+
             // 1. Sanitize Burger items
             const hasOldBurgers = updated.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
             if (hasOldBurgers) {
+                const existingBurgers = updated.filter(i => i.category === 'Burger');
                 const nonBurgers = updated.filter(i => i.category !== 'Burger');
-                updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
+                updated = [...nonBurgers, ...mergeWithExisting(NEW_BURGER_MENU_ITEMS, existingBurgers)];
                 modified = true;
             }
 
             // 2. Sanitize Wrap items
             const hasOldWraps = updated.some(i => i.category === 'Wrap' && (i.id === 'wrp-1' || i.id === 'wrp-2' || i.id === 'wrp-3' || i.id === 'wrp-4' || (i.name && i.name.startsWith('Wrap Option')) || !NEW_WRAP_MENU_ITEMS.some(nw => nw.id === i.id || nw.name === i.name)));
             if (hasOldWraps) {
+                const existingWraps = updated.filter(i => i.category === 'Wrap');
                 const nonWraps = updated.filter(i => i.category !== 'Wrap');
-                updated = [...nonWraps, ...NEW_WRAP_MENU_ITEMS];
+                updated = [...nonWraps, ...mergeWithExisting(NEW_WRAP_MENU_ITEMS, existingWraps)];
                 modified = true;
             }
 
             // 3. Sanitize Bread items
             const hasOldBreads = updated.some(i => i.category === 'Bread' && (i.id === 'brd-1' || i.id === 'brd-2' || i.id === 'brd-3' || i.name === 'Garlic Butter Breadsticks' || i.name === 'Cheesy Garlic Bread' || i.name === 'Stuffed Cheese Pocket' || !NEW_BREAD_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
             if (hasOldBreads) {
+                const existingBreads = updated.filter(i => i.category === 'Bread');
                 const nonBreads = updated.filter(i => i.category !== 'Bread');
-                updated = [...nonBreads, ...NEW_BREAD_MENU_ITEMS];
+                updated = [...nonBreads, ...mergeWithExisting(NEW_BREAD_MENU_ITEMS, existingBreads)];
                 modified = true;
             }
 
             // 4. Sanitize Noodles items
             const hasOldNoodles = updated.some(i => i.category === 'Noodles' && (i.id === 'ndl-1' || i.id === 'ndl-2' || i.id === 'ndl-3' || i.id === 'ndl-4' || (i.name && i.name.startsWith('Noodles Option')) || !NEW_NOODLES_MENU_ITEMS.some(nn => nn.id === i.id || nn.name === i.name)));
             if (hasOldNoodles) {
+                const existingNoodles = updated.filter(i => i.category === 'Noodles');
                 const nonNoodles = updated.filter(i => i.category !== 'Noodles');
-                updated = [...nonNoodles, ...NEW_NOODLES_MENU_ITEMS];
+                updated = [...nonNoodles, ...mergeWithExisting(NEW_NOODLES_MENU_ITEMS, existingNoodles)];
                 modified = true;
             }
 
             // 5. Sanitize Spring Rolls items
             const hasOldSpringRolls = updated.some(i => i.category === 'Spring Rolls' && (i.id === 'spr-1' || i.id === 'spr-2' || i.id === 'spr-3' || i.id === 'spr-4' || (i.name && i.name.startsWith('Spring Rolls Option')) || !NEW_SPRING_ROLLS_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
             if (hasOldSpringRolls) {
+                const existingSpringRolls = updated.filter(i => i.category === 'Spring Rolls');
                 const nonSpringRolls = updated.filter(i => i.category !== 'Spring Rolls');
-                updated = [...nonSpringRolls, ...NEW_SPRING_ROLLS_MENU_ITEMS];
+                updated = [...nonSpringRolls, ...mergeWithExisting(NEW_SPRING_ROLLS_MENU_ITEMS, existingSpringRolls)];
                 modified = true;
             }
+
+            // Universal availability normalization across all items
+            updated = updated.map(item => {
+                const isAvail = (item.is_available !== undefined)
+                    ? Boolean(item.is_available)
+                    : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+                return {
+                    ...item,
+                    available: isAvail,
+                    is_available: isAvail,
+                    out_of_stock: !isAvail
+                };
+            });
 
             // 6. Ensure all 69 WebP image URLs are enforced for Burger, Bread, Wrap, Sandwich, Noodles, Pasta, Salad, Shakes, Coffee, Rice, Momos, Spring Rolls
             const WEBP_MENU_IMAGE_MAP = {
@@ -5860,6 +5935,32 @@
                                 }
                             } catch (e) {}
                         }
+
+                        // Also hydrate category-level schemas directly from categories collection
+                        try {
+                            const catSnaps = await adminFirestore.collection('categories').get();
+                            if (catSnaps && !catSnaps.empty) {
+                                catSnaps.forEach(cDoc => {
+                                    const cData = cDoc.data();
+                                    const catId = cDoc.id;
+                                    if (cData && cData.masterDiscountPercent !== undefined) {
+                                        const disc = parseInt(cData.masterDiscountPercent, 10);
+                                        categoryDiscounts[catId] = (!isNaN(disc) && disc >= 2) ? Math.min(90, disc) : 0;
+                                    }
+                                    if (cData && cData.addons) {
+                                        categoryAddons[catId] = { ...(categoryAddons[catId] || {}), ...cData.addons };
+                                    } else if (cData && (cData.sizes || cData.extraCheese !== undefined || cData.withIceCream !== undefined)) {
+                                        const { masterDiscountPercent, id, name, updatedAt, ...addonFields } = cData;
+                                        categoryAddons[catId] = { ...(categoryAddons[catId] || {}), ...addonFields };
+                                    }
+                                });
+                                committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
+                                committedCategoryAddons = JSON.parse(JSON.stringify(categoryAddons));
+                            }
+                        } catch (catErr) {
+                            console.warn('Direct Firestore categories fetch notice:', catErr.message);
+                        }
+
                         pendingMenuUpdates = {};
                         saveToLocalStorage();
                         isMenuInitialLoading = false;
@@ -6062,84 +6163,80 @@
                 if (discountDraftBadge) discountDraftBadge.style.display = isDiscountModified ? 'inline-flex' : 'none';
             }
 
-            // Handle Category Add-ons Pricing Bar (Burger, Wrap, Bread, Sandwich, Momos, Pasta, Shake, Chinese Food, Noodles & Spring Rolls)
+            // Handle Category Add-ons Pricing Bar (Available across all categories)
             const addonsBar = document.getElementById('category-addons-bar');
             if (addonsBar) {
-                if (categoryName === 'Burger' || categoryName === 'Wrap' || categoryName === 'Pizza' || categoryName === 'Sandwich' || categoryName === 'Bread' || categoryName === 'Momos' || categoryName === 'Pasta' || categoryName === 'Shake' || categoryName === 'Chinese Food' || categoryName === 'Noodles' || categoryName === 'Spring Rolls') {
-                    addonsBar.style.display = 'flex';
-                    const catNameEl = document.getElementById('addons-cat-name');
-                    if (catNameEl) catNameEl.textContent = categoryName;
+                addonsBar.style.display = 'flex';
+                const catNameEl = document.getElementById('addons-cat-name');
+                if (catNameEl) catNameEl.textContent = categoryName;
 
-                    const stdInputs = document.getElementById('standard-category-addons-inputs');
-                    const pizzaInputs = document.getElementById('pizza-category-addons-inputs');
-                    const shakeInputs = document.getElementById('shake-category-addons-inputs');
+                const stdInputs = document.getElementById('standard-category-addons-inputs');
+                const pizzaInputs = document.getElementById('pizza-category-addons-inputs');
+                const shakeInputs = document.getElementById('shake-category-addons-inputs');
 
-                    if (categoryName === 'Pizza') {
-                        if (stdInputs) stdInputs.style.display = 'none';
-                        if (pizzaInputs) pizzaInputs.style.display = 'flex';
-                        if (shakeInputs) shakeInputs.style.display = 'none';
+                if (categoryName === 'Pizza') {
+                    if (stdInputs) stdInputs.style.display = 'none';
+                    if (pizzaInputs) pizzaInputs.style.display = 'flex';
+                    if (shakeInputs) shakeInputs.style.display = 'none';
 
-                        const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
-                        const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
+                    const pAddons = categoryAddons['Pizza'] || { sizes: { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } } };
+                    const sizes = pAddons.sizes || { S: { extraCheese: 30, extraSpicy: 0, extraMayo: 20 }, M: { extraCheese: 50, extraSpicy: 0, extraMayo: 30 }, L: { extraCheese: 70, extraSpicy: 0, extraMayo: 40 } };
 
-                        const sCheese = document.getElementById('addon-pizza-cheese-s');
-                        const sSpicy = document.getElementById('addon-pizza-spicy-s');
-                        const sMayo = document.getElementById('addon-pizza-mayo-s');
-                        const mCheese = document.getElementById('addon-pizza-cheese-m');
-                        const mSpicy = document.getElementById('addon-pizza-spicy-m');
-                        const mMayo = document.getElementById('addon-pizza-mayo-m');
-                        const lCheese = document.getElementById('addon-pizza-cheese-l');
-                        const lSpicy = document.getElementById('addon-pizza-spicy-l');
-                        const lMayo = document.getElementById('addon-pizza-mayo-l');
+                    const sCheese = document.getElementById('addon-pizza-cheese-s');
+                    const sSpicy = document.getElementById('addon-pizza-spicy-s');
+                    const sMayo = document.getElementById('addon-pizza-mayo-s');
+                    const mCheese = document.getElementById('addon-pizza-cheese-m');
+                    const mSpicy = document.getElementById('addon-pizza-spicy-m');
+                    const mMayo = document.getElementById('addon-pizza-mayo-m');
+                    const lCheese = document.getElementById('addon-pizza-cheese-l');
+                    const lSpicy = document.getElementById('addon-pizza-spicy-l');
+                    const lMayo = document.getElementById('addon-pizza-mayo-l');
 
-                        if (sCheese) sCheese.value = sizes.S?.extraCheese ?? 30;
-                        if (sSpicy) sSpicy.value = sizes.S?.extraSpicy ?? 0;
-                        if (sMayo) sMayo.value = sizes.S?.extraMayo ?? 20;
-                        if (mCheese) mCheese.value = sizes.M?.extraCheese ?? 50;
-                        if (mSpicy) mSpicy.value = sizes.M?.extraSpicy ?? 0;
-                        if (mMayo) mMayo.value = sizes.M?.extraMayo ?? 30;
-                        if (lCheese) lCheese.value = sizes.L?.extraCheese ?? 70;
-                        if (lSpicy) lSpicy.value = sizes.L?.extraSpicy ?? 0;
-                        if (lMayo) lMayo.value = sizes.L?.extraMayo ?? 40;
+                    if (sCheese) sCheese.value = sizes.S?.extraCheese ?? 30;
+                    if (sSpicy) sSpicy.value = sizes.S?.extraSpicy ?? 0;
+                    if (sMayo) sMayo.value = sizes.S?.extraMayo ?? 20;
+                    if (mCheese) mCheese.value = sizes.M?.extraCheese ?? 50;
+                    if (mSpicy) mSpicy.value = sizes.M?.extraSpicy ?? 0;
+                    if (mMayo) mMayo.value = sizes.M?.extraMayo ?? 30;
+                    if (lCheese) lCheese.value = sizes.L?.extraCheese ?? 70;
+                    if (lSpicy) lSpicy.value = sizes.L?.extraSpicy ?? 0;
+                    if (lMayo) lMayo.value = sizes.L?.extraMayo ?? 40;
 
-                        const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Pizza']);
-                        const draftBadge = document.getElementById('addons-draft-badge');
-                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
-                    } else if (categoryName === 'Shake') {
-                        if (stdInputs) stdInputs.style.display = 'none';
-                        if (pizzaInputs) pizzaInputs.style.display = 'none';
-                        if (shakeInputs) shakeInputs.style.display = 'flex';
+                    const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Pizza']);
+                    const draftBadge = document.getElementById('addons-draft-badge');
+                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
+                } else if (categoryName === 'Shake') {
+                    if (stdInputs) stdInputs.style.display = 'none';
+                    if (pizzaInputs) pizzaInputs.style.display = 'none';
+                    if (shakeInputs) shakeInputs.style.display = 'flex';
 
-                        const iceCreamInput = document.getElementById('addon-shake-icecream-input');
-                        const currentAddons = categoryAddons['Shake'] || { withIceCream: 30 };
-                        if (iceCreamInput) iceCreamInput.value = currentAddons.withIceCream !== undefined ? currentAddons.withIceCream : 30;
+                    const iceCreamInput = document.getElementById('addon-shake-icecream-input');
+                    const currentAddons = categoryAddons['Shake'] || { withIceCream: 30 };
+                    if (iceCreamInput) iceCreamInput.value = currentAddons.withIceCream !== undefined ? currentAddons.withIceCream : 30;
 
-                        const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Shake']);
-                        const draftBadge = document.getElementById('addons-draft-badge');
-                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
-                    } else {
-                        if (stdInputs) stdInputs.style.display = 'flex';
-                        if (pizzaInputs) pizzaInputs.style.display = 'none';
-                        if (shakeInputs) shakeInputs.style.display = 'none';
-
-                        const cheeseInput = document.getElementById('addon-extra-cheese-input');
-                        const spicyInput = document.getElementById('addon-extra-spicy-input');
-                        const mayoInput = document.getElementById('addon-extra-mayo-input');
-                        const mayoGroup = document.getElementById('addon-group-extra-mayo');
-
-                        const defaultAddon = DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
-                        const currentAddons = categoryAddons[categoryName] || defaultAddon;
-                        if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : defaultAddon.extraCheese;
-                        if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : defaultAddon.extraSpicy;
-                        if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : defaultAddon.extraMayo;
-                        if (mayoGroup) mayoGroup.style.display = 'flex';
-
-                        const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
-                        const draftBadge = document.getElementById('addons-draft-badge');
-                        if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
-                    }
+                    const isAddonModified = Boolean(pendingMenuUpdates['category_addon_Shake']);
+                    const draftBadge = document.getElementById('addons-draft-badge');
+                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
                 } else {
-                    addonsBar.style.display = 'none';
+                    if (stdInputs) stdInputs.style.display = 'flex';
+                    if (pizzaInputs) pizzaInputs.style.display = 'none';
+                    if (shakeInputs) shakeInputs.style.display = 'none';
+
+                    const cheeseInput = document.getElementById('addon-extra-cheese-input');
+                    const spicyInput = document.getElementById('addon-extra-spicy-input');
+                    const mayoInput = document.getElementById('addon-extra-mayo-input');
+                    const mayoGroup = document.getElementById('addon-group-extra-mayo');
+
+                    const defaultAddon = DEFAULT_CATEGORY_ADDONS[categoryName] || { extraCheese: 25, extraSpicy: 0, extraMayo: 20 };
+                    const currentAddons = categoryAddons[categoryName] || defaultAddon;
+                    if (cheeseInput) cheeseInput.value = currentAddons.extraCheese !== undefined ? currentAddons.extraCheese : defaultAddon.extraCheese;
+                    if (spicyInput) spicyInput.value = currentAddons.extraSpicy !== undefined ? currentAddons.extraSpicy : defaultAddon.extraSpicy;
+                    if (mayoInput) mayoInput.value = currentAddons.extraMayo !== undefined ? currentAddons.extraMayo : defaultAddon.extraMayo;
+                    if (mayoGroup) mayoGroup.style.display = 'flex';
+
+                    const isAddonModified = Boolean(pendingMenuUpdates[`category_addon_${categoryName}`]);
+                    const draftBadge = document.getElementById('addons-draft-badge');
+                    if (draftBadge) draftBadge.style.display = isAddonModified ? 'inline-flex' : 'none';
                 }
             }
 
@@ -6155,9 +6252,9 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Burger, Wrap, Bread, Sandwich, Momos, Pasta, Chinese Food, Noodles & Spring Rolls)
+        // HANDLE CATEGORY-LEVEL ADD-ON PRICING CHANGE (DRAFT MODE - Standard categories)
         function handleCategoryAddonChange() {
-            if (!activeCategory || (activeCategory !== 'Burger' && activeCategory !== 'Wrap' && activeCategory !== 'Sandwich' && activeCategory !== 'Bread' && activeCategory !== 'Momos' && activeCategory !== 'Pasta' && activeCategory !== 'Chinese Food' && activeCategory !== 'Noodles' && activeCategory !== 'Spring Rolls')) return;
+            if (!activeCategory || activeCategory === 'Pizza' || activeCategory === 'Shake') return;
 
             const cheeseInput = document.getElementById('addon-extra-cheese-input');
             const spicyInput = document.getElementById('addon-extra-spicy-input');
@@ -6274,16 +6371,27 @@
             updateUnsavedChangesUI();
         }
 
-        // HANDLE CATEGORY-LEVEL MASTER DISCOUNT CHANGE (1% - 90% clamped)
-        function handleCategoryDiscountInputChange() {
+        // HANDLE CATEGORY-LEVEL MASTER DISCOUNT CHANGE (2% - 90% clamped, blocks non-numeric)
+        function handleCategoryDiscountInputChange(isFinal = false) {
             if (!activeCategory) return;
             const input = document.getElementById('category-discount-input');
             if (!input) return;
 
-            let val = parseInt(input.value, 10);
-            if (isNaN(val) || val < 0) val = 0;
-            if (val > 90) val = 90;
-            input.value = val;
+            // Block non-numeric characters
+            let rawStr = String(input.value || '').replace(/[^0-9]/g, '');
+            let val = 0;
+
+            if (rawStr === '') {
+                input.value = isFinal ? '0' : '';
+                val = 0;
+            } else {
+                val = parseInt(rawStr, 10);
+                if (isNaN(val) || val < 0) val = 0;
+                if (val > 90) val = 90;
+                // If final (blur / change) and user entered something > 0 but < 2, clamp to 2
+                if (isFinal && val > 0 && val < 2) val = 2;
+                input.value = String(val);
+            }
 
             categoryDiscounts[activeCategory] = val;
 
@@ -6299,11 +6407,19 @@
 
             // Sync all items in this category that have isDiscountActive: true
             menuItems.forEach(item => {
-                if (item.category === activeCategory && item.isDiscountActive) {
-                    item.appliedDiscountPercent = val;
-                    if (!pendingMenuUpdates[item.id]) pendingMenuUpdates[item.id] = { id: item.id };
-                    pendingMenuUpdates[item.id].isDiscountActive = true;
-                    pendingMenuUpdates[item.id].appliedDiscountPercent = val;
+                if (item.category === activeCategory) {
+                    if (item.isDiscountActive) {
+                        item.appliedDiscountPercent = val;
+                        if (!pendingMenuUpdates[item.id]) pendingMenuUpdates[item.id] = { id: item.id };
+                        pendingMenuUpdates[item.id].isDiscountActive = true;
+                        pendingMenuUpdates[item.id].appliedDiscountPercent = val;
+                    }
+                    const discountStatusEl = document.getElementById(`discount-status-${item.id}`);
+                    if (discountStatusEl) {
+                        const discountText = item.isDiscountActive ? (val > 0 ? `${val}% OFF` : 'Active') : 'No Discount';
+                        discountStatusEl.textContent = discountText;
+                    }
+                    updateDiscountPricePreviewInRow(item);
                 }
             });
 
@@ -6312,10 +6428,14 @@
                 draftBadge.style.display = isModified ? 'inline-flex' : 'none';
             }
 
-            renderCategoryItemsTable();
             updateUnsavedChangesUI();
         }
         window.handleCategoryDiscountInputChange = handleCategoryDiscountInputChange;
+
+        function handleCategoryDiscountInputBlur() {
+            handleCategoryDiscountInputChange(true);
+        }
+        window.handleCategoryDiscountInputBlur = handleCategoryDiscountInputBlur;
 
         // HELPER TO UPDATE DISCOUNT PREVIEW TEXT IN TABLE ROW
         function updateDiscountPricePreviewInRow(item) {
@@ -6976,22 +7096,31 @@
             }
 
             // Update in-memory item
-            const item = menuItems.find(i => i.id === id);
+            const item = menuItems.find(i => String(i.id) === String(id));
             if (item) {
                 item.available = isAvail;
+                item.is_available = isAvail;
+                item.out_of_stock = !isAvail;
             }
 
             // Track modification in pendingMenuUpdates buffer (Draft Mode)
-            const orig = committedMenuItems.find(i => i.id === id);
+            const orig = committedMenuItems.find(i => String(i.id) === String(id));
             if (orig) {
-                const availDiff = item.available !== orig.available;
+                const origAvail = (orig.is_available !== undefined)
+                    ? Boolean(orig.is_available)
+                    : (orig.available !== undefined ? Boolean(orig.available) : (orig.out_of_stock !== undefined ? !orig.out_of_stock : true));
+                const availDiff = isAvail !== origAvail;
                 const priceDiff = (item.isMultiSize || item.prices)
                     ? JSON.stringify(item.prices) !== JSON.stringify(orig.prices)
                     : item.price !== orig.price;
+                const discountDiff = (Boolean(item.isDiscountActive) !== Boolean(orig.isDiscountActive)) ||
+                                     ((item.appliedDiscountPercent || 0) !== (orig.appliedDiscountPercent || 0));
 
-                if (availDiff || priceDiff) {
+                if (availDiff || priceDiff || discountDiff) {
                     if (!pendingMenuUpdates[id]) pendingMenuUpdates[id] = { id };
                     pendingMenuUpdates[id].available = isAvail;
+                    pendingMenuUpdates[id].is_available = isAvail;
+                    pendingMenuUpdates[id].out_of_stock = !isAvail;
                     if (item.isMultiSize || item.prices) pendingMenuUpdates[id].prices = { ...item.prices };
                     else pendingMenuUpdates[id].price = item.price;
                 } else {
@@ -7000,7 +7129,24 @@
             } else {
                 if (!pendingMenuUpdates[id]) pendingMenuUpdates[id] = { id };
                 pendingMenuUpdates[id].available = isAvail;
+                pendingMenuUpdates[id].is_available = isAvail;
+                pendingMenuUpdates[id].out_of_stock = !isAvail;
             }
+
+            // Update row unsaved status and draft badge
+            const hasPending = Boolean(pendingMenuUpdates[id]);
+            const mainRow = document.getElementById(`row-${id}`);
+            const searchRow = document.getElementById(`search-row-${id}`);
+            [mainRow, searchRow].forEach(row => {
+                if (row) {
+                    if (hasPending) row.classList.add('row-has-unsaved-changes');
+                    else row.classList.remove('row-has-unsaved-changes');
+                }
+            });
+            const mainBadge = document.getElementById(`draft-badge-${id}`);
+            const searchBadge = document.getElementById(`search-draft-badge-${id}`);
+            if (mainBadge) mainBadge.style.display = hasPending ? 'inline-flex' : 'none';
+            if (searchBadge) searchBadge.style.display = hasPending ? 'inline-flex' : 'none';
 
             updateStats();
             updateUnsavedChangesUI();
@@ -7243,12 +7389,54 @@
                 if (activeCategory) {
                     const discountInput = document.getElementById('category-discount-input');
                     if (discountInput) {
-                        let dVal = parseInt(discountInput.value, 10);
+                        let rawStr = String(discountInput.value || '').replace(/[^0-9]/g, '');
+                        let dVal = rawStr === '' ? 0 : parseInt(rawStr, 10);
                         if (isNaN(dVal) || dVal < 0) dVal = 0;
                         if (dVal > 90) dVal = 90;
+                        if (dVal > 0 && dVal < 2) dVal = 2;
+                        discountInput.value = String(dVal);
                         categoryDiscounts[activeCategory] = dVal;
                         if (dVal !== (committedCategoryDiscounts[activeCategory] || 0)) {
                             pendingMenuUpdates[`category_discount_${activeCategory}`] = { category: activeCategory, masterDiscountPercent: dVal };
+                        }
+                    }
+
+                    // Flush active Category Add-on inputs if in category view
+                    if (activeCategory === 'Pizza') {
+                        const sCheese = parseFloat(document.getElementById('addon-pizza-cheese-s')?.value) || 0;
+                        const sSpicy = parseFloat(document.getElementById('addon-pizza-spicy-s')?.value) || 0;
+                        const sMayo = parseFloat(document.getElementById('addon-pizza-mayo-s')?.value) || 0;
+                        const mCheese = parseFloat(document.getElementById('addon-pizza-cheese-m')?.value) || 0;
+                        const mSpicy = parseFloat(document.getElementById('addon-pizza-spicy-m')?.value) || 0;
+                        const mMayo = parseFloat(document.getElementById('addon-pizza-mayo-m')?.value) || 0;
+                        const lCheese = parseFloat(document.getElementById('addon-pizza-cheese-l')?.value) || 0;
+                        const lSpicy = parseFloat(document.getElementById('addon-pizza-spicy-l')?.value) || 0;
+                        const lMayo = parseFloat(document.getElementById('addon-pizza-mayo-l')?.value) || 0;
+
+                        if (!categoryAddons['Pizza']) categoryAddons['Pizza'] = {};
+                        categoryAddons['Pizza'].sizes = {
+                            S: { extraCheese: sCheese, extraSpicy: sSpicy, extraMayo: sMayo },
+                            M: { extraCheese: mCheese, extraSpicy: mSpicy, extraMayo: mMayo },
+                            L: { extraCheese: lCheese, extraSpicy: lSpicy, extraMayo: lMayo }
+                        };
+                        pendingMenuUpdates['category_addon_Pizza'] = { category: 'Pizza', ...categoryAddons['Pizza'] };
+                    } else if (activeCategory === 'Shake') {
+                        const iceCreamInput = document.getElementById('addon-shake-icecream-input');
+                        if (iceCreamInput) {
+                            if (!categoryAddons['Shake']) categoryAddons['Shake'] = {};
+                            categoryAddons['Shake'].withIceCream = parseFloat(iceCreamInput.value) || 0;
+                            pendingMenuUpdates['category_addon_Shake'] = { category: 'Shake', ...categoryAddons['Shake'] };
+                        }
+                    } else {
+                        const cheeseInput = document.getElementById('addon-extra-cheese-input');
+                        const spicyInput = document.getElementById('addon-extra-spicy-input');
+                        const mayoInput = document.getElementById('addon-extra-mayo-input');
+                        if (cheeseInput || spicyInput || mayoInput) {
+                            if (!categoryAddons[activeCategory]) categoryAddons[activeCategory] = {};
+                            if (cheeseInput) categoryAddons[activeCategory].extraCheese = parseFloat(cheeseInput.value) || 0;
+                            if (spicyInput) categoryAddons[activeCategory].extraSpicy = parseFloat(spicyInput.value) || 0;
+                            if (mayoInput) categoryAddons[activeCategory].extraMayo = parseFloat(mayoInput.value) || 0;
+                            pendingMenuUpdates[`category_addon_${activeCategory}`] = { category: activeCategory, ...categoryAddons[activeCategory] };
                         }
                     }
                 }
@@ -7258,6 +7446,8 @@
                     const toggleInput = document.getElementById(`toggle-${item.id}`) || document.getElementById(`search-toggle-${item.id}`);
                     if (toggleInput) {
                         item.available = toggleInput.checked;
+                        item.is_available = toggleInput.checked;
+                        item.out_of_stock = !toggleInput.checked;
                     }
 
                     const discountToggle = document.getElementById(`discount-toggle-${item.id}`) || document.getElementById(`search-discount-toggle-${item.id}`);
@@ -7282,9 +7472,12 @@
                         }
                     }
 
-                    const orig = committedMenuItems.find(i => i.id === item.id);
+                    const orig = committedMenuItems.find(i => String(i.id) === String(item.id));
                     if (orig) {
-                        const availDiff = item.available !== orig.available;
+                        const origAvail = (orig.is_available !== undefined)
+                            ? Boolean(orig.is_available)
+                            : (orig.available !== undefined ? Boolean(orig.available) : (orig.out_of_stock !== undefined ? !orig.out_of_stock : true));
+                        const availDiff = item.available !== origAvail;
                         const priceDiff = (item.isMultiSize || item.prices)
                             ? JSON.stringify(item.prices) !== JSON.stringify(orig.prices)
                             : item.price !== orig.price;
@@ -7294,6 +7487,8 @@
                         if (availDiff || priceDiff || discountDiff) {
                             if (!pendingMenuUpdates[item.id]) pendingMenuUpdates[item.id] = { id: item.id };
                             pendingMenuUpdates[item.id].available = item.available;
+                            pendingMenuUpdates[item.id].is_available = item.available;
+                            pendingMenuUpdates[item.id].out_of_stock = !item.available;
                             pendingMenuUpdates[item.id].isDiscountActive = Boolean(item.isDiscountActive);
                             pendingMenuUpdates[item.id].appliedDiscountPercent = item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0;
                             if (item.isMultiSize || item.prices) pendingMenuUpdates[item.id].prices = { ...item.prices };
@@ -7339,9 +7534,12 @@
                 }
 
                 const modifiedIds = Object.keys(pendingMenuUpdates);
+                const hasAddonDiff = JSON.stringify(categoryAddons) !== JSON.stringify(committedCategoryAddons);
+                const hasDiscountDiff = JSON.stringify(categoryDiscounts) !== JSON.stringify(committedCategoryDiscounts);
+                const hasMenuOrCategoryChanges = modifiedIds.length > 0 || hasAddonDiff || hasDiscountDiff;
 
                 // 5. Commit menu updates if any were modified
-                if (modifiedIds.length > 0) {
+                if (hasMenuOrCategoryChanges) {
                     showToast('Saving all store settings, wallet configurations & batch menu changes...');
 
                     if (adminFirestore) {
@@ -7349,14 +7547,18 @@
                             const batch = adminFirestore.batch();
 
                             modifiedIds.forEach(itemId => {
-                                const item = menuItems.find(i => i.id === itemId);
+                                const item = menuItems.find(i => String(i.id) === String(itemId));
                                 if (item) {
-                                    const docRef = adminFirestore.collection('menu').doc(String(itemId));
+                                    const isAvail = item.available !== false && item.is_available !== false;
+                                    const docRefMenu = adminFirestore.collection('menu').doc(String(itemId));
+                                    const docRefMenuItems = adminFirestore.collection('menu_items').doc(String(itemId));
                                     const updatePayload = {
                                         id: String(item.id),
                                         name: item.name,
                                         category: item.category,
-                                        available: item.available !== false,
+                                        available: isAvail,
+                                        is_available: isAvail,
+                                        out_of_stock: !isAvail,
                                         isDiscountActive: Boolean(item.isDiscountActive),
                                         appliedDiscountPercent: item.isDiscountActive ? (categoryDiscounts[item.category] || 0) : 0,
                                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -7368,18 +7570,40 @@
                                         updatePayload.price = item.price;
                                         updatePayload.isMultiSize = false;
                                     }
-                                    batch.set(docRef, updatePayload, { merge: true });
+                                    batch.set(docRefMenu, updatePayload, { merge: true });
+                                    batch.set(docRefMenuItems, updatePayload, { merge: true });
                                 }
                             });
 
-                            // Save category-level master discounts to categories/{catId}
-                            Object.keys(categoryDiscounts).forEach(catId => {
+                            // Save category-level documents to categories/{catId} (including master discount and custom add-on pricing)
+                            const allCategoryKeys = new Set([...Object.keys(categoryDiscounts), ...Object.keys(categoryAddons), ...Object.keys(CATEGORY_META || {})]);
+                            allCategoryKeys.forEach(catId => {
                                 const catDocRef = adminFirestore.collection('categories').doc(catId);
-                                batch.set(catDocRef, {
+                                const catPayload = {
                                     id: catId,
+                                    name: (CATEGORY_META[catId] && CATEGORY_META[catId].name) || catId,
                                     masterDiscountPercent: categoryDiscounts[catId] || 0,
                                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                                }, { merge: true });
+                                };
+                                if (categoryAddons[catId]) {
+                                    catPayload.addons = categoryAddons[catId];
+                                    if (categoryAddons[catId].sizes) {
+                                        catPayload.sizes = categoryAddons[catId].sizes;
+                                    }
+                                    if (categoryAddons[catId].extraCheese !== undefined) {
+                                        catPayload.extraCheese = categoryAddons[catId].extraCheese;
+                                    }
+                                    if (categoryAddons[catId].extraSpicy !== undefined) {
+                                        catPayload.extraSpicy = categoryAddons[catId].extraSpicy;
+                                    }
+                                    if (categoryAddons[catId].extraMayo !== undefined) {
+                                        catPayload.extraMayo = categoryAddons[catId].extraMayo;
+                                    }
+                                    if (categoryAddons[catId].withIceCream !== undefined) {
+                                        catPayload.withIceCream = categoryAddons[catId].withIceCream;
+                                    }
+                                }
+                                batch.set(catDocRef, catPayload, { merge: true });
                             });
 
                             const settingsMenuRef = adminFirestore.collection('settings').doc('menu');
@@ -7392,6 +7616,9 @@
 
                             const settingsAddonsRef = adminFirestore.collection('settings').doc('category_addons');
                             batch.set(settingsAddonsRef, categoryAddons, { merge: true });
+
+                            const settingsDiscountsRef = adminFirestore.collection('settings').doc('category_discounts');
+                            batch.set(settingsDiscountsRef, categoryDiscounts, { merge: true });
 
                             await batch.commit();
                         } catch (firestoreErr) {
@@ -7417,6 +7644,9 @@
                     committedCategoryDiscounts = JSON.parse(JSON.stringify(categoryDiscounts));
                     pendingMenuUpdates = {};
                     saveToLocalStorage();
+                    try {
+                        localStorage.setItem(CATEGORY_DISCOUNTS_STORAGE_KEY, JSON.stringify(categoryDiscounts));
+                    } catch (e) {}
                     updateStats();
                     updateUnsavedChangesUI();
 
@@ -10008,8 +10238,20 @@
             return items.filter(i => (i.category || '').trim().toLowerCase() === cat.trim().toLowerCase());
         }
 
+        function isComboItemAvailable(p) {
+            if (!p) return false;
+            return (p.is_available !== undefined)
+                ? Boolean(p.is_available)
+                : (p.available !== undefined ? Boolean(p.available) : (p.out_of_stock !== undefined ? !p.out_of_stock : true));
+        }
+        window.isComboItemAvailable = isComboItemAvailable;
+
         function formatComboProductOptionLabel(p) {
             if (!p) return '';
+            const isAvail = isComboItemAvailable(p);
+            if (!isAvail) {
+                return `${p.name} - (Not Available / Out of Stock)`;
+            }
             if (p.isMultiSize && p.prices) {
                 const sPrice = p.prices.S !== undefined ? p.prices.S : (p.price || 0);
                 const mPrice = p.prices.M !== undefined ? p.prices.M : (p.price || 0);
@@ -10216,9 +10458,11 @@
                         prodOpts = `<option value="" selected>-- None --</option>`;
                     } else {
                         catProducts.forEach(p => {
+                            const isAvail = isComboItemAvailable(p);
                             const isSel = (String(p.id) === String(selectedItemId));
                             const label = formatComboProductOptionLabel(p);
-                            prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+                            const disabledAttr = !isAvail ? 'disabled="disabled" style="color:#94a3b8;font-style:italic;"' : '';
+                            prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''} ${disabledAttr}>${escapeHtml(label)}</option>`;
                         });
                     }
 
@@ -10413,8 +10657,10 @@
                     if (qtyInput) qtyInput.disabled = false;
 
                     const catProducts = getComboProductsByCategory(slot.category_id);
-                    slot.item_id = catProducts[0] ? String(catProducts[0].id) : '';
-                    const newProd = catProducts[0] || null;
+                    // Automatically select first AVAILABLE product in this category
+                    const firstAvail = catProducts.find(p => isComboItemAvailable(p)) || catProducts[0];
+                    slot.item_id = firstAvail ? String(firstAvail.id) : '';
+                    const newProd = firstAvail || null;
                     slot.size = (newProd && newProd.isMultiSize) ? 'M' : '';
                     slot.variant_id = slot.size;
 
@@ -10423,8 +10669,11 @@
                         prodSelect.disabled = false;
                         let prodOpts = '';
                         catProducts.forEach(p => {
+                            const isAvail = isComboItemAvailable(p);
+                            const isSel = String(p.id) === String(slot.item_id);
                             const label = formatComboProductOptionLabel(p);
-                            prodOpts += `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
+                            const disabledAttr = !isAvail ? 'disabled="disabled" style="color:#94a3b8;font-style:italic;"' : '';
+                            prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''} ${disabledAttr}>${escapeHtml(label)}</option>`;
                         });
                         prodSelect.innerHTML = prodOpts;
                     }
@@ -10449,8 +10698,14 @@
                     if (linePriceEl) linePriceEl.textContent = `₹${linePrice}`;
                 }
             } else if (field === 'product') {
-                slot.item_id = String(val).trim();
-                const prod = allItems.find(i => String(i.id) === String(slot.item_id));
+                const targetId = String(val).trim();
+                const prod = allItems.find(i => String(i.id) === targetId);
+                if (prod && !isComboItemAvailable(prod)) {
+                    showToast(`⚠️ "${prod.name}" is currently Out of Stock and cannot be added to a Value Combo deal.`);
+                    if (prodSelect) prodSelect.value = slot.item_id;
+                    return;
+                }
+                slot.item_id = targetId;
                 slot.size = (prod && prod.isMultiSize) ? 'M' : '';
                 slot.variant_id = slot.size;
 

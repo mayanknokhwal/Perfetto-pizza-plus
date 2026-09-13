@@ -231,7 +231,18 @@ async function getLiveMenuFromFirestore() {
     try {
         const doc = await getFirestoreDoc('settings', 'menu');
         if (doc && Array.isArray(doc.items) && doc.items.length > 0) {
-            global.__perfettoMenuState = doc.items;
+            const normalized = doc.items.map(item => {
+                const isAvail = (item.is_available !== undefined)
+                    ? Boolean(item.is_available)
+                    : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+                return {
+                    ...item,
+                    available: isAvail,
+                    is_available: isAvail,
+                    out_of_stock: !isAvail
+                };
+            });
+            global.__perfettoMenuState = normalized;
             if (doc.categoryAddons) {
                 global.__perfettoCategoryAddons = doc.categoryAddons;
             }
@@ -239,7 +250,7 @@ async function getLiveMenuFromFirestore() {
                 global.__perfettoCategoryDiscounts = doc.categoryDiscounts;
             }
             return {
-                items: doc.items,
+                items: normalized,
                 categoryAddons: doc.categoryAddons || global.__perfettoCategoryAddons,
                 categoryDiscounts: doc.categoryDiscounts || global.__perfettoCategoryDiscounts || {}
             };
@@ -247,8 +258,19 @@ async function getLiveMenuFromFirestore() {
     } catch (e) {
         console.warn('Firestore menu read note:', e.message);
     }
+    const normalized = (global.__perfettoMenuState || []).map(item => {
+        const isAvail = (item.is_available !== undefined)
+            ? Boolean(item.is_available)
+            : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+        return {
+            ...item,
+            available: isAvail,
+            is_available: isAvail,
+            out_of_stock: !isAvail
+        };
+    });
     return {
-        items: global.__perfettoMenuState,
+        items: normalized,
         categoryAddons: global.__perfettoCategoryAddons,
         categoryDiscounts: global.__perfettoCategoryDiscounts || {}
     };
@@ -281,7 +303,7 @@ async function handleMenuRequest(req, res) {
             if (typeof body === 'string') {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
-            const { id, available, price, prices, name, desc, img, isMultiSize, isDiscountActive, appliedDiscountPercent } = body || {};
+            const { id, available, is_available, out_of_stock, price, prices, name, desc, img, isMultiSize, isDiscountActive, appliedDiscountPercent } = body || {};
 
             if (!id) {
                 return res.status(400).json({ success: false, message: 'Missing required field: id' });
@@ -319,8 +341,16 @@ async function handleMenuRequest(req, res) {
             let items = [...allItems];
             let itemIndex = items.findIndex(i => i.id === targetId);
 
+            const resolvedAvailable = (is_available !== undefined)
+                ? Boolean(is_available)
+                : (available !== undefined ? Boolean(available) : (out_of_stock !== undefined ? !out_of_stock : undefined));
+
             if (itemIndex >= 0) {
-                if (available !== undefined) items[itemIndex].available = Boolean(available);
+                if (resolvedAvailable !== undefined) {
+                    items[itemIndex].available = resolvedAvailable;
+                    items[itemIndex].is_available = resolvedAvailable;
+                    items[itemIndex].out_of_stock = !resolvedAvailable;
+                }
                 if (price !== undefined) items[itemIndex].price = Number(price);
                 if (prices !== undefined) items[itemIndex].prices = prices;
                 if (name !== undefined) items[itemIndex].name = name;
@@ -330,6 +360,7 @@ async function handleMenuRequest(req, res) {
                 if (isDiscountActive !== undefined) items[itemIndex].isDiscountActive = Boolean(isDiscountActive);
                 if (appliedDiscountPercent !== undefined) items[itemIndex].appliedDiscountPercent = Number(appliedDiscountPercent);
             } else {
+                const initialAvail = resolvedAvailable !== undefined ? resolvedAvailable : true;
                 items.push({
                     id: targetId,
                     name: name || 'Food Item',
@@ -337,7 +368,9 @@ async function handleMenuRequest(req, res) {
                     isMultiSize: Boolean(isMultiSize),
                     price: Number(price || 0),
                     prices: prices || { S: 199, M: 299, L: 399 },
-                    available: available !== undefined ? Boolean(available) : true,
+                    available: initialAvail,
+                    is_available: initialAvail,
+                    out_of_stock: !initialAvail,
                     isDiscountActive: Boolean(isDiscountActive),
                     appliedDiscountPercent: Number(appliedDiscountPercent || 0),
                     img: img || '',
@@ -359,6 +392,7 @@ async function handleMenuRequest(req, res) {
                     updatedAt: new Date().toISOString()
                 });
                 await setFirestoreDoc('menu', targetId, updatedItem);
+                await setFirestoreDoc('menu_items', targetId, updatedItem);
             } catch (err) {
                 console.error('CRITICAL: Firestore menu sync error:', err.message);
             }
@@ -385,9 +419,22 @@ async function handleMenuRequest(req, res) {
                 return res.status(400).json({ success: false, message: 'Missing or invalid items array' });
             }
 
+            // Normalize availability and enforce strict price validation
+            const normalizedItems = rawItems.map(item => {
+                const isAvail = (item.is_available !== undefined)
+                    ? Boolean(item.is_available)
+                    : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+                return {
+                    ...item,
+                    available: isAvail,
+                    is_available: isAvail,
+                    out_of_stock: !isAvail
+                };
+            });
+
             // Strict price validation for all items when not resetting to defaults
             if (!isReset) {
-                for (const item of rawItems) {
+                for (const item of normalizedItems) {
                     const itemName = item.name || 'Item';
                     if (item.isMultiSize || item.category === 'Pizza' || (item.prices && typeof item.prices === 'object')) {
                         const p = item.prices || {};
@@ -419,11 +466,11 @@ async function handleMenuRequest(req, res) {
             }
 
             try {
-                global.__perfettoMenuState = JSON.parse(JSON.stringify(rawItems));
+                global.__perfettoMenuState = JSON.parse(JSON.stringify(normalizedItems));
                 global.__perfettoCategoryAddons = JSON.parse(JSON.stringify(newAddons));
                 global.__perfettoCategoryDiscounts = JSON.parse(JSON.stringify(newDiscounts));
             } catch (cloneErr) {
-                global.__perfettoMenuState = Array.isArray(rawItems) ? [...rawItems] : [];
+                global.__perfettoMenuState = [...normalizedItems];
                 global.__perfettoCategoryAddons = newAddons;
                 global.__perfettoCategoryDiscounts = newDiscounts;
             }

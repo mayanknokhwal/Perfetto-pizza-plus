@@ -3765,44 +3765,80 @@ html[lang="hi"] .nav-label {
    16. OUT-OF-STOCK PRODUCT STYLES (ADMIN SYNCHRONIZATION)
    -------------------------------------------------------------------------- */
 .pizza-card.out-of-stock,
-.sub-item-card.out-of-stock {
+.sub-item-card.out-of-stock,
+.burger-card.out-of-stock,
+.product-card.out-of-stock,
+div[class*="-card"].out-of-stock {
     position: relative;
     overflow: hidden;
 }
 
 .pizza-card.out-of-stock .pizza-card-img,
-.sub-item-card.out-of-stock .sub-item-img {
+.sub-item-card.out-of-stock .sub-item-img,
+.burger-card.out-of-stock img,
+.product-card.out-of-stock img,
+div[class*="-card"].out-of-stock img {
     filter: grayscale(100%);
-    opacity: 0.65;
+    opacity: 0.55;
+    transition: filter 0.3s ease, opacity 0.3s ease;
 }
 
 .out-of-stock-badge {
     position: absolute;
     top: 14px;
-    left: 14px;
-    right: 14px;
-    background-color: rgba(239, 68, 68, 0.92);
+    left: 12px;
+    right: 12px;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.95));
     color: #ffffff;
     padding: 8px 12px;
     border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    font-weight: 800;
     text-align: center;
-    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.45);
     z-index: 15;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    backdrop-filter: blur(4px);
+    letter-spacing: 0.04em;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
 }
 
 .pizza-add-cart-btn.disabled,
-.add-subitem-btn.disabled {
-    background-color: #64748b !important;
+.add-subitem-btn.disabled,
+.burger-add-cart-btn.disabled,
+.bread-add-cart-btn.disabled,
+.sandwich-add-cart-btn.disabled,
+.momos-add-cart-btn.disabled,
+.pasta-add-cart-btn.disabled,
+.chinese-add-cart-btn.disabled,
+.shake-add-cart-btn.disabled,
+.rice-add-cart-btn.disabled,
+.coffee-add-cart-btn.disabled,
+.noodles-add-cart-btn.disabled,
+.desserts-add-cart-btn.disabled,
+.salad-add-cart-btn.disabled,
+.side-orders-add-cart-btn.disabled,
+.cold-drinks-add-cart-btn.disabled,
+.mojito-add-cart-btn.disabled,
+.spring-rolls-add-cart-btn.disabled,
+.deal-cart-btn.disabled,
+.btn-add-cart.disabled,
+button[disabled].disabled,
+button.btn-disabled-stock {
+    background: #475569 !important;
+    background-color: #475569 !important;
     color: #cbd5e1 !important;
     cursor: not-allowed !important;
     opacity: 0.65 !important;
     pointer-events: none !important;
     box-shadow: none !important;
+    border: 1px solid #64748b !important;
 }
 
 /* --------------------------------------------------------------------------

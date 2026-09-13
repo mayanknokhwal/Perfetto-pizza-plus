@@ -446,6 +446,15 @@ function isCategoryMatch(cat1, cat2) {
 }
 window.isCategoryMatch = isCategoryMatch;
 
+function isProductAvailable(item) {
+    if (!item) return false;
+    if (item.is_available !== undefined) return Boolean(item.is_available);
+    if (item.available !== undefined) return Boolean(item.available);
+    if (item.out_of_stock !== undefined) return !item.out_of_stock;
+    return true;
+}
+window.isProductAvailable = isProductAvailable;
+
 let customerCategoryAddons = JSON.parse(JSON.stringify(DEFAULT_CATEGORY_ADDONS));
 let customerCategoryDiscounts = {};
 
@@ -2228,6 +2237,12 @@ async function fetchLiveMenuFromBackend() {
                     localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
                 } catch (e) { }
             }
+            if (data.categoryDiscounts) {
+                try {
+                    customerCategoryDiscounts = { ...data.categoryDiscounts };
+                    localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
+                } catch (e) { }
+            }
             const freshItems = sanitizeStoredMenuItems(data.items) || data.items;
             const newHash = computeMenuHash(freshItems);
             const stored = getStoredMenuItems();
@@ -2378,7 +2393,7 @@ function validateCartAvailability() {
             (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) ||
             (i.id && cartItem.id && i.id === cartItem.id)
         );
-        if (found && found.available === false) {
+        if (found && !isProductAvailable(found)) {
             unavailableInCart.push(cartItem.name);
         }
     });
@@ -2391,11 +2406,16 @@ function getSubItems(categoryName, categoryImg) {
     if (storedItems) {
         const catItems = storedItems.filter(i => i.category === categoryName);
         if (catItems.length > 0) {
-            return catItems.map(item => ({
-                ...item,
-                img: item.img || categoryImg,
-                available: item.available !== false
-            }));
+            return catItems.map(item => {
+                const isAvail = isProductAvailable(item);
+                return {
+                    ...item,
+                    img: item.img || categoryImg,
+                    available: isAvail,
+                    is_available: isAvail,
+                    out_of_stock: !isAvail
+                };
+            });
         }
     }
 
@@ -2578,7 +2598,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
                        </p>`;
                 }
 
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const addBtnMarkup = isAvailable
@@ -2658,7 +2678,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = `sub-items-grid ${prefix}-grid-container grid grid-cols-2 gap-3`;
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -2730,7 +2750,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid bread-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -2803,7 +2823,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid sandwich-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -2876,7 +2896,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid momos-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -2949,7 +2969,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid pasta-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3022,7 +3042,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid chinese-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3093,7 +3113,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid shake-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3147,7 +3167,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Rice") {
             subItemsGrid.className = 'sub-items-grid rice-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3185,7 +3205,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Hot Cold Coffee" || categoryName === "Hot & Cold Coffee" || categoryName === "Coffee") {
             subItemsGrid.className = 'sub-items-grid coffee-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3228,7 +3248,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid noodles-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3296,7 +3316,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Desserts") {
             subItemsGrid.className = 'sub-items-grid desserts-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3334,7 +3354,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Salad") {
             subItemsGrid.className = 'sub-items-grid salad-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3372,7 +3392,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Side Orders") {
             subItemsGrid.className = 'sub-items-grid side-orders-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3410,7 +3430,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Colo Drinks" || categoryName === "Cold Drinks") {
             subItemsGrid.className = 'sub-items-grid cold-drinks-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3448,7 +3468,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else if (categoryName === "Mojito") {
             subItemsGrid.className = 'sub-items-grid mojito-grid-container grid grid-cols-2 gap-3';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3491,7 +3511,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
 
             subItemsGrid.className = 'sub-items-grid spring-rolls-grid-container';
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const itemId = item.id || item.name.toLowerCase().replace(/\s+/g, '-');
@@ -3561,7 +3581,7 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         } else {
             subItemsGrid.classList.remove('pizza-grid-container');
             subItemsGrid.innerHTML = items.map(item => {
-                const isAvailable = item.available !== false;
+                const isAvailable = isProductAvailable(item);
                 const outOfStockClass = isAvailable ? '' : 'out-of-stock';
                 const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${t('product_not_available')}</div>`;
                 const origPrice = Number(item.price) || 0;
@@ -6045,7 +6065,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     const allItems = getAllCustomerMenuItems();
     const cleanName = (name || '').replace(/\s*\([SML]\)$/i, '').replace(/\s*\(\+.*?\)$/i, '').trim();
     const menuItem = allItems.find(i => (i.name && i.name.toLowerCase() === cleanName.toLowerCase()));
-    if (menuItem && menuItem.available === false) {
+    if (menuItem && !isProductAvailable(menuItem)) {
         showToast(`⚠️ "${cleanName}" is currently out of stock.`);
         return false;
     }
@@ -12119,7 +12139,7 @@ function openSpotlightBannerModal(targetProductId, discountPercent) {
         return;
     }
 
-    if (product.available === false) {
+    if (!isProductAvailable(product)) {
         showToast(`⚠️ "${product.name}" is currently out of stock.`);
         return;
     }
@@ -12565,13 +12585,13 @@ function openFreeGiftSelectionModal(editIndex) {
     let eligible = [];
 
     if (isPizza) {
-        eligible = allItems.filter(item => isCategoryMatch(item.category, 'Pizza') && item.available !== false);
+        eligible = allItems.filter(item => isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item));
         if (eligible.length === 0 && typeof categorySubItems !== 'undefined' && categorySubItems['Pizza']) {
             eligible = categorySubItems['Pizza'].filter(i => i.available !== false);
         }
     } else {
         const catTarget = config.rewardCategory || 'Shake';
-        eligible = allItems.filter(item => isCategoryMatch(item.category, catTarget) && item.available !== false);
+        eligible = allItems.filter(item => isCategoryMatch(item.category, catTarget) && isProductAvailable(item));
         if (eligible.length === 0 && typeof categorySubItems !== 'undefined') {
             const matchedKey = Object.keys(categorySubItems).find(k => isCategoryMatch(k, catTarget));
             if (matchedKey) {
@@ -12967,12 +12987,12 @@ function openBogoComboModal() {
 
     // Step 1: Paid items belonging to buyCategory (pizza strictly excluded)
     const buyItems = allItems.filter(item => {
-        return isCategoryMatch(item.category, config.buyCategory) && !isCategoryMatch(item.category, 'Pizza') && item.available !== false;
+        return isCategoryMatch(item.category, config.buyCategory) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
     });
 
     // Step 2: Free reward items belonging to rewardCategory (pizza strictly excluded)
     const rewardItems = allItems.filter(item => {
-        return isCategoryMatch(item.category, config.rewardCategory) && !isCategoryMatch(item.category, 'Pizza') && item.available !== false;
+        return isCategoryMatch(item.category, config.rewardCategory) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
     });
 
     if (buyItems.length === 0) {
@@ -15307,7 +15327,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
     // 2A. Render Matching Pizzas (Exact 2-Column Pizza Card Grid Layout)
     if (pizzasGrid && matchingPizzas.length > 0) {
         pizzasGrid.innerHTML = matchingPizzas.map(({ item }) => {
-            const isAvailable = item.available !== false;
+            const isAvailable = isProductAvailable(item);
             const outOfStockClass = isAvailable ? '' : 'out-of-stock';
             const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${typeof t === 'function' ? t('product_not_available') : 'This time product is not available'}</div>`;
 
@@ -15405,7 +15425,7 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
     // 2B. Render Matching Other Products (Burgers, Pastas, Drinks, Side Orders, etc.)
     if (productsGrid && matchingOtherProducts.length > 0) {
         productsGrid.innerHTML = matchingOtherProducts.map(({ item }) => {
-            const isAvailable = item.available !== false;
+            const isAvailable = isProductAvailable(item);
             const outOfStockClass = isAvailable ? '' : 'out-of-stock';
             const outOfStockBadge = isAvailable ? '' : `<div class="out-of-stock-badge"><i class="fa-solid fa-circle-exclamation"></i> ${typeof t === 'function' ? t('product_not_available') : 'This time product is not available'}</div>`;
             const origPrice = Number(item.price) || 199;
@@ -15773,6 +15793,12 @@ function listenToRealtimeMenuAndRates() {
                         try {
                             customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
                             localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                        } catch (e) { }
+                    }
+                    if (doc.data().categoryDiscounts) {
+                        try {
+                            customerCategoryDiscounts = { ...doc.data().categoryDiscounts };
+                            localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
                         } catch (e) { }
                     }
                     const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
