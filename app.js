@@ -540,14 +540,15 @@ function getItemEffectiveDiscount(item) {
         ? Number(discounts[item.category])
         : 0;
 
-    const isDiscountActive = Boolean(item.isDiscountActive);
+    // Check item-level toggle OR Category Master Discount
+    const hasActiveDiscount = Boolean(item.isDiscountActive) || (catDiscount > 0 && item.isDiscountActive !== false);
     // Inherit active category discount percentage or item appliedDiscountPercent
-    const discountPercent = isDiscountActive
-        ? Math.min(90, Math.max(0, catDiscount || item.appliedDiscountPercent || 0))
+    const discountPercent = hasActiveDiscount
+        ? Math.min(90, Math.max(0, item.appliedDiscountPercent || catDiscount || 0))
         : 0;
 
     return {
-        isDiscountActive: isDiscountActive && discountPercent > 0,
+        isDiscountActive: hasActiveDiscount && discountPercent > 0,
         discountPercent: discountPercent
     };
 }
@@ -556,6 +557,16 @@ function calculateDiscountedPrice(basePrice, discountPercent) {
     if (!discountPercent || discountPercent <= 0) return Math.round(Number(basePrice) || 0);
     const clamped = Math.min(95, Math.max(0, Number(discountPercent) || 0));
     return Math.round((Number(basePrice) || 0) * (1 - clamped / 100));
+}
+
+function getEffectiveDiscountedUnitPrice(menuItem, basePrice) {
+    const rawPrice = Number(basePrice) || 0;
+    if (!menuItem || rawPrice <= 0) return rawPrice;
+    const discInfo = getItemEffectiveDiscount(menuItem);
+    if (discInfo.isDiscountActive && discInfo.discountPercent > 0) {
+        return calculateDiscountedPrice(rawPrice, discInfo.discountPercent);
+    }
+    return Math.round(rawPrice);
 }
 
 function getPizzaSizeAddonRates(size = 'M') {
@@ -2211,17 +2222,29 @@ function syncCartWithLatestMenu(freshItems) {
     let changed = false;
 
     cart.forEach(cartItem => {
+        if (cartItem.type === 'combo' || cartItem.isComboBundle || cartItem.isBannerDeal || cartItem.isSpotlightDeal || cartItem.isFreeGift) {
+            return;
+        }
+
+        const addonsSum = Array.isArray(cartItem.addons)
+            ? cartItem.addons.reduce((sum, a) => sum + (Number(a && typeof a === 'object' ? a.price : 0) || 0), 0)
+            : 0;
+
         // 1. Check if it's a Pizza with size e.g. "Hot Country (M)"
-        const sizeMatch = cartItem.name.match(/^(.+?)\s*\((S|M|L)\)$/i);
+        const sizeMatch = (cartItem.name || '').match(/^(.+?)\s*\((S|M|L)\)(.*)$/i);
         if (sizeMatch) {
             const pizzaName = sizeMatch[1].trim().toLowerCase();
             const size = sizeMatch[2].toUpperCase();
             const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === pizzaName) || (m.id && m.id.toLowerCase() === pizzaName));
             if (menuItem) {
-                const freshPrice = (menuItem.prices && menuItem.prices[size]) || cartItem.price;
-                if (cartItem.price !== freshPrice) {
-                    cartItem.price = freshPrice;
-                    changed = true;
+                if (menuItem.prices && menuItem.prices[size] !== undefined) {
+                    const freshBasePrice = Number(menuItem.prices[size]);
+                    const effBasePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
+                    const expectedTotal = effBasePrice + addonsSum;
+                    if (cartItem.price !== expectedTotal) {
+                        cartItem.price = expectedTotal;
+                        changed = true;
+                    }
                 }
                 if (menuItem.available === false && cartItem.available !== false) {
                     cartItem.available = false;
@@ -2232,13 +2255,18 @@ function syncCartWithLatestMenu(freshItems) {
                 }
             }
         } else {
-            // 2. Regular item (Burger, Shake, etc.)
-            const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === cartItem.name.toLowerCase()) || (m.id && m.id === cartItem.id));
+            // 2. Regular item (Burger, Bread, Shake, etc.)
+            const cleanName = (cartItem.name || '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
+            const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === cleanName) || (m.id && m.id === cartItem.id));
             if (menuItem) {
-                const freshPrice = menuItem.price !== undefined ? menuItem.price : cartItem.price;
-                if (cartItem.price !== freshPrice) {
-                    cartItem.price = freshPrice;
-                    changed = true;
+                if (menuItem.price !== undefined) {
+                    const freshBasePrice = Number(menuItem.price);
+                    const effBasePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
+                    const expectedTotal = effBasePrice + addonsSum;
+                    if (cartItem.price !== expectedTotal) {
+                        cartItem.price = expectedTotal;
+                        changed = true;
+                    }
                 }
                 if (menuItem.available === false && cartItem.available !== false) {
                     cartItem.available = false;
@@ -2468,6 +2496,18 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
         try {
             const doc = await customerFirestore.collection('settings').doc('menu').get();
             if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+                if (doc.data().categoryDiscounts) {
+                    try {
+                        customerCategoryDiscounts = { ...doc.data().categoryDiscounts };
+                        localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
+                    } catch (e) { }
+                }
+                if (doc.data().categoryAddons) {
+                    try {
+                        customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons });
+                        localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                    } catch (e) { }
+                }
                 freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
                 try {
                     localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
@@ -2482,6 +2522,18 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
             if (res.ok) {
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+                    if (data.categoryDiscounts) {
+                        try {
+                            customerCategoryDiscounts = { ...data.categoryDiscounts };
+                            localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
+                        } catch (e) { }
+                    }
+                    if (data.categoryAddons) {
+                        try {
+                            customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...data.categoryAddons });
+                            localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                        } catch (e) { }
+                    }
                     freshItems = sanitizeStoredMenuItems(data.items) || data.items;
                     try {
                         localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
@@ -2548,7 +2600,8 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
             if (menuItem && menuItem.prices && menuItem.prices[size] !== undefined) {
                 const freshBasePrice = Number(menuItem.prices[size]);
                 if (!isNaN(freshBasePrice) && freshBasePrice > 0) {
-                    const expectedTotal = freshBasePrice + addonsSum;
+                    const effectivePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
+                    const expectedTotal = effectivePrice + addonsSum;
                     if (cartItem.price !== expectedTotal) {
                         cartItem.price = expectedTotal;
                         priceChanged = true;
@@ -2564,7 +2617,8 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
             if (menuItem && menuItem.price !== undefined) {
                 const freshBasePrice = Number(menuItem.price);
                 if (!isNaN(freshBasePrice) && freshBasePrice > 0) {
-                    const expectedTotal = freshBasePrice + addonsSum;
+                    const effectivePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
+                    const expectedTotal = effectivePrice + addonsSum;
                     if (cartItem.price !== expectedTotal) {
                         cartItem.price = expectedTotal;
                         priceChanged = true;
@@ -7074,24 +7128,9 @@ function updateCartUI() {
 
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
 
-    let totalItemDiscountSavings = 0;
-    cart.forEach(item => {
-        const origP = Number(item.originalPrice !== undefined ? item.originalPrice : item.price) || 0;
-        const effP = Number(item.price) || 0;
-        if (origP > effP) {
-            totalItemDiscountSavings += Math.round((origP - effP) * (item.qty || 1));
-        }
-    });
-
     const itemDiscRow = document.getElementById('cart-item-discount-row');
-    const itemDiscVal = document.getElementById('cart-item-discount-val');
-    if (itemDiscRow && itemDiscVal) {
-        if (totalItemDiscountSavings > 0) {
-            itemDiscRow.style.display = 'flex';
-            itemDiscVal.textContent = `-${formatPrice(totalItemDiscountSavings)}`;
-        } else {
-            itemDiscRow.style.display = 'none';
-        }
+    if (itemDiscRow) {
+        itemDiscRow.style.display = 'none';
     }
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
 
@@ -7359,22 +7398,8 @@ function openCheckoutModal(profile) {
     }
 
     const checkoutItemDiscRow = document.getElementById('checkout-item-discount-row');
-    const checkoutItemDiscVal = document.getElementById('checkout-item-discount-val');
-    if (checkoutItemDiscRow && checkoutItemDiscVal) {
-        let checkoutSavings = 0;
-        cart.forEach(item => {
-            const origP = Number(item.originalPrice !== undefined ? item.originalPrice : item.price) || 0;
-            const effP = Number(item.price) || 0;
-            if (origP > effP) {
-                checkoutSavings += Math.round((origP - effP) * (item.qty || 1));
-            }
-        });
-        if (checkoutSavings > 0) {
-            checkoutItemDiscRow.style.display = 'flex';
-            checkoutItemDiscVal.textContent = `-${formatPrice(checkoutSavings)}`;
-        } else {
-            checkoutItemDiscRow.style.display = 'none';
-        }
+    if (checkoutItemDiscRow) {
+        checkoutItemDiscRow.style.display = 'none';
     }
 
     if (totalEl) totalEl.textContent = formatPrice(grandTotal);
