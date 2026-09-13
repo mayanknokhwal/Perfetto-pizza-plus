@@ -7182,24 +7182,24 @@ async function processCheckout() {
     }
 
     const minOrderVal = getMinOrderValue();
-    const freshSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    if (freshSubtotal < minOrderVal) {
-        const diff = (minOrderVal - freshSubtotal).toFixed(2);
+    const currentSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    if (currentSubtotal < minOrderVal) {
+        const diff = (minOrderVal - currentSubtotal).toFixed(2);
         showToast(`Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`);
         return;
     }
 
     // Sync computed Grand Total into button data attributes before opening review order modal
-    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
+    const deliveryInfo = calculateDynamicDeliveryInfo(currentSubtotal);
     const deliveryFee = deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee;
     const grandTotal = (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery)
-        ? subtotal
-        : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+        ? currentSubtotal
+        : Math.max(0, currentSubtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
 
     const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
     checkoutBtns.forEach(btn => {
         btn.setAttribute('data-grand-total', String(grandTotal));
-        btn.setAttribute('data-subtotal', String(subtotal));
+        btn.setAttribute('data-subtotal', String(currentSubtotal));
         btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
     });
 
