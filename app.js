@@ -10,6 +10,15 @@
 const LOGO_LIGHT = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
 const LOGO_DARK = 'https://i.ibb.co/BH6TR6dh/perfetto-White.png';
 
+// Native App Gesture Constraints: Prevent pinch-to-zoom gestures on iOS Safari / WebKit
+if (typeof document !== 'undefined') {
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (eventName) {
+        document.addEventListener(eventName, function (e) {
+            e.preventDefault();
+        }, { passive: false });
+    });
+}
+
 const htmlElement = document.documentElement;
 const themeToggleBtn = document.getElementById('theme-toggle');
 const appLogo = document.getElementById('app-logo');

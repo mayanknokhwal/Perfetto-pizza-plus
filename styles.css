@@ -109,6 +109,51 @@ body {
     -webkit-font-smoothing: antialiased;
     /* Smooth theme transition */
     transition: background-color 0.35s ease, color 0.35s ease;
+    /* Allow natural horizontal and vertical panning while suppressing pinch-to-zoom gestures */
+    touch-action: pan-x pan-y;
+}
+
+#root,
+#app,
+.app-frame,
+.main-content-container {
+    touch-action: pan-x pan-y;
+}
+
+/* Prevent unwanted double-tap zoom triggers on interactive elements (buttons, images, cards) */
+button,
+a,
+input,
+select,
+textarea,
+label,
+summary,
+[role="button"],
+[role="tab"],
+img,
+svg,
+picture,
+video,
+.product-card,
+.menu-card,
+.category-card,
+.category-chip,
+.deal-card,
+.bogo-combo-item-card,
+.value-combo-card,
+.combo-gallery-tile,
+.hero-banner,
+.daily-banner,
+.offer-slide,
+.banner-slide,
+.carousel-slide,
+.interactive-card,
+.clickable,
+.modal-close-btn,
+.nav-item,
+.bottom-nav-item,
+.cart-floating-btn {
+    touch-action: manipulation;
 }
 
 /* Force Bold Fonts on Headings, Inputs, and Buttons */
