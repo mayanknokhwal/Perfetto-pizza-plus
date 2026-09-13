@@ -10610,10 +10610,20 @@ html[lang="hi"] .nav-label {
     gap: 10px;
 }
 
+.combo-deal-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+}
+
 .combo-deal-name-wrap {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 1;
+    min-width: 0;
 }
 
 .combo-deal-pill {
@@ -10625,13 +10635,34 @@ html[lang="hi"] .nav-label {
     border-radius: 6px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    flex-shrink: 0;
 }
 
 .combo-deal-title {
-    font-size: 1.05rem;
+    font-size: 1.02rem;
     font-weight: 700;
     color: var(--text-main, #ffffff);
     margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.combo-discount-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1.2;
 }
 
 /* Horizontal Scroll Showcase for Combo Items */
@@ -11146,6 +11177,53 @@ html[lang="hi"] .nav-label {
     margin-left: auto;
     display: flex;
     align-items: center;
+}
+
+.combo-qty-control {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 2px 4px;
+    gap: 6px;
+}
+
+.combo-qty-control .qty-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 0.95rem;
+    border-radius: 8px;
+}
+
+.combo-qty-control .qty-val {
+    font-size: 0.85rem;
+    font-weight: 700;
+    min-width: 18px;
+    text-align: center;
+    color: var(--text-main, #ffffff);
+}
+
+.qty-btn.qty-btn-capped,
+.qty-btn.qty-btn-capped[disabled] {
+    opacity: 0.35 !important;
+    cursor: not-allowed !important;
+    background-color: var(--bg-surface) !important;
+    color: var(--text-muted) !important;
+}
+
+.qty-btn.qty-btn-capped:hover,
+.qty-btn.qty-btn-capped[disabled]:hover {
+    background-color: var(--bg-surface) !important;
+    color: var(--text-muted) !important;
+    opacity: 0.35 !important;
+}
+
+[data-theme="light"] .combo-qty-control {
+    background-color: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .combo-qty-control .qty-val {
+    color: #0f172a;
 }
 
 .cart-combo-items-dropdown {

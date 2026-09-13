@@ -3596,6 +3596,33 @@
             box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2);
         }
 
+        .combo-price-input.is-invalid {
+            border-color: #ef4444 !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25) !important;
+            color: #ef4444 !important;
+        }
+
+        .deal-price-error-msg {
+            display: none;
+            color: #ef4444;
+            font-size: 0.76rem;
+            font-weight: 700;
+            margin-top: 5px;
+            line-height: 1.35;
+        }
+
+        .deal-price-error-msg.visible {
+            display: block;
+        }
+
+        .btn-save-single-deal:disabled,
+        .btn-save-combos-master:disabled {
+            opacity: 0.5 !important;
+            cursor: not-allowed !important;
+            pointer-events: none !important;
+            filter: grayscale(0.5);
+        }
+
         .savings-pill {
             display: inline-block;
             font-size: 0.85rem;
@@ -9981,6 +10008,18 @@
             return items.filter(i => (i.category || '').trim().toLowerCase() === cat.trim().toLowerCase());
         }
 
+        function formatComboProductOptionLabel(p) {
+            if (!p) return '';
+            if (p.isMultiSize && p.prices) {
+                const sPrice = p.prices.S !== undefined ? p.prices.S : (p.price || 0);
+                const mPrice = p.prices.M !== undefined ? p.prices.M : (p.price || 0);
+                const lPrice = p.prices.L !== undefined ? p.prices.L : (p.price || 0);
+                return `${p.name} (₹${sPrice}) (₹${mPrice}) (₹${lPrice})`;
+            }
+            return `${p.name} (₹${p.price || 0})`;
+        }
+        window.formatComboProductOptionLabel = formatComboProductOptionLabel;
+
         function getComboItemUnitPrice(item, size) {
             if (!item) return 0;
             if (item.isMultiSize && item.prices) {
@@ -10178,8 +10217,8 @@
                     } else {
                         catProducts.forEach(p => {
                             const isSel = (String(p.id) === String(selectedItemId));
-                            const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
-                            prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(p.name)} (₹${basePrice})</option>`;
+                            const label = formatComboProductOptionLabel(p);
+                            prodOpts += `<option value="${escapeHtml(p.id)}" ${isSel ? 'selected' : ''}>${escapeHtml(label)}</option>`;
                         });
                     }
 
@@ -10254,11 +10293,14 @@
                             <div class="price-input-wrapper">
                                 <span class="currency-symbol">₹</span>
                                 <input type="number" class="combo-price-input" id="deal-price-${tier}-${dealIdx}"
-                                       min="0" max="9999" step="1" value="${deal.combo_price}"
+                                       min="10" max="9999" step="1" value="${deal.combo_price}"
+                                       onkeydown="onComboPriceKeyDown(event)"
+                                       onpaste="onComboPricePaste(event)"
                                        oninput="onComboPriceChange('${tier}', ${dealIdx}, this.value)"
                                        onblur="onComboPriceBlur('${tier}', ${dealIdx}, this)"
                                        aria-label="Combo Offer Price">
                             </div>
+                            <div class="deal-price-error-msg" id="deal-price-error-${tier}-${dealIdx}" style="display: none;"></div>
                         </div>
                         <div class="pricing-col savings-col">
                             <span class="pricing-label">Customer Benefit</span>
@@ -10279,6 +10321,11 @@
             });
 
             container.innerHTML = html;
+
+            deals.forEach((deal, dealIdx) => {
+                validateDealComboPrice(tier, dealIdx);
+            });
+            updateMasterSaveButtonState();
         }
         window.renderComboTierCards = renderComboTierCards;
 
@@ -10376,8 +10423,8 @@
                         prodSelect.disabled = false;
                         let prodOpts = '';
                         catProducts.forEach(p => {
-                            const basePrice = p.isMultiSize && p.prices ? (p.prices.M || p.prices.S || p.price) : p.price;
-                            prodOpts += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)} (₹${basePrice})</option>`;
+                            const label = formatComboProductOptionLabel(p);
+                            prodOpts += `<option value="${escapeHtml(p.id)}">${escapeHtml(label)}</option>`;
                         });
                         prodSelect.innerHTML = prodOpts;
                     }
@@ -10448,21 +10495,150 @@
         }
         window.onComboSlotQtyBlur = onComboSlotQtyBlur;
 
+        function onComboPriceKeyDown(e) {
+            // Explicitly block negative (-), plus (+), decimals (.), exponents (e, E), commas (,)
+            if (['-', '+', '.', 'e', 'E', ','].includes(e.key)) {
+                e.preventDefault();
+                return;
+            }
+            // Allow control and navigation keys
+            const allowedControlKeys = [
+                'Backspace', 'Delete', 'Tab', 'Enter', 'Escape',
+                'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+                'Home', 'End'
+            ];
+            if (allowedControlKeys.includes(e.key)) {
+                return;
+            }
+            // Allow copy/paste/select all shortcuts
+            if (e.ctrlKey || e.metaKey) {
+                return;
+            }
+            // Restrict strictly to positive integer digits [0-9]
+            if (!/^[0-9]$/.test(e.key)) {
+                e.preventDefault();
+            }
+        }
+        window.onComboPriceKeyDown = onComboPriceKeyDown;
+
+        function onComboPricePaste(e) {
+            e.preventDefault();
+            const clipboardData = e.clipboardData || window.clipboardData;
+            const pastedText = clipboardData ? clipboardData.getData('text') : '';
+            const cleanDigits = pastedText.replace(/\D/g, '');
+            if (!cleanDigits) return;
+
+            const target = e.target;
+            const start = target.selectionStart !== null ? target.selectionStart : target.value.length;
+            const end = target.selectionEnd !== null ? target.selectionEnd : target.value.length;
+            const currentVal = target.value;
+            const nextVal = currentVal.slice(0, start) + cleanDigits + currentVal.slice(end);
+            target.value = nextVal;
+            target.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        window.onComboPricePaste = onComboPricePaste;
+
         function onComboPriceChange(tier, dealIdx, val) {
             const deal = adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx];
             if (!deal) return;
-            deal.combo_price = Math.max(0, parseInt(val, 10) || 0);
+
+            const inputEl = document.getElementById(`deal-price-${tier}-${dealIdx}`);
+            const sanitizedDigits = String(val || '').replace(/\D/g, '');
+            if (inputEl && inputEl.value !== sanitizedDigits) {
+                inputEl.value = sanitizedDigits;
+            }
+
+            const parsed = sanitizedDigits === '' ? 0 : parseInt(sanitizedDigits, 10);
+            deal.combo_price = parsed;
             updateDealPricingDisplay(tier, dealIdx);
         }
         window.onComboPriceChange = onComboPriceChange;
 
         function onComboPriceBlur(tier, dealIdx, input) {
-            let val = parseInt(input.value, 10);
-            if (isNaN(val) || val < 0) val = 0;
-            input.value = String(val);
-            onComboPriceChange(tier, dealIdx, val);
+            const sanitizedDigits = String(input.value || '').replace(/\D/g, '');
+            const parsed = sanitizedDigits === '' ? 0 : parseInt(sanitizedDigits, 10);
+            input.value = sanitizedDigits === '' ? '' : String(parsed);
+            onComboPriceChange(tier, dealIdx, input.value);
         }
         window.onComboPriceBlur = onComboPriceBlur;
+
+        function validateDealComboPrice(tier, dealIdx) {
+            const deal = adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx];
+            const inputEl = document.getElementById(`deal-price-${tier}-${dealIdx}`);
+            const errorEl = document.getElementById(`deal-price-error-${tier}-${dealIdx}`);
+            const singleSaveBtn = document.getElementById(`btn-save-deal-${tier}-${dealIdx}`);
+
+            if (!deal) return { isValid: false, error: 'Deal not found' };
+
+            const origPrice = recalculateComboDealOriginalPrice(deal);
+            const rawVal = inputEl ? inputEl.value.trim() : String(deal.combo_price !== undefined ? deal.combo_price : '');
+            const priceVal = rawVal === '' ? NaN : parseInt(rawVal, 10);
+
+            let errorMsg = '';
+            if (isNaN(priceVal) || priceVal < 10) {
+                errorMsg = 'Combo offer price must be at least ₹10';
+            } else if (priceVal > origPrice) {
+                errorMsg = `Combo offer price cannot exceed total original price (₹${origPrice})`;
+            }
+
+            const isValid = !errorMsg;
+
+            if (inputEl) {
+                if (isValid) {
+                    inputEl.classList.remove('is-invalid');
+                } else {
+                    inputEl.classList.add('is-invalid');
+                }
+            }
+
+            if (errorEl) {
+                if (isValid) {
+                    errorEl.textContent = '';
+                    errorEl.style.display = 'none';
+                    errorEl.classList.remove('visible');
+                } else {
+                    errorEl.textContent = errorMsg;
+                    errorEl.style.display = 'block';
+                    errorEl.classList.add('visible');
+                }
+            }
+
+            if (singleSaveBtn) {
+                singleSaveBtn.disabled = !isValid;
+            }
+
+            updateMasterSaveButtonState();
+
+            return { isValid, error: errorMsg, price: priceVal, origPrice };
+        }
+        window.validateDealComboPrice = validateDealComboPrice;
+
+        function updateMasterSaveButtonState() {
+            const btnAll = document.getElementById('btn-save-all-combos');
+            if (!btnAll) return;
+
+            let hasAnyError = false;
+            for (const tierKey of ['solo', 'duo', 'squad']) {
+                const tierDeals = adminComboConfig.combos && adminComboConfig.combos[tierKey];
+                if (Array.isArray(tierDeals)) {
+                    for (let dIdx = 0; dIdx < tierDeals.length; dIdx++) {
+                        const deal = tierDeals[dIdx];
+                        const orig = recalculateComboDealOriginalPrice(deal);
+                        const inputEl = document.getElementById(`deal-price-${tierKey}-${dIdx}`);
+                        const curPrice = inputEl ? (inputEl.value.trim() === '' ? NaN : parseInt(inputEl.value.trim(), 10)) : Number(deal.combo_price);
+
+                        if (isNaN(curPrice) || curPrice < 10 || curPrice > orig) {
+                            hasAnyError = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasAnyError) break;
+            }
+
+            btnAll.disabled = hasAnyError;
+        }
+        window.updateMasterSaveButtonState = updateMasterSaveButtonState;
 
         function updateDealPricingDisplay(tier, dealIdx) {
             const deal = adminComboConfig.combos && adminComboConfig.combos[tier] && adminComboConfig.combos[tier][dealIdx];
@@ -10479,6 +10655,8 @@
             if (savingsEl) {
                 savingsEl.textContent = savings > 0 ? `Saves ₹${savings} (${savingsPercent}% OFF)` : 'Standard Price (No Savings)';
             }
+
+            validateDealComboPrice(tier, dealIdx);
         }
 
         function flushComboInputsFromDOM() {
@@ -10614,6 +10792,41 @@
                         }
                         if (typeof showToast === 'function') {
                             showToast(`⚠️ Validation failed: ${deal.name || ('Deal #' + (dIdx + 1))} must have at least 1 valid item slot.`, 3500);
+                        }
+                        return false;
+                    }
+
+                    // Price range validation: combo_price >= 10 and combo_price <= totalOriginalPrice
+                    const orig = recalculateComboDealOriginalPrice(deal);
+                    const p = Number(deal.combo_price);
+                    if (isNaN(p) || p < 10) {
+                        if (btnAll) {
+                            btnAll.disabled = false;
+                            if (btnAllText) btnAllText.innerHTML = 'Save Value Combos';
+                        }
+                        if (singleBtn) {
+                            singleBtn.disabled = false;
+                            if (singleBtnText) singleBtnText.innerHTML = `Save Deal #${specificDealIdx + 1}`;
+                        }
+                        validateDealComboPrice(tierKey, dIdx);
+                        if (typeof showToast === 'function') {
+                            showToast(`⚠️ Validation failed: Combo offer price must be at least ₹10 for ${deal.name || ('Deal #' + (dIdx + 1))}.`, 3500);
+                        }
+                        return false;
+                    }
+
+                    if (p > orig) {
+                        if (btnAll) {
+                            btnAll.disabled = false;
+                            if (btnAllText) btnAllText.innerHTML = 'Save Value Combos';
+                        }
+                        if (singleBtn) {
+                            singleBtn.disabled = false;
+                            if (singleBtnText) singleBtnText.innerHTML = `Save Deal #${specificDealIdx + 1}`;
+                        }
+                        validateDealComboPrice(tierKey, dIdx);
+                        if (typeof showToast === 'function') {
+                            showToast(`⚠️ Validation failed: Combo offer price cannot exceed total original price (₹${orig}) for ${deal.name || ('Deal #' + (dIdx + 1))}.`, 3500);
                         }
                         return false;
                     }
@@ -14294,6 +14507,11 @@
         window.onComboSlotQtyBlur = onComboSlotQtyBlur;
         window.onComboPriceChange = onComboPriceChange;
         window.onComboPriceBlur = onComboPriceBlur;
+        window.onComboPriceKeyDown = onComboPriceKeyDown;
+        window.onComboPricePaste = onComboPricePaste;
+        window.validateDealComboPrice = validateDealComboPrice;
+        window.updateMasterSaveButtonState = updateMasterSaveButtonState;
+        window.formatComboProductOptionLabel = formatComboProductOptionLabel;
     </script>
 </body>
 

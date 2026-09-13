@@ -6112,6 +6112,36 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     return true;
 }
 
+function getComboDealMaxQuantity(tier, dealNumber) {
+    const t = String(tier || '').toLowerCase();
+    const dNum = parseInt(dealNumber, 10) || 1;
+    // Squad tier: all 3 deals are unlimited
+    if (t === 'squad') {
+        return Infinity;
+    }
+    // Solo and Duo tiers: Deal #1 and Deal #2 capped at 1, Deal #3 unlimited
+    if (t === 'solo' || t === 'duo') {
+        if (dNum === 1 || dNum === 2) {
+            return 1;
+        }
+    }
+    return Infinity;
+}
+window.getComboDealMaxQuantity = getComboDealMaxQuantity;
+
+function isComboDealCapped(tierOrItem, dealNumber) {
+    if (typeof tierOrItem === 'object' && tierOrItem !== null) {
+        const item = tierOrItem;
+        if (item.maxQty === Infinity) return false;
+        if (item.maxQty === 1) return true;
+        const tier = item.tier || 'solo';
+        const dNum = item.dealNumber || 1;
+        return getComboDealMaxQuantity(tier, dNum) === 1;
+    }
+    return getComboDealMaxQuantity(tierOrItem, dealNumber) === 1;
+}
+window.isComboDealCapped = isComboDealCapped;
+
 function updateQuantity(index, change) {
     if (getCustomerShopStatus() === 'closed' && change > 0) {
         showToast('This time shop is closed. We are not accepting orders right now.');
@@ -6119,6 +6149,25 @@ function updateQuantity(index, change) {
     }
     const item = cart[index];
     if (!item) return;
+
+    // Value Combos Bundle Quantity Handling & Stacking Limits
+    if (item.type === 'combo' || item.isComboBundle) {
+        const isCapped = isComboDealCapped(item);
+        if (change > 0) {
+            if (isCapped && (Number(item.qty) >= 1)) {
+                showToast("Limit reached: You can only add 1 of this meal per order.");
+                return;
+            }
+        }
+        item.qty = (Number(item.qty) || 1) + change;
+        if (item.qty <= 0) {
+            removeComboFromCart(index);
+            return;
+        }
+        saveCartToStorage();
+        updateCartUI();
+        return;
+    }
 
     // BOGO Combo Bundle Scaling & Cap Enforcement
     if (item.isBogoCombo || item.isBogoQualifying || item.isBogoReward) {
@@ -6640,9 +6689,11 @@ function updateCartUI() {
             if (isCombo) {
                 const tierClass = item.tier ? `tier-${item.tier.toLowerCase()}` : 'tier-solo';
                 const tierLabel = item.tier ? item.tier.toUpperCase() : 'COMBO';
+                const itemQty = Math.max(1, parseInt(item.qty, 10) || 1);
+                const isCapped = isComboDealCapped(item);
                 const hasDiscount = Boolean(item.originalPrice && item.originalPrice > item.price);
-                const comboPriceFormatted = formatPrice(item.price);
-                const origPriceFormatted = hasDiscount ? formatPrice(item.originalPrice) : '';
+                const comboPriceFormatted = formatPrice(item.price * itemQty);
+                const origPriceFormatted = hasDiscount ? formatPrice(item.originalPrice * itemQty) : '';
                 const subItems = Array.isArray(item.items) ? item.items : [];
                 const isDropdownOpen = Boolean(window.__openComboDropdowns && window.__openComboDropdowns[index]);
                 const comboAddonsTotal = Number(item.addonsTotal) || 0;
@@ -6651,13 +6702,13 @@ function updateCartUI() {
                 subItems.forEach(sub => {
                     const subName = escapeHtml(sub.name || sub.base_name || 'Item');
                     const subImg = escapeHtml(sub.img || 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png');
-                    const subQty = sub.quantity || 1;
+                    const subQty = (sub.quantity || 1) * itemQty;
                     const subAddons = Array.isArray(sub.addons) ? sub.addons : [];
                     let subAddonsHtml = '';
                     if (subAddons.length > 0) {
                         subAddonsHtml = `
                             <div class="cart-combo-sub-addons">
-                                ${subAddons.map(a => `<span class="cart-combo-sub-addon-chip">${a.icon ? a.icon + ' ' : ''}${escapeHtml(a.name)} (+₹${a.price})</span>`).join('')}
+                                ${subAddons.map(a => `<span class="cart-combo-sub-addon-chip">${a.icon ? a.icon + ' ' : ''}${escapeHtml(a.name)} (+₹${a.price * itemQty})</span>`).join('')}
                             </div>
                         `;
                     }
@@ -6690,7 +6741,7 @@ function updateCartUI() {
                                     ${hasDiscount ? `<span class="original-price-strike" style="font-size:0.8rem; margin-right:4px;">${origPriceFormatted}</span>` : ''}
                                     ${comboPriceFormatted}
                                 </span>
-                                ${comboAddonsTotal > 0 ? `<span class="cart-combo-addons-total-badge">+₹${comboAddonsTotal} Add-ons</span>` : ''}
+                                ${comboAddonsTotal > 0 ? `<span class="cart-combo-addons-total-badge">+₹${comboAddonsTotal * itemQty} Add-ons</span>` : ''}
                             </div>
                             <button type="button" class="cart-combo-dropdown-toggle ${isDropdownOpen ? 'open' : ''}" onclick="toggleComboCartDropdown(${index})" aria-expanded="${isDropdownOpen}">
                                 <span>View Included Items (${subItems.length})</span>
@@ -6698,9 +6749,15 @@ function updateCartUI() {
                             </button>
                         </div>
                         <div class="combo-cart-controls">
-                            <button type="button" class="btn-cart-remove-combo" onclick="removeComboFromCart(${index})" title="Remove Combo" aria-label="Remove Combo">
-                                <i class="fa-solid fa-trash-can"></i>
-                            </button>
+                            <div class="qty-control combo-qty-control">
+                                <button type="button" class="qty-btn" onclick="updateQuantity(${index}, -1)" aria-label="Decrease quantity">-</button>
+                                <span class="qty-val">${itemQty}</span>
+                                ${isCapped ? `
+                                    <button type="button" class="qty-btn qty-btn-capped" disabled aria-disabled="true" title="Limit reached: You can only add 1 of this meal per order." aria-label="Quantity limit reached">+</button>
+                                ` : `
+                                    <button type="button" class="qty-btn" onclick="updateQuantity(${index}, 1)" aria-label="Increase quantity">+</button>
+                                `}
+                            </div>
                         </div>
                     </div>
                     <div class="cart-combo-items-dropdown ${isDropdownOpen ? 'open' : ''}" id="combo-dropdown-${index}">
@@ -13996,14 +14053,14 @@ function updateComboDealCardPricing(tier, dealId) {
         `;
     }
 
-    // Update Savings Pill
-    const savingsPill = card.querySelector('.combo-savings-pill');
-    if (savingsPill) {
-        if (savings > 0) {
-            savingsPill.style.display = 'inline-flex';
-            savingsPill.innerHTML = `<i class="fa-solid fa-tag"></i> Save ₹${savings}${savingsPercent > 0 ? ` (${savingsPercent}% OFF)` : ''}`;
+    // Update Discount Badge in Header
+    const discountBadge = document.getElementById(`deal-discount-${tier}-${dealId}`);
+    if (discountBadge) {
+        if (savingsPercent > 0) {
+            discountBadge.style.display = 'inline-flex';
+            discountBadge.textContent = `${savingsPercent}% OFF`;
         } else {
-            savingsPill.style.display = 'none';
+            discountBadge.style.display = 'none';
         }
     }
 
@@ -14133,6 +14190,9 @@ function renderCustomerComboTierDeals(tier) {
                         <span class="combo-deal-pill">Deal #${idx + 1}</span>
                         <h4 class="combo-deal-title">${dealName}</h4>
                     </div>
+                    ${savingsPercent > 0 ? `
+                        <span class="combo-discount-badge" id="deal-discount-${tier}-${dealIdSafe}">${savingsPercent}% OFF</span>
+                    ` : `<span class="combo-discount-badge" id="deal-discount-${tier}-${dealIdSafe}" style="display: none;"></span>`}
                 </div>
 
                 <div class="combo-items-gallery">
@@ -14145,11 +14205,6 @@ function renderCustomerComboTierDeals(tier) {
                             <span class="combo-selling-price">₹${currentFinalPrice}</span>
                             ${currentOriginalPrice > currentFinalPrice ? `<del class="combo-original-price">₹${currentOriginalPrice}</del>` : ''}
                         </div>
-                        ${savings > 0 ? `
-                            <span class="combo-savings-pill">
-                                <i class="fa-solid fa-tag"></i> Save ₹${savings}${savingsPercent > 0 ? ` (${savingsPercent}% OFF)` : ''}
-                            </span>
-                        ` : ''}
                     </div>
                     <button type="button" 
                             class="btn-select-combo" 
@@ -14297,6 +14352,19 @@ function hasDailyOfferInCart(currentCart = cart) {
 }
 window.hasDailyOfferInCart = hasDailyOfferInCart;
 
+function getActiveBannerOfferTypes(currentCart = cart) {
+    const types = new Set();
+    if (!Array.isArray(currentCart)) return types;
+    currentCart.forEach(i => {
+        if (i.isBannerDeal && i.bannerOfferType) types.add(i.bannerOfferType);
+        if (i.isSpotlightDeal) types.add('spotlight');
+        if (i.isFreeGift) types.add('free_gift');
+        if (i.isBogoCombo || i.isBogoReward) types.add('bogo');
+    });
+    return types;
+}
+window.getActiveBannerOfferTypes = getActiveBannerOfferTypes;
+
 function removeDailyOffersFromCart() {
     if (!Array.isArray(cart)) return;
     cart = cart.filter(item => !isDailyOfferItem(item));
@@ -14349,11 +14417,12 @@ function showOfferConflictModal({ title, message, iconType = 'swap', actions = [
 
     let actionsHtml = '';
     actions.forEach((act, idx) => {
-        const btnClass = act.primary ? 'btn-conflict-primary' : (act.secondary ? 'btn-conflict-secondary' : 'btn-conflict-cancel');
-        const iconMarkup = act.icon ? `<i class="fa-solid ${act.icon}"></i>` : '';
+        const isPrimary = act.primary ? 'primary' : 'secondary';
+        const iconHtml = act.icon ? `<i class="fa-solid ${act.icon}"></i>` : '';
         actionsHtml += `
-            <button type="button" class="btn-conflict-action ${btnClass}" id="btn-conflict-act-${idx}" onclick="handleOfferConflictAction(${idx})">
-                ${iconMarkup} ${escapeHtml(act.label)}
+            <button type="button" class="offer-conflict-btn ${isPrimary}" onclick="handleOfferConflictAction(${idx})">
+                ${iconHtml}
+                <span>${escapeHtml(act.label)}</span>
             </button>
         `;
     });
@@ -14451,14 +14520,14 @@ function verifyDailyOfferWithComboStacking(offerType, onProceed) {
             iconType: "limit",
             actions: [
                 {
-                    label: "Keep Current",
+                    label: "Keep Existing Offer",
                     secondary: true,
                     onClick: () => {
-                        showToast("Kept current cart offers.");
+                        showToast("Kept your current Daily Offer in cart.");
                     }
                 },
                 {
-                    label: "Replace Daily Offer",
+                    label: "Replace With New Offer",
                     primary: true,
                     icon: "fa-arrows-rotate",
                     onClick: () => {
@@ -14471,7 +14540,6 @@ function verifyDailyOfferWithComboStacking(offerType, onProceed) {
                 {
                     label: "Remove Combo & Add Offer",
                     secondary: true,
-                    icon: "fa-trash-can",
                     onClick: () => {
                         removeCombosFromCart();
                         if (typeof onProceed === 'function') {
@@ -14489,7 +14557,10 @@ function verifyDailyOfferWithComboStacking(offerType, onProceed) {
 window.verifyDailyOfferWithComboStacking = verifyDailyOfferWithComboStacking;
 
 /**
- * Adds a Value Combo bundle item to the cart with stacking policy validation.
+ * Adds a Value Combo bundle item to the cart with per-deal quantity cap enforcement.
+ * Deal #1 & #2: strictly capped at max 1 per order.
+ * Deal #3: unlimited quantity (freely incrementable).
+ * Multi-deal stacking permitted (Deal #1 + Deal #2 + Deal #3 can coexist in cart).
  */
 async function addValueComboToCart(dealPayload, force = false) {
     if (getCustomerShopStatus() === 'closed') {
@@ -14500,7 +14571,6 @@ async function addValueComboToCart(dealPayload, force = false) {
     const config = await fetchCustomerComboConfig();
     const allowStacking = Boolean(config && config.allow_combo_with_daily_offer);
     const hasDaily = hasDailyOfferInCart();
-    const hasCombo = hasComboInCart();
 
     // SCENARIO A: Stacking Disabled (allow_combo_with_daily_offer === false)
     if (!allowStacking && hasDaily && !force) {
@@ -14530,9 +14600,29 @@ async function addValueComboToCart(dealPayload, force = false) {
         return false;
     }
 
-    // If combo already in cart, replace existing combo (max 1 combo per order)
-    if (hasCombo) {
-        removeCombosFromCart();
+    // Check if THIS specific combo deal is already present in cart
+    const existingIndex = cart.findIndex(item =>
+        (item.type === 'combo' || item.isComboBundle) &&
+        item.tier === dealPayload.tier &&
+        (item.combo_id === dealPayload.dealId || item.dealNumber === dealPayload.dealNumber)
+    );
+
+    const isCapped = isComboDealCapped(dealPayload.tier, dealPayload.dealNumber);
+
+    if (existingIndex !== -1) {
+        if (isCapped) {
+            // Capped meal already in cart: strictly capped at 1 per order
+            showToast("Limit reached: You can only add 1 of this meal per order.");
+            return false;
+        } else {
+            // Unlimited meal: increment existing deal
+            cart[existingIndex].qty = (Number(cart[existingIndex].qty) || 1) + 1;
+            saveCartToStorage();
+            updateCartUI();
+            closeValueCombosModal();
+            showToast(`🍽️ ${cart[existingIndex].baseName} quantity updated (${cart[existingIndex].qty})`);
+            return true;
+        }
     }
 
     const items = Array.isArray(dealPayload.items) ? dealPayload.items : [];
@@ -14541,6 +14631,8 @@ async function addValueComboToCart(dealPayload, force = false) {
         isComboBundle: true,
         tier: dealPayload.tier || 'solo',
         combo_id: dealPayload.dealId || 'deal',
+        dealNumber: dealPayload.dealNumber || 1,
+        maxQty: isCapped ? 1 : Infinity,
         combo_name: dealPayload.name || 'Value Combo',
         name: `${dealPayload.name || 'Value Combo'} (${(dealPayload.tier || 'SOLO').toUpperCase()} Combo)`,
         baseName: dealPayload.name || 'Value Combo',
@@ -14609,7 +14701,11 @@ async function selectValueCombo(tier, dealId) {
     const config = customerComboConfig || DEFAULT_CUSTOMER_COMBO_CONFIG;
     const combosMap = (config && config.combos) ? config.combos : {};
     const tierDeals = Array.isArray(combosMap[tier]) ? combosMap[tier] : [];
-    const deal = tierDeals.find((d, idx) => (d.id === dealId || `deal_${idx + 1}` === dealId || String(idx) === String(dealId)));
+    const dealIdx = tierDeals.findIndex((d, idx) => (d.id === dealId || `deal_${idx + 1}` === dealId || String(idx) === String(dealId)));
+    const deal = (dealIdx >= 0 && tierDeals[dealIdx]) ? tierDeals[dealIdx] : { id: dealId, name: `${tier.toUpperCase()} Deal` };
+    const dealNumber = dealIdx >= 0 ? (dealIdx + 1) : (parseInt(String(dealId).replace(/^[^\d]*(\d+).*$/, '$1'), 10) || 1);
+    const maxQty = getComboDealMaxQuantity(tier, dealNumber);
+    const isCapped = (maxQty === 1);
 
     // Resolve full item details for cart readiness (ignoring any empty/none slots)
     const rawSlots = Array.isArray(deal.items) ? deal.items : [];
@@ -14649,7 +14745,9 @@ async function selectValueCombo(tier, dealId) {
     const payload = {
         tier: tier,
         dealId: deal.id || dealId,
-        name: deal.name || `${tier.toUpperCase()} Deal`,
+        dealNumber: dealNumber,
+        maxQty: maxQty,
+        name: deal.name || `${tier.toUpperCase()} Meal ${dealNumber}`,
         comboPrice: finalComboPrice,
         baseComboPrice: baseComboPrice,
         originalPrice: finalOriginalPrice,
