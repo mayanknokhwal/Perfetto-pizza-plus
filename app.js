@@ -4307,32 +4307,33 @@ function listenToWalletConfigRealtime() {
             }
         };
 
-        walletConfigRealtimeUnsubscribe = db.collection('settings').doc('wallet_config').onSnapshot((doc) => {
+        // Spark Free Tier Optimization: Fetch wallet config via direct get() to avoid keeping persistent WebSockets open
+        db.collection('settings').doc('wallet_config').get().then((doc) => {
             if (doc && doc.exists && doc.data()) {
                 applyWalletConfigSnapshot(doc.data());
             }
-        }, (err) => {
-            console.warn('Firestore settings/wallet_config real-time notice:', err?.message || err);
+        }).catch((err) => {
+            console.warn('Firestore settings/wallet_config direct fetch notice:', err?.message || err);
         });
 
-        // Supplementary listener for settings/rewards
-        db.collection('settings').doc('rewards').onSnapshot((doc) => {
+        // Supplementary direct fetch for settings/rewards
+        db.collection('settings').doc('rewards').get().then((doc) => {
             if (doc && doc.exists && doc.data()) {
                 applyWalletConfigSnapshot(doc.data());
             }
-        }, () => {});
+        }).catch(() => {});
 
-        // Supplementary listener for settings/store_config
-        db.collection('settings').doc('store_config').onSnapshot((doc) => {
+        // Supplementary direct fetch for settings/store_config
+        db.collection('settings').doc('store_config').get().then((doc) => {
             if (doc && doc.exists && doc.data()) {
                 const d = doc.data();
                 if (d && (d.wallet_config || d.slabs)) {
                     applyWalletConfigSnapshot(d.wallet_config || d);
                 }
             }
-        }, () => {});
+        }).catch(() => {});
     } catch (e) {
-        console.warn('Error setting up settings/wallet_config real-time listener:', e);
+        console.warn('Error fetching settings/wallet_config:', e);
     }
 }
 window.listenToWalletConfigRealtime = listenToWalletConfigRealtime;
@@ -5691,7 +5692,8 @@ function setupStoreNoticeRealtimeListener() {
     }
 
     try {
-        storeNoticeRealtimeUnsubscribe = db.collection('settings').doc('store_notice').onSnapshot((doc) => {
+        // Spark Free Tier Optimization: Direct get() instead of persistent onSnapshot listener
+        db.collection('settings').doc('store_notice').get().then((doc) => {
             if (doc.exists && doc.data()) {
                 const rawData = doc.data();
                 const active = rawData.active !== undefined ? Boolean(rawData.active) : (rawData.enabled !== false);
@@ -5709,11 +5711,11 @@ function setupStoreNoticeRealtimeListener() {
                 } catch (e) {}
                 updateStoreNoticeUI();
             }
-        }, (err) => {
-            console.warn('Firestore store_notice real-time notice:', err.message);
+        }).catch((err) => {
+            console.warn('Firestore store_notice direct fetch notice:', err.message);
         });
     } catch (e) {
-        console.warn('Error setting up store_notice real-time listener:', e);
+        console.warn('Error fetching store_notice:', e);
     }
 }
 window.setupStoreNoticeRealtimeListener = setupStoreNoticeRealtimeListener;
@@ -13879,9 +13881,10 @@ window.fetchCustomerComboConfig = fetchCustomerComboConfig;
  * Real-time synchronization handle for Value Combos configuration
  */
 function initCombosRealtimeSync() {
-    if (combosRealtimeUnsubscribe || !customerFirestore) return;
+    if (!customerFirestore) return;
     try {
-        combosRealtimeUnsubscribe = customerFirestore.collection('site_settings').doc('combo_config').onSnapshot((doc) => {
+        // Spark Free Tier Optimization: Direct get() instead of persistent onSnapshot listener
+        customerFirestore.collection('site_settings').doc('combo_config').get().then((doc) => {
             if (doc.exists && doc.data()) {
                 customerComboConfig = doc.data();
                 safeStorage.setJSON(COMBO_CONFIG_STORAGE_KEY, customerComboConfig);
@@ -13889,11 +13892,11 @@ function initCombosRealtimeSync() {
                     renderCustomerComboTierDeals(customerActiveComboTier);
                 }
             }
-        }, (err) => {
-            console.warn('Combos realtime listener note:', err.message);
+        }).catch((err) => {
+            console.warn('Combos direct fetch note:', err.message);
         });
     } catch (e) {
-        console.warn('Error setting up combos realtime listener:', e);
+        console.warn('Error fetching combos config:', e);
     }
 }
 window.initCombosRealtimeSync = initCombosRealtimeSync;
@@ -15695,21 +15698,12 @@ async function checkAndSyncSettingsVersion(options = {}) {
 }
 
 function listenToSettingsVersionRealtime() {
-    if (!customerFirestore || settingsVersionRealtimeUnsubscribe) return;
+    if (!customerFirestore) return;
     try {
-        settingsVersionRealtimeUnsubscribe = customerFirestore.collection('app_config').doc('metadata').onSnapshot((doc) => {
-            if (doc.exists && doc.data()) {
-                const data = doc.data();
-                const ver = Number(data.settings_version || data.updatedAt || 0);
-                if (ver > 0) {
-                    checkAndSyncSettingsVersion({ incomingVersion: ver });
-                }
-            }
-        }, (err) => {
-            console.warn('Firestore app_config/metadata real-time notice:', err.message);
-        });
+        // Spark Free Tier Optimization: Direct version check on boot instead of persistent onSnapshot listener
+        checkAndSyncSettingsVersion();
     } catch (e) {
-        console.warn('Error setting up settings version real-time listener:', e);
+        console.warn('Settings version check notice:', e);
     }
 }
 
@@ -15780,162 +15774,148 @@ async function initFirebaseRealtimeSync() {
 
 let menuCollectionRealtimeUnsubscribe = null;
 
-// Real-Time Listeners for Menu Items, Prices, Availability & Store Rates
+// Direct Fetch for Menu Items, Prices, Availability & Addons (Spark Free Tier Quota Optimization)
+async function fetchMenuFromFirestoreDirect() {
+    if (!customerFirestore) return;
+    try {
+        const doc = await customerFirestore.collection('settings').doc('menu').get();
+        if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+            if (doc.data().categoryAddons) {
+                try {
+                    customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
+                    localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                } catch (e) { }
+            }
+            if (doc.data().categoryDiscounts) {
+                try {
+                    customerCategoryDiscounts = { ...doc.data().categoryDiscounts };
+                    localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
+                } catch (e) { }
+            }
+            const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
+            try {
+                localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+            } catch (e) { }
+            syncCartWithLatestMenu(freshItems);
+            refreshActiveCustomerView(freshItems);
+            updateCartUI();
+        }
+    } catch (err) {
+        console.warn('Firestore menu direct fetch notice:', err.message);
+    }
+}
+window.fetchMenuFromFirestoreDirect = fetchMenuFromFirestoreDirect;
+
+function applyIncomingSettingsData(data) {
+    if (!data || typeof data !== 'object') return;
+    if (data.minOrderValue !== undefined && data.minOrderValue !== null) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
+    if (data.freeDeliveryLimit !== undefined && data.freeDeliveryLimit !== null) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
+    if (data.customerCarePhone !== undefined && data.customerCarePhone !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
+    if (data.customerCareEnabled !== undefined && data.customerCareEnabled !== null) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
+    if (data.restaurantLat !== undefined && data.restaurantLat !== null) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
+    if (data.restaurantLng !== undefined && data.restaurantLng !== null) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
+    if (data.deliveryRadius !== undefined && data.deliveryRadius !== null) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
+    if (data.zoneCharges !== undefined && data.zoneCharges !== null) localStorage.setItem(ZONE_CHARGES_KEY, typeof data.zoneCharges === 'string' ? data.zoneCharges : JSON.stringify(data.zoneCharges));
+    if (data.shopStatus !== undefined && data.shopStatus !== null) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
+    if (data.openingTime !== undefined && data.openingTime !== null) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
+    if (data.closingTime !== undefined && data.closingTime !== null) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
+    if (data.autoScheduleEnabled !== undefined && data.autoScheduleEnabled !== null) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
+    if (data.manualOverride !== undefined && data.manualOverride !== null) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
+    if (data.manualCloseDate !== undefined && data.manualCloseDate !== null) {
+        if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
+        else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
+    }
+
+    // Instantly apply updated rates & settings to customer UI
+    applyRealtimeStoreSettings();
+    checkAndUpdateShopStatusUI();
+}
+
+function applyIncomingDailyBannersData(docData) {
+    if (!docData || typeof docData !== 'object') return;
+    let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
+    if (Array.isArray(docData.banners) && docData.banners.length > 0) {
+        const rawMaxOffers = parseInt(docData.max_offers_per_order || docData.maxOffersPerOrder, 10);
+        if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
+            customerMaxOffersPerOrder = rawMaxOffers;
+            localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+        }
+        const rawMaxQty = parseInt(docData.max_qty_per_offer || docData.maxQtyPerOffer, 10);
+        if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
+            customerMaxQtyPerOffer = rawMaxQty;
+            localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
+        }
+        const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
+        const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
+        const slot3Data = (docData.slot3 && typeof docData.slot3 === 'object') ? docData.slot3 : {};
+        banners = docData.banners.slice(0, 4).map((b, i) => {
+            const bannerObj = (b && typeof b === 'object') ? b : {};
+            const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
+            const isPizza = cat.toLowerCase() === 'pizza';
+
+            const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Momos').trim() : '';
+            const rawBuyQty = i === 2 ? parseInt(bannerObj.buyQty || slot3Data.buyQty || 2, 10) : 0;
+            const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
+            const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
+
+            return {
+                id: bannerObj.id || `b${i + 1}`,
+                url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
+                enabled: bannerObj.enabled !== false,
+                targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
+                discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
+                minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
+                rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
+                rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
+                rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
+                buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat) : '',
+                buyQty: i === 2 ? ((!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2) : 0,
+                freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
+            };
+        });
+    }
+    localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));
+    if (typeof renderDynamicOfferSlider === 'function') {
+        renderDynamicOfferSlider(banners);
+    }
+}
+
+async function fetchSettingsFromFirestoreDirect() {
+    if (!customerFirestore) return;
+    try {
+        const [storeSettingsSnap, storeConfigSnap, bannersSnap] = await Promise.allSettled([
+            customerFirestore.collection('settings').doc('storeSettings').get(),
+            customerFirestore.collection('settings').doc('store_config').get(),
+            customerFirestore.collection('settings').doc('daily_banners').get()
+        ]);
+        if (storeSettingsSnap.status === 'fulfilled' && storeSettingsSnap.value.exists) {
+            applyIncomingSettingsData(storeSettingsSnap.value.data());
+        }
+        if (storeConfigSnap.status === 'fulfilled' && storeConfigSnap.value.exists) {
+            applyIncomingSettingsData(storeConfigSnap.value.data());
+        }
+        if (bannersSnap.status === 'fulfilled' && bannersSnap.value.exists) {
+            applyIncomingDailyBannersData(bannersSnap.value.data());
+        }
+    } catch (e) {
+        console.warn('Firestore settings direct fetch notice:', e.message);
+    }
+}
+window.fetchSettingsFromFirestoreDirect = fetchSettingsFromFirestoreDirect;
+
+// Real-Time & Direct Listeners for Menu Items, Prices, Availability & Store Rates
 function listenToRealtimeMenuAndRates() {
     if (!customerFirestore) return;
 
-    // A1. Real-Time Full Menu Array & Rates (settings/menu document)
-    if (!menuRealtimeUnsubscribe) {
-        try {
-            menuRealtimeUnsubscribe = customerFirestore.collection('settings').doc('menu').onSnapshot((doc) => {
-                if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
-                    if (doc.data().categoryAddons) {
-                        try {
-                            customerCategoryAddons = { ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons };
-                            localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
-                        } catch (e) { }
-                    }
-                    if (doc.data().categoryDiscounts) {
-                        try {
-                            customerCategoryDiscounts = { ...doc.data().categoryDiscounts };
-                            localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
-                        } catch (e) { }
-                    }
-                    const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
-                    try {
-                        localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
-                    } catch (e) { }
-                    syncCartWithLatestMenu(freshItems);
-                    refreshActiveCustomerView(freshItems);
-                    updateCartUI();
-                }
-            }, (err) => {
-                console.warn('Firestore menu real-time notice:', err.message);
-            });
-        } catch (e) {
-            console.warn('Error setting up menu real-time listener:', e);
-        }
-    }
+    // Spark Plan Optimization: Direct fetch on startup instead of persistent onSnapshot to keep WebSocket connections << 100
+    fetchMenuFromFirestoreDirect();
+    fetchSettingsFromFirestoreDirect();
 
-    // A2. Individual Item Stream removed to prevent reading 100+ documents on every load (A1 settings/menu already streams all items)
-
-    // B. Real-Time Store Settings & Service Rates (Delivery charge, Min order, Customer care)
-    function applyIncomingSettingsData(data) {
-        if (!data || typeof data !== 'object') return;
-        if (data.minOrderValue !== undefined && data.minOrderValue !== null) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
-        if (data.freeDeliveryLimit !== undefined && data.freeDeliveryLimit !== null) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
-        if (data.customerCarePhone !== undefined && data.customerCarePhone !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
-        if (data.customerCareEnabled !== undefined && data.customerCareEnabled !== null) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-        if (data.restaurantLat !== undefined && data.restaurantLat !== null) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
-        if (data.restaurantLng !== undefined && data.restaurantLng !== null) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
-        if (data.deliveryRadius !== undefined && data.deliveryRadius !== null) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
-        if (data.zoneCharges !== undefined && data.zoneCharges !== null) localStorage.setItem(ZONE_CHARGES_KEY, typeof data.zoneCharges === 'string' ? data.zoneCharges : JSON.stringify(data.zoneCharges));
-        if (data.shopStatus !== undefined && data.shopStatus !== null) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-        if (data.openingTime !== undefined && data.openingTime !== null) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
-        if (data.closingTime !== undefined && data.closingTime !== null) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
-        if (data.autoScheduleEnabled !== undefined && data.autoScheduleEnabled !== null) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
-        if (data.manualOverride !== undefined && data.manualOverride !== null) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
-        if (data.manualCloseDate !== undefined && data.manualCloseDate !== null) {
-            if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
-            else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
-        }
-
-        // Instantly apply updated rates & settings to customer UI
-        applyRealtimeStoreSettings();
-        checkAndUpdateShopStatusUI();
-    }
-
-    if (!settingsRealtimeUnsubscribe && customerFirestore) {
-        try {
-            settingsRealtimeUnsubscribe = customerFirestore.collection('settings').doc('storeSettings').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    applyIncomingSettingsData(doc.data());
-                }
-            }, (err) => {
-                console.warn('Firestore settings/storeSettings real-time notice:', err.message);
-            });
-        } catch (e) {
-            console.warn('Error setting up settings real-time listener:', e);
-        }
-    }
-
-    if (!storeConfigRealtimeUnsubscribe && customerFirestore) {
-        try {
-            storeConfigRealtimeUnsubscribe = customerFirestore.collection('settings').doc('store_config').onSnapshot((doc) => {
-                if (doc.exists && doc.data()) {
-                    applyIncomingSettingsData(doc.data());
-                }
-            }, (err) => {
-                console.warn('Firestore settings/store_config real-time notice:', err.message);
-            });
-        } catch (e) {
-            console.warn('Error setting up store_config real-time listener:', e);
-        }
-    }
-
-    // B.2 Real-Time Daily Banners Sync ('settings/daily_banners')
-    if (!bannersRealtimeUnsubscribe && customerFirestore) {
-        try {
-            bannersRealtimeUnsubscribe = customerFirestore.collection('settings').doc('daily_banners').onSnapshot((doc) => {
-                let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
-                if (doc.exists && doc.data() && Array.isArray(doc.data().banners) && doc.data().banners.length > 0) {
-                    const docData = doc.data() || {};
-                    const rawMaxOffers = parseInt(docData.max_offers_per_order || docData.maxOffersPerOrder, 10);
-                    if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
-                        customerMaxOffersPerOrder = rawMaxOffers;
-                        localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
-                    }
-                    const rawMaxQty = parseInt(docData.max_qty_per_offer || docData.maxQtyPerOffer, 10);
-                    if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
-                        customerMaxQtyPerOffer = rawMaxQty;
-                        localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
-                    }
-                    const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
-                    const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
-                    const slot3Data = (docData.slot3 && typeof docData.slot3 === 'object') ? docData.slot3 : {};
-                    banners = docData.banners.slice(0, 4).map((b, i) => {
-                        const bannerObj = (b && typeof b === 'object') ? b : {};
-                        const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
-                        const isPizza = cat.toLowerCase() === 'pizza';
-
-                        const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Momos').trim() : '';
-                        const rawBuyQty = i === 2 ? parseInt(bannerObj.buyQty || slot3Data.buyQty || 2, 10) : 0;
-                        const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
-                        const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
-
-                        return {
-                            id: bannerObj.id || `b${i + 1}`,
-                            url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
-                            enabled: bannerObj.enabled !== false,
-                            targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
-                            discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
-                            minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
-                            rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
-                            rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
-                            rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
-                            buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat) : '',
-                            buyQty: i === 2 ? ((!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2) : 0,
-                            freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
-                        };
-                    });
-                }
-                localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));
-                if (typeof renderDynamicOfferSlider === 'function') {
-                    renderDynamicOfferSlider(banners);
-                }
-            }, (err) => {
-                console.warn('Firestore daily banners real-time notice:', err.message);
-            });
-        } catch (e) {
-            console.warn('Error setting up daily banners real-time listener:', e);
-        }
-    }
-
-    if (!walletConfigRealtimeUnsubscribe && customerFirestore) {
+    if (customerFirestore) {
         listenToWalletConfigRealtime();
     }
 
-    if (!combosRealtimeUnsubscribe && customerFirestore) {
+    if (customerFirestore) {
         initCombosRealtimeSync();
     }
 
@@ -16071,6 +16051,8 @@ function listenToCustomerActiveOrders() {
                                     id: doc.id,
                                     orderId: doc.id
                                 });
+                                // Immediately trigger tracking & UI updates for this customer order
+                                handleRealtimeCustomerOrderUpdate(doc.id, data);
                             }
                         });
                         syncCustomerPhoneOrders(remoteOrders, verifiedPhone);
@@ -16081,47 +16063,66 @@ function listenToCustomerActiveOrders() {
                 console.warn('Error attaching customer phone orders query listener:', e);
             }
         }
+
+        // Clean up individual doc listeners since the single phone query streams all orders for this customer
+        if (customerOrdersUnsubscribeMap.size > 0) {
+            customerOrdersUnsubscribeMap.forEach((unsub) => {
+                if (typeof unsub === 'function') {
+                    try { unsub(); } catch (e) { }
+                }
+            });
+            customerOrdersUnsubscribeMap.clear();
+        }
     } else {
         if (customerPhoneOrdersUnsubscribe) {
             customerPhoneOrdersUnsubscribe();
             customerPhoneOrdersUnsubscribe = null;
             customerPhoneOrdersCurrentQueryPhone = null;
         }
-    }
 
-    // 2. Individual doc listeners for real-time order progression (strictly for verified phone)
-    let storedOrders = [];
-    try {
-        const stored = localStorage.getItem('perfettoCustomerOrders');
-        if (stored) {
-            storedOrders = JSON.parse(stored) || [];
-        }
-    } catch (e) { }
+        // 2. Spark Quota Optimization: Only track at most 1 active unfulfilled order for guest / unverified session
+        let storedOrders = [];
+        try {
+            const stored = localStorage.getItem('perfettoCustomerOrders');
+            if (stored) storedOrders = JSON.parse(stored) || [];
+        } catch (e) { }
 
-    if (Array.isArray(storedOrders)) {
-        storedOrders.forEach(o => {
-            const orderId = String(o.id || o.orderId || '');
-            if (!orderId || customerOrdersUnsubscribeMap.has(orderId)) return;
+        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
+        const activeUnfulfilled = storedOrders.find(o => {
+            const st = String(o.status || '').toLowerCase().trim();
+            return !terminalStatuses.has(st) && (o.id || o.orderId);
+        });
 
-            const orderPhone = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
-            if (verifiedPhone && orderPhone && orderPhone !== verifiedPhone) return;
+        const activeId = activeUnfulfilled ? String(activeUnfulfilled.id || activeUnfulfilled.orderId) : null;
 
+        // Clean up any other existing listeners
+        customerOrdersUnsubscribeMap.forEach((unsub, id) => {
+            if (id !== activeId) {
+                if (typeof unsub === 'function') {
+                    try { unsub(); } catch (e) { }
+                }
+                customerOrdersUnsubscribeMap.delete(id);
+            }
+        });
+
+        if (activeId && !customerOrdersUnsubscribeMap.has(activeId)) {
             try {
-                const unsub = customerFirestore.collection('orders').doc(orderId).onSnapshot((doc) => {
-                    if (doc.exists) {
+                const unsub = customerFirestore.collection('orders').doc(activeId).onSnapshot((doc) => {
+                    if (doc.exists && doc.data()) {
                         const freshData = doc.data();
-                        if (freshData) {
-                            handleRealtimeCustomerOrderUpdate(orderId, freshData);
+                        handleRealtimeCustomerOrderUpdate(activeId, freshData);
+                        const st = String(freshData.status || '').toLowerCase().trim();
+                        if (terminalStatuses.has(st)) {
+                            try { unsub(); } catch (e) { }
+                            customerOrdersUnsubscribeMap.delete(activeId);
                         }
                     }
                 }, (err) => {
-                    console.warn(`Firestore order #${orderId} listener notice:`, err.message);
+                    console.warn(`Firestore order #${activeId} listener notice:`, err.message);
                 });
-                customerOrdersUnsubscribeMap.set(orderId, unsub);
-            } catch (e) {
-                console.warn(`Error attaching listener to order #${orderId}:`, e);
-            }
-        });
+                customerOrdersUnsubscribeMap.set(activeId, unsub);
+            } catch (e) { }
+        }
     }
 }
 
@@ -16499,12 +16500,16 @@ document.addEventListener('DOMContentLoaded', () => {
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
     window.restoreCustomerFullProfileAndWallet = restoreUserProfileFromFirestore;
 
-    // 2. Real-Time Background Polling Fallback (Every 60s as backup to real-time snapshot listeners)
-    if (customerMenuPollerInterval) clearInterval(customerMenuPollerInterval);
-    customerMenuPollerInterval = setInterval(fetchLiveMenuFromBackend, 60000);
-
-    if (customerSettingsPollerInterval) clearInterval(customerSettingsPollerInterval);
-    customerSettingsPollerInterval = setInterval(fetchLiveSettingsFromBackend, 60000);
+    // 2. Spark Plan Quota Optimization: 60s background polling intervals disabled
+    // The application synchronizes on initial boot, on tab focus, and on visibility return
+    if (customerMenuPollerInterval) {
+        clearInterval(customerMenuPollerInterval);
+        customerMenuPollerInterval = null;
+    }
+    if (customerSettingsPollerInterval) {
+        clearInterval(customerSettingsPollerInterval);
+        customerSettingsPollerInterval = null;
+    }
 
     // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
     document.addEventListener('visibilitychange', () => {
@@ -16512,12 +16517,16 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchLiveMenuFromBackend();
             fetchLiveSettingsFromBackend();
             fetchLiveNoticeFromBackend();
+            if (typeof fetchMenuFromFirestoreDirect === 'function') fetchMenuFromFirestoreDirect();
+            if (typeof fetchSettingsFromFirestoreDirect === 'function') fetchSettingsFromFirestoreDirect();
         }
     });
     window.addEventListener('focus', () => {
         fetchLiveMenuFromBackend();
         fetchLiveSettingsFromBackend();
         fetchLiveNoticeFromBackend();
+        if (typeof fetchMenuFromFirestoreDirect === 'function') fetchMenuFromFirestoreDirect();
+        if (typeof fetchSettingsFromFirestoreDirect === 'function') fetchSettingsFromFirestoreDirect();
     });
 });
 
