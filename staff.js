@@ -3246,7 +3246,7 @@ async function verifyAndCompleteOrderDelivery(orderId) {
 }
 window.verifyAndCompleteOrderDelivery = verifyAndCompleteOrderDelivery;
 
-function regenerateMasterDeliveryOtpOnUse(orderId) {
+async function regenerateMasterDeliveryOtpOnUse(orderId, actionType = 'delivered') {
     const newMasterOtp = String(Math.floor(1000 + Math.random() * 9000));
 
     // 1. Immediately overwrite local cache to invalidate used OTP
@@ -3256,18 +3256,18 @@ function regenerateMasterDeliveryOtpOnUse(orderId) {
 
     // 2. Sync updated masterDeliveryOtp to Firebase Firestore (both storeSettings and store_config)
     const db = getStaffFirestore();
+    const updatePayload = {
+        masterDeliveryOtp: newMasterOtp,
+        emergency_master_otp: newMasterOtp,
+        updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+    };
+
     if (db) {
         try {
-            const updatePayload = {
-                masterDeliveryOtp: newMasterOtp,
-                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
-            };
-            db.collection('settings').doc('storeSettings').set(updatePayload, { merge: true }).catch((err) => {
-                console.warn('Firestore storeSettings masterDeliveryOtp write notice:', err.message);
-            });
-            db.collection('settings').doc('store_config').set(updatePayload, { merge: true }).catch((err) => {
-                console.warn('Firestore store_config masterDeliveryOtp write notice:', err.message);
-            });
+            await Promise.allSettled([
+                db.collection('settings').doc('storeSettings').set(updatePayload, { merge: true }),
+                db.collection('settings').doc('store_config').set(updatePayload, { merge: true })
+            ]);
         } catch (e) {
             console.warn('Firestore settings update error:', e);
         }
@@ -3275,15 +3275,20 @@ function regenerateMasterDeliveryOtpOnUse(orderId) {
 
     // 3. Sync to backend API
     try {
-        fetch(resolveApiUrl('/api/settings'), {
+        await fetch(resolveApiUrl('/api/settings'), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ masterDeliveryOtp: newMasterOtp })
-        }).catch(() => {});
+            body: JSON.stringify({
+                masterDeliveryOtp: newMasterOtp,
+                emergency_master_otp: newMasterOtp
+            })
+        });
     } catch (e) { }
 
     // 4. Log event in activity_logs collection
-    const logAction = `Master Delivery OTP used and auto-regenerated for Order #${orderId}`;
+    const logAction = actionType === 'rejected'
+        ? `Emergency Master OTP used and auto-rotated on rejection of Order #${orderId}`
+        : `Master Delivery OTP used and auto-regenerated for Order #${orderId}`;
     let staffName = 'Staff';
     let staffPhone = '••••••••••';
     let role = 'Staff';
@@ -3643,9 +3648,13 @@ async function confirmRejectOrder() {
                 db.collection('settings').doc('storeSettings').get(),
                 new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
             ]);
-            if (snap && snap.exists && snap.data() && snap.data().masterDeliveryOtp) {
-                masterOtp = String(snap.data().masterDeliveryOtp).replace(/[^0-9]/g, '').slice(0, 4);
-                try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+            if (snap && snap.exists && snap.data()) {
+                const data = snap.data();
+                const remoteOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
+                if (remoteOtp) {
+                    masterOtp = String(remoteOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                    try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+                }
             }
         } catch (e) { }
     }
@@ -3680,10 +3689,13 @@ async function confirmRejectOrder() {
             masterOtp: enteredOtp
         });
 
+        // 5. Auto-rotate the Emergency Master Delivery OTP immediately upon authorized rejection!
+        await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
+
         // Close modal after confirmed status update
         closeStaffRejectModal();
 
-        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected.`);
+        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected. Master OTP rotated.`);
     } catch (err) {
         console.error('Error rejecting order:', err);
         showStaffToast(`❌ Rejection failed: ${err.message || 'Database error'}`);

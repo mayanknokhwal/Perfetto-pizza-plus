@@ -8713,7 +8713,10 @@
             if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
             if (!isCustomerCarePhoneDirty && data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
             if (!isCustomerCareToggleDirty && data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-            if (data.masterDeliveryOtp !== undefined) localStorage.setItem(MASTER_DELIVERY_OTP_KEY, String(data.masterDeliveryOtp));
+            if (data.masterDeliveryOtp !== undefined || data.emergency_master_otp !== undefined) {
+                const otpVal = String(data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp).replace(/[^0-9]/g, '').slice(0, 4);
+                localStorage.setItem(MASTER_DELIVERY_OTP_KEY, otpVal);
+            }
             if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
             if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
             if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
@@ -8758,9 +8761,10 @@
                     updateCustomerCareToggleLabel(isCareOn);
                 }
             }
-            if (masterOtpInput && activeEl !== masterOtpInput && data.masterDeliveryOtp !== undefined) {
-                const incomingOtp = String(data.masterDeliveryOtp);
-                if (masterOtpInput.value !== incomingOtp) {
+            const incomingMasterOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
+            if (masterOtpInput && activeEl !== masterOtpInput && incomingMasterOtp !== undefined) {
+                const incomingOtp = String(incomingMasterOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                if (masterOtpInput.value !== incomingOtp && incomingOtp.length === 4) {
                     masterOtpInput.value = incomingOtp;
                     masterOtpInput.classList.remove('otp-live-flash');
                     void masterOtpInput.offsetWidth;
@@ -13382,6 +13386,7 @@
 
         let adminBannersUnsubscribe = null;
         let adminWalletUnsubscribe = null;
+        let adminStoreConfigUnsubscribe = null;
         function listenToAdminSettingsRealtime() {
             if (!adminFirestore) return;
             if (!adminSettingsUnsubscribe) {
@@ -13395,6 +13400,20 @@
                     });
                 } catch (e) {
                     console.warn('Error attaching Admin Firestore settings listener:', e);
+                }
+            }
+
+            if (!adminStoreConfigUnsubscribe) {
+                try {
+                    adminStoreConfigUnsubscribe = adminFirestore.collection('settings').doc('store_config').onSnapshot((doc) => {
+                        if (doc.exists && doc.data()) {
+                            applyAdminStoreSettings(doc.data());
+                        }
+                    }, (err) => {
+                        console.warn('Firestore admin store_config real-time notice:', err.message);
+                    });
+                } catch (e) {
+                    console.warn('Error attaching Admin Firestore store_config listener:', e);
                 }
             }
 
@@ -14834,6 +14853,10 @@
                 if (typeof adminSettingsUnsubscribe === 'function') {
                     adminSettingsUnsubscribe();
                     adminSettingsUnsubscribe = null;
+                }
+                if (typeof adminStoreConfigUnsubscribe === 'function') {
+                    adminStoreConfigUnsubscribe();
+                    adminStoreConfigUnsubscribe = null;
                 }
                 if (typeof adminBannersUnsubscribe === 'function') {
                     adminBannersUnsubscribe();

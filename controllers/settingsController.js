@@ -58,7 +58,11 @@ async function handleSettingsRequest(req, res) {
             if (body.autoScheduleEnabled !== undefined) updateFields.autoScheduleEnabled = Boolean(body.autoScheduleEnabled);
             if (body.manualOverride !== undefined) updateFields.manualOverride = String(body.manualOverride).trim();
             if (body.manualCloseDate !== undefined) updateFields.manualCloseDate = body.manualCloseDate ? String(body.manualCloseDate).trim() : null;
-            if (body.masterDeliveryOtp !== undefined) updateFields.masterDeliveryOtp = String(body.masterDeliveryOtp).replace(/[^0-9]/g, '').slice(0, 4);
+            if (body.masterDeliveryOtp !== undefined || body.emergency_master_otp !== undefined) {
+                const cleanOtp = String(body.masterDeliveryOtp !== undefined ? body.masterDeliveryOtp : body.emergency_master_otp).replace(/[^0-9]/g, '').slice(0, 4);
+                updateFields.masterDeliveryOtp = cleanOtp;
+                updateFields.emergency_master_otp = cleanOtp;
+            }
 
             Object.assign(global.__perfettoStoreSettings, updateFields);
             global.__perfettoStoreSettings.updatedAt = new Date().toISOString();
