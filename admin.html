@@ -3649,24 +3649,31 @@
         }
 
         .btn-save-single-deal {
-            background: rgba(255, 107, 0, 0.15);
-            border: 1px solid rgba(255, 107, 0, 0.35);
-            color: var(--primary-orange);
+            background: #f97316; /* high-contrast brand orange (bg-orange-500) */
+            border: 1px solid #ea580c;
+            color: #ffffff;
             font-size: 0.85rem;
             font-weight: 700;
-            padding: 7px 16px;
+            padding: 8px 18px;
             border-radius: var(--radius-sm);
             cursor: pointer;
             transition: all 0.2s ease;
             display: flex;
             align-items: center;
             gap: 6px;
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35);
         }
 
         .btn-save-single-deal:hover {
-            background: var(--primary-orange);
+            background: #ea580c;
             color: #ffffff;
-            box-shadow: 0 4px 12px rgba(255, 107, 0, 0.3);
+            border-color: #c2410c;
+            box-shadow: 0 4px 14px rgba(249, 115, 22, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-save-single-deal:active {
+            transform: translateY(0);
         }
 
         @media (max-width: 900px) {
@@ -7982,6 +7989,14 @@
             if (navLink) navLink.classList.add('active');
             if (panel) panel.classList.add('active');
 
+            // Header "Save All Changes" Conditional Rendering:
+            // Render the top global "Save All Changes" button strictly when active route/tab is "Menu Management" (tabName === 'menu').
+            // Hide it completely on Dashboard, Value Combos Management, Team Management, and Activity Log.
+            const saveAllBtn = document.getElementById('btn-admin-save-all');
+            if (saveAllBtn) {
+                saveAllBtn.style.display = (tabName === 'menu') ? 'inline-flex' : 'none';
+            }
+
             if (tabName === 'dashboard') {
                 title.textContent = 'Dashboard Overview';
                 setTimeout(() => {
@@ -10691,7 +10706,7 @@
                     <div class="deal-card-footer">
                         <button type="button" class="btn-save-single-deal" id="btn-save-deal-${tier}-${dealIdx}"
                                 onclick="saveAdminComboConfig('${tier}', ${dealIdx})">
-                            <i class="fa-solid fa-check"></i> <span id="btn-save-deal-text-${tier}-${dealIdx}">Save Deal #${dealIdx + 1}</span>
+                            <i class="fa-solid fa-floppy-disk"></i> <span id="btn-save-deal-text-${tier}-${dealIdx}">Save Deal #${dealIdx + 1}</span>
                         </button>
                     </div>
                 </div>

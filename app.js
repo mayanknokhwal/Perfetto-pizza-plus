@@ -4274,7 +4274,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         banner.className = 'cart-threshold-banner status-below-min';
         content.innerHTML = `
             <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>${isHindi ? `न्यूनतम ऑर्डर ${formatPrice(minOrderVal)} है। ऑर्डर पूरा करने के लिए ${formatPrice(diff)} का सामान और जोड़ें।` : `Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`}</span>
+            <span>${isHindi ? `न्यूनतम ऑर्डर मूल्य: ${formatPrice(minOrderVal)}` : `Minimum order value: ${formatPrice(minOrderVal)}`}</span>
         `;
         if (checkoutBtn) {
             checkoutBtn.setAttribute('disabled', 'true');
@@ -7243,8 +7243,8 @@ async function processCheckout() {
     const minOrderVal = getMinOrderValue();
     const currentSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     if (currentSubtotal < minOrderVal) {
-        const diff = (minOrderVal - currentSubtotal).toFixed(2);
-        showToast(`Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`);
+        const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
+        showToast(isHindi ? `न्यूनतम ऑर्डर मूल्य: ${formatPrice(minOrderVal)}` : `Minimum order value: ${formatPrice(minOrderVal)}`);
         return;
     }
 
@@ -7739,6 +7739,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         orderId: orderId,
         id: orderId,
         deliveryOtp: deliveryOtp,
+        otp: deliveryOtp,
         firebaseUid: (currentUserProfile && currentUserProfile.firebaseUid) || '',
         customerName: profile.fullName,
         customerPhone: profile.phone,
@@ -7808,6 +7809,12 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         ordersList.unshift(newOrder);
     }
     safeStorage.setJSON('perfettoCustomerOrders', ordersList);
+    try {
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
+    } catch (e) { }
+    if (typeof renderOrderHistoryDetails === 'function') {
+        renderOrderHistoryDetails();
+    }
 
     // 2. Asynchronously save order to Firebase Firestore via Backend API
     saveOrderToBackendAPI(newOrder);
@@ -11478,7 +11485,7 @@ function renderOrderHistoryDetails() {
         });
 
         if (clearBtn) {
-            clearBtn.style.display = hasClearableOrders ? 'inline-flex' : 'none';
+            clearBtn.style.display = (Array.isArray(orders) && orders.length > 0) ? 'inline-flex' : 'none';
         }
 
         if (Array.isArray(orders) && orders.length > 0) {
@@ -11492,6 +11499,7 @@ function renderOrderHistoryDetails() {
             listEl.innerHTML = orders.map(o => {
                 const otpCode = o.deliveryOtp || o.otp || '';
                 const isDelivered = o.status === 'completed' || o.status === 'delivered';
+                const isCancelled = o.status === 'cancelled' || o.status === 'rejected';
                 const itemsText = (o.items || []).map(i => {
                     if (i.type === 'combo' && Array.isArray(i.items) && i.items.length > 0) {
                         const subNames = i.items.map(s => {
