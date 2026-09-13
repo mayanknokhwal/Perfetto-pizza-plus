@@ -2401,6 +2401,146 @@ function validateCartAvailability() {
     return unavailableInCart;
 }
 
+// Checkout Price & Availability Verification: Pre-flight check against latest menu data
+async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
+    if (!Array.isArray(cart) || cart.length === 0) {
+        return {
+            valid: false,
+            reason: 'empty_cart',
+            message: 'Your cart is empty! Please add items before placing an order.'
+        };
+    }
+
+    // 1. Fetch freshest menu items from Firestore or Backend API
+    let freshItems = null;
+    if (customerFirestore) {
+        try {
+            const doc = await customerFirestore.collection('settings').doc('menu').get();
+            if (doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+                freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
+                try {
+                    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                } catch (e) { }
+            }
+        } catch (e) { }
+    }
+
+    if (!freshItems) {
+        try {
+            const res = await fetch(resolveApiUrl('/api/menu'));
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.success && Array.isArray(data.items) && data.items.length > 0) {
+                    freshItems = sanitizeStoredMenuItems(data.items) || data.items;
+                    try {
+                        localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                    } catch (e) { }
+                }
+            }
+        } catch (e) { }
+    }
+
+    if (!freshItems || freshItems.length === 0) {
+        freshItems = getStoredMenuItems() || getAllCustomerMenuItems() || [];
+    }
+
+    // 2. Check for out of stock or removed items against fresh catalog
+    const unavailableItems = [];
+    cart.forEach(cartItem => {
+        if (cartItem.type === 'combo' || cartItem.isComboBundle) {
+            return;
+        }
+        const cleanName = (cartItem.name || '')
+            .replace(/\s*\([SML]\)$/i, '')
+            .replace(/\s*\(\+.*?\)$/i, '')
+            .trim();
+        const found = freshItems.find(i =>
+            (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) ||
+            (i.id && cartItem.id && i.id === cartItem.id)
+        );
+        if (!found || !isProductAvailable(found)) {
+            unavailableItems.push(cartItem.name);
+        }
+    });
+
+    if (unavailableItems.length > 0) {
+        updateCartUI();
+        return {
+            valid: false,
+            reason: 'out_of_stock',
+            item: unavailableItems[0],
+            message: `⚠️ "${unavailableItems[0]}" is currently unavailable or out of stock. Please remove it from your cart.`
+        };
+    }
+
+    // 3. Check for price discrepancies against fresh catalog
+    let priceChanged = false;
+    const oldSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+
+    cart.forEach(cartItem => {
+        if (cartItem.type === 'combo' || cartItem.isComboBundle || cartItem.isBannerDeal || cartItem.isSpotlightDeal || cartItem.isFreeGift) {
+            return;
+        }
+
+        const addonsSum = Array.isArray(cartItem.addons)
+            ? cartItem.addons.reduce((sum, a) => sum + (Number(a && typeof a === 'object' ? a.price : 0) || 0), 0)
+            : 0;
+
+        const sizeMatch = (cartItem.name || '').match(/\((S|M|L)\)/i);
+        if (sizeMatch) {
+            const pizzaName = (cartItem.name || '').replace(/\s*\([SML]\).*/i, '').trim().toLowerCase();
+            const size = sizeMatch[1].toUpperCase();
+            const menuItem = freshItems.find(m =>
+                (m.name && m.name.toLowerCase() === pizzaName) ||
+                (m.id && m.id.toLowerCase() === pizzaName)
+            );
+            if (menuItem && menuItem.prices && menuItem.prices[size] !== undefined) {
+                const freshBasePrice = Number(menuItem.prices[size]);
+                if (!isNaN(freshBasePrice) && freshBasePrice > 0) {
+                    const expectedTotal = freshBasePrice + addonsSum;
+                    if (cartItem.price !== expectedTotal) {
+                        cartItem.price = expectedTotal;
+                        priceChanged = true;
+                    }
+                }
+            }
+        } else {
+            const cleanName = (cartItem.name || '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
+            const menuItem = freshItems.find(m =>
+                (m.name && m.name.toLowerCase() === cleanName) ||
+                (m.id && m.id === cartItem.id)
+            );
+            if (menuItem && menuItem.price !== undefined) {
+                const freshBasePrice = Number(menuItem.price);
+                if (!isNaN(freshBasePrice) && freshBasePrice > 0) {
+                    const expectedTotal = freshBasePrice + addonsSum;
+                    if (cartItem.price !== expectedTotal) {
+                        cartItem.price = expectedTotal;
+                        priceChanged = true;
+                    }
+                }
+            }
+        }
+    });
+
+    if (priceChanged) {
+        saveCartToStorage();
+        updateCartUI();
+        const newSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+        return {
+            valid: false,
+            reason: 'price_updated',
+            oldSubtotal: oldSubtotal,
+            newSubtotal: newSubtotal,
+            message: `⚠️ Prices in your cart were updated to match our latest menu (New Subtotal: ${formatPrice(newSubtotal)}). Please review your order before confirming.`
+        };
+    }
+
+    return { valid: true };
+}
+window.verifyLatestMenuPricesAndAvailabilityBeforeCheckout = verifyLatestMenuPricesAndAvailabilityBeforeCheckout;
+
+
 function getSubItems(categoryName, categoryImg) {
     const storedItems = getStoredMenuItems();
     if (storedItems) {
@@ -7019,7 +7159,7 @@ function getSavedDeliveryProfile() {
 // --------------------------------------------------------------------------
 let isCheckoutAddressConfirmed = false;
 
-function processCheckout() {
+async function processCheckout() {
     const storeStatus = evaluateCustomerStoreStatus();
     if (!storeStatus.isOpen) {
         showToast(storeStatus.message || 'We are currently closed.');
@@ -7034,16 +7174,17 @@ function processCheckout() {
         return;
     }
 
-    // Check if any cart item is currently out of stock
-    const unavailableItems = validateCartAvailability();
-    if (unavailableItems.length > 0) {
-        showToast(`⚠️ "${unavailableItems[0]}" is currently out of stock. Please remove it from your cart.`);
+    // Checkout Price & Availability Verification: Verify against latest fetched menu data
+    const verification = await verifyLatestMenuPricesAndAvailabilityBeforeCheckout();
+    if (!verification.valid) {
+        showToast(verification.message);
         return;
     }
 
     const minOrderVal = getMinOrderValue();
-    if (subtotal < minOrderVal) {
-        const diff = (minOrderVal - subtotal).toFixed(2);
+    const freshSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    if (freshSubtotal < minOrderVal) {
+        const diff = (minOrderVal - freshSubtotal).toFixed(2);
         showToast(`Minimum order is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to place your order.`);
         return;
     }
@@ -7307,15 +7448,24 @@ function handleConfirmAddressForCheckout() {
 // --------------------------------------------------------------------------
 // ONLINE PAYMENT OPTION (CURRENTLY UNDER DEVELOPMENT / COMING SOON)
 // --------------------------------------------------------------------------
-function handleSelectOnlinePayment() {
+async function handleSelectOnlinePayment() {
     if (!isCheckoutAddressConfirmed) {
         showToast('⚠️ Please tap "Confirm Address" first.');
+        return;
+    }
+    const verification = await verifyLatestMenuPricesAndAvailabilityBeforeCheckout();
+    if (!verification.valid) {
+        showToast(verification.message);
+        const profile = getSavedDeliveryProfile();
+        if (profile) {
+            openCheckoutModal(profile);
+        }
         return;
     }
     showToast('ℹ️ Online Payment (PhonePe / UPI / Cards) is currently under development. Please choose Cash on Delivery (COD) to place your order!');
 }
 
-function handleSelectCodPayment() {
+async function handleSelectCodPayment() {
     const storeStatus = evaluateCustomerStoreStatus();
     if (!storeStatus.isOpen) {
         showToast(storeStatus.message || 'Restaurant is currently closed for orders.');
@@ -7325,11 +7475,18 @@ function handleSelectCodPayment() {
         showToast('⚠️ Please tap "Confirm Address" first.');
         return;
     }
-    const unavailableItems = validateCartAvailability();
-    if (unavailableItems.length > 0) {
-        showToast(`⚠️ "${unavailableItems[0]}" is currently out of stock. Please remove it from your cart.`);
+
+    // Checkout Price & Availability Verification: Verify against latest fetched menu data before final placement
+    const verification = await verifyLatestMenuPricesAndAvailabilityBeforeCheckout();
+    if (!verification.valid) {
+        showToast(verification.message);
+        const profile = getSavedDeliveryProfile();
+        if (profile) {
+            openCheckoutModal(profile);
+        }
         return;
     }
+
     const savedProfile = getSavedDeliveryProfile();
     if (!savedProfile) {
         closeCheckoutModal();
@@ -16511,24 +16668,78 @@ document.addEventListener('DOMContentLoaded', () => {
         customerSettingsPollerInterval = null;
     }
 
-    // 3. Instant sync on tab focus or app visibility return (mobile apps / multi-tab)
+    // 3. Silent Tab Sync on Visibility Change (when document.visibilityState becomes 'visible')
     document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            fetchLiveMenuFromBackend();
-            fetchLiveSettingsFromBackend();
-            fetchLiveNoticeFromBackend();
-            if (typeof fetchMenuFromFirestoreDirect === 'function') fetchMenuFromFirestoreDirect();
-            if (typeof fetchSettingsFromFirestoreDirect === 'function') fetchSettingsFromFirestoreDirect();
+        if (document.visibilityState === 'visible') {
+            silentlySyncAppDataOnVisibility();
         }
     });
     window.addEventListener('focus', () => {
-        fetchLiveMenuFromBackend();
-        fetchLiveSettingsFromBackend();
-        fetchLiveNoticeFromBackend();
-        if (typeof fetchMenuFromFirestoreDirect === 'function') fetchMenuFromFirestoreDirect();
-        if (typeof fetchSettingsFromFirestoreDirect === 'function') fetchSettingsFromFirestoreDirect();
+        silentlySyncAppDataOnVisibility();
     });
 });
+
+// --------------------------------------------------------------------------
+// SILENT TAB SYNC CONTROLLER (VISIBILITY CHANGE & FOCUS)
+// --------------------------------------------------------------------------
+let isSilentVisibilitySyncInProgress = false;
+
+async function silentlySyncAppDataOnVisibility() {
+    if (isSilentVisibilitySyncInProgress) return;
+    isSilentVisibilitySyncInProgress = true;
+
+    try {
+        // Silently re-fetch latest menu, bumper offers (banners), and pricing without reloading the whole page
+        await Promise.allSettled([
+            // 1. Latest Menu & Pricing
+            (async () => {
+                if (typeof fetchMenuFromFirestoreDirect === 'function') {
+                    await fetchMenuFromFirestoreDirect();
+                } else if (typeof fetchLiveMenuFromBackend === 'function') {
+                    await fetchLiveMenuFromBackend();
+                }
+            })(),
+
+            // 2. Bumper Offers (Daily Banners)
+            (async () => {
+                if (typeof fetchLiveBannersFromBackend === 'function') {
+                    await fetchLiveBannersFromBackend();
+                }
+            })(),
+
+            // 3. Store Settings & Service Rates
+            (async () => {
+                if (typeof fetchSettingsFromFirestoreDirect === 'function') {
+                    await fetchSettingsFromFirestoreDirect();
+                } else if (typeof fetchLiveSettingsFromBackend === 'function') {
+                    await fetchLiveSettingsFromBackend();
+                }
+            })(),
+
+            // 4. Store Notice
+            (async () => {
+                if (typeof fetchLiveNoticeFromBackend === 'function') {
+                    await fetchLiveNoticeFromBackend();
+                }
+            })()
+        ]);
+
+        // Synchronize in-cart items with live price and availability changes
+        const storedItems = getStoredMenuItems();
+        if (Array.isArray(storedItems) && storedItems.length > 0) {
+            syncCartWithLatestMenu(storedItems);
+            refreshActiveCustomerView(storedItems);
+        }
+        updateCartUI();
+    } catch (err) {
+        console.warn('Silent visibility sync notice:', err);
+    } finally {
+        setTimeout(() => {
+            isSilentVisibilitySyncInProgress = false;
+        }, 800);
+    }
+}
+window.silentlySyncAppDataOnVisibility = silentlySyncAppDataOnVisibility;
 
 let customerMenuPollerInterval = null;
 let customerSettingsPollerInterval = null;
