@@ -13936,7 +13936,7 @@ function getAvailableAddonsForComboItem(item) {
         const addons = [];
         if (rates.extraCheese !== undefined && rates.extraCheese >= 0) addons.push({ id: 'extraCheese', name: 'Extra Cheese', icon: '🧀', price: Number(rates.extraCheese) || 0 });
         if (rates.extraSpicy !== undefined && rates.extraSpicy >= 0) addons.push({ id: 'extraSpicy', name: 'Extra Spicy', icon: '🌶️', price: Number(rates.extraSpicy) || 0 });
-        if (rates.extraMayo !== undefined && rates.extraMayo >= 0) addons.push({ id: 'extraMayo', name: 'Extra Mayo', icon: '🍶', price: Number(rates.extraMayo) || 0 });
+        if (rates.extraMayo !== undefined && rates.extraMayo >= 0) addons.push({ id: 'extraMayo', name: 'Extra Mayo', icon: '🍥', price: Number(rates.extraMayo) || 0 });
         return addons;
     }
 
@@ -13955,7 +13955,7 @@ function getAvailableAddonsForComboItem(item) {
         return [
             { id: 'extraCheese', name: 'Extra Cheese', icon: '🧀', price: cheeseRate },
             { id: 'extraSpicy', name: 'Extra Spicy', icon: '🌶️', price: spicyRate },
-            { id: 'extraMayo', name: 'Extra Mayo', icon: '🍶', price: mayoRate }
+            { id: 'extraMayo', name: 'Extra Mayo', icon: '🍥', price: mayoRate }
         ];
     }
 
@@ -14067,7 +14067,7 @@ function updateComboDealCardPricing(tier, dealId) {
     // Update Button Text
     const btn = document.getElementById(`btn-select-combo-${tier}-${dealId}`);
     if (btn && !btn.classList.contains('btn-added')) {
-        btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add Combo • ₹${finalPrice}`;
+        btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add Combo`;
     }
 }
 window.updateComboDealCardPricing = updateComboDealCardPricing;
@@ -14210,7 +14210,7 @@ function renderCustomerComboTierDeals(tier) {
                             class="btn-select-combo" 
                             id="btn-select-combo-${tier}-${dealIdSafe}" 
                             onclick="selectValueCombo('${tier}', '${dealIdSafe}')">
-                        <i class="fa-solid fa-plus"></i> Add Combo • ₹${currentFinalPrice}
+                        <i class="fa-solid fa-plus"></i> Add Combo
                     </button>
                 </div>
             </div>
@@ -14785,7 +14785,7 @@ async function selectValueCombo(tier, dealId) {
         setTimeout(() => {
             if (btn) {
                 btn.classList.remove('btn-added');
-                btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add Combo • ₹${finalComboPrice}`;
+                btn.innerHTML = `<i class="fa-solid fa-plus"></i> Add Combo`;
             }
         }, 2200);
     }
