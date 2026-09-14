@@ -337,6 +337,19 @@ async function handleOrdersRequest(req, res) {
                 return res.status(400).json({ success: false, message: 'Missing or invalid order payload' });
             }
 
+            // Strict Backend Store Closed Guard: block order placement if restaurant is closed
+            try {
+                const liveSettings = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config') || global.__perfettoStoreSettings;
+                if (liveSettings && (liveSettings.shopStatus === 'closed' || liveSettings.manualOverride === 'closed')) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Restaurant is currently closed for orders. Order placement is blocked.'
+                    });
+                }
+            } catch (e) {
+                console.warn('Backend store status verification notice:', e.message);
+            }
+
             let finalOrderId = body.orderId || body.id;
             if (!finalOrderId) {
                 finalOrderId = (Date.now()).toString();

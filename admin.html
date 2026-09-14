@@ -4077,8 +4077,8 @@
                             </label>
                             <div class="search-box">
                                 <i class="fa-solid fa-indian-rupee-sign"></i>
-                                <input type="number" id="input-min-order-value" class="search-input" value="80" min="0"
-                                    placeholder="e.g. 80">
+                                <input type="number" id="input-min-order-value" class="search-input" min="0"
+                                    placeholder="e.g. 80" oninput="markStoreSettingsDirty()">
                             </div>
                         </div>
 
@@ -4089,8 +4089,8 @@
                             </label>
                             <div class="search-box">
                                 <i class="fa-solid fa-truck-fast"></i>
-                                <input type="number" id="input-free-delivery-limit" class="search-input" value="500"
-                                    min="0" placeholder="e.g. 500">
+                                <input type="number" id="input-free-delivery-limit" class="search-input"
+                                    min="0" placeholder="e.g. 500" oninput="markStoreSettingsDirty()">
                             </div>
                         </div>
 
@@ -4131,9 +4131,9 @@
                             </label>
                             <div class="search-box" style="position: relative;">
                                 <i class="fa-solid fa-shield-halved"></i>
-                                <input type="password" id="input-master-delivery-otp" class="search-input" value="9999"
+                                <input type="password" id="input-master-delivery-otp" class="search-input"
                                     placeholder="e.g. 9999" maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
-                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4); markStoreSettingsDirty();"
                                     onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
                                     style="padding-right: 42px; letter-spacing: 0.18em; font-weight: 800; font-family: monospace; font-size: 1.05rem;">
                                 <button type="button" class="btn-toggle-otp-eye" id="btn-toggle-master-otp-eye"
@@ -4178,7 +4178,7 @@
                                 </label>
                                 <div class="search-box">
                                     <i class="fa-solid fa-clock"></i>
-                                    <input type="time" id="input-opening-time" class="search-input" value="11:00" oninput="onScheduleInputChange()" onchange="onScheduleInputChange()">
+                                    <input type="time" id="input-opening-time" class="search-input" oninput="onScheduleInputChange()" onchange="onScheduleInputChange()">
                                 </div>
                             </div>
 
@@ -4190,7 +4190,7 @@
                                 </label>
                                 <div class="search-box">
                                     <i class="fa-solid fa-clock"></i>
-                                    <input type="time" id="input-closing-time" class="search-input" value="23:00" oninput="onScheduleInputChange()" onchange="onScheduleInputChange()">
+                                    <input type="time" id="input-closing-time" class="search-input" oninput="onScheduleInputChange()" onchange="onScheduleInputChange()">
                                 </div>
                             </div>
 
@@ -4232,7 +4232,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-1" class="zone-charge-input" min="0"
-                                        placeholder="0">
+                                        placeholder="0" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4245,7 +4245,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-2" class="zone-charge-input" min="0"
-                                        placeholder="0">
+                                        placeholder="0" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4258,7 +4258,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-3" class="zone-charge-input" min="0"
-                                        placeholder="0">
+                                        placeholder="0" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4271,7 +4271,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-4" class="zone-charge-input" min="0"
-                                        placeholder="0">
+                                        placeholder="0" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4284,7 +4284,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-5" class="zone-charge-input" min="0"
-                                        placeholder="0">
+                                        placeholder="0" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4297,7 +4297,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-6" class="zone-charge-input" min="0"
-                                        placeholder="0">
+                                        placeholder="0" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
                         </div>
@@ -4330,7 +4330,7 @@
                                     <div class="map-coord-input-wrap">
                                         <input type="number" step="any" id="input-restaurant-lat" class="map-coord-input"
                                             value="29.533736" placeholder="e.g. 29.533736"
-                                            oninput="onManualCoordinateChange()">
+                                            oninput="onManualCoordinateChange(); markStoreSettingsDirty();">
                                     </div>
                                 </div>
 
@@ -4342,7 +4342,7 @@
                                     <div class="map-coord-input-wrap">
                                         <input type="number" step="any" id="input-restaurant-lng" class="map-coord-input"
                                             value="73.447895" placeholder="e.g. 73.447895"
-                                            oninput="onManualCoordinateChange()">
+                                            oninput="onManualCoordinateChange(); markStoreSettingsDirty();">
                                     </div>
                                 </div>
                             </div>
@@ -7627,8 +7627,8 @@
                     return;
                 }
 
-                // 2.2 Persist Store Settings if function exists
-                if (typeof saveOrderSettings === 'function') {
+                // 2.2 Persist Store Settings ONLY if user modified store settings
+                if (typeof saveOrderSettings === 'function' && isStoreSettingsDirty) {
                     const settingsSuccess = await saveOrderSettings(false);
                     if (settingsSuccess === false) {
                         return;
@@ -7999,6 +7999,9 @@
 
             if (tabName === 'dashboard') {
                 title.textContent = 'Dashboard Overview';
+                if (typeof fetchAdminStoreSettingsDirect === 'function') {
+                    fetchAdminStoreSettingsDirect(true);
+                }
                 setTimeout(() => {
                     if (adminLeafletMap) adminLeafletMap.invalidateSize();
                 }, 200);
@@ -8624,7 +8627,9 @@
             if (nextVal > 10.0) nextVal = 10.0;
 
             currentAdminDeliveryRadius = nextVal;
+            localStorage.setItem(DELIVERY_RADIUS_KEY, String(currentAdminDeliveryRadius));
             updateRadiusStepperUI(currentAdminDeliveryRadius);
+            if (typeof markStoreSettingsDirty === 'function') markStoreSettingsDirty();
 
             if (adminCoverageCircle) {
                 adminCoverageCircle.setRadius(currentAdminDeliveryRadius * 1000);
@@ -8655,11 +8660,18 @@
         let isOpeningTimeDirty = false;
         let isClosingTimeDirty = false;
         let isAutoScheduleDirty = false;
+        let isStoreSettingsDirty = false;
+        let hasStoreSettingsLoadedFromFirestore = false;
+
+        function markStoreSettingsDirty() {
+            isStoreSettingsDirty = true;
+        }
 
         function onCustomerCarePhoneInput(val) {
             const cleaned = String(val || '').replace(/[^0-9]/g, '').slice(0, 10);
             currentCustomerCarePhone = cleaned;
             isCustomerCarePhoneDirty = true;
+            markStoreSettingsDirty();
             const phoneInput = document.getElementById('input-customer-care-phone');
             if (phoneInput && phoneInput.value !== cleaned) {
                 phoneInput.value = cleaned;
@@ -8674,6 +8686,7 @@
         function onCustomerCareToggleChange(checked) {
             currentCustomerCareEnabled = Boolean(checked);
             isCustomerCareToggleDirty = true;
+            markStoreSettingsDirty();
             updateCustomerCareToggleLabel(currentCustomerCareEnabled);
             try {
                 localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, currentCustomerCareEnabled.toString());
@@ -8706,37 +8719,14 @@
             }
         });
 
-        function applyAdminStoreSettings(data) {
-            if (!data) return;
-
-            if (data.minOrderValue !== undefined) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
-            if (data.freeDeliveryLimit !== undefined) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
-            if (!isCustomerCarePhoneDirty && data.customerCarePhone !== undefined) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
-            if (!isCustomerCareToggleDirty && data.customerCareEnabled !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-            if (data.masterDeliveryOtp !== undefined || data.emergency_master_otp !== undefined) {
-                const otpVal = String(data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp).replace(/[^0-9]/g, '').slice(0, 4);
-                localStorage.setItem(MASTER_DELIVERY_OTP_KEY, otpVal);
-            }
-            if (data.restaurantLat !== undefined) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
-            if (data.restaurantLng !== undefined) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
-            if (data.deliveryRadius !== undefined) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
-            if (data.zoneCharges !== undefined) localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(data.zoneCharges));
-            if (data.shopStatus !== undefined) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-            if (!isOpeningTimeDirty && data.openingTime !== undefined) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
-            if (!isClosingTimeDirty && data.closingTime !== undefined) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
-            if (!isAutoScheduleDirty && data.autoScheduleEnabled !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
-            if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
-            if (data.manualCloseDate !== undefined) {
-                if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
-                else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
-            }
+        function applyAdminStoreSettings(data, forceUIUpdate = false) {
+            if (!data || typeof data !== 'object') return;
 
             const activeEl = document.activeElement;
             const minInput = document.getElementById('input-min-order-value');
             const freeInput = document.getElementById('input-free-delivery-limit');
             const phoneInput = document.getElementById('input-customer-care-phone');
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
-            const statusEl = document.getElementById('customer-care-toggle-status');
             const masterOtpInput = document.getElementById('input-master-delivery-otp');
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
@@ -8744,68 +8734,178 @@
             const closeTimeInput = document.getElementById('input-closing-time');
             const toggleAutoSchedule = document.getElementById('toggle-auto-schedule-enabled');
 
-            if (minInput && activeEl !== minInput && data.minOrderValue !== undefined) minInput.value = data.minOrderValue;
-            if (freeInput && activeEl !== freeInput && data.freeDeliveryLimit !== undefined) freeInput.value = data.freeDeliveryLimit;
-            if (phoneInput && data.customerCarePhone !== undefined) {
-                const incomingPhone = String(data.customerCarePhone).replace(/[^0-9]/g, '').slice(0, 10);
-                if (!isCustomerCarePhoneDirty && activeEl !== phoneInput) {
-                    currentCustomerCarePhone = incomingPhone;
-                    phoneInput.value = incomingPhone;
+            // 1. Minimum Order Value
+            const minVal = data.minOrderValue !== undefined && data.minOrderValue !== null 
+                ? Number(data.minOrderValue) 
+                : (data.min_order_value !== undefined && data.min_order_value !== null ? Number(data.min_order_value) : undefined);
+            if (minVal !== undefined && !isNaN(minVal)) {
+                localStorage.setItem(MIN_ORDER_KEY, String(minVal));
+                if (minInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== minInput))) {
+                    minInput.value = minVal;
                 }
-            }
-            if (toggleCare && data.customerCareEnabled !== undefined) {
-                const isCareOn = Boolean(data.customerCareEnabled === true || data.customerCareEnabled === 'true');
-                if (!isCustomerCareToggleDirty && activeEl !== toggleCare) {
-                    currentCustomerCareEnabled = isCareOn;
-                    toggleCare.checked = isCareOn;
-                    updateCustomerCareToggleLabel(isCareOn);
-                }
-            }
-            const incomingMasterOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
-            if (masterOtpInput && activeEl !== masterOtpInput && incomingMasterOtp !== undefined) {
-                const incomingOtp = String(incomingMasterOtp).replace(/[^0-9]/g, '').slice(0, 4);
-                if (masterOtpInput.value !== incomingOtp && incomingOtp.length === 4) {
-                    masterOtpInput.value = incomingOtp;
-                    masterOtpInput.classList.remove('otp-live-flash');
-                    void masterOtpInput.offsetWidth;
-                    masterOtpInput.classList.add('otp-live-flash');
-                }
-            }
-            if (latInput && activeEl !== latInput && data.restaurantLat !== undefined) latInput.value = data.restaurantLat;
-            if (lngInput && activeEl !== lngInput && data.restaurantLng !== undefined) lngInput.value = data.restaurantLng;
-            if (data.deliveryRadius !== undefined) {
-                currentAdminDeliveryRadius = parseFloat(data.deliveryRadius) || 10;
-                updateRadiusStepperUI(currentAdminDeliveryRadius);
             }
 
-            if (openTimeInput && !isOpeningTimeDirty && activeEl !== openTimeInput && data.openingTime !== undefined) openTimeInput.value = data.openingTime;
-            if (closeTimeInput && !isClosingTimeDirty && activeEl !== closeTimeInput && data.closingTime !== undefined) closeTimeInput.value = data.closingTime;
-            if (toggleAutoSchedule && !isAutoScheduleDirty && activeEl !== toggleAutoSchedule && data.autoScheduleEnabled !== undefined) {
-                const isAuto = Boolean(data.autoScheduleEnabled === true || data.autoScheduleEnabled === 'true');
-                toggleAutoSchedule.checked = isAuto;
-                updateAutoScheduleToggleLabel(isAuto);
+            // 2. Free Delivery Threshold
+            const freeVal = data.freeDeliveryThreshold !== undefined && data.freeDeliveryThreshold !== null
+                ? Number(data.freeDeliveryThreshold)
+                : (data.freeDeliveryLimit !== undefined && data.freeDeliveryLimit !== null 
+                    ? Number(data.freeDeliveryLimit) 
+                    : (data.free_delivery_threshold !== undefined && data.free_delivery_threshold !== null ? Number(data.free_delivery_threshold) : undefined));
+            if (freeVal !== undefined && !isNaN(freeVal)) {
+                localStorage.setItem(FREE_DELIVERY_KEY, String(freeVal));
+                if (freeInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== freeInput))) {
+                    freeInput.value = freeVal;
+                }
             }
 
-            if (data.zoneCharges && typeof data.zoneCharges === 'object') {
-                for (let i = 1; i <= 6; i++) {
-                    const zInput = document.getElementById(`input-zone-charge-${i}`);
-                    if (zInput && activeEl !== zInput) {
-                        const zVal = data.zoneCharges[`zone${i}`];
-                        zInput.value = (zVal !== null && zVal !== undefined) ? zVal : '';
+            // 3. Customer Care Phone
+            const rawPhone = data.customerCarePhone !== undefined ? data.customerCarePhone : data.customer_care_phone;
+            if (rawPhone !== undefined && rawPhone !== null) {
+                const phoneDigits = String(rawPhone).replace(/[^0-9]/g, '').slice(0, 10);
+                if (phoneDigits) {
+                    localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, phoneDigits);
+                    currentCustomerCarePhone = phoneDigits;
+                    if (phoneInput && (forceUIUpdate || (!isCustomerCarePhoneDirty && activeEl !== phoneInput))) {
+                        phoneInput.value = phoneDigits;
                     }
                 }
             }
 
-            if (data.restaurantLat !== undefined || data.restaurantLng !== undefined || data.deliveryRadius !== undefined) {
-                updateMapFromCoordinates(
-                    data.restaurantLat !== undefined ? data.restaurantLat : getRestaurantLat(),
-                    data.restaurantLng !== undefined ? data.restaurantLng : getRestaurantLng(),
-                    currentAdminDeliveryRadius
-                );
+            // 4. Customer Care Toggle
+            const rawCare = data.customerCareButtonEnabled !== undefined ? data.customerCareButtonEnabled : data.customerCareEnabled;
+            if (rawCare !== undefined && rawCare !== null) {
+                const isCareOn = Boolean(rawCare === true || rawCare === 'true');
+                localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(isCareOn));
+                currentCustomerCareEnabled = isCareOn;
+                if (toggleCare && (forceUIUpdate || (!isCustomerCareToggleDirty && activeEl !== toggleCare))) {
+                    toggleCare.checked = isCareOn;
+                    updateCustomerCareToggleLabel(isCareOn);
+                }
+            }
+
+            // 5. Emergency Master Delivery OTP
+            const rawOtp = data.emergencyMasterOtp !== undefined ? data.emergencyMasterOtp : (data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp);
+            if (rawOtp !== undefined && rawOtp !== null) {
+                const cleanOtp = String(rawOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                if (cleanOtp.length === 4) {
+                    localStorage.setItem(MASTER_DELIVERY_OTP_KEY, cleanOtp);
+                    if (masterOtpInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== masterOtpInput))) {
+                        masterOtpInput.value = cleanOtp;
+                    }
+                }
+            }
+
+            // 6. Coordinates
+            let latVal = undefined;
+            let lngVal = undefined;
+            if (data.storeCoordinates && typeof data.storeCoordinates === 'object') {
+                if (data.storeCoordinates.lat !== undefined) latVal = parseFloat(data.storeCoordinates.lat);
+                if (data.storeCoordinates.lng !== undefined) lngVal = parseFloat(data.storeCoordinates.lng);
+            }
+            if (latVal === undefined && data.restaurantLat !== undefined) latVal = parseFloat(data.restaurantLat);
+            if (lngVal === undefined && data.restaurantLng !== undefined) lngVal = parseFloat(data.restaurantLng);
+            if (latVal !== undefined && !isNaN(latVal)) {
+                localStorage.setItem(RESTAURANT_LAT_KEY, String(latVal));
+                if (latInput && (forceUIUpdate || activeEl !== latInput)) latInput.value = latVal;
+            }
+            if (lngVal !== undefined && !isNaN(lngVal)) {
+                localStorage.setItem(RESTAURANT_LNG_KEY, String(lngVal));
+                if (lngInput && (forceUIUpdate || activeEl !== lngInput)) lngInput.value = lngVal;
+            }
+
+            // 7. Delivery Radius [0.5 - 10.0 KM]
+            let radVal = data.deliveryRadius !== undefined ? parseFloat(data.deliveryRadius) : (data.deliveryRadiusKm !== undefined ? parseFloat(data.deliveryRadiusKm) : undefined);
+            if (radVal !== undefined && !isNaN(radVal)) {
+                if (radVal < 0.5) radVal = 0.5;
+                if (radVal > 10.0) radVal = 10.0;
+                radVal = parseFloat(radVal.toFixed(1));
+                currentAdminDeliveryRadius = radVal;
+                localStorage.setItem(DELIVERY_RADIUS_KEY, String(radVal));
+                updateRadiusStepperUI(currentAdminDeliveryRadius);
+            }
+
+            // 8. Operating Hours
+            let openTime = undefined;
+            let closeTime = undefined;
+            if (data.operatingHours && typeof data.operatingHours === 'object') {
+                if (data.operatingHours.openingTime !== undefined) openTime = String(data.operatingHours.openingTime).trim();
+                if (data.operatingHours.closingTime !== undefined) closeTime = String(data.operatingHours.closingTime).trim();
+            }
+            if (openTime === undefined && data.openingTime !== undefined) openTime = String(data.openingTime).trim();
+            if (closeTime === undefined && data.closingTime !== undefined) closeTime = String(data.closingTime).trim();
+            if (openTime !== undefined && openTime !== '') {
+                localStorage.setItem(OPENING_TIME_KEY, openTime);
+                if (openTimeInput && (forceUIUpdate || (!isOpeningTimeDirty && activeEl !== openTimeInput))) {
+                    openTimeInput.value = openTime;
+                }
+            }
+            if (closeTime !== undefined && closeTime !== '') {
+                localStorage.setItem(CLOSING_TIME_KEY, closeTime);
+                if (closeTimeInput && (forceUIUpdate || (!isClosingTimeDirty && activeEl !== closeTimeInput))) {
+                    closeTimeInput.value = closeTime;
+                }
+            }
+
+            // 9. Auto-Schedule Mode
+            const rawAuto = data.autoScheduleMode !== undefined ? data.autoScheduleMode : data.autoScheduleEnabled;
+            if (rawAuto !== undefined && rawAuto !== null) {
+                const isAuto = Boolean(rawAuto === true || rawAuto === 'true');
+                localStorage.setItem(AUTO_SCHEDULE_KEY, String(isAuto));
+                if (toggleAutoSchedule && (forceUIUpdate || (!isAutoScheduleDirty && activeEl !== toggleAutoSchedule))) {
+                    toggleAutoSchedule.checked = isAuto;
+                    updateAutoScheduleToggleLabel(isAuto);
+                }
+            }
+
+            // 10. Flexible Zones
+            const rawZones = data.flexibleZones !== undefined ? data.flexibleZones : data.zoneCharges;
+            if (rawZones) {
+                const zonesMap = {};
+                if (Array.isArray(rawZones)) {
+                    for (let i = 1; i <= 6; i++) {
+                        const zVal = rawZones[i - 1];
+                        zonesMap[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
+                    }
+                } else if (typeof rawZones === 'object') {
+                    for (let i = 1; i <= 6; i++) {
+                        const zVal = rawZones[`zone${i}`] !== undefined ? rawZones[`zone${i}`] : rawZones[i];
+                        zonesMap[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
+                    }
+                }
+                localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(zonesMap));
+                for (let i = 1; i <= 6; i++) {
+                    const zInput = document.getElementById(`input-zone-charge-${i}`);
+                    if (zInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== zInput))) {
+                        const val = zonesMap[`zone${i}`];
+                        zInput.value = (val !== null && val !== undefined) ? val : '';
+                    }
+                }
             }
 
             if (data.shopStatus !== undefined) {
+                localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
                 updateShopStatusUI(data.shopStatus);
+            }
+            if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
+            if (data.manualCloseDate !== undefined) {
+                if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
+                else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
+            }
+
+            updateMapFromCoordinates(
+                latVal !== undefined ? latVal : getRestaurantLat(),
+                lngVal !== undefined ? lngVal : getRestaurantLng(),
+                currentAdminDeliveryRadius
+            );
+
+            hasStoreSettingsLoadedFromFirestore = true;
+            if (forceUIUpdate) {
+                isStoreSettingsDirty = false;
+                isCustomerCarePhoneDirty = false;
+                isCustomerCareToggleDirty = false;
+                isOpeningTimeDirty = false;
+                isClosingTimeDirty = false;
+                isAutoScheduleDirty = false;
             }
 
             evaluateAndSyncShopStatus(false);
@@ -8816,7 +8916,6 @@
             const freeInput = document.getElementById('input-free-delivery-limit');
             const phoneInput = document.getElementById('input-customer-care-phone');
             const toggleCare = document.getElementById('toggle-customer-care-enabled');
-            const statusEl = document.getElementById('customer-care-toggle-status');
             const masterOtpInput = document.getElementById('input-master-delivery-otp');
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
@@ -8824,24 +8923,52 @@
             const closeTimeInput = document.getElementById('input-closing-time');
             const toggleAutoSchedule = document.getElementById('toggle-auto-schedule-enabled');
 
-            const currentLat = getRestaurantLat();
-            const currentLng = getRestaurantLng();
-            currentAdminDeliveryRadius = getDeliveryRadiusKm();
-            const zoneCharges = getDeliveryZoneCharges();
+            // 1. Initial prefill from localStorage if available (avoids blank flash)
+            const storedMin = localStorage.getItem(MIN_ORDER_KEY);
+            if (minInput && storedMin !== null) minInput.value = storedMin;
 
-            if (minInput) minInput.value = getMinOrderValue();
-            if (freeInput) freeInput.value = getFreeDeliveryLimit();
-            if (phoneInput && !isCustomerCarePhoneDirty) {
-                currentCustomerCarePhone = getCustomerCarePhone();
-                phoneInput.value = currentCustomerCarePhone;
+            const storedFree = localStorage.getItem(FREE_DELIVERY_KEY);
+            if (freeInput && storedFree !== null) freeInput.value = storedFree;
+
+            const storedPhone = localStorage.getItem(CUSTOMER_CARE_PHONE_KEY);
+            if (phoneInput && storedPhone) {
+                currentCustomerCarePhone = storedPhone;
+                phoneInput.value = storedPhone;
             }
-            if (masterOtpInput) masterOtpInput.value = getMasterDeliveryOtp();
-            if (latInput) latInput.value = currentLat;
-            if (lngInput) lngInput.value = currentLng;
-            if (openTimeInput && !isOpeningTimeDirty) openTimeInput.value = getOpeningTime();
-            if (closeTimeInput && !isClosingTimeDirty) closeTimeInput.value = getClosingTime();
 
-            // Pre-fill 6 flexible zone charges
+            const storedOtp = localStorage.getItem(MASTER_DELIVERY_OTP_KEY);
+            if (masterOtpInput && storedOtp) masterOtpInput.value = storedOtp;
+
+            const storedLat = localStorage.getItem(RESTAURANT_LAT_KEY);
+            if (latInput && storedLat !== null) latInput.value = storedLat;
+
+            const storedLng = localStorage.getItem(RESTAURANT_LNG_KEY);
+            if (lngInput && storedLng !== null) lngInput.value = storedLng;
+
+            const storedOpen = localStorage.getItem(OPENING_TIME_KEY);
+            if (openTimeInput && storedOpen) openTimeInput.value = storedOpen;
+
+            const storedClose = localStorage.getItem(CLOSING_TIME_KEY);
+            if (closeTimeInput && storedClose) closeTimeInput.value = storedClose;
+
+            const storedAuto = localStorage.getItem(AUTO_SCHEDULE_KEY);
+            if (toggleAutoSchedule && storedAuto !== null) {
+                const isAuto = storedAuto === 'true';
+                toggleAutoSchedule.checked = isAuto;
+                updateAutoScheduleToggleLabel(isAuto);
+            }
+
+            const storedCare = localStorage.getItem(CUSTOMER_CARE_ENABLED_KEY);
+            if (toggleCare && storedCare !== null) {
+                currentCustomerCareEnabled = storedCare === 'true';
+                toggleCare.checked = currentCustomerCareEnabled;
+                updateCustomerCareToggleLabel(currentCustomerCareEnabled);
+            }
+
+            currentAdminDeliveryRadius = getDeliveryRadiusKm();
+            updateRadiusStepperUI(currentAdminDeliveryRadius);
+
+            const zoneCharges = getDeliveryZoneCharges();
             for (let i = 1; i <= 6; i++) {
                 const zoneInput = document.getElementById(`input-zone-charge-${i}`);
                 if (zoneInput) {
@@ -8850,51 +8977,52 @@
                 }
             }
 
-            updateRadiusStepperUI(currentAdminDeliveryRadius);
-
-            // Bind input changes to update map in real-time
-            if (latInput) {
-                latInput.oninput = () => {
-                    onManualCoordinateChange();
-                };
-            }
-            if (lngInput) {
-                lngInput.oninput = () => {
-                    onManualCoordinateChange();
-                };
-            }
-
-            if (toggleCare && !isCustomerCareToggleDirty) {
-                currentCustomerCareEnabled = getCustomerCareEnabled();
-                toggleCare.checked = currentCustomerCareEnabled;
-                updateCustomerCareToggleLabel(currentCustomerCareEnabled);
-            }
-
-            if (toggleAutoSchedule && !isAutoScheduleDirty) {
-                const isAuto = getAutoScheduleEnabled();
-                toggleAutoSchedule.checked = isAuto;
-                updateAutoScheduleToggleLabel(isAuto);
-            }
-
-            // Listen to real-time store settings (snapshot listener fires immediately with current data)
+            // 2. Attach real-time snapshot listeners to store_config and storeSettings
             listenToAdminSettingsRealtime();
 
-            // Backup API fetch if Firestore is not initialized
-            if (!adminFirestore) {
-                fetchSettingsFromBackend();
+            // 3. Immediately fetch fresh data from Firestore store_config doc
+            await fetchAdminStoreSettingsDirect(false);
+        }
+
+        async function fetchAdminStoreSettingsDirect(forceUIUpdate = false) {
+            let loadedData = null;
+            if (adminFirestore) {
+                try {
+                    const [configSnap, settingsSnap] = await Promise.allSettled([
+                        adminFirestore.collection('settings').doc('store_config').get(),
+                        adminFirestore.collection('settings').doc('storeSettings').get()
+                    ]);
+                    const configData = (configSnap.status === 'fulfilled' && configSnap.value && configSnap.value.exists) ? configSnap.value.data() : null;
+                    const settingsData = (settingsSnap.status === 'fulfilled' && settingsSnap.value && settingsSnap.value.exists) ? settingsSnap.value.data() : null;
+                    if (configData || settingsData) {
+                        loadedData = { ...(settingsData || {}), ...(configData || {}) };
+                    }
+                } catch (e) {
+                    console.warn('Firestore store_config/storeSettings direct fetch notice:', e.message);
+                }
+            }
+
+            if (!loadedData) {
+                try {
+                    const res = await fetch(resolveApiUrl('/api/settings'));
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json && json.success && json.settings) {
+                            loadedData = json.settings;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Backend store settings fetch notice (local resilience active):', e.message);
+                }
+            }
+
+            if (loadedData) {
+                applyAdminStoreSettings(loadedData, forceUIUpdate);
             }
         }
 
         async function fetchSettingsFromBackend() {
-            try {
-                const res = await fetch(resolveApiUrl('/api/settings'));
-                const data = await res.json();
-                if (data && data.success && data.settings) {
-                    applyAdminStoreSettings(data.settings);
-                }
-            } catch (err) {
-                console.warn('Backend store settings fetch notice (local resilience active):', err.message);
-            }
+            await fetchAdminStoreSettingsDirect(false);
         }
 
         async function saveOrderSettings(showToastMsg = true) {
@@ -8908,33 +9036,38 @@
             const openTimeInput = document.getElementById('input-opening-time');
             const closeTimeInput = document.getElementById('input-closing-time');
             const toggleAutoSchedule = document.getElementById('toggle-auto-schedule-enabled');
-            const selectOverride = document.getElementById('select-manual-override');
             const saveBtn = document.getElementById('btn-save-store-settings');
 
-            const minVal = minInput ? (parseFloat(minInput.value) || 0) : 80;
-            const freeVal = freeInput ? (parseFloat(freeInput.value) || 0) : 500;
-            const phoneRaw = (phoneInput && phoneInput.value.trim() !== '') ? phoneInput.value.trim() : (currentCustomerCarePhone || DEFAULT_CUSTOMER_CARE_PHONE);
+            const minVal = (minInput && minInput.value.trim() !== '') ? (parseFloat(minInput.value) || 0) : getMinOrderValue();
+            const freeVal = (freeInput && freeInput.value.trim() !== '') ? (parseFloat(freeInput.value) || 0) : getFreeDeliveryLimit();
+            const phoneRaw = (phoneInput && phoneInput.value.trim() !== '') ? phoneInput.value.trim() : (currentCustomerCarePhone || getCustomerCarePhone());
             const phoneVal = String(phoneRaw).replace(/[^0-9]/g, '').trim();
-            const masterOtpVal = masterOtpInput ? masterOtpInput.value.replace(/[^0-9]/g, '').slice(0, 4) : DEFAULT_MASTER_DELIVERY_OTP;
-            const latVal = latInput ? (parseFloat(latInput.value) || DEFAULT_RESTAURANT_LAT) : DEFAULT_RESTAURANT_LAT;
-            const lngVal = lngInput ? (parseFloat(lngInput.value) || DEFAULT_RESTAURANT_LNG) : DEFAULT_RESTAURANT_LNG;
-            const radiusVal = currentAdminDeliveryRadius;
+            const masterOtpVal = (masterOtpInput && masterOtpInput.value.trim() !== '') ? masterOtpInput.value.replace(/[^0-9]/g, '').slice(0, 4) : getMasterDeliveryOtp();
+            const latVal = latInput ? (parseFloat(latInput.value) || getRestaurantLat()) : getRestaurantLat();
+            const lngVal = lngInput ? (parseFloat(lngInput.value) || getRestaurantLng()) : getRestaurantLng();
 
-            const openingTimeVal = openTimeInput ? (openTimeInput.value.trim() || '11:00') : '11:00';
-            const closingTimeVal = closeTimeInput ? (closeTimeInput.value.trim() || '23:00') : '23:00';
-            const isAutoScheduleOn = toggleAutoSchedule ? toggleAutoSchedule.checked : false;
+            let radiusVal = parseFloat(currentAdminDeliveryRadius);
+            if (isNaN(radiusVal) || radiusVal < 0.5) radiusVal = 0.5;
+            if (radiusVal > 10.0) radiusVal = 10.0;
+            radiusVal = parseFloat(radiusVal.toFixed(1));
+
+            const openingTimeVal = (openTimeInput && openTimeInput.value.trim() !== '') ? openTimeInput.value.trim() : getOpeningTime();
+            const closingTimeVal = (closeTimeInput && closeTimeInput.value.trim() !== '') ? closeTimeInput.value.trim() : getClosingTime();
+            const isAutoScheduleOn = toggleAutoSchedule ? toggleAutoSchedule.checked : getAutoScheduleEnabled();
             const manualOverrideVal = 'none';
 
-            // Collect 6 Flexible Zone Delivery Charges (safely handle 0, 00, positive numbers, or empty)
+            // Collect 6 Flexible Zone Delivery Charges
             const zoneCharges = {};
+            const flexibleZonesList = [];
             for (let i = 1; i <= 6; i++) {
                 const zInput = document.getElementById(`input-zone-charge-${i}`);
+                let charge = 0;
                 if (zInput && zInput.value.trim() !== '') {
                     const parsed = parseFloat(zInput.value.trim());
-                    zoneCharges[`zone${i}`] = (!isNaN(parsed) && parsed >= 0) ? parsed : 0;
-                } else {
-                    zoneCharges[`zone${i}`] = 0; // Empty input treated safely as 0 charge
+                    charge = (!isNaN(parsed) && parsed >= 0) ? parsed : 0;
                 }
+                zoneCharges[`zone${i}`] = charge;
+                flexibleZonesList.push(charge);
             }
 
             // Strict exactly 10 digits validation check
@@ -8962,6 +9095,7 @@
             // Commit to in-memory state
             currentCustomerCarePhone = phoneVal;
             currentCustomerCareEnabled = isCareEnabled;
+            currentAdminDeliveryRadius = radiusVal;
 
             if (phoneInput) phoneInput.value = phoneVal;
             if (masterOtpInput) masterOtpInput.value = masterOtpVal;
@@ -8993,53 +9127,54 @@
 
                 const settingsPayload = {
                     minOrderValue: minVal,
+                    freeDeliveryThreshold: freeVal,
                     freeDeliveryLimit: freeVal,
                     customerCarePhone: phoneVal,
+                    customerCareButtonEnabled: isCareEnabled,
                     customerCareEnabled: isCareEnabled,
+                    emergencyMasterOtp: masterOtpVal,
                     masterDeliveryOtp: masterOtpVal,
-                    restaurantLat: latVal,
-                    restaurantLng: lngVal,
-                    deliveryRadius: radiusVal,
-                    zoneCharges: zoneCharges,
+                    operatingHours: {
+                        openingTime: openingTimeVal,
+                        closingTime: closingTimeVal
+                    },
                     openingTime: openingTimeVal,
                     closingTime: closingTimeVal,
+                    autoScheduleMode: isAutoScheduleOn,
                     autoScheduleEnabled: isAutoScheduleOn,
+                    flexibleZones: zoneCharges,
+                    flexibleZonesList: flexibleZonesList,
+                    zoneCharges: zoneCharges,
+                    deliveryRadius: radiusVal,
+                    deliveryRadiusKm: radiusVal,
+                    storeCoordinates: {
+                        lat: latVal,
+                        lng: lngVal
+                    },
+                    restaurantLat: latVal,
+                    restaurantLng: lngVal,
                     manualOverride: manualOverrideVal,
                     updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
                 };
 
-                // Instantly sync rates & settings to Firebase Firestore in real-time
+                // Instantly sync rates & settings to Firebase Firestore in real-time (both store_config and storeSettings)
                 if (adminFirestore) {
                     try {
                         await Promise.all([
-                            adminFirestore.collection('settings').doc('storeSettings').set(settingsPayload, { merge: true }),
-                            adminFirestore.collection('settings').doc('store_config').set(settingsPayload, { merge: true })
+                            adminFirestore.collection('settings').doc('store_config').set(settingsPayload, { merge: true }),
+                            adminFirestore.collection('settings').doc('storeSettings').set(settingsPayload, { merge: true })
                         ]);
                     } catch (fsEx) {
                         console.warn('Firestore store settings write notice:', fsEx.message);
                     }
                 }
 
-                // Sync rates & settings to Firebase Firestore backend
-                await syncStoreSettingsToBackend({
-                    minOrderValue: minVal,
-                    freeDeliveryLimit: freeVal,
-                    customerCarePhone: phoneVal,
-                    customerCareEnabled: isCareEnabled,
-                    masterDeliveryOtp: masterOtpVal,
-                    restaurantLat: latVal,
-                    restaurantLng: lngVal,
-                    deliveryRadius: radiusVal,
-                    zoneCharges: zoneCharges,
-                    openingTime: openingTimeVal,
-                    closingTime: closingTimeVal,
-                    autoScheduleEnabled: isAutoScheduleOn,
-                    manualOverride: manualOverrideVal,
-                });
-
+                // Sync rates & settings to Firebase Firestore backend API
+                await syncStoreSettingsToBackend(settingsPayload);
                 await updateAdminSettingsVersion();
 
                 // Clear dirty flags now that save has persisted successfully
+                isStoreSettingsDirty = false;
                 isCustomerCarePhoneDirty = false;
                 isCustomerCareToggleDirty = false;
                 isOpeningTimeDirty = false;

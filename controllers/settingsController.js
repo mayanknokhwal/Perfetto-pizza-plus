@@ -14,8 +14,10 @@ const {
 
 async function fetchLiveSettingsFromFirestore() {
     try {
-        const doc = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config');
-        if (doc) {
+        const storeConfigDoc = await getFirestoreDoc('settings', 'store_config');
+        const storeSettingsDoc = await getFirestoreDoc('settings', 'storeSettings');
+        const doc = { ...(storeSettingsDoc || {}), ...(storeConfigDoc || {}) };
+        if (doc && Object.keys(doc).length > 0) {
             global.__perfettoStoreSettings = { ...global.__perfettoStoreSettings, ...doc };
         }
     } catch (e) {
@@ -45,21 +47,104 @@ async function handleSettingsRequest(req, res) {
 
             const updateFields = {};
             if (body.minOrderValue !== undefined) updateFields.minOrderValue = Number(body.minOrderValue);
-            if (body.freeDeliveryLimit !== undefined) updateFields.freeDeliveryLimit = Number(body.freeDeliveryLimit);
+            else if (body.min_order_value !== undefined) updateFields.minOrderValue = Number(body.min_order_value);
+
+            const freeThreshold = body.freeDeliveryThreshold !== undefined ? Number(body.freeDeliveryThreshold) : (body.freeDeliveryLimit !== undefined ? Number(body.freeDeliveryLimit) : undefined);
+            if (freeThreshold !== undefined) {
+                updateFields.freeDeliveryThreshold = freeThreshold;
+                updateFields.freeDeliveryLimit = freeThreshold;
+            }
+
             if (body.customerCarePhone !== undefined) updateFields.customerCarePhone = String(body.customerCarePhone).replace(/[^0-9]/g, '').trim();
-            if (body.customerCareEnabled !== undefined) updateFields.customerCareEnabled = Boolean(body.customerCareEnabled);
+            else if (body.customer_care_phone !== undefined) updateFields.customerCarePhone = String(body.customer_care_phone).replace(/[^0-9]/g, '').trim();
+
+            const careOn = body.customerCareButtonEnabled !== undefined ? Boolean(body.customerCareButtonEnabled) : (body.customerCareEnabled !== undefined ? Boolean(body.customerCareEnabled) : undefined);
+            if (careOn !== undefined) {
+                updateFields.customerCareButtonEnabled = careOn;
+                updateFields.customerCareEnabled = careOn;
+            }
+
             if (body.restaurantLat !== undefined) updateFields.restaurantLat = Number(body.restaurantLat);
             if (body.restaurantLng !== undefined) updateFields.restaurantLng = Number(body.restaurantLng);
-            if (body.deliveryRadius !== undefined) updateFields.deliveryRadius = Number(body.deliveryRadius);
-            if (body.zoneCharges !== undefined) updateFields.zoneCharges = body.zoneCharges;
+            if (body.storeCoordinates && typeof body.storeCoordinates === 'object') {
+                const lat = Number(body.storeCoordinates.lat !== undefined ? body.storeCoordinates.lat : (updateFields.restaurantLat || 29.533736));
+                const lng = Number(body.storeCoordinates.lng !== undefined ? body.storeCoordinates.lng : (updateFields.restaurantLng || 73.447895));
+                updateFields.storeCoordinates = { lat, lng };
+                updateFields.restaurantLat = lat;
+                updateFields.restaurantLng = lng;
+            } else if (updateFields.restaurantLat !== undefined || updateFields.restaurantLng !== undefined) {
+                updateFields.storeCoordinates = {
+                    lat: updateFields.restaurantLat !== undefined ? updateFields.restaurantLat : 29.533736,
+                    lng: updateFields.restaurantLng !== undefined ? updateFields.restaurantLng : 73.447895
+                };
+            }
+
+            const rawRadius = body.deliveryRadius !== undefined ? body.deliveryRadius : body.deliveryRadiusKm;
+            if (rawRadius !== undefined) {
+                let r = parseFloat(rawRadius);
+                if (isNaN(r) || r < 0.5) r = 0.5;
+                if (r > 10.0) r = 10.0;
+                r = parseFloat(r.toFixed(1));
+                updateFields.deliveryRadius = r;
+                updateFields.deliveryRadiusKm = r;
+            }
+
+            const zones = body.flexibleZones !== undefined ? body.flexibleZones : body.zoneCharges;
+            if (zones !== undefined) {
+                let zonesObj = {};
+                let zonesArr = [];
+                if (Array.isArray(zones)) {
+                    for (let i = 1; i <= 6; i++) {
+                        const zVal = zones[i - 1];
+                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
+                        zonesObj[`zone${i}`] = c;
+                        zonesArr.push(c);
+                    }
+                } else if (typeof zones === 'object' && zones !== null) {
+                    for (let i = 1; i <= 6; i++) {
+                        const zVal = zones[`zone${i}`] !== undefined ? zones[`zone${i}`] : zones[i];
+                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
+                        zonesObj[`zone${i}`] = c;
+                        zonesArr.push(c);
+                    }
+                }
+                updateFields.flexibleZones = zonesObj;
+                updateFields.zoneCharges = zonesObj;
+                updateFields.flexibleZonesList = zonesArr;
+            }
+
             if (body.shopStatus !== undefined) updateFields.shopStatus = body.shopStatus === 'closed' ? 'closed' : 'open';
-            if (body.openingTime !== undefined) updateFields.openingTime = String(body.openingTime).trim();
-            if (body.closingTime !== undefined) updateFields.closingTime = String(body.closingTime).trim();
-            if (body.autoScheduleEnabled !== undefined) updateFields.autoScheduleEnabled = Boolean(body.autoScheduleEnabled);
+
+            let openTime = undefined;
+            let closeTime = undefined;
+            if (body.operatingHours && typeof body.operatingHours === 'object') {
+                if (body.operatingHours.openingTime !== undefined) openTime = String(body.operatingHours.openingTime).trim();
+                if (body.operatingHours.closingTime !== undefined) closeTime = String(body.operatingHours.closingTime).trim();
+            }
+            if (openTime === undefined && body.openingTime !== undefined) openTime = String(body.openingTime).trim();
+            if (closeTime === undefined && body.closingTime !== undefined) closeTime = String(body.closingTime).trim();
+            if (openTime !== undefined) updateFields.openingTime = openTime;
+            if (closeTime !== undefined) updateFields.closingTime = closeTime;
+            if (openTime !== undefined || closeTime !== undefined) {
+                updateFields.operatingHours = {
+                    openingTime: openTime !== undefined ? openTime : (global.__perfettoStoreSettings.openingTime || '11:00'),
+                    closingTime: closeTime !== undefined ? closeTime : (global.__perfettoStoreSettings.closingTime || '23:00')
+                };
+            }
+
+            const autoSchedule = body.autoScheduleMode !== undefined ? body.autoScheduleMode : body.autoScheduleEnabled;
+            if (autoSchedule !== undefined) {
+                updateFields.autoScheduleMode = Boolean(autoSchedule);
+                updateFields.autoScheduleEnabled = Boolean(autoSchedule);
+            }
+
             if (body.manualOverride !== undefined) updateFields.manualOverride = String(body.manualOverride).trim();
             if (body.manualCloseDate !== undefined) updateFields.manualCloseDate = body.manualCloseDate ? String(body.manualCloseDate).trim() : null;
-            if (body.masterDeliveryOtp !== undefined || body.emergency_master_otp !== undefined) {
-                const cleanOtp = String(body.masterDeliveryOtp !== undefined ? body.masterDeliveryOtp : body.emergency_master_otp).replace(/[^0-9]/g, '').slice(0, 4);
+
+            if (body.emergencyMasterOtp !== undefined || body.masterDeliveryOtp !== undefined || body.emergency_master_otp !== undefined) {
+                const rawOtp = body.emergencyMasterOtp !== undefined ? body.emergencyMasterOtp : (body.masterDeliveryOtp !== undefined ? body.masterDeliveryOtp : body.emergency_master_otp);
+                const cleanOtp = String(rawOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                updateFields.emergencyMasterOtp = cleanOtp;
                 updateFields.masterDeliveryOtp = cleanOtp;
                 updateFields.emergency_master_otp = cleanOtp;
             }

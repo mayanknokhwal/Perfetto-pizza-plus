@@ -2345,27 +2345,7 @@ async function fetchLiveSettingsFromBackend() {
         const res = await fetch(resolveApiUrl('/api/settings'));
         const data = await res.json();
         if (data && data.success && data.settings && typeof data.settings === 'object') {
-            const s = data.settings;
-            if (s.minOrderValue !== undefined && s.minOrderValue !== null) localStorage.setItem(MIN_ORDER_KEY, String(s.minOrderValue));
-            if (s.freeDeliveryLimit !== undefined && s.freeDeliveryLimit !== null) localStorage.setItem(FREE_DELIVERY_KEY, String(s.freeDeliveryLimit));
-            if (s.customerCarePhone !== undefined && s.customerCarePhone !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(s.customerCarePhone));
-            if (s.customerCareEnabled !== undefined && s.customerCareEnabled !== null) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(s.customerCareEnabled));
-            if (s.restaurantLat !== undefined && s.restaurantLat !== null) localStorage.setItem(RESTAURANT_LAT_KEY, String(s.restaurantLat));
-            if (s.restaurantLng !== undefined && s.restaurantLng !== null) localStorage.setItem(RESTAURANT_LNG_KEY, String(s.restaurantLng));
-            if (s.deliveryRadius !== undefined && s.deliveryRadius !== null) localStorage.setItem(DELIVERY_RADIUS_KEY, String(s.deliveryRadius));
-            if (s.zoneCharges !== undefined && s.zoneCharges !== null) localStorage.setItem(ZONE_CHARGES_KEY, typeof s.zoneCharges === 'string' ? s.zoneCharges : JSON.stringify(s.zoneCharges));
-            if (s.shopStatus !== undefined && s.shopStatus !== null) localStorage.setItem(SHOP_STATUS_KEY, String(s.shopStatus));
-            if (s.openingTime !== undefined && s.openingTime !== null) localStorage.setItem(OPENING_TIME_KEY, String(s.openingTime));
-            if (s.closingTime !== undefined && s.closingTime !== null) localStorage.setItem(CLOSING_TIME_KEY, String(s.closingTime));
-            if (s.autoScheduleEnabled !== undefined && s.autoScheduleEnabled !== null) localStorage.setItem(AUTO_SCHEDULE_KEY, String(s.autoScheduleEnabled));
-            if (s.manualOverride !== undefined && s.manualOverride !== null) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(s.manualOverride));
-            if (s.manualCloseDate !== undefined && s.manualCloseDate !== null) {
-                if (s.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(s.manualCloseDate));
-                else localStorage.removeItem(MANUAL_CLOSE_DATE_KEY);
-            }
-
-            applyRealtimeStoreSettings();
-            checkAndUpdateShopStatusUI();
+            applyIncomingSettingsData(data.settings);
         }
     } catch (err) {
         // Graceful offline fallback
@@ -4082,7 +4062,7 @@ function checkAndUpdateShopStatusUI() {
         }
     });
 
-    const modalPlaceOrderBtns = document.querySelectorAll('#btn-place-order, #btn-pay-cod');
+    const modalPlaceOrderBtns = document.querySelectorAll('#btn-place-order, #btn-pay-cod, #btn-pay-online');
     modalPlaceOrderBtns.forEach(btn => {
         if (isClosed) {
             btn.setAttribute('disabled', 'true');
@@ -4096,6 +4076,22 @@ function checkAndUpdateShopStatusUI() {
             btn.style.cursor = 'pointer';
         }
     });
+
+    // If store is closed and checkout modal is currently open, instantly dismiss modal & inform customer
+    if (isClosed) {
+        const checkoutModal = document.getElementById('checkout-modal');
+        if (checkoutModal && checkoutModal.style.display !== 'none' && checkoutModal.getAttribute('aria-hidden') !== 'true') {
+            if (typeof closeCheckoutModal === 'function') {
+                closeCheckoutModal();
+            } else {
+                checkoutModal.style.display = 'none';
+                checkoutModal.setAttribute('aria-hidden', 'true');
+            }
+            if (typeof showToast === 'function') {
+                showToast(`🚫 ${statusInfo.message || 'Restaurant is currently closed for orders.'}`);
+            }
+        }
+    }
 }
 
 // Automatically re-evaluate store schedule every 30 seconds
@@ -7271,9 +7267,21 @@ function getSavedDeliveryProfile() {
 let isCheckoutAddressConfirmed = false;
 
 async function processCheckout() {
+    // Directly verify store status before initiating checkout
+    try {
+        if (customerFirestore) {
+            const snap = await customerFirestore.collection('settings').doc('storeSettings').get();
+            if (snap && snap.exists) {
+                applyIncomingSettingsData(snap.data());
+            }
+        }
+    } catch (e) { }
+
     const storeStatus = evaluateCustomerStoreStatus();
     if (!storeStatus.isOpen) {
-        showToast(storeStatus.message || 'We are currently closed.');
+        checkAndUpdateShopStatusUI();
+        alert('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed');
         return;
     }
 
@@ -7509,6 +7517,15 @@ function handleEditAddressFromCheckout() {
 }
 
 function handleConfirmAddressForCheckout() {
+    const storeStatus = evaluateCustomerStoreStatus();
+    if (!storeStatus.isOpen) {
+        checkAndUpdateShopStatusUI();
+        if (typeof closeCheckoutModal === 'function') closeCheckoutModal();
+        alert('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed');
+        return;
+    }
+
     const profile = getSavedDeliveryProfile();
     const coords = (profile && profile.gpsLat && profile.gpsLng)
         ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
@@ -7546,6 +7563,24 @@ function handleConfirmAddressForCheckout() {
 // ONLINE PAYMENT OPTION (CURRENTLY UNDER DEVELOPMENT / COMING SOON)
 // --------------------------------------------------------------------------
 async function handleSelectOnlinePayment() {
+    try {
+        if (customerFirestore) {
+            const snap = await customerFirestore.collection('settings').doc('storeSettings').get();
+            if (snap && snap.exists) {
+                applyIncomingSettingsData(snap.data());
+            }
+        }
+    } catch (e) { }
+
+    const storeStatus = evaluateCustomerStoreStatus();
+    if (!storeStatus.isOpen) {
+        checkAndUpdateShopStatusUI();
+        if (typeof closeCheckoutModal === 'function') closeCheckoutModal();
+        alert('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed');
+        return;
+    }
+
     if (!isCheckoutAddressConfirmed) {
         showToast('⚠️ Please tap "Confirm Address" first.');
         return;
@@ -7563,9 +7598,26 @@ async function handleSelectOnlinePayment() {
 }
 
 async function handleSelectCodPayment() {
+    // Directly check store status before creating/placing the order
+    try {
+        if (customerFirestore) {
+            const snap = await customerFirestore.collection('settings').doc('storeSettings').get();
+            if (snap && snap.exists) {
+                applyIncomingSettingsData(snap.data());
+            }
+        } else if (typeof fetchLiveSettingsFromBackend === 'function') {
+            await fetchLiveSettingsFromBackend();
+        }
+    } catch (e) {
+        console.warn('Pre-order store status direct check notice:', e.message);
+    }
+
     const storeStatus = evaluateCustomerStoreStatus();
     if (!storeStatus.isOpen) {
-        showToast(storeStatus.message || 'Restaurant is currently closed for orders.');
+        checkAndUpdateShopStatusUI();
+        if (typeof closeCheckoutModal === 'function') closeCheckoutModal();
+        alert('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed');
         return;
     }
     if (!isCheckoutAddressConfirmed) {
@@ -7637,8 +7689,11 @@ function getNextOrderSequenceNumber() {
 function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paymentStatus = 'Cash on Delivery', specificOrderId = null, clearCartNow = true) {
     const storeStatus = evaluateCustomerStoreStatus();
     if (!storeStatus.isOpen) {
-        showToast(storeStatus.message || 'We are currently closed.');
-        return;
+        checkAndUpdateShopStatusUI();
+        if (typeof closeCheckoutModal === 'function') closeCheckoutModal();
+        alert('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed');
+        return false;
     }
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
 
@@ -16044,6 +16099,7 @@ async function initFirebaseRealtimeSync() {
             if (firebase.firestore) {
                 customerFirestore = firebase.firestore();
                 listenToSettingsVersionRealtime();
+                listenToStoreStatusRealtime();
                 listenToRealtimeMenuAndRates();
                 listenToCustomerActiveOrders();
                 setupStoreNoticeRealtimeListener();
@@ -16097,18 +16153,84 @@ window.fetchMenuFromFirestoreDirect = fetchMenuFromFirestoreDirect;
 
 function applyIncomingSettingsData(data) {
     if (!data || typeof data !== 'object') return;
-    if (data.minOrderValue !== undefined && data.minOrderValue !== null) localStorage.setItem(MIN_ORDER_KEY, String(data.minOrderValue));
-    if (data.freeDeliveryLimit !== undefined && data.freeDeliveryLimit !== null) localStorage.setItem(FREE_DELIVERY_KEY, String(data.freeDeliveryLimit));
-    if (data.customerCarePhone !== undefined && data.customerCarePhone !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(data.customerCarePhone));
-    if (data.customerCareEnabled !== undefined && data.customerCareEnabled !== null) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(data.customerCareEnabled));
-    if (data.restaurantLat !== undefined && data.restaurantLat !== null) localStorage.setItem(RESTAURANT_LAT_KEY, String(data.restaurantLat));
-    if (data.restaurantLng !== undefined && data.restaurantLng !== null) localStorage.setItem(RESTAURANT_LNG_KEY, String(data.restaurantLng));
-    if (data.deliveryRadius !== undefined && data.deliveryRadius !== null) localStorage.setItem(DELIVERY_RADIUS_KEY, String(data.deliveryRadius));
-    if (data.zoneCharges !== undefined && data.zoneCharges !== null) localStorage.setItem(ZONE_CHARGES_KEY, typeof data.zoneCharges === 'string' ? data.zoneCharges : JSON.stringify(data.zoneCharges));
+    const minVal = data.minOrderValue !== undefined && data.minOrderValue !== null ? Number(data.minOrderValue) : (data.min_order_value !== undefined && data.min_order_value !== null ? Number(data.min_order_value) : undefined);
+    if (minVal !== undefined && !isNaN(minVal)) localStorage.setItem(MIN_ORDER_KEY, String(minVal));
+
+    const freeVal = data.freeDeliveryThreshold !== undefined && data.freeDeliveryThreshold !== null 
+        ? Number(data.freeDeliveryThreshold) 
+        : (data.freeDeliveryLimit !== undefined && data.freeDeliveryLimit !== null ? Number(data.freeDeliveryLimit) : (data.free_delivery_threshold !== undefined && data.free_delivery_threshold !== null ? Number(data.free_delivery_threshold) : undefined));
+    if (freeVal !== undefined && !isNaN(freeVal)) localStorage.setItem(FREE_DELIVERY_KEY, String(freeVal));
+
+    const phoneVal = data.customerCarePhone !== undefined && data.customerCarePhone !== null ? data.customerCarePhone : data.customer_care_phone;
+    if (phoneVal !== undefined && phoneVal !== null) localStorage.setItem(CUSTOMER_CARE_PHONE_KEY, String(phoneVal).replace(/[^0-9]/g, '').slice(0, 10));
+
+    const careVal = data.customerCareButtonEnabled !== undefined && data.customerCareButtonEnabled !== null
+        ? Boolean(data.customerCareButtonEnabled === true || data.customerCareButtonEnabled === 'true')
+        : (data.customerCareEnabled !== undefined && data.customerCareEnabled !== null ? Boolean(data.customerCareEnabled === true || data.customerCareEnabled === 'true') : undefined);
+    if (careVal !== undefined) localStorage.setItem(CUSTOMER_CARE_ENABLED_KEY, String(careVal));
+
+    let latVal = undefined;
+    let lngVal = undefined;
+    if (data.storeCoordinates && typeof data.storeCoordinates === 'object') {
+        if (data.storeCoordinates.lat !== undefined) latVal = parseFloat(data.storeCoordinates.lat);
+        if (data.storeCoordinates.lng !== undefined) lngVal = parseFloat(data.storeCoordinates.lng);
+    }
+    if (latVal === undefined && data.restaurantLat !== undefined && data.restaurantLat !== null) latVal = parseFloat(data.restaurantLat);
+    if (lngVal === undefined && data.restaurantLng !== undefined && data.restaurantLng !== null) lngVal = parseFloat(data.restaurantLng);
+    if (latVal !== undefined && !isNaN(latVal)) localStorage.setItem(RESTAURANT_LAT_KEY, String(latVal));
+    if (lngVal !== undefined && !isNaN(lngVal)) localStorage.setItem(RESTAURANT_LNG_KEY, String(lngVal));
+
+    let radiusVal = data.deliveryRadius !== undefined && data.deliveryRadius !== null
+        ? data.deliveryRadius
+        : (data.deliveryRadiusKm !== undefined && data.deliveryRadiusKm !== null ? data.deliveryRadiusKm : data.delivery_radius);
+    if (radiusVal !== undefined && radiusVal !== null) {
+        let r = parseFloat(radiusVal);
+        if (!isNaN(r)) {
+            if (r < 0.5) r = 0.5;
+            if (r > 10.0) r = 10.0;
+            localStorage.setItem(DELIVERY_RADIUS_KEY, String(parseFloat(r.toFixed(1))));
+        }
+    }
+
+    const zones = data.flexibleZones !== undefined && data.flexibleZones !== null
+        ? data.flexibleZones
+        : (data.zoneCharges !== undefined && data.zoneCharges !== null ? data.zoneCharges : undefined);
+    if (zones !== undefined) {
+        let zonesObj = {};
+        if (typeof zones === 'string') {
+            try { zonesObj = JSON.parse(zones); } catch (e) { }
+        } else if (Array.isArray(zones)) {
+            for (let i = 1; i <= 6; i++) {
+                const zVal = zones[i - 1];
+                zonesObj[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
+            }
+        } else if (typeof zones === 'object' && zones !== null) {
+            for (let i = 1; i <= 6; i++) {
+                const zVal = zones[`zone${i}`] !== undefined ? zones[`zone${i}`] : zones[i];
+                zonesObj[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
+            }
+        }
+        localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(zonesObj));
+    }
+
     if (data.shopStatus !== undefined && data.shopStatus !== null) localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-    if (data.openingTime !== undefined && data.openingTime !== null) localStorage.setItem(OPENING_TIME_KEY, String(data.openingTime));
-    if (data.closingTime !== undefined && data.closingTime !== null) localStorage.setItem(CLOSING_TIME_KEY, String(data.closingTime));
-    if (data.autoScheduleEnabled !== undefined && data.autoScheduleEnabled !== null) localStorage.setItem(AUTO_SCHEDULE_KEY, String(data.autoScheduleEnabled));
+
+    let openVal = undefined;
+    let closeVal = undefined;
+    if (data.operatingHours && typeof data.operatingHours === 'object') {
+        if (data.operatingHours.openingTime !== undefined) openVal = data.operatingHours.openingTime;
+        if (data.operatingHours.closingTime !== undefined) closeVal = data.operatingHours.closingTime;
+    }
+    if (openVal === undefined && data.openingTime !== undefined && data.openingTime !== null) openVal = data.openingTime;
+    if (closeVal === undefined && data.closingTime !== undefined && data.closingTime !== null) closeVal = data.closingTime;
+    if (openVal !== undefined && openVal !== null) localStorage.setItem(OPENING_TIME_KEY, String(openVal).trim());
+    if (closeVal !== undefined && closeVal !== null) localStorage.setItem(CLOSING_TIME_KEY, String(closeVal).trim());
+
+    const autoVal = data.autoScheduleMode !== undefined && data.autoScheduleMode !== null
+        ? Boolean(data.autoScheduleMode === true || data.autoScheduleMode === 'true')
+        : (data.autoScheduleEnabled !== undefined && data.autoScheduleEnabled !== null ? Boolean(data.autoScheduleEnabled === true || data.autoScheduleEnabled === 'true') : undefined);
+    if (autoVal !== undefined) localStorage.setItem(AUTO_SCHEDULE_KEY, String(autoVal));
+
     if (data.manualOverride !== undefined && data.manualOverride !== null) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
     if (data.manualCloseDate !== undefined && data.manualCloseDate !== null) {
         if (data.manualCloseDate) localStorage.setItem(MANUAL_CLOSE_DATE_KEY, String(data.manualCloseDate));
@@ -16190,7 +16312,27 @@ async function fetchSettingsFromFirestoreDirect() {
         console.warn('Firestore settings direct fetch notice:', e.message);
     }
 }
-window.fetchSettingsFromFirestoreDirect = fetchSettingsFromFirestoreDirect;
+// --------------------------------------------------------------------------
+// UNIFIED SMART SYNC - STORE STATUS DIRECT FETCHER
+// --------------------------------------------------------------------------
+let storeStatusRealtimeUnsubscribe = null;
+
+/**
+ * Unified Smart Sync - Store Status Fetcher
+ * Direct getDoc fetch on demand. No persistent onSnapshot listener is attached
+ * on customer devices to preserve quota and prevent persistent WebSocket holding.
+ */
+function listenToStoreStatusRealtime() {
+    // Persistent onSnapshot listener disabled on customer devices
+    if (typeof storeStatusRealtimeUnsubscribe === 'function') {
+        try { storeStatusRealtimeUnsubscribe(); } catch (e) { }
+        storeStatusRealtimeUnsubscribe = null;
+    }
+    if (typeof fetchSettingsFromFirestoreDirect === 'function') {
+        fetchSettingsFromFirestoreDirect();
+    }
+}
+window.listenToStoreStatusRealtime = listenToStoreStatusRealtime;
 
 // Real-Time & Direct Listeners for Menu Items, Prices, Availability & Store Rates
 function listenToRealtimeMenuAndRates() {
@@ -16213,6 +16355,9 @@ function listenToRealtimeMenuAndRates() {
         try {
             const bc = new BroadcastChannel('perfetto_store_sync');
             bc.onmessage = (event) => {
+                if (event.data && event.data.type === 'store_status_updated' && event.data.settings) {
+                    applyIncomingSettingsData(event.data.settings);
+                }
                 if (event.data && event.data.type === 'wallet_config_updated' && event.data.config) {
                     const conf = event.data.config;
                     const rawIncomingSlabs = (Array.isArray(conf.slabs) && conf.slabs.length > 0)
@@ -16707,6 +16852,47 @@ function setupGlobalCustomerModalDismissals() {
 }
 
 // --------------------------------------------------------------------------
+// UNIFIED 3-MINUTE SMART SYNC (MENU, PRICING, OFFERS, STORE STATUS)
+// --------------------------------------------------------------------------
+const UNIFIED_SMART_SYNC_INTERVAL_MS = 180000; // 3 minutes = 180,000 ms
+const PERIODIC_MENU_SYNC_INTERVAL_MS = 180000; // Backward-compatible alias
+let customerSmartSyncInterval = null;
+let customerMenuPollerInterval = null;
+let customerSettingsPollerInterval = null;
+
+async function triggerUnifiedSmartSyncIfVisible() {
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        if (typeof silentlySyncAppDataOnVisibility === 'function') {
+            await silentlySyncAppDataOnVisibility();
+        } else {
+            if (typeof fetchMenuFromFirestoreDirect === 'function') await fetchMenuFromFirestoreDirect();
+            if (typeof fetchSettingsFromFirestoreDirect === 'function') await fetchSettingsFromFirestoreDirect();
+            if (typeof fetchLiveBannersFromBackend === 'function') await fetchLiveBannersFromBackend();
+        }
+    }
+}
+window.triggerUnifiedSmartSyncIfVisible = triggerUnifiedSmartSyncIfVisible;
+window.triggerPeriodicMenuSyncIfVisible = triggerUnifiedSmartSyncIfVisible;
+
+function startUnifiedSmartSync() {
+    if (customerSmartSyncInterval) {
+        clearInterval(customerSmartSyncInterval);
+        customerSmartSyncInterval = null;
+    }
+    if (customerMenuPollerInterval) {
+        clearInterval(customerMenuPollerInterval);
+        customerMenuPollerInterval = null;
+    }
+    customerSmartSyncInterval = setInterval(() => {
+        triggerUnifiedSmartSyncIfVisible();
+    }, UNIFIED_SMART_SYNC_INTERVAL_MS);
+    customerMenuPollerInterval = customerSmartSyncInterval;
+    return customerSmartSyncInterval;
+}
+window.startUnifiedSmartSync = startUnifiedSmartSync;
+window.startPeriodicMenuSync = startUnifiedSmartSync;
+
+// --------------------------------------------------------------------------
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -16791,16 +16977,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
     window.restoreCustomerFullProfileAndWallet = restoreUserProfileFromFirestore;
 
-    // 2. Spark Plan Quota Optimization: 60s background polling intervals disabled
-    // The application synchronizes on initial boot, on tab focus, and on visibility return
-    if (customerMenuPollerInterval) {
-        clearInterval(customerMenuPollerInterval);
-        customerMenuPollerInterval = null;
-    }
-    if (customerSettingsPollerInterval) {
-        clearInterval(customerSettingsPollerInterval);
-        customerSettingsPollerInterval = null;
-    }
+    // 2. Periodic Menu Sync: 3-minute (180,000 ms) interval, strictly guarded by document.visibilityState === 'visible'
+    // Ensures background idle tabs do not consume read quotas while active tabs stay fresh
+    startPeriodicMenuSync();
 
     // 3. Silent Tab Sync on Visibility Change (when document.visibilityState becomes 'visible')
     document.addEventListener('visibilitychange', () => {
@@ -16875,14 +17054,15 @@ async function silentlySyncAppDataOnVisibility() {
 }
 window.silentlySyncAppDataOnVisibility = silentlySyncAppDataOnVisibility;
 
-let customerMenuPollerInterval = null;
-let customerSettingsPollerInterval = null;
-
 // --------------------------------------------------------------------------
 // 12. CLEANUP & MEMORY LEAK PREVENTION (PAGE UNMOUNT / REFRESH)
 // --------------------------------------------------------------------------
 function cleanupAllCustomerListeners() {
     try {
+        if (customerSmartSyncInterval) {
+            clearInterval(customerSmartSyncInterval);
+            customerSmartSyncInterval = null;
+        }
         if (customerMenuPollerInterval) {
             clearInterval(customerMenuPollerInterval);
             customerMenuPollerInterval = null;
