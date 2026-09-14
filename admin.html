@@ -2656,9 +2656,12 @@
 
         .login-input.invalid-field,
         .phone-input-combo:has(.invalid-field),
-        .name-input-wrapper:has(.invalid-field) {
+        .name-input-wrapper:has(.invalid-field),
+        .search-box:has(.invalid-field),
+        .search-input.invalid-field,
+        .invalid-field {
             border-color: #ef4444 !important;
-            box-shadow: 0 0 0 3.5px rgba(239, 68, 68, 0.28) !important;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.28) !important;
         }
 
         .login-input-hint {
@@ -4208,6 +4211,17 @@
                                     </label>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Operating Hours Gap & Identical Validation Warning Box -->
+                        <div id="operating-hours-error" style="display: none; margin-top: 12px; padding: 10px 14px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; color: #f87171; font-size: 0.84rem; font-weight: 600; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="font-size: 1rem; color: #ef4444;"></i>
+                                <span id="operating-hours-error-text">Closing time must be at least 1 hour after opening time.</span>
+                            </div>
+                            <button type="button" onclick="bumpClosingTimeToValidGap()" style="background: rgba(239, 68, 68, 0.25); color: #ffffff; border: 1px solid rgba(239, 68, 68, 0.6); padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s ease;">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Set +1 hr
+                            </button>
                         </div>
                     </div>
 
@@ -8344,7 +8358,31 @@
             return `${h}:${m} ${ampm}`;
         }
 
+        function calculateOperatingHoursGapMinutes(openTimeStr, closeTimeStr) {
+            if (!openTimeStr || !closeTimeStr) return 0;
+            const [openH, openM] = openTimeStr.split(':').map(Number);
+            const [closeH, closeM] = closeTimeStr.split(':').map(Number);
+            if (isNaN(openH) || isNaN(openM) || isNaN(closeH) || isNaN(closeM)) return 0;
+            const openMinutes = openH * 60 + openM;
+            const closeMinutes = closeH * 60 + closeM;
+            if (openMinutes === closeMinutes) return 0;
+            if (closeMinutes > openMinutes) {
+                // Case A: Same Day Shift (e.g. 10:00 to 22:00)
+                return closeMinutes - openMinutes;
+            } else {
+                // Case B: Overnight / Cross-Midnight Shift (e.g. 18:00 to 02:00)
+                return (closeMinutes + 1440) - openMinutes;
+            }
+        }
+
         function isCurrentTimeWithinHours(openTimeStr, closeTimeStr) {
+            const gap = calculateOperatingHoursGapMinutes(openTimeStr, closeTimeStr);
+            if (gap < 60) {
+                // Invalid or matching time window: use safe fallback to avoid rapid toggling or false open
+                openTimeStr = '11:00';
+                closeTimeStr = '23:00';
+            }
+
             const now = new Date();
             const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
@@ -8353,10 +8391,6 @@
 
             const openMinutes = (openH || 0) * 60 + (openM || 0);
             const closeMinutes = (closeH || 0) * 60 + (closeM || 0);
-
-            if (openMinutes === closeMinutes) {
-                return true;
-            }
 
             if (openMinutes < closeMinutes) {
                 return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
@@ -8373,6 +8407,72 @@
             }
         }
 
+        function validateOperatingHours(showToastWarning = false) {
+            const openInput = document.getElementById('input-opening-time');
+            const closeInput = document.getElementById('input-closing-time');
+            const errorBox = document.getElementById('operating-hours-error');
+            const errorText = document.getElementById('operating-hours-error-text');
+            const saveBtn = document.getElementById('btn-save-store-settings');
+
+            const openTime = (openInput && openInput.value.trim()) ? openInput.value.trim() : getOpeningTime();
+            const closeTime = (closeInput && closeInput.value.trim()) ? closeInput.value.trim() : getClosingTime();
+
+            const gapMinutes = calculateOperatingHoursGapMinutes(openTime, closeTime);
+            const isIdentical = openTime === closeTime;
+            const isValid = !isIdentical && gapMinutes >= 60;
+
+            if (!isValid) {
+                const msg = isIdentical
+                    ? "Opening and closing times cannot be identical. Closing time must be at least 1 hour after opening time."
+                    : "Closing time must be at least 1 hour after opening time.";
+
+                if (errorBox) {
+                    errorBox.style.display = 'flex';
+                    if (errorText) errorText.textContent = msg;
+                }
+                if (closeInput) closeInput.classList.add('invalid-field');
+                if (openInput && isIdentical) openInput.classList.add('invalid-field');
+                else if (openInput) openInput.classList.remove('invalid-field');
+
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.setAttribute('title', msg);
+                }
+
+                if (showToastWarning && typeof showToast === 'function') {
+                    showToast(`⚠️ ${msg}`);
+                }
+
+                return { isValid: false, message: msg, gapMinutes, openTime, closeTime };
+            }
+
+            // Valid state: clear errors and restore button
+            if (errorBox) errorBox.style.display = 'none';
+            if (closeInput) closeInput.classList.remove('invalid-field');
+            if (openInput) openInput.classList.remove('invalid-field');
+
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.removeAttribute('title');
+            }
+
+            return { isValid: true, message: '', gapMinutes, openTime, closeTime };
+        }
+
+        function bumpClosingTimeToValidGap() {
+            const openInput = document.getElementById('input-opening-time');
+            const closeInput = document.getElementById('input-closing-time');
+            if (!openInput || !closeInput) return;
+            const openTime = openInput.value.trim() || '11:00';
+            const [openH, openM] = openTime.split(':').map(Number);
+            const newCloseH = (openH + 1) % 24;
+            const newCloseStr = `${String(newCloseH).padStart(2, '0')}:${String(openM || 0).padStart(2, '0')}`;
+            closeInput.value = newCloseStr;
+            onScheduleInputChange();
+            validateOperatingHours(false);
+            if (typeof markStoreSettingsDirty === 'function') markStoreSettingsDirty();
+        }
+
         function onScheduleInputChange() {
             const toggle = document.getElementById('toggle-auto-schedule-enabled');
             const openTimeInput = document.getElementById('input-opening-time');
@@ -8383,16 +8483,25 @@
                 updateAutoScheduleToggleLabel(toggle.checked);
                 localStorage.setItem(AUTO_SCHEDULE_KEY, toggle.checked.toString());
             }
+
+            const validation = validateOperatingHours(false);
+
             if (openTimeInput && openTimeInput.value) {
                 isOpeningTimeDirty = true;
-                localStorage.setItem(OPENING_TIME_KEY, openTimeInput.value);
+                if (validation.isValid) {
+                    localStorage.setItem(OPENING_TIME_KEY, openTimeInput.value);
+                }
             }
             if (closeTimeInput && closeTimeInput.value) {
                 isClosingTimeDirty = true;
-                localStorage.setItem(CLOSING_TIME_KEY, closeTimeInput.value);
+                if (validation.isValid) {
+                    localStorage.setItem(CLOSING_TIME_KEY, closeTimeInput.value);
+                }
             }
 
-            evaluateAndSyncShopStatus(true);
+            if (validation.isValid) {
+                evaluateAndSyncShopStatus(true);
+            }
         }
 
         // 10 Flexible Zone Delivery Charges Keys & Defaults
@@ -9062,6 +9171,7 @@
                     closeTimeInput.value = closeTime;
                 }
             }
+            validateOperatingHours(false);
 
             // 9. Auto-Schedule Mode
             const rawAuto = data.autoScheduleMode !== undefined ? data.autoScheduleMode : data.autoScheduleEnabled;
@@ -9192,6 +9302,8 @@
             const storedClose = localStorage.getItem(CLOSING_TIME_KEY);
             if (closeTimeInput && storedClose) closeTimeInput.value = storedClose;
 
+            validateOperatingHours(false);
+
             const storedAuto = localStorage.getItem(AUTO_SCHEDULE_KEY);
             if (toggleAutoSchedule && storedAuto !== null) {
                 const isAuto = storedAuto === 'true';
@@ -9282,6 +9394,16 @@
             const toggleAutoSchedule = document.getElementById('toggle-auto-schedule-enabled');
             const saveBtn = document.getElementById('btn-save-store-settings');
 
+            // Strict Operating Hours Minimum 1-Hour Gap & Non-Identical Validation Check
+            const opValidation = validateOperatingHours(true);
+            if (!opValidation.isValid) {
+                if (closeTimeInput) {
+                    closeTimeInput.classList.add('invalid-field');
+                    closeTimeInput.focus();
+                }
+                return false;
+            }
+
             const minVal = (minInput && minInput.value.trim() !== '') ? (parseFloat(minInput.value) || 0) : getMinOrderValue();
             const freeVal = (freeInput && freeInput.value.trim() !== '') ? (parseFloat(freeInput.value) || 0) : getFreeDeliveryLimit();
             const phoneRaw = (phoneInput && phoneInput.value.trim() !== '') ? phoneInput.value.trim() : (currentCustomerCarePhone || getCustomerCarePhone());
@@ -9295,8 +9417,8 @@
             if (radiusVal > 10.0) radiusVal = 10.0;
             radiusVal = parseFloat(radiusVal.toFixed(1));
 
-            const openingTimeVal = (openTimeInput && openTimeInput.value.trim() !== '') ? openTimeInput.value.trim() : getOpeningTime();
-            const closingTimeVal = (closeTimeInput && closeTimeInput.value.trim() !== '') ? closeTimeInput.value.trim() : getClosingTime();
+            const openingTimeVal = opValidation.openTime;
+            const closingTimeVal = opValidation.closeTime;
             const isAutoScheduleOn = toggleAutoSchedule ? toggleAutoSchedule.checked : getAutoScheduleEnabled();
             const manualOverrideVal = 'none';
 

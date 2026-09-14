@@ -12,6 +12,21 @@ const {
     validateAndNormalizeBanners
 } = require('../lib/bannerService');
 
+function calculateOperatingHoursGapMinutes(openTimeStr, closeTimeStr) {
+    if (!openTimeStr || !closeTimeStr) return 0;
+    const [openH, openM] = String(openTimeStr).split(':').map(Number);
+    const [closeH, closeM] = String(closeTimeStr).split(':').map(Number);
+    if (isNaN(openH) || isNaN(openM) || isNaN(closeH) || isNaN(closeM)) return 0;
+    const openMinutes = (openH || 0) * 60 + (openM || 0);
+    const closeMinutes = (closeH || 0) * 60 + (closeM || 0);
+    if (openMinutes === closeMinutes) return 0;
+    if (closeMinutes > openMinutes) {
+        return closeMinutes - openMinutes;
+    } else {
+        return (closeMinutes + 1440) - openMinutes;
+    }
+}
+
 async function fetchLiveSettingsFromFirestore() {
     try {
         const storeConfigDoc = await getFirestoreDoc('settings', 'store_config');
@@ -90,6 +105,25 @@ async function fetchLiveSettingsFromFirestore() {
                 doc.flexibleZones = zonesObj;
                 doc.zoneCharges = zonesObj;
                 doc.flexibleZonesList = zonesArr;
+            }
+
+            let opOpen = undefined;
+            let opClose = undefined;
+            if (doc.operatingHours && typeof doc.operatingHours === 'object') {
+                if (doc.operatingHours.openingTime) opOpen = String(doc.operatingHours.openingTime).trim();
+                if (doc.operatingHours.closingTime) opClose = String(doc.operatingHours.closingTime).trim();
+            }
+            if (!opOpen && doc.openingTime) opOpen = String(doc.openingTime).trim();
+            if (!opClose && doc.closingTime) opClose = String(doc.closingTime).trim();
+            if (opOpen && opClose) {
+                const gap = calculateOperatingHoursGapMinutes(opOpen, opClose);
+                if (gap < 60 || opOpen === opClose) {
+                    opOpen = '11:00';
+                    opClose = '23:00';
+                }
+                doc.openingTime = opOpen;
+                doc.closingTime = opClose;
+                doc.operatingHours = { openingTime: opOpen, closingTime: opClose };
             }
 
             global.__perfettoStoreSettings = { ...global.__perfettoStoreSettings, ...doc };
@@ -230,12 +264,22 @@ async function handleSettingsRequest(req, res) {
             }
             if (openTime === undefined && body.openingTime !== undefined) openTime = String(body.openingTime).trim();
             if (closeTime === undefined && body.closingTime !== undefined) closeTime = String(body.closingTime).trim();
-            if (openTime !== undefined) updateFields.openingTime = openTime;
-            if (closeTime !== undefined) updateFields.closingTime = closeTime;
+
             if (openTime !== undefined || closeTime !== undefined) {
+                const finalOpen = openTime !== undefined ? openTime : (global.__perfettoStoreSettings.openingTime || '11:00');
+                const finalClose = closeTime !== undefined ? closeTime : (global.__perfettoStoreSettings.closingTime || '23:00');
+                const gap = calculateOperatingHoursGapMinutes(finalOpen, finalClose);
+                if (gap < 60 || finalOpen === finalClose) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Validation failed: Closing time must be at least 1 hour after opening time.'
+                    });
+                }
+                updateFields.openingTime = finalOpen;
+                updateFields.closingTime = finalClose;
                 updateFields.operatingHours = {
-                    openingTime: openTime !== undefined ? openTime : (global.__perfettoStoreSettings.openingTime || '11:00'),
-                    closingTime: closeTime !== undefined ? closeTime : (global.__perfettoStoreSettings.closingTime || '23:00')
+                    openingTime: finalOpen,
+                    closingTime: finalClose
                 };
             }
 

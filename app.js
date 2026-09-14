@@ -3955,7 +3955,31 @@ function formatCustomerTime12Hour(time24) {
     return `${h}:${m} ${ampm}`;
 }
 
+function calculateOperatingHoursGapMinutes(openTimeStr, closeTimeStr) {
+    if (!openTimeStr || !closeTimeStr) return 0;
+    const [openH, openM] = openTimeStr.split(':').map(Number);
+    const [closeH, closeM] = closeTimeStr.split(':').map(Number);
+    if (isNaN(openH) || isNaN(openM) || isNaN(closeH) || isNaN(closeM)) return 0;
+    const openMinutes = (openH || 0) * 60 + (openM || 0);
+    const closeMinutes = (closeH || 0) * 60 + (closeM || 0);
+    if (openMinutes === closeMinutes) return 0;
+    if (closeMinutes > openMinutes) {
+        // Case A: Same Day Shift (e.g. 10:00 to 22:00)
+        return closeMinutes - openMinutes;
+    } else {
+        // Case B: Overnight / Cross-Midnight Shift (e.g. 18:00 to 02:00)
+        return (closeMinutes + 1440) - openMinutes;
+    }
+}
+
 function isCustomerCurrentTimeWithinHours(openTimeStr, closeTimeStr) {
+    const gap = calculateOperatingHoursGapMinutes(openTimeStr, closeTimeStr);
+    if (gap < 60) {
+        // Prevent rapid toggling or false 24/7 open on matching/invalid window - use safe fallback
+        openTimeStr = '11:00';
+        closeTimeStr = '23:00';
+    }
+
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
@@ -3964,10 +3988,6 @@ function isCustomerCurrentTimeWithinHours(openTimeStr, closeTimeStr) {
 
     const openMinutes = (openH || 0) * 60 + (openM || 0);
     const closeMinutes = (closeH || 0) * 60 + (closeM || 0);
-
-    if (openMinutes === closeMinutes) {
-        return true; // 24 hours open
-    }
 
     if (openMinutes < closeMinutes) {
         return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
@@ -16296,9 +16316,18 @@ function applyIncomingSettingsData(data) {
         if (data.operatingHours.closingTime !== undefined) closeVal = data.operatingHours.closingTime;
     }
     if (openVal === undefined && data.openingTime !== undefined && data.openingTime !== null) openVal = data.openingTime;
-    if (closeVal === undefined && data.closingTime !== undefined && data.closingTime !== null) closeVal = data.closingTime;
-    if (openVal !== undefined && openVal !== null) localStorage.setItem(OPENING_TIME_KEY, String(openVal).trim());
-    if (closeVal !== undefined && closeVal !== null) localStorage.setItem(CLOSING_TIME_KEY, String(closeVal).trim());
+    if (openVal !== undefined && closeVal !== undefined) {
+        const o = String(openVal).trim();
+        const c = String(closeVal).trim();
+        const gap = calculateOperatingHoursGapMinutes(o, c);
+        if (gap >= 60 && o !== c) {
+            localStorage.setItem(OPENING_TIME_KEY, o);
+            localStorage.setItem(CLOSING_TIME_KEY, c);
+        }
+    } else {
+        if (openVal !== undefined && openVal !== null) localStorage.setItem(OPENING_TIME_KEY, String(openVal).trim());
+        if (closeVal !== undefined && closeVal !== null) localStorage.setItem(CLOSING_TIME_KEY, String(closeVal).trim());
+    }
 
     const autoVal = data.autoScheduleMode !== undefined && data.autoScheduleMode !== null
         ? Boolean(data.autoScheduleMode === true || data.autoScheduleMode === 'true')
