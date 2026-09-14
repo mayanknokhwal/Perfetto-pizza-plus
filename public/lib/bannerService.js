@@ -1,0 +1,291 @@
+/**
+ * Perfetto Pizza - Daily Banners Service & Fallback Logo System
+ * Firestore Collection: 'settings', Document: 'daily_banners'
+ * Enforces strictly 4 persistent slots (Banner #1 to #4) with enabled toggle flags.
+ * At least 1 banner must remain active.
+ */
+
+try {
+    require('dotenv').config();
+} catch (e) { }
+
+require('./globalStores');
+const { getFirestoreDoc, setFirestoreDoc } = require('./firestore');
+
+// Clean default logo fallback (no hardcoded images)
+const DEFAULT_FALLBACK_BANNER_LOGO = '';
+
+// Official 4 Valid Persistent Default Daily Banner Slots
+const DEFAULT_DAILY_BANNERS = [
+    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: '', discountPercent: 55 },
+    { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+    { id: 'b4', url: '', enabled: false }
+];
+
+const TOTAL_BANNER_SLOTS = 4;
+
+/**
+ * Resolves a banner URL. If empty, invalid, or whitespace, returns empty string so UI renders skeleton shimmer.
+ * Supports string or banner object with url, imageUrl, image, bannerUrl, src keys.
+ * @param {string|Object} input - Input image URL or banner object
+ * @returns {string} Safe resolved URL
+ */
+function resolveBannerUrl(input) {
+    if (!input) return '';
+    if (typeof input === 'string') {
+        const trimmed = input.trim();
+        return (trimmed && trimmed.length >= 4) ? trimmed : '';
+    }
+    if (typeof input === 'object') {
+        const candidate = input.url || input.imageUrl || input.image || input.bannerUrl || input.src || '';
+        if (typeof candidate === 'string') {
+            const trimmed = candidate.trim();
+            return (trimmed && trimmed.length >= 4) ? trimmed : '';
+        }
+    }
+    return '';
+}
+
+/**
+ * Validates and normalizes banner items into strictly 4 persistent slots.
+ * Ensures:
+ * - Exactly 4 slots: [ { id: 'b1', url: '...', enabled: boolean }, ... ]
+ * - At least 1 banner remains active (enabled: true)
+ * - Fallback: Any invalid URL resolves to DEFAULT_FALLBACK_BANNER_LOGO
+ * - Slot 1 preserves targetProductId and discountPercent
+ * - Slot 2 preserves minSpend, rewardType, rewardCategory, rewardPizzaSize
+ * - Slot 3 preserves buyCategory, buyQty, rewardCategory, freeQty
+ * 
+ * @param {Array} rawBanners - Raw input banners array
+ * @returns {Array<{id: string, url: string, enabled: boolean, targetProductId?: string, discountPercent?: number, minSpend?: number, rewardType?: string, rewardCategory?: string, rewardPizzaSize?: string, buyCategory?: string, buyQty?: number, freeQty?: number}>} Validated 4 banners array
+ */
+function validateAndNormalizeBanners(rawBanners) {
+    const list = Array.isArray(rawBanners) ? rawBanners : [];
+    let sanitized = [];
+
+    for (let i = 0; i < TOTAL_BANNER_SLOTS; i++) {
+        const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: '', enabled: true };
+        const id = (item.id && String(item.id).trim()) || `b${i + 1}`;
+        const rawUrl = item.url || item.imageUrl || item.image || item.bannerUrl || item.src || '';
+        const url = resolveBannerUrl(rawUrl);
+        const enabled = item.enabled !== false;
+        const bannerObj = { id, url, enabled };
+        if (i === 0) {
+            bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
+            const rawDisc = parseInt(item.discountPercent, 10);
+            bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
+        }
+        if (i === 1) {
+            const rawSpend = parseInt(item.minSpend, 10);
+            bannerObj.minSpend = (!isNaN(rawSpend) && rawSpend > 0) ? rawSpend : 699;
+            const cat = (item.rewardCategory && String(item.rewardCategory).trim()) || 'Shake';
+            const isPizza = cat.toLowerCase() === 'pizza';
+            bannerObj.rewardCategory = cat;
+            bannerObj.rewardType = isPizza ? 'pizza' : 'category';
+            bannerObj.rewardPizzaSize = isPizza ? ((item.rewardPizzaSize && String(item.rewardPizzaSize).trim().toLowerCase()) || 'medium') : '';
+        }
+        if (i === 2) {
+            const rawBuyCat = (item.buyCategory || item.targetCategory || item.bogoCategory || 'Momos').trim();
+            bannerObj.buyCategory = rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat;
+            const rawBuyQty = parseInt(item.buyQty || item.buyQuantity || 2, 10);
+            bannerObj.buyQty = (!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2;
+
+            const rawRewardCat = (item.rewardCategory || item.freeCategory || 'Shake').trim();
+            bannerObj.rewardCategory = rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat;
+            const rawFreeQty = parseInt(item.freeQty || item.freeQuantity || 1, 10);
+            bannerObj.freeQty = (!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1;
+        }
+        sanitized.push(bannerObj);
+    }
+
+    // Validation: At least 1 banner must remain active (prevent unchecking all 4 slots)
+    if (!sanitized.some(b => b.enabled)) {
+        sanitized[0].enabled = true;
+    }
+
+    return sanitized;
+}
+
+/**
+ * Fetches daily banners from Firestore ('settings/daily_banners').
+ * Normalizes to strictly 4 slots with enabled flags.
+ * @returns {Promise<Array<{id: string, url: string, enabled: boolean}>>}
+ */
+async function fetchDailyBannersFromFirestore() {
+    try {
+        const doc = await getFirestoreDoc('settings', 'daily_banners');
+        if (doc && Array.isArray(doc.banners) && doc.banners.length > 0) {
+            const normalized = validateAndNormalizeBanners(doc.banners);
+            if (doc.slot1 && normalized[0]) {
+                if (!normalized[0].targetProductId && doc.slot1.targetProductId) {
+                    normalized[0].targetProductId = doc.slot1.targetProductId;
+                }
+                if (!normalized[0].discountPercent && doc.slot1.discountPercent) {
+                    normalized[0].discountPercent = doc.slot1.discountPercent;
+                }
+            }
+            if (doc.slot2 && normalized[1]) {
+                if (doc.slot2.minSpend !== undefined) {
+                    normalized[1].minSpend = Number(doc.slot2.minSpend) || 699;
+                }
+                if (doc.slot2.rewardCategory) {
+                    normalized[1].rewardCategory = doc.slot2.rewardCategory;
+                }
+                const isPizza = (normalized[1].rewardCategory || '').toLowerCase() === 'pizza';
+                normalized[1].rewardType = isPizza ? 'pizza' : 'category';
+                if (isPizza && doc.slot2.rewardPizzaSize) {
+                    normalized[1].rewardPizzaSize = doc.slot2.rewardPizzaSize;
+                }
+            }
+            if (doc.slot3 && normalized[2]) {
+                if (doc.slot3.buyCategory) {
+                    const buyCat = String(doc.slot3.buyCategory).trim();
+                    normalized[2].buyCategory = buyCat.toLowerCase() === 'pizza' ? 'Momos' : buyCat;
+                }
+                if (doc.slot3.buyQty) {
+                    normalized[2].buyQty = Math.max(1, parseInt(doc.slot3.buyQty, 10) || 2);
+                }
+                if (doc.slot3.rewardCategory) {
+                    const rewCat = String(doc.slot3.rewardCategory).trim();
+                    normalized[2].rewardCategory = rewCat.toLowerCase() === 'pizza' ? 'Shake' : rewCat;
+                }
+                if (doc.slot3.freeQty) {
+                    normalized[2].freeQty = Math.max(1, parseInt(doc.slot3.freeQty, 10) || 1);
+                }
+            }
+            if (doc && (doc.max_offers_per_order !== undefined || doc.maxOffersPerOrder !== undefined)) {
+                global.__perfettoMaxOffersPerOrder = Math.max(1, Math.min(3, parseInt(doc.max_offers_per_order || doc.maxOffersPerOrder, 10) || 1));
+            } else {
+                global.__perfettoMaxOffersPerOrder = 1;
+            }
+            if (doc && (doc.max_qty_per_offer !== undefined || doc.maxQtyPerOffer !== undefined)) {
+                global.__perfettoMaxQtyPerOffer = Math.max(1, Math.min(9, parseInt(doc.max_qty_per_offer || doc.maxQtyPerOffer, 10) || 1));
+            } else {
+                global.__perfettoMaxQtyPerOffer = 1;
+            }
+            global.__perfettoDailyBanners = normalized;
+            return normalized;
+        }
+    } catch (err) {
+        console.warn('⚠️ [Firestore Daily Banners] Read notice:', err.message);
+    }
+
+    // Fallback to runtime memory cache or default 4 banners
+    if (!global.__perfettoDailyBanners || !Array.isArray(global.__perfettoDailyBanners) || global.__perfettoDailyBanners.length !== TOTAL_BANNER_SLOTS) {
+        global.__perfettoDailyBanners = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+    }
+    return global.__perfettoDailyBanners;
+}
+
+/**
+ * Saves daily banners to Firestore ('settings/daily_banners').
+ * Locks strictly to 4 persistent slots and ensures enabled flags are persisted.
+ * @param {Array<{id: string, url: string, enabled?: boolean}>} bannersList
+ * @param {Object} [extraPayload]
+ * @returns {Promise<{success: boolean, banners: Array<{id: string, url: string, enabled: boolean}>, message: string}>}
+ */
+async function saveDailyBannersToFirestore(bannersList, extraPayload = {}) {
+    const validated = validateAndNormalizeBanners(bannersList);
+
+    const slot1Data = {
+        imageUrl: validated[0].url,
+        url: validated[0].url,
+        targetProductId: validated[0].targetProductId || '',
+        discountPercent: validated[0].discountPercent || 0,
+        active: validated[0].enabled !== false,
+        enabled: validated[0].enabled !== false
+    };
+
+    const isSlot2Pizza = (validated[1].rewardCategory || '').toLowerCase() === 'pizza';
+    const slot2Data = {
+        imageUrl: validated[1].url,
+        url: validated[1].url,
+        minSpend: Number(validated[1].minSpend) || 699,
+        rewardType: isSlot2Pizza ? 'pizza' : 'category',
+        rewardCategory: validated[1].rewardCategory || 'Shake',
+        rewardPizzaSize: isSlot2Pizza ? (validated[1].rewardPizzaSize || 'medium') : '',
+        active: validated[1].enabled !== false,
+        enabled: validated[1].enabled !== false
+    };
+
+    const slot3Data = {
+        imageUrl: validated[2].url,
+        url: validated[2].url,
+        buyCategory: validated[2].buyCategory || 'Momos',
+        buyQty: Number(validated[2].buyQty) || 2,
+        rewardCategory: validated[2].rewardCategory || 'Shake',
+        freeQty: Number(validated[2].freeQty) || 1,
+        active: validated[2].enabled !== false,
+        enabled: validated[2].enabled !== false
+    };
+
+    const maxOffers = Math.max(1, Math.min(3, parseInt(extraPayload.max_offers_per_order || extraPayload.maxOffersPerOrder || global.__perfettoMaxOffersPerOrder || 1, 10) || 1));
+    global.__perfettoMaxOffersPerOrder = maxOffers;
+
+    const maxQty = Math.max(1, Math.min(9, parseInt(extraPayload.max_qty_per_offer || extraPayload.maxQtyPerOffer || global.__perfettoMaxQtyPerOffer || 1, 10) || 1));
+    global.__perfettoMaxQtyPerOffer = maxQty;
+
+    const docPayload = {
+        banners: validated,
+        slot1: slot1Data,
+        slot2: slot2Data,
+        slot3: slot3Data,
+        max_offers_per_order: maxOffers,
+        maxOffersPerOrder: maxOffers,
+        max_qty_per_offer: maxQty,
+        maxQtyPerOffer: maxQty,
+        count: validated.length,
+        activeCount: validated.filter(b => b.enabled).length,
+        updatedAt: new Date().toISOString(),
+        key: 'daily_banners'
+    };
+
+    try {
+        await setFirestoreDoc('settings', 'daily_banners', docPayload);
+        try {
+            await setFirestoreDoc('banners', 'slot1', slot1Data);
+            await setFirestoreDoc('banners', 'slot2', slot2Data);
+            await setFirestoreDoc('banners', 'slot3', slot3Data);
+        } catch (subErr) {}
+        global.__perfettoDailyBanners = validated;
+        return {
+            success: true,
+            banners: validated,
+            slot1: slot1Data,
+            slot2: slot2Data,
+            slot3: slot3Data,
+            max_offers_per_order: maxOffers,
+            maxOffersPerOrder: maxOffers,
+            max_qty_per_offer: maxQty,
+            maxQtyPerOffer: maxQty,
+            message: `Successfully saved ${validated.length} persistent daily banner slots to Firestore (${docPayload.activeCount} active)`
+        };
+    } catch (err) {
+        console.error('❌ [Firestore Daily Banners] Save error:', err.message);
+        global.__perfettoDailyBanners = validated;
+        return {
+            success: true,
+            banners: validated,
+            slot1: slot1Data,
+            slot2: slot2Data,
+            slot3: slot3Data,
+            max_offers_per_order: maxOffers,
+            maxOffersPerOrder: maxOffers,
+            max_qty_per_offer: maxQty,
+            maxQtyPerOffer: maxQty,
+            message: `Saved locally (Firestore note: ${err.message})`
+        };
+    }
+}
+
+module.exports = {
+    DEFAULT_FALLBACK_BANNER_LOGO,
+    DEFAULT_DAILY_BANNERS,
+    TOTAL_BANNER_SLOTS,
+    resolveBannerUrl,
+    validateAndNormalizeBanners,
+    normalizeDailyBanners: validateAndNormalizeBanners,
+    fetchDailyBannersFromFirestore,
+    saveDailyBannersToFirestore
+};

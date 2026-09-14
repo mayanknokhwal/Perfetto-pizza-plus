@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Cancellation & Refund Policy | Perfetto Pizza</title>
+    <meta name="description"
+        content="Cancellation and Refund Policy of Perfetto Pizza. Review our strict 1-minute cancellation rule, non-returnable perishable food terms, and 5-7 day refund processing guidelines.">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/HfRxNYQv/perfetto-Black.png">
+
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-orange: #ff6b00;
+            --primary-dark: #e05d00;
+            --primary-glow: rgba(255, 107, 0, 0.2);
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-surface: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --font-heading: 'Outfit', -apple-system, sans-serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #090d16;
+            --bg-card: #131b2e;
+            --bg-surface: #1a243b;
+            --border-color: #24304d;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.65;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .policy-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 14px 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary-orange);
+        }
+
+        .brand-name {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-name span {
+            color: var(--primary-orange);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-orange);
+            color: #ffffff;
+            font-family: var(--font-heading);
+            font-size: 0.88rem;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-back-home:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .theme-toggle-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            border-color: var(--primary-orange);
+            color: var(--primary-orange);
+        }
+
+        .policy-container {
+            max-width: 900px;
+            margin: 32px auto;
+            padding: 0 20px;
+            flex: 1;
+            width: 100%;
+        }
+
+        .policy-hero-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 32px 28px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .policy-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(to bottom, #ef4444, #dc2626);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+        }
+
+        .hero-title {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .hero-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .policy-body {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 36px 30px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .policy-section {
+            margin-bottom: 30px;
+        }
+
+        .policy-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .section-icon-box {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+        }
+
+        .policy-text {
+            color: var(--text-main);
+            font-size: 0.94rem;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .policy-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 12px 0;
+        }
+
+        .policy-list li {
+            position: relative;
+            padding-left: 24px;
+            margin-bottom: 10px;
+            font-size: 0.93rem;
+            line-height: 1.6;
+            color: var(--text-main);
+        }
+
+        .policy-list li::before {
+            content: '⚠️';
+            position: absolute;
+            left: 0;
+            top: 2px;
+            font-size: 0.75rem;
+        }
+
+        .highlight-alert-box {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            margin: 16px 0;
+            font-size: 0.92rem;
+            color: var(--text-main);
+        }
+
+        .highlight-alert-box strong {
+            color: #dc2626;
+        }
+
+        .success-box {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            margin: 16px 0;
+            font-size: 0.92rem;
+            color: var(--text-main);
+        }
+
+        .success-box strong {
+            color: #059669;
+        }
+
+        .policy-footer {
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            padding: 24px 20px;
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover,
+        .footer-link.active {
+            color: var(--primary-orange);
+        }
+
+        .footer-copy {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 640px) {
+            .hero-title {
+                font-size: 1.6rem;
+            }
+
+            .policy-hero-card {
+                padding: 24px 20px;
+            }
+
+            .policy-body {
+                padding: 24px 18px;
+            }
+
+            .brand-name {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOP HEADER -->
+    <header class="policy-header">
+        <div class="header-container">
+            <a href="index.html" class="brand-link" aria-label="Go to Perfetto Pizza Home">
+                <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Pizza" class="brand-logo">
+                <span class="brand-name">Perfetto <span>Pizza</span></span>
+            </a>
+
+            <div class="nav-actions">
+                <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Dark/Light Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                <a href="index.html" class="btn-back-home">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Back to Menu</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="policy-container">
+        <div class="policy-hero-card">
+            <span class="hero-badge"><i class="fa-solid fa-rotate-left"></i> Fair Trade & Return Policy</span>
+            <h1 class="hero-title">Cancellation & Refund Policy</h1>
+            <p class="hero-subtitle">Effective Date: August 2026 • Perfetto Pizza, Raisinghnagar, Rajasthan</p>
+        </div>
+
+        <div class="policy-body">
+            <!-- Section 1 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-stopwatch"></i></div>
+                    <h2 class="section-title">1. Order Cancellation Policy (Strict 1-Minute Rule)</h2>
+                </div>
+                <p class="policy-text">
+                    At <strong>Perfetto Pizza</strong>, we prioritize ultra-fast, fresh food preparation. As soon as you confirm an order, our kitchen chefs immediately begin stretching fresh dough, applying gourmet sauces, and baking your meals.
+                </p>
+                <div class="highlight-alert-box">
+                    <strong>⏳ Strict 1-Minute Window:</strong> Customers may request order cancellation <strong>ONLY within 1 minute</strong> of placing the order, provided our kitchen has not yet accepted or started food preparation.
+                </div>
+                <p class="policy-text">
+                    Once the order status moves to <em>"Preparing"</em>, <em>"Accepted"</em>, or <em>"Out for Delivery"</em>, cancellations are <strong>strictly prohibited</strong> because customized fresh ingredients cannot be reused.
+                </p>
+            </section>
+
+            <!-- Section 2 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-box-open"></i></div>
+                    <h2 class="section-title">2. Perishable Food Items Notice (Non-Returnable Goods)</h2>
+                </div>
+                <p class="policy-text">
+                    In compliance with government food safety regulations (FSSAI) and the inherently perishable nature of hot culinary goods:
+                </p>
+                <ul class="policy-list">
+                    <li><strong>No Physical Returns:</strong> Once a food item, pizza, burger, pasta, wrap, or beverage is delivered to the customer, it is classified as <strong>Non-Returnable</strong>.</li>
+                    <li>We do not accept physical returns or item exchanges once the package seal has been delivered.</li>
+                </ul>
+            </section>
+
+            <!-- Section 3 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                    <h2 class="section-title">3. Eligibility Criteria for Refunds</h2>
+                </div>
+                <p class="policy-text">
+                    You are entitled to a full or partial refund under the following verified circumstances:
+                </p>
+                <ul class="policy-list">
+                    <li><strong>Failed / Duplicate Transactions:</strong> Your bank account or UPI was debited, but the transaction timed out and no order was generated in our system.</li>
+                    <li><strong>Store Cancellation:</strong> The order was cancelled by Perfetto Pizza due to kitchen equipment maintenance, raw material unavailability, or unexpected store closure.</li>
+                    <li><strong>Undeliverable Location:</strong> Our delivery fleet could not fulfill the order due to operational or accessibility roadblocks in Raisinghnagar.</li>
+                    <li><strong>Verified Defect / Wrong Item:</strong> In the rare event of severe food damage, completely missing items, or wrong food delivery verified by our customer care desk within 30 minutes of delivery.</li>
+                </ul>
+            </section>
+
+            <!-- Section 4 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-building-columns"></i></div>
+                    <h2 class="section-title">4. Refund Processing Timelines & Modes</h2>
+                </div>
+                <p class="policy-text">
+                    All approved refunds are initiated through our authorized payment partner (PhonePe):
+                </p>
+                <div class="success-box">
+                    <strong>⏱️ 5 to 7 Business Days:</strong> Once approved, refunds are credited automatically back to the original source account (UPI, Bank Account, Debit/Credit Card, or Wallet) within <strong>5 to 7 banking days</strong>.
+                </div>
+                <p class="policy-text">
+                    For Cash on Delivery (COD) orders with verified store-side issues, approved refunds are transferred via direct UPI transfer upon customer verification.
+                </p>
+            </section>
+
+            <!-- Section 5 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-circle-question"></i></div>
+                    <h2 class="section-title">5. How to Report an Issue or Request a Refund</h2>
+                </div>
+                <p class="policy-text">
+                    If you experience any issue with your order, please contact our support team immediately within <strong>30 minutes</strong> of delivery:
+                </p>
+                <div class="highlight-alert-box">
+                    <p><strong>Perfetto Pizza Support & Helpdesk</strong></p>
+                    <p><i class="fa-solid fa-phone"></i> Phone / Customer Care: Call via Support Modal in app</p>
+                    <p><i class="fa-solid fa-envelope"></i> Email: 44website.com44@gmail.com</p>
+                    <p><i class="fa-solid fa-circle-info"></i> Please provide your <strong>Order ID</strong>, phone number, and brief description (with photo if applicable) for instant resolution.</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="policy-footer">
+        <div class="footer-links">
+            <a href="index.html" class="footer-link">Home / Menu</a>
+            <a href="terms.html" class="footer-link">Terms & Conditions</a>
+            <a href="privacy.html" class="footer-link">Privacy Policy</a>
+            <a href="refund.html" class="footer-link active">Cancellation & Refund Policy</a>
+        </div>
+        <p class="footer-copy">© 2026 Perfetto Pizza. Fresh Pizzas, Burgers & Meals. All rights reserved.</p>
+    </footer>
+
+    <script>
+        const themeBtn = document.getElementById('theme-toggle');
+        const root = document.documentElement;
+
+        function applyTheme(theme) {
+            root.setAttribute('data-theme', theme);
+            const icon = themeBtn.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            }
+            localStorage.setItem('perfetto_theme', theme);
+        }
+
+        const savedTheme = localStorage.getItem('perfetto_theme') || 'light';
+        applyTheme(savedTheme);
+
+        if (themeBtn) {
+            themeBtn.addEventListener('click', () => {
+                const current = root.getAttribute('data-theme') || 'light';
+                applyTheme(current === 'light' ? 'dark' : 'light');
+            });
+        }
+    </script>
+</body>
+
+</html>

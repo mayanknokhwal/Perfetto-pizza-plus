@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Terms & Conditions | Perfetto Pizza</title>
+    <meta name="description"
+        content="Terms and Conditions of Perfetto Pizza - Online food delivery platform in Raisinghnagar, Rajasthan. Read our service rules, order policies, and user terms.">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/HfRxNYQv/perfetto-Black.png">
+
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-orange: #ff6b00;
+            --primary-dark: #e05d00;
+            --primary-glow: rgba(255, 107, 0, 0.2);
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-surface: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --font-heading: 'Outfit', -apple-system, sans-serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #090d16;
+            --bg-card: #131b2e;
+            --bg-surface: #1a243b;
+            --border-color: #24304d;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.65;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* TOP NAVIGATION BAR */
+        .policy-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 14px 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary-orange);
+        }
+
+        .brand-name {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-name span {
+            color: var(--primary-orange);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-orange);
+            color: #ffffff;
+            font-family: var(--font-heading);
+            font-size: 0.88rem;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-back-home:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .theme-toggle-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            border-color: var(--primary-orange);
+            color: var(--primary-orange);
+        }
+
+        /* MAIN CONTENT AREA */
+        .policy-container {
+            max-width: 900px;
+            margin: 32px auto;
+            padding: 0 20px;
+            flex: 1;
+            width: 100%;
+        }
+
+        .policy-hero-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 32px 28px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .policy-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(to bottom, var(--primary-orange), #ea580c);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 107, 0, 0.12);
+            color: var(--primary-orange);
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+        }
+
+        .hero-title {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .hero-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .policy-body {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 36px 30px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .policy-section {
+            margin-bottom: 30px;
+        }
+
+        .policy-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .section-icon-box {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 107, 0, 0.1);
+            color: var(--primary-orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+        }
+
+        .policy-text {
+            color: var(--text-main);
+            font-size: 0.94rem;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .policy-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 12px 0;
+        }
+
+        .policy-list li {
+            position: relative;
+            padding-left: 24px;
+            margin-bottom: 10px;
+            font-size: 0.93rem;
+            line-height: 1.6;
+            color: var(--text-main);
+        }
+
+        .policy-list li::before {
+            content: '🍕';
+            position: absolute;
+            left: 0;
+            top: 2px;
+            font-size: 0.75rem;
+        }
+
+        .callout-box {
+            background: var(--bg-surface);
+            border-left: 4px solid var(--primary-orange);
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            margin: 16px 0;
+            font-size: 0.92rem;
+            color: var(--text-main);
+        }
+
+        .callout-box strong {
+            color: var(--primary-orange);
+        }
+
+        /* FOOTER */
+        .policy-footer {
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            padding: 24px 20px;
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover,
+        .footer-link.active {
+            color: var(--primary-orange);
+        }
+
+        .footer-copy {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 640px) {
+            .hero-title {
+                font-size: 1.6rem;
+            }
+
+            .policy-hero-card {
+                padding: 24px 20px;
+            }
+
+            .policy-body {
+                padding: 24px 18px;
+            }
+
+            .brand-name {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOP HEADER -->
+    <header class="policy-header">
+        <div class="header-container">
+            <a href="index.html" class="brand-link" aria-label="Go to Perfetto Pizza Home">
+                <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Pizza" class="brand-logo">
+                <span class="brand-name">Perfetto <span>Pizza</span></span>
+            </a>
+
+            <div class="nav-actions">
+                <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Dark/Light Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                <a href="index.html" class="btn-back-home">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Back to Menu</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="policy-container">
+        <div class="policy-hero-card">
+            <span class="hero-badge"><i class="fa-solid fa-scale-balanced"></i> Legal Terms & User Agreement</span>
+            <h1 class="hero-title">Terms & Conditions</h1>
+            <p class="hero-subtitle">Effective Date & Last Updated: August 2026 • Raisinghnagar, Rajasthan</p>
+        </div>
+
+        <div class="policy-body">
+            <!-- Section 1 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-handshake"></i></div>
+                    <h2 class="section-title">1. Introduction & Acceptance of Terms</h2>
+                </div>
+                <p class="policy-text">
+                    Welcome to <strong>Perfetto Pizza</strong> ("we", "our", "us"). By accessing our website, web application, ordering platform, or placing orders for food delivery or takeaway in Raisinghnagar and surrounding service regions, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.
+                </p>
+                <p class="policy-text">
+                    If you do not agree to these terms, please refrain from using our ordering platform. We reserve the right to modify these terms at any time with prior or updated notice on this page.
+                </p>
+            </section>
+
+            <!-- Section 2 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-utensils"></i></div>
+                    <h2 class="section-title">2. Services Offered & Service Area</h2>
+                </div>
+                <p class="policy-text">
+                    Perfetto Pizza operates a premier food outlet and hyperlocal delivery service based in <strong>Raisinghnagar (District Sri Ganganagar, Rajasthan, India)</strong>. We freshly prepare and deliver food items including pizzas, burgers, sandwiches, pastas, wraps, shakes, beverages, and sides.
+                </p>
+                <ul class="policy-list">
+                    <li><strong>Delivery Radius:</strong> Doorstep deliveries are fulfilled within defined distance zones (Zones 1 through 6) based on GPS coordinates and road accessibility.</li>
+                    <li><strong>Service Availability:</strong> Order placement is subject to active store operating hours and real-time kitchen availability.</li>
+                </ul>
+            </section>
+
+            <!-- Section 3 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-user-check"></i></div>
+                    <h2 class="section-title">3. Customer Profiles & OTP Verification</h2>
+                </div>
+                <p class="policy-text">
+                    To place an order or save home delivery addresses, customers must provide accurate details including full name, 10-digit mobile number, verified email address, house/colony name, landmark, ward number, and GPS pin coordinates.
+                </p>
+                <p class="policy-text">
+                    For security and fair use, phone numbers and email addresses are verified via <strong>6-digit One-Time Passwords (OTPs)</strong>. You agree to safeguard your OTPs and verify that all contact information is your own.
+                </p>
+            </section>
+
+            <!-- Section 4 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-tags"></i></div>
+                    <h2 class="section-title">4. Menu, Pricing & Dynamic Zone Delivery</h2>
+                </div>
+                <p class="policy-text">
+                    All prices displayed on our menu are in Indian Rupees (₹) and are inclusive of applicable goods taxes. Delivery fees are dynamically computed based on your exact doorstep distance from our outlet in Raisinghnagar.
+                </p>
+                <div class="callout-box">
+                    <strong>Notice on Pricing & Items:</strong> While we strive for 100% menu accuracy, prices, ingredient availability, and special promotional offers are subject to change without prior notice.
+                </div>
+            </section>
+
+            <!-- Section 5 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-credit-card"></i></div>
+                    <h2 class="section-title">5. Payments & Transaction Security</h2>
+                </div>
+                <p class="policy-text">
+                    We support secure prepaid transactions via <strong>PhonePe Payment Gateway</strong> (UPI, Google Pay, PhonePe, Paytm, Debit/Credit Cards, Net Banking) as well as Cash on Delivery (COD) where available.
+                </p>
+                <ul class="policy-list">
+                    <li>Prepaid transactions are encrypted end-to-end via PCI-DSS compliant payment aggregators.</li>
+                    <li>Orders placed with online payment will only be transmitted to the kitchen queue once the transaction status is marked as 'SUCCESS' by the payment gateway.</li>
+                </ul>
+            </section>
+
+            <!-- Section 6 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-truck-fast"></i></div>
+                    <h2 class="section-title">6. Food Preparation & Delivery Time Estimates</h2>
+                </div>
+                <p class="policy-text">
+                    Delivery time estimates (typically 30–45 minutes) are provided for reference only. Delivery timings may vary during peak rush hours, adverse weather conditions, festive surges, or traffic impediments in Raisinghnagar.
+                </p>
+            </section>
+
+            <!-- Section 7 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h2 class="section-title">7. User Conduct & Prohibited Activities</h2>
+                </div>
+                <p class="policy-text">
+                    Customers agree not to engage in fraudulent orders, false delivery address entries, unauthorized tampering with website scripts/APIs, or verbal/physical mistreatment of kitchen staff or delivery personnel. Any abusive activity will lead to permanent IP/number bans and legal reporting.
+                </p>
+            </section>
+
+            <!-- Section 8 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-gavel"></i></div>
+                    <h2 class="section-title">8. Governing Law & Legal Jurisdiction</h2>
+                </div>
+                <p class="policy-text">
+                    These Terms and Conditions shall be governed by and construed in accordance with the laws of <strong>India</strong>. Any disputes, claims, or legal proceedings arising out of or related to our services shall be subject to the exclusive jurisdiction of the competent courts in <strong>Raisinghnagar, District Sri Ganganagar, Rajasthan, India</strong>.
+                </p>
+            </section>
+
+            <!-- Section 9 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-headset"></i></div>
+                    <h2 class="section-title">9. Customer Support & Inquiries</h2>
+                </div>
+                <p class="policy-text">
+                    For inquiries, feedback, or support regarding orders and terms, reach out to our team:
+                </p>
+                <div class="callout-box">
+                    <p><strong>Perfetto Pizza Customer Desk</strong></p>
+                    <p><i class="fa-solid fa-location-dot"></i> Raisinghnagar, Rajasthan 335051, India</p>
+                    <p><i class="fa-solid fa-envelope"></i> Email: 44website.com44@gmail.com</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="policy-footer">
+        <div class="footer-links">
+            <a href="index.html" class="footer-link">Home / Menu</a>
+            <a href="terms.html" class="footer-link active">Terms & Conditions</a>
+            <a href="privacy.html" class="footer-link">Privacy Policy</a>
+            <a href="refund.html" class="footer-link">Cancellation & Refund Policy</a>
+        </div>
+        <p class="footer-copy">© 2026 Perfetto Pizza. Fresh Pizzas, Burgers & Meals. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Simple Theme Switcher matching main app
+        const themeBtn = document.getElementById('theme-toggle');
+        const root = document.documentElement;
+
+        function applyTheme(theme) {
+            root.setAttribute('data-theme', theme);
+            const icon = themeBtn.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            }
+            localStorage.setItem('perfetto_theme', theme);
+        }
+
+        const savedTheme = localStorage.getItem('perfetto_theme') || 'light';
+        applyTheme(savedTheme);
+
+        if (themeBtn) {
+            themeBtn.addEventListener('click', () => {
+                const current = root.getAttribute('data-theme') || 'light';
+                applyTheme(current === 'light' ? 'dark' : 'light');
+            });
+        }
+    </script>
+</body>
+
+</html>

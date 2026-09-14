@@ -2,7 +2,6 @@
 .agents
 .vscode
 scratch/
-scripts/
 serviceAccountKey*.json
 *.log
 *.tmp

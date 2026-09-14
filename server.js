@@ -32,7 +32,8 @@ app.get('/firebase-messaging-sw.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'firebase-messaging-sw.js'));
 });
 
-// Serve static HTML/CSS/JS/Assets from root
+// Serve static HTML/CSS/JS/Assets from public and root
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
 
 // Mount Serverless API application

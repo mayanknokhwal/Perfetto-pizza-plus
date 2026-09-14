@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>Privacy Policy | Perfetto Pizza</title>
+    <meta name="description"
+        content="Privacy Policy of Perfetto Pizza. Discover how we protect your personal data, secure PhonePe payment handling, and ensure zero third-party data sharing in Raisinghnagar, Rajasthan.">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/HfRxNYQv/perfetto-Black.png">
+
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-orange: #ff6b00;
+            --primary-dark: #e05d00;
+            --primary-glow: rgba(255, 107, 0, 0.2);
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-surface: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --font-heading: 'Outfit', -apple-system, sans-serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #090d16;
+            --bg-card: #131b2e;
+            --bg-surface: #1a243b;
+            --border-color: #24304d;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.65;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .policy-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 14px 20px;
+            backdrop-filter: blur(12px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .brand-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary-orange);
+        }
+
+        .brand-name {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-name span {
+            color: var(--primary-orange);
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-orange);
+            color: #ffffff;
+            font-family: var(--font-heading);
+            font-size: 0.88rem;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-back-home:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .theme-toggle-btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .theme-toggle-btn:hover {
+            border-color: var(--primary-orange);
+            color: var(--primary-orange);
+        }
+
+        .policy-container {
+            max-width: 900px;
+            margin: 32px auto;
+            padding: 0 20px;
+            flex: 1;
+            width: 100%;
+        }
+
+        .policy-hero-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 32px 28px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-md);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .policy-hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 6px;
+            height: 100%;
+            background: linear-gradient(to bottom, #10b981, #059669);
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.12);
+            color: #10b981;
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 12px;
+        }
+
+        .hero-title {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .hero-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+        }
+
+        .policy-body {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 36px 30px;
+            box-shadow: var(--shadow-md);
+        }
+
+        .policy-section {
+            margin-bottom: 30px;
+        }
+
+        .policy-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .section-icon-box {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.12);
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+        }
+
+        .policy-text {
+            color: var(--text-main);
+            font-size: 0.94rem;
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .policy-list {
+            list-style: none;
+            padding-left: 0;
+            margin: 12px 0;
+        }
+
+        .policy-list li {
+            position: relative;
+            padding-left: 24px;
+            margin-bottom: 10px;
+            font-size: 0.93rem;
+            line-height: 1.6;
+            color: var(--text-main);
+        }
+
+        .policy-list li::before {
+            content: '🔒';
+            position: absolute;
+            left: 0;
+            top: 2px;
+            font-size: 0.75rem;
+        }
+
+        .callout-box {
+            background: var(--bg-surface);
+            border-left: 4px solid #10b981;
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            margin: 16px 0;
+            font-size: 0.92rem;
+            color: var(--text-main);
+        }
+
+        .callout-box strong {
+            color: #10b981;
+        }
+
+        .policy-footer {
+            background: var(--bg-card);
+            border-top: 1px solid var(--border-color);
+            padding: 24px 20px;
+            margin-top: 40px;
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .footer-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.88rem;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .footer-link:hover,
+        .footer-link.active {
+            color: var(--primary-orange);
+        }
+
+        .footer-copy {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 640px) {
+            .hero-title {
+                font-size: 1.6rem;
+            }
+
+            .policy-hero-card {
+                padding: 24px 20px;
+            }
+
+            .policy-body {
+                padding: 24px 18px;
+            }
+
+            .brand-name {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOP HEADER -->
+    <header class="policy-header">
+        <div class="header-container">
+            <a href="index.html" class="brand-link" aria-label="Go to Perfetto Pizza Home">
+                <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Pizza" class="brand-logo">
+                <span class="brand-name">Perfetto <span>Pizza</span></span>
+            </a>
+
+            <div class="nav-actions">
+                <button type="button" class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle Dark/Light Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                <a href="index.html" class="btn-back-home">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>Back to Menu</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="policy-container">
+        <div class="policy-hero-card">
+            <span class="hero-badge"><i class="fa-solid fa-user-shield"></i> Data Protection & Privacy Commitment</span>
+            <h1 class="hero-title">Privacy Policy</h1>
+            <p class="hero-subtitle">Effective Date: August 2026 • Perfetto Pizza, Raisinghnagar, Rajasthan</p>
+        </div>
+
+        <div class="policy-body">
+            <!-- Section 1 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h2 class="section-title">1. Introduction & Overview</h2>
+                </div>
+                <p class="policy-text">
+                    At <strong>Perfetto Pizza</strong> ("we", "our", "us"), protecting the privacy and personal data of our customers is a foundational priority. This Privacy Policy details how we collect, store, utilize, and protect your information when you use our online food ordering platform in Raisinghnagar, Rajasthan.
+                </p>
+            </section>
+
+            <!-- Section 2 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-database"></i></div>
+                    <h2 class="section-title">2. Information We Collect (Strictly for Order Fulfillment)</h2>
+                </div>
+                <p class="policy-text">
+                    We collect only the essential personal details necessary to prepare your fresh meals and deliver them accurately to your doorstep:
+                </p>
+                <ul class="policy-list">
+                    <li><strong>Customer Name:</strong> To address and identify your order packages correctly.</li>
+                    <li><strong>Mobile Phone Number:</strong> To send order confirmation alerts, OTP verifications, and enable our delivery driver to reach you at your doorstep.</li>
+                    <li><strong>Email Address:</strong> For dispatching one-time security login codes, electronic order receipts, and cross-device account profile recovery.</li>
+                    <li><strong>Hyperlocal Delivery Address:</strong> Colony/House details, street name, nearby landmark, ward number, and GPS pin coordinates strictly utilized to calculate delivery distance zones and navigate our delivery drivers.</li>
+                    <li><strong>Order Items & Cart History:</strong> To facilitate live kitchen tracking and re-ordering convenience.</li>
+                </ul>
+            </section>
+
+            <!-- Section 3 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-lock"></i></div>
+                    <h2 class="section-title">3. Secure Payment Handling (PhonePe / RBI Gateways)</h2>
+                </div>
+                <p class="policy-text">
+                    We believe in zero storage of sensitive financial credentials:
+                </p>
+                <div class="callout-box">
+                    <strong>Zero Card / Financial Storage:</strong> Perfetto Pizza does NOT collect, view, or store credit card numbers, debit card details, CVV codes, bank passwords, or UPI PINs.
+                </div>
+                <p class="policy-text">
+                    All digital transactions are processed securely through <strong>PhonePe</strong> and Reserve Bank of India (RBI) authorized payment aggregators with 256-bit SSL encryption and strict PCI-DSS compliance.
+                </p>
+            </section>
+
+            <!-- Section 4 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-ban"></i></div>
+                    <h2 class="section-title">4. Zero Third-Party Data Selling or Sharing</h2>
+                </div>
+                <p class="policy-text">
+                    We enforce a strict <strong>NO SPAM, NO DATA SELLING</strong> policy:
+                </p>
+                <ul class="policy-list">
+                    <li>We <strong>DO NOT</strong> sell, rent, trade, or disclose your personal contact information to third-party advertisers, data brokers, or marketing networks.</li>
+                    <li>Your delivery address and phone number are shared solely with our dedicated, verified delivery personnel for the exclusive purpose of fulfilling your active order.</li>
+                </ul>
+            </section>
+
+            <!-- Section 5 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                    <h2 class="section-title">5. Data Storage & Cloud Infrastructure</h2>
+                </div>
+                <p class="policy-text">
+                    Customer delivery profiles and active orders are persisted on secure, enterprise-grade cloud servers (Firebase Firestore) with end-to-end HTTPS/TLS encryption in transit and at rest.
+                </p>
+                <p class="policy-text">
+                    Our platform uses standard browser LocalStorage solely to maintain your local shopping cart state, dark/light theme preference, and cached delivery addresses across browsing sessions.
+                </p>
+            </section>
+
+            <!-- Section 6 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-user-gear"></i></div>
+                    <h2 class="section-title">6. Customer Rights & Profile Updates</h2>
+                </div>
+                <p class="policy-text">
+                    You have complete control over your delivery profile:
+                </p>
+                <ul class="policy-list">
+                    <li>You can edit or update your delivery address, colony, landmark, or GPS coordinates anytime directly in the <em>Profile</em> tab.</li>
+                    <li>You can clear your local order history using the "Clear History" button on the app.</li>
+                    <li>To request complete deletion of your customer profile from our records, contact our support team.</li>
+                </ul>
+            </section>
+
+            <!-- Section 7 -->
+            <section class="policy-section">
+                <div class="section-header">
+                    <div class="section-icon-box"><i class="fa-solid fa-envelope-open-text"></i></div>
+                    <h2 class="section-title">7. Contact Privacy & Grievance Officer</h2>
+                </div>
+                <p class="policy-text">
+                    If you have questions or concerns regarding our privacy practices, please contact us:
+                </p>
+                <div class="callout-box">
+                    <p><strong>Perfetto Pizza Privacy Desk</strong></p>
+                    <p><i class="fa-solid fa-location-dot"></i> Raisinghnagar, Rajasthan 335051, India</p>
+                    <p><i class="fa-solid fa-envelope"></i> Email: 44website.com44@gmail.com</p>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="policy-footer">
+        <div class="footer-links">
+            <a href="index.html" class="footer-link">Home / Menu</a>
+            <a href="terms.html" class="footer-link">Terms & Conditions</a>
+            <a href="privacy.html" class="footer-link active">Privacy Policy</a>
+            <a href="refund.html" class="footer-link">Cancellation & Refund Policy</a>
+        </div>
+        <p class="footer-copy">© 2026 Perfetto Pizza. Fresh Pizzas, Burgers & Meals. All rights reserved.</p>
+    </footer>
+
+    <script>
+        const themeBtn = document.getElementById('theme-toggle');
+        const root = document.documentElement;
+
+        function applyTheme(theme) {
+            root.setAttribute('data-theme', theme);
+            const icon = themeBtn.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            }
+            localStorage.setItem('perfetto_theme', theme);
+        }
+
+        const savedTheme = localStorage.getItem('perfetto_theme') || 'light';
+        applyTheme(savedTheme);
+
+        if (themeBtn) {
+            themeBtn.addEventListener('click', () => {
+                const current = root.getAttribute('data-theme') || 'light';
+                applyTheme(current === 'light' ? 'dark' : 'light');
+            });
+        }
+    </script>
+</body>
+
+</html>

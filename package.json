@@ -4,6 +4,7 @@
   "description": "Perfetto Pizza - Pure Web Application, Chef Portal & Admin Dashboard with Real-Time Firebase Sync, Voice OTP Auth, and PhonePe Payment Gateway",
   "main": "server.js",
   "scripts": {
+    "build": "node scripts/build.js",
     "start": "node server.js",
     "dev": "node server.js",
     "deploy:rules": "node scripts/deployRules.js",

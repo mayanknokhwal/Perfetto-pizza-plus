@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Perfetto Pizza - Mobile Staff Portal</title>
+    <meta name="description" content="Mobile-first kitchen and delivery management portal for Perfetto Pizza staff.">
+    <meta name="theme-color" content="#070d19">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" href="https://i.ibb.co/HfRxNYQv/perfetto-Black.png">
+
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- MSG91 OTP Widget Script Loader (Headless Mode / Custom UI) -->
+    <script type="text/javascript">
+        var configuration = {
+            widgetId: "3668716b4f68313937363038",
+            tokenAuth: "561143TsR6UbiIs0v6a82f3f8P1",
+            exposeMethods: true,
+            success: (data) => console.log('Staff MSG91 OTP Success:', data),
+            failure: (error) => console.error('Staff MSG91 OTP Error:', error)
+        };
+        (function (urls) {
+            let i = 0;
+            function attempt() {
+                const s = document.createElement('script');
+                s.src = urls[i];
+                s.async = true;
+                s.onload = () => {
+                    if (typeof window.initSendOTP === 'function') {
+                        window.initSendOTP(configuration);
+                    }
+                };
+                s.onerror = () => { i++; if (i < urls.length) attempt(); };
+                document.head.appendChild(s);
+            }
+            attempt();
+        })(['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js']);
+    </script>
+
+    <!-- Dedicated Order Alert Sound Asset Preload -->
+    <link rel="preload" href="/order-alert.mp3" as="audio" type="audio/mpeg">
+
+    <!-- Custom Staff Styles -->
+    <link rel="stylesheet" href="staff.css">
+</head>
+
+<body>
+
+    <!-- ==========================================================================
+         INITIAL AUTH SPLASH / NEUTRAL LOADER (PREVENTS FLASHING ON RELOAD)
+         ========================================================================== -->
+    <div id="staff-auth-splash" class="staff-auth-splash" aria-label="Loading Staff Portal">
+        <div class="staff-splash-spinner-box">
+            <div class="staff-splash-spinner"></div>
+            <div class="staff-splash-text">Verifying Staff Access...</div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         STAFF MOBILE PHONE OTP LOGIN MODAL & ACCESS APPROVAL OVERLAY
+         ========================================================================== -->
+    <div id="staff-login-overlay" class="staff-login-overlay" style="display: none; opacity: 0; visibility: hidden;">
+        <div class="staff-login-card">
+            <!-- Brand Header -->
+            <div class="staff-login-brand-header">
+                <div class="staff-login-logo-ring">
+                    <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-login-brand-logo">
+                </div>
+                <div class="staff-login-security-badge">
+                    <i class="fa-solid fa-user-shield"></i> SECURE STAFF PORTAL
+                </div>
+                <h2 class="staff-login-card-title">Staff Portal Login</h2>
+                <p class="staff-login-card-subtitle">Enter your name and mobile number to request or authenticate kitchen staff access.</p>
+            </div>
+
+            <!-- Step 1: Name and Mobile Phone Number Input -->
+            <div id="staff-login-step-phone" class="staff-login-step">
+                <!-- Full Name Field -->
+                <div class="form-group-staff-login">
+                    <label for="staff-login-name" class="staff-login-label">
+                        <i class="fa-solid fa-signature"></i> Full Name <span style="color: var(--primary-orange); margin-left: 2px;">*</span>
+                    </label>
+                    <div class="staff-name-input-wrapper">
+                        <i class="fa-solid fa-user staff-name-input-icon"></i>
+                        <input 
+                            type="text" 
+                            id="staff-login-name" 
+                            class="staff-login-input" 
+                            placeholder="Enter your full name" 
+                            maxlength="50" 
+                            autocomplete="name" 
+                            oninput="handleStaffNameInput(this)"
+                            onkeydown="if(event.key==='Enter') document.getElementById('staff-login-phone').focus()"
+                        >
+                    </div>
+                </div>
+
+                <!-- Mobile Phone Field -->
+                <div class="form-group-staff-login">
+                    <label for="staff-login-phone" class="staff-login-label">
+                        <i class="fa-solid fa-mobile-screen-button"></i> Mobile Phone Number <span style="color: var(--primary-orange); margin-left: 2px;">*</span>
+                    </label>
+                    <div class="staff-phone-input-combo">
+                        <div class="staff-phone-prefix-badge">
+                            <span class="country-flag">🇮🇳</span>
+                            <span class="country-code">+91</span>
+                        </div>
+                        <input 
+                            type="tel" 
+                            id="staff-login-phone" 
+                            class="staff-login-input" 
+                            placeholder="Enter 10-digit mobile number" 
+                            maxlength="10" 
+                            autocomplete="tel" 
+                            oninput="handleStaffPhoneInput(this)"
+                            onkeydown="if(event.key==='Enter') handleStaffSendOtp()"
+                        >
+                    </div>
+                    <div id="staff-login-phone-error" style="display: none; color: #ef4444; font-size: 0.85rem; font-weight: 700; margin-top: 5px; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-circle-exclamation"></i> Please change your number
+                    </div>
+                    <span class="staff-login-input-hint">Verification OTP will be sent to your mobile number.</span>
+                </div>
+
+                <button type="button" id="btn-staff-send-otp" class="btn-staff-login-action" onclick="handleStaffSendOtp()">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span id="btn-staff-send-text">Send Verification OTP</span>
+                </button>
+            </div>
+
+            <!-- Step 2: OTP Verification Box -->
+            <div id="staff-login-step-otp" class="staff-login-step" style="display: none;">
+                <div class="staff-otp-target-banner">
+                    <span>Code sent to: <strong id="staff-otp-target-display">+91 ••••• •••••</strong></span>
+                    <button type="button" class="btn-staff-change-number" onclick="handleStaffChangePhone()">
+                        <i class="fa-solid fa-pen-to-square"></i> Change
+                    </button>
+                </div>
+
+                <div class="form-group-staff-login">
+                    <label for="staff-otp-code" class="staff-login-label">
+                        <i class="fa-solid fa-key"></i> Enter 4-Digit OTP
+                    </label>
+                    <input 
+                        type="text" 
+                        id="staff-otp-code" 
+                        class="staff-login-input staff-otp-code-field" 
+                        placeholder="••••" 
+                        maxlength="4" 
+                        autocomplete="one-time-code"
+                        inputmode="numeric"
+                        pattern="[0-9]{4}"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)"
+                        onkeydown="if(event.key==='Enter') handleStaffVerifyOtp()"
+                    >
+                    <div class="staff-otp-resend-row">
+                        <span id="staff-otp-timer-text" class="staff-otp-timer-text">Resend code in 45s</span>
+                        <button type="button" id="btn-staff-resend-otp" class="btn-staff-resend-link" onclick="handleStaffSendOtp(true)" disabled>
+                            <i class="fa-solid fa-rotate-right"></i> Resend OTP
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" id="btn-staff-verify-otp" class="btn-staff-login-action btn-staff-verify-action" onclick="handleStaffVerifyOtp()">
+                    <i class="fa-solid fa-lock-open"></i>
+                    <span id="btn-staff-verify-text">Verify & Unlock Portal</span>
+                </button>
+            </div>
+
+            <!-- Step 3: Access Request Status Screen (Pending / Review by Master Admin) -->
+            <div id="staff-login-step-pending" class="staff-login-step" style="display: none;">
+                <div class="staff-pending-access-card" id="staff-pending-card">
+                    <div class="staff-pending-icon-ring" id="staff-pending-status-icon">
+                        <i class="fa-solid fa-hourglass-half fa-spin-pulse" style="color: #f59e0b;"></i>
+                    </div>
+                    <h3 class="staff-pending-title" id="staff-pending-status-title">Access Pending Approval</h3>
+                    <p class="staff-pending-message" id="staff-pending-status-desc">
+                        Your request has been submitted to management for role verification.
+                    </p>
+
+                    <div class="staff-pending-user-box">
+                        <div class="staff-pending-info-row">
+                            <span class="info-label"><i class="fa-solid fa-user"></i> Applicant:</span>
+                            <span class="info-val" id="staff-pending-display-name">Applicant Name</span>
+                        </div>
+                        <div class="staff-pending-info-row">
+                            <span class="info-label"><i class="fa-solid fa-mobile-screen"></i> Mobile:</span>
+                            <span class="info-val" id="staff-pending-display-phone">+91 ••••• •••••</span>
+                        </div>
+                        <div class="staff-pending-info-row">
+                            <span class="info-label"><i class="fa-solid fa-clock"></i> Requested:</span>
+                            <span class="info-val" id="staff-pending-display-time">Just now</span>
+                        </div>
+                        <div class="staff-pending-info-row">
+                            <span class="info-label"><i class="fa-solid fa-shield-halved"></i> Status:</span>
+                            <span class="staff-pending-status-tag status-amber" id="staff-pending-display-badge">🟡 Awaiting Verification</span>
+                        </div>
+                    </div>
+
+                    <div class="staff-pending-actions-col">
+                        <button type="button" id="btn-check-staff-pending-status" class="btn-staff-login-action" onclick="checkStaffPendingApprovalStatus()">
+                            <i class="fa-solid fa-arrows-rotate"></i> Check Approval Status
+                        </button>
+                        <button type="button" class="btn-auth-secondary" onclick="handleStaffResetToPhone()">
+                            <i class="fa-solid fa-arrow-left"></i> Sign In With Another Number
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Notice -->
+            <div class="staff-login-footer-notice">
+                <i class="fa-solid fa-shield-halved"></i> Perfetto Pizza Access Control System
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         STAFF CUSTOM THEMED CONFIRMATION MODAL
+         ========================================================================== -->
+    <div id="staff-confirm-modal" class="custom-confirm-overlay" style="display: none; opacity: 0;">
+        <div class="custom-confirm-card">
+            <div class="custom-confirm-icon-ring" id="staff-confirm-icon">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="custom-confirm-title" id="staff-confirm-title">Confirm Action</h3>
+            <p class="custom-confirm-message" id="staff-confirm-message">Are you sure you want to proceed?</p>
+            <div class="custom-confirm-actions">
+                <button type="button" class="btn-touch btn-secondary" id="staff-confirm-cancel-btn" onclick="handleStaffConfirmResolve(false)" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.92rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(148, 163, 184, 0.25); color: #cbd5e1; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="button" class="btn-touch btn-primary" id="staff-confirm-ok-btn" onclick="handleStaffConfirmResolve(true)" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; border: none; color: #ffffff; cursor: pointer;">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- APP CONTAINER (Mobile Frame Max Width centered on desktop) -->
+    <div class="staff-app" id="staff-app-root" style="display: none !important;">
+
+        <!-- ========================================================== -->
+        <!-- STAFF DASHBOARD -->
+        <!-- ========================================================== -->
+        <div id="staff-dashboard-view" class="staff-dashboard-view" style="display: none !important;">
+
+            <!-- HEADER BAR -->
+            <header class="staff-header">
+                <div class="header-top">
+                    <div class="brand-info">
+                        <div class="staff-logo-wrapper">
+                            <img src="https://i.ibb.co/HfRxNYQv/perfetto-Black.png" alt="Perfetto Logo" class="staff-logo">
+                        </div>
+                        <div>
+                            <h2 class="brand-title">Perfetto Pizza</h2>
+                            <div class="brand-tag">Staff Portal</div>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <!-- Dedicated Sound ON/OFF Header Toggle -->
+                        <button type="button" class="btn-staff-sound-toggle sound-off" id="btn-staff-sound-toggle" onclick="toggleStaffSoundState()" title="Tap to Toggle Kitchen Audio Alerts" aria-pressed="false">
+                            <span class="sound-toggle-dot"></span>
+                            <i class="fa-solid fa-volume-xmark" id="staff-sound-icon"></i>
+                            <span id="staff-sound-label">🔕 Audio Muted (Tap to Enable Sound)</span>
+                        </button>
+                        <!-- Lock / Sign Out Button -->
+                        <button type="button" class="btn-staff-lock" id="btn-staff-logout" onclick="handleStaffLogout()" title="Lock Staff Portal">
+                            <i class="fa-solid fa-lock"></i>
+                            <span>Lock</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ROLE & USER INFO (STAFF PORTAL DISPLAY) -->
+                <div class="role-bar">
+                    <div class="user-role-pill">
+                        <i class="fa-solid fa-user-shield"></i>
+                        <span>Role: <strong id="current-role-label">Staff</strong></span>
+                    </div>
+                    <div class="user-email-pill" id="logged-in-user-email">
+                        <i class="fa-solid fa-circle-user"></i>
+                        <span id="staff-email-display">Staff Member</span>
+                    </div>
+                </div>
+
+                <!-- ORDER STATUS TABS: PENDING VS COMPLETED VS REJECTED -->
+                <nav class="staff-tabs-nav" aria-label="Order Status Navigation">
+                    <button type="button" class="staff-tab-btn active" id="tab-btn-pending" onclick="switchStaffTab('pending')">
+                        <i class="fa-solid fa-fire-burner"></i>
+                        <span>Pending Orders</span>
+                        <span class="tab-count-badge" id="pending-orders-count">0</span>
+                    </button>
+                    <button type="button" class="staff-tab-btn" id="tab-btn-completed" onclick="switchStaffTab('completed')">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>Completed Orders</span>
+                        <span class="tab-count-badge" id="completed-orders-count">0</span>
+                    </button>
+                    <button type="button" class="staff-tab-btn" id="tab-btn-rejected" onclick="switchStaffTab('rejected')">
+                        <i class="fa-solid fa-ban"></i>
+                        <span>Rejected Orders</span>
+                        <span class="tab-count-badge" id="rejected-orders-count">0</span>
+                    </button>
+                </nav>
+            </header>
+
+            <!-- AUDIO AUTOPLAY RESTRICTION / LIVE CHIME UNLOCK BANNER -->
+            <div id="staff-audio-banner" class="staff-audio-banner" style="display: none;" onclick="toggleStaffSoundState()" role="alert" aria-live="assertive">
+                <div class="audio-banner-content">
+                    <i class="fa-solid fa-volume-xmark audio-banner-icon"></i>
+                    <span id="staff-audio-banner-text">Audio alerts restricted by browser. <strong>Tap here to enable sound chimes!</strong></span>
+                </div>
+                <button type="button" class="btn-dismiss-audio-banner" onclick="event.stopPropagation(); dismissStaffAudioBanner();" title="Dismiss Banner" aria-label="Dismiss audio warning">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- INCOMING ORDER VISUAL ALERT STRIP (PULSES ON NEW ORDER) -->
+            <div id="staff-incoming-alert-strip" class="staff-incoming-alert-strip" style="display: none;" onclick="showIncomingOrderModal()" role="status">
+                <div class="incoming-strip-pulse"></div>
+                <div class="incoming-strip-content">
+                    <i class="fa-solid fa-bell fa-shake"></i>
+                    <span id="staff-incoming-strip-text">NEW ORDER ARRIVED! Tap to view details</span>
+                </div>
+                <button type="button" class="btn-strip-view" onclick="event.stopPropagation(); showIncomingOrderModal();">
+                    View
+                </button>
+            </div>
+
+            <!-- MAIN CONTENT AREA -->
+            <main class="staff-main">
+
+                <!-- LIVE ORDERS FEED -->
+                <section class="orders-section">
+                    <div class="section-title-bar">
+                        <div class="section-title-left" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <h3 id="section-heading">Kitchen Orders</h3>
+                            <span class="live-pulse-badge" id="live-pulse-badge">
+                                <span class="pulse-dot"></span> Live
+                            </span>
+                        </div>
+                        <div class="section-title-right">
+                            <button type="button" class="btn-clear-completed btn-delete-all-completed" id="btn-delete-all-completed" onclick="handleDeleteAllCompletedOrders()" style="display: none;" title="Clear all completed/archived orders" disabled>
+                                <i class="fa-solid fa-trash-can"></i>
+                                <span>Clear All Completed</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CARDS CONTAINER -->
+                    <div class="orders-cards-container" id="orders-list-container">
+                        <!-- Dynamic rendering via JS -->
+                    </div>
+
+                    <!-- EMPTY STATE -->
+                    <div class="empty-state" id="empty-state" style="display: none;">
+                        <i class="fa-solid fa-bell-slash"></i>
+                        <h4>No Active Orders</h4>
+                        <p>There are currently no orders in the kitchen queue.</p>
+                    </div>
+                </section>
+
+            </main>
+
+        </div>
+
+        <!-- REAL-TIME INCOMING NEW ORDER MODAL & CONTINUOUS RINGTONE ALERT -->
+        <div class="staff-modal-overlay incoming-order-overlay" id="staff-incoming-order-modal" aria-hidden="true" style="display: none;">
+            <div class="staff-modal-card incoming-order-card" role="dialog" aria-labelledby="incoming-modal-title">
+                <div class="incoming-pulse-ring">
+                    <div class="incoming-alert-badge">
+                        <i class="fa-solid fa-pizza-slice fa-bounce"></i>
+                    </div>
+                </div>
+
+                <div class="incoming-modal-header text-center">
+                    <span class="incoming-live-tag"><i class="fa-solid fa-bell fa-shake"></i> NEW ORDER ARRIVED</span>
+                    <h3 class="staff-modal-title" id="incoming-modal-order-tag">Order #--</h3>
+                    <p class="incoming-modal-time" id="incoming-modal-time">Continuous alert playing until accepted...</p>
+                </div>
+
+                <div class="staff-modal-body">
+                    <div class="incoming-order-info-card">
+                        <div class="incoming-info-row">
+                            <span class="info-label"><i class="fa-solid fa-user"></i> Customer:</span>
+                            <strong class="info-val" id="incoming-modal-customer-name">Customer</strong>
+                        </div>
+                        <div class="incoming-info-row">
+                            <span class="info-label"><i class="fa-solid fa-bag-shopping"></i> Items:</span>
+                            <strong class="info-val" id="incoming-modal-items-summary">--</strong>
+                        </div>
+                        <div class="incoming-info-row" id="incoming-modal-total-row">
+                            <span class="info-label"><i class="fa-solid fa-receipt"></i> Total Amount:</span>
+                            <strong class="info-val text-primary-orange" id="incoming-modal-order-total">₹0</strong>
+                        </div>
+                        <div class="incoming-info-row">
+                            <span class="info-label"><i class="fa-solid fa-credit-card"></i> Payment:</span>
+                            <span class="info-badge" id="incoming-modal-payment-method">Cash on Delivery</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="staff-modal-footer incoming-footer-actions">
+                    <button type="button" class="btn-touch btn-dismiss-incoming" onclick="dismissIncomingOrderAlert()" title="Dismiss / Silence Alert">
+                        <i class="fa-solid fa-volume-xmark"></i> Dismiss
+                    </button>
+                    <button type="button" class="btn-touch btn-accept-incoming" id="btn-incoming-accept-order" onclick="acceptIncomingOrderFromModal()" title="Accept Order & Start Preparation">
+                        <i class="fa-solid fa-fire-burner"></i> Accept Order
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CUSTOM IN-APP ORDER REJECTION CONFIRMATION MODAL -->
+        <div class="staff-modal-overlay" id="staff-reject-modal" aria-hidden="true" style="display: none;">
+            <div class="staff-modal-card" role="dialog" aria-labelledby="reject-modal-title">
+                <div class="staff-modal-header reject-header">
+                    <div class="reject-icon-badge">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <h3 class="staff-modal-title" id="reject-modal-title">Enter Master Admin OTP to Cancel Order</h3>
+                        <p class="staff-modal-subtitle" id="reject-modal-order-tag">Order #--</p>
+                    </div>
+                </div>
+
+                <div class="staff-modal-body">
+                    <div class="reject-order-details-box">
+                        <div class="reject-detail-row">
+                            <span><i class="fa-solid fa-user"></i> Customer:</span>
+                            <strong id="reject-modal-customer-name">--</strong>
+                        </div>
+                        <div class="reject-detail-row">
+                            <span><i class="fa-solid fa-receipt"></i> Total Amount:</span>
+                            <strong id="reject-modal-order-total" style="color: var(--primary-orange);">₹0</strong>
+                        </div>
+                    </div>
+
+                    <div class="reject-reason-box" style="margin-top: 12px; text-align: left;">
+                        <label for="reject-modal-reason" style="display: block; font-size: 0.82rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">
+                            <i class="fa-solid fa-comment-dots" style="color: #ef4444;"></i> Cancellation Reason (Mandatory):
+                        </label>
+                        <textarea 
+                            id="reject-modal-reason" 
+                            rows="2" 
+                            placeholder="State mandatory reason for rejecting this order..." 
+                            style="width: 100%; border: 1.5px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); border-radius: 8px; padding: 8px 10px; color: #ffffff; font-size: 0.85rem; resize: none; font-family: inherit; box-sizing: border-box;"
+                        ></textarea>
+                        <div id="reject-modal-reason-error" style="display: none; color: #ef4444; font-size: 0.78rem; font-weight: 600; margin-top: 4px;"></div>
+                    </div>
+
+                    <div class="reject-otp-auth-box" style="margin-top: 14px; text-align: left;">
+                        <label for="reject-modal-master-otp" style="display: block; font-size: 0.82rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">
+                            <i class="fa-solid fa-key" style="color: #ef4444;"></i> Admin Master Delivery OTP:
+                        </label>
+                        <input 
+                            type="password" 
+                            inputmode="numeric" 
+                            id="reject-modal-master-otp" 
+                            class="staff-otp-input" 
+                            placeholder="Enter 4-Digit Master OTP" 
+                            maxlength="4" 
+                            autocomplete="off"
+                            style="width: 100%; text-align: center; font-size: 1.25rem; letter-spacing: 6px; font-weight: 800; border: 1.5px solid rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1); border-radius: 10px; padding: 10px; color: #ffffff;"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)"
+                            onkeydown="if(event.key === 'Enter') confirmRejectOrder()"
+                        >
+                        <div id="reject-modal-otp-error" style="display: none; color: #ef4444; font-size: 0.78rem; font-weight: 600; margin-top: 6px; text-align: center;"></div>
+                    </div>
+                </div>
+
+                <div class="staff-modal-footer">
+                    <button type="button" class="btn-touch btn-modal-cancel" onclick="closeStaffRejectModal()">
+                        <i class="fa-solid fa-arrow-left"></i> Keep Order
+                    </button>
+                    <button type="button" class="btn-touch btn-modal-confirm-reject" id="btn-confirm-order-reject" onclick="confirmRejectOrder()">
+                        <i class="fa-solid fa-ban"></i> Confirm Reject
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOAST NOTIFICATION CONTAINER -->
+        <div id="staff-toast" class="staff-toast" role="status" aria-live="polite">
+            <i class="fa-solid fa-circle-check" id="toast-icon"></i>
+            <span id="toast-message">Action updated successfully</span>
+        </div>
+
+    </div>
+    <!-- END STAFF APP CONTAINER -->
+
+    <!-- Firebase 10 SDKs (Compat Mode for universal window.firebase & Firestore real-time listeners) -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics-compat.js"></script>
+
+    <!-- Centralized Firebase Configuration -->
+    <script type="module" src="./lib/firebaseConfig.js"></script>
+
+    <script src="staff.js"></script>
+</body>
+
+</html>
