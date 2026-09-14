@@ -655,6 +655,44 @@
             background: linear-gradient(90deg, transparent, var(--primary-orange), transparent);
         }
 
+        /* INTERACTIVE DEEP-LINK KPI CARDS */
+        .stat-card.clickable-kpi {
+            cursor: pointer;
+            user-select: none;
+            outline: none;
+        }
+
+        .stat-card.clickable-kpi:focus-visible {
+            outline: 2px solid var(--primary-orange);
+            outline-offset: 2px;
+        }
+
+        .stat-card.clickable-kpi:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 107, 0, 0.6);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 107, 0, 0.25);
+        }
+
+        .stat-card.clickable-kpi:active {
+            transform: translateY(-2px);
+        }
+
+        .stat-card.clickable-kpi .kpi-deep-link-hint {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 6px;
+            transition: var(--transition-smooth);
+        }
+
+        .stat-card.clickable-kpi:hover .kpi-deep-link-hint {
+            color: var(--primary-orange);
+            transform: translateX(2px);
+        }
+
         .stat-info .stat-value {
             font-family: var(--font-heading);
             font-size: 1.85rem;
@@ -4045,30 +4083,33 @@
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card clickable-kpi" id="card-kpi-pending" onclick="navigateToStaffPortalTab('pending')" role="button" tabindex="0" title="Open Staff Portal - Pending Orders">
                         <div class="stat-info">
                             <div class="stat-label">Pending Orders</div>
                             <div class="stat-value" id="stat-pending-orders">0</div>
+                            <div class="kpi-deep-link-hint"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Staff Tab</div>
                         </div>
                         <div class="stat-icon icon-orange">
                             <i class="fa-solid fa-clock"></i>
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card clickable-kpi" id="card-kpi-rejected" onclick="navigateToStaffPortalTab('rejected')" role="button" tabindex="0" title="Open Staff Portal - Rejected Orders">
                         <div class="stat-info">
                             <div class="stat-label">Today's Rejected</div>
                             <div class="stat-value" id="stat-rejected-orders">0</div>
+                            <div class="kpi-deep-link-hint"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Staff Tab</div>
                         </div>
                         <div class="stat-icon icon-red">
                             <i class="fa-solid fa-triangle-exclamation"></i>
                         </div>
                     </div>
 
-                    <div class="stat-card">
+                    <div class="stat-card clickable-kpi" id="card-kpi-delivered" onclick="navigateToStaffPortalTab('completed')" role="button" tabindex="0" title="Open Staff Portal - Completed Orders">
                         <div class="stat-info">
                             <div class="stat-label">Today's Delivered</div>
                             <div class="stat-value" id="stat-delivered-orders">0</div>
+                            <div class="kpi-deep-link-hint"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Staff Tab</div>
                         </div>
                         <div class="stat-icon icon-green">
                             <i class="fa-solid fa-circle-check"></i>
@@ -4301,7 +4342,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-1" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4314,7 +4355,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-2" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4327,7 +4368,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-3" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4340,7 +4381,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-4" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4353,7 +4394,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-5" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4366,7 +4407,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-6" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4379,7 +4420,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-7" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4392,7 +4433,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-8" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4405,7 +4446,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-9" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
 
@@ -4418,7 +4459,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-10" class="zone-charge-input" min="0"
-                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                        placeholder="0" onfocus="handleZoneChargeFocus(this)" oninput="handleZoneChargeInput(this)" onblur="handleZoneChargeBlur(this)">
                                 </div>
                             </div>
                         </div>
@@ -8124,7 +8165,7 @@
             return isNaN(parsed) ? 0 : parsed;
         }
 
-        const PENDING_ADMIN_STATUSES = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready"]);
+        const PENDING_ADMIN_STATUSES = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready", "new", "delivery", "dispatched"]);
         const DELIVERED_ADMIN_STATUSES = new Set(["delivered", "completed"]);
         const REJECTED_ADMIN_STATUSES = new Set(["rejected", "cancelled", "canceled", "declined"]);
 
@@ -8144,13 +8185,29 @@
             if (Array.isArray(list) && list.length > 0) {
                 list.forEach((o) => {
                     if (!o) return;
-                    const amount = Number(o.total || (o.costs && o.costs.total) || 0);
-                    if (!isNaN(amount) && amount > 0) totalRev += amount;
-
                     const status = String(o.status || '').trim().toLowerCase();
 
+                    // Metric "TOTAL REVENUE":
+                    // Sum total bill amounts strictly of orders with status "delivered" or "completed".
+                    // Exclude pending, placed, preparing, cancelled, or rejected orders.
+                    if (DELIVERED_ADMIN_STATUSES.has(status)) {
+                        let amount = 0;
+                        if (o.totalAmount !== undefined && o.totalAmount !== null && !isNaN(Number(o.totalAmount))) {
+                            amount = Number(o.totalAmount);
+                        } else if (o.finalPayable !== undefined && o.finalPayable !== null && !isNaN(Number(o.finalPayable))) {
+                            amount = Number(o.finalPayable);
+                        } else if (o.costs && o.costs.finalPayable !== undefined && !isNaN(Number(o.costs.finalPayable))) {
+                            amount = Number(o.costs.finalPayable);
+                        } else if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) {
+                            amount = Number(o.total);
+                        } else if (o.costs && o.costs.total !== undefined && !isNaN(Number(o.costs.total))) {
+                            amount = Number(o.costs.total);
+                        }
+                        if (amount > 0) totalRev += amount;
+                    }
+
                     // Metric "PENDING ORDERS":
-                    // Live count matching Kitchen Portal: ["placed", "pending", "preparing", "out_for_delivery", "ready"]
+                    // Live count matching Kitchen Portal: ["placed", "pending", "preparing", "out_for_delivery", "ready", "new", "delivery", "dispatched"]
                     // Do NOT apply date cutoff (active pending orders must show immediately)
                     if (PENDING_ADMIN_STATUSES.has(status)) {
                         pendingCount++;
@@ -8167,7 +8224,7 @@
                     }
 
                     // Metric "TODAY'S REJECTED":
-                    // Status in ["rejected", "cancelled"] AND (createdAt >= startOfDay || rejectedAt >= startOfDay || cancelledAt >= startOfDay)
+                    // Status in ["rejected", "cancelled", "canceled", "declined"] AND (createdAt >= startOfDay || rejectedAt >= startOfDay || cancelledAt >= startOfDay)
                     if (REJECTED_ADMIN_STATUSES.has(status)) {
                         const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
                         const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt') || getOrderTimestamp(o, 'updatedAt');
@@ -8178,11 +8235,25 @@
                 });
             }
 
-            if (revEl) revEl.textContent = `₹${totalRev.toLocaleString('en-IN')}`;
+            if (revEl) revEl.textContent = `₹${Math.round(totalRev).toLocaleString('en-IN')}`;
             if (pendingEl) pendingEl.textContent = pendingCount;
             if (rejectedEl) rejectedEl.textContent = todayRejectedCount;
             if (deliveredEl) deliveredEl.textContent = todayDeliveredCount;
         }
+
+        // Deep-link navigation shortcut to Staff Portal tabs
+        function navigateToStaffPortalTab(targetTab) {
+            const valid = {
+                pending: 'pending',
+                rejected: 'rejected',
+                completed: 'completed',
+                delivered: 'completed'
+            };
+            const tab = valid[String(targetTab || '').toLowerCase()] || 'pending';
+            const url = `staff.html?tab=${tab}`;
+            window.open(url, '_blank');
+        }
+        window.navigateToStaffPortalTab = navigateToStaffPortalTab;
 
         // 7B. LIVE ORDER & REVENUE STATS ENGINE (DEDUPLICATED & UNIFIED)
         async function updateRevenueStats(ordersData) {
@@ -8791,6 +8862,46 @@
                 zone6: null, zone7: null, zone8: null, zone9: null, zone10: null
             };
         }
+
+        // Delivery Charge Input UX Helpers: Prevent leading zeroes & auto-select on focus
+        function handleZoneChargeFocus(input) {
+            if (!input) return;
+            if (input.value === '0') {
+                input.select();
+            }
+        }
+
+        function handleZoneChargeInput(input) {
+            if (!input) return;
+            let val = input.value;
+            if (val !== '') {
+                // If user enters digits with a leading zero (e.g. typing 9 after 0 yields "09" or "099"), strip leading zeros
+                if (/^0+[1-9]/.test(val)) {
+                    val = val.replace(/^0+/, '');
+                    input.value = val;
+                } else if (/^0{2,}$/.test(val)) {
+                    val = '0';
+                    input.value = val;
+                }
+            }
+            if (typeof markStoreSettingsDirty === 'function') {
+                markStoreSettingsDirty();
+            }
+        }
+
+        function handleZoneChargeBlur(input) {
+            if (!input) return;
+            let val = input.value.trim();
+            if (val !== '') {
+                const num = parseFloat(val);
+                if (!isNaN(num) && num >= 0) {
+                    input.value = String(num);
+                }
+            }
+        }
+        window.handleZoneChargeFocus = handleZoneChargeFocus;
+        window.handleZoneChargeInput = handleZoneChargeInput;
+        window.handleZoneChargeBlur = handleZoneChargeBlur;
 
         function getMinOrderValue() {
             const val = localStorage.getItem(MIN_ORDER_KEY);
@@ -9405,7 +9516,7 @@
                     const zInput = document.getElementById(`input-zone-charge-${i}`);
                     if (zInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== zInput))) {
                         const val = zonesMap[`zone${i}`];
-                        zInput.value = (val !== null && val !== undefined && val !== '') ? val : '';
+                        zInput.value = (val !== null && val !== undefined && val !== '') ? String(Number(val)) : '';
                     }
                 }
             }
@@ -9514,7 +9625,7 @@
                 const zoneInput = document.getElementById(`input-zone-charge-${i}`);
                 if (zoneInput) {
                     const val = zoneCharges[`zone${i}`];
-                    zoneInput.value = (val !== null && val !== undefined && val !== '') ? val : '';
+                    zoneInput.value = (val !== null && val !== undefined && val !== '') ? String(Number(val)) : '';
                 }
             }
 
@@ -9769,8 +9880,15 @@
             }
         }
 
-        // 12. GLOBAL 'ENTER' KEY EVENT LISTENER FOR INSTANT SAVING
+        // 12. GLOBAL 'ENTER' & ACCESSIBILITY KEY EVENT LISTENER FOR INSTANT SAVING & NAVIGATION
         document.addEventListener('keydown', (e) => {
+            if (e.target && e.target.classList && e.target.classList.contains('clickable-kpi')) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.target.click();
+                    return;
+                }
+            }
             if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
                 e.preventDefault();
                 saveAllChanges();
@@ -13968,6 +14086,130 @@
             showToast('🚫 This number is blocked, please change your number');
         }
 
+        // Admin Incoming Order Audio Alert & Universal Tap-to-Unlock
+        let adminInitialOrdersLoaded = false;
+        const adminKnownOrderIds = new Set();
+        let adminAudioContext = null;
+        let adminAlertAudio = null;
+        let adminAudioUnlocked = false;
+
+        function getAdminAudioContext() {
+            if (!adminAudioContext && (typeof window.AudioContext !== 'undefined' || typeof window.webkitAudioContext !== 'undefined')) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                try {
+                    adminAudioContext = new AudioCtx();
+                } catch (e) { }
+            }
+            return adminAudioContext;
+        }
+
+        function initAdminAudio() {
+            if (!adminAlertAudio && typeof Audio !== 'undefined') {
+                const sources = ['./order-alert.mp3', 'order-alert.mp3', '/order-alert.mp3'];
+                for (const src of sources) {
+                    try {
+                        adminAlertAudio = new Audio(src);
+                        adminAlertAudio.loop = false; // Strictly single-play chime (never loop)
+                        adminAlertAudio.preload = 'auto';
+                        break;
+                    } catch (e) { }
+                }
+            }
+            if (adminAlertAudio) {
+                adminAlertAudio.loop = false;
+            }
+            return adminAlertAudio;
+        }
+
+        function unlockAdminAudioContext() {
+            if (adminAudioUnlocked) return;
+            adminAudioUnlocked = true;
+
+            try {
+                const ctx = getAdminAudioContext();
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume().catch(() => {});
+                }
+            } catch (e) { }
+
+            try {
+                const audio = initAdminAudio();
+                if (audio) {
+                    const p = audio.play();
+                    if (p && typeof p.then === 'function') {
+                        p.then(() => {
+                            audio.pause();
+                            audio.currentTime = 0;
+                        }).catch(() => {});
+                    }
+                }
+            } catch (e) { }
+
+            ['click', 'touchstart', 'keydown'].forEach(evt => {
+                window.removeEventListener(evt, unlockAdminAudioContext, { capture: true });
+                document.removeEventListener(evt, unlockAdminAudioContext, { capture: true });
+            });
+            console.log('🔊 [Admin Audio] Audio context successfully unlocked by user interaction.');
+        }
+
+        // Global one-time interaction listener across admin viewport to unlock browser audio context
+        ['click', 'touchstart', 'keydown'].forEach(evt => {
+            window.addEventListener(evt, unlockAdminAudioContext, { capture: true, once: true, passive: true });
+            document.addEventListener(evt, unlockAdminAudioContext, { capture: true, once: true, passive: true });
+        });
+
+        function playAdminOrderChime() {
+            console.log('🔔 [Admin Alert] Playing incoming order alert chime once...');
+            try {
+                const ctx = getAdminAudioContext();
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume().catch(() => {});
+                }
+            } catch (e) { }
+
+            try {
+                const audio = initAdminAudio();
+                if (audio) {
+                    audio.loop = false; // Never loop on admin dashboard
+                    audio.currentTime = 0;
+                    const p = audio.play();
+                    if (p && typeof p.then === 'function') {
+                        p.catch(err => {
+                            console.warn('Admin HTML5 audio play prevented by autoplay policy:', err.message);
+                            playAdminSynthesizedChime();
+                        });
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.warn('Error playing admin audio chime:', e);
+            }
+            playAdminSynthesizedChime();
+        }
+
+        function playAdminSynthesizedChime() {
+            try {
+                const ctx = getAdminAudioContext();
+                if (!ctx) return;
+                if (ctx.state === 'suspended') {
+                    ctx.resume().catch(() => {});
+                }
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, now); // A5
+                osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15); // E6
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.6);
+            } catch (e) { }
+        }
+        window.playAdminOrderChime = playAdminOrderChime;
+
         function listenToAdminLiveOrders() {
             const db = adminFirestore || getAdminFirestore();
             if (!db || adminOrdersUnsubscribe) return;
@@ -13977,6 +14219,8 @@
                     .limit(150)
                     .onSnapshot((snapshot) => {
                         const liveOrders = [];
+                        let hasNewIncomingOrder = false;
+
                         snapshot.forEach((doc) => {
                             const data = doc.data() || {};
                             const docId = doc.id;
@@ -13988,6 +14232,41 @@
                                 orderId: data.orderId || data.id || docId
                             });
                         });
+
+                        // Detect new incoming orders and trigger single chime
+                        if (!adminInitialOrdersLoaded) {
+                            snapshot.forEach(doc => {
+                                adminKnownOrderIds.add(doc.id);
+                                const d = doc.data() || {};
+                                if (d.orderId) adminKnownOrderIds.add(String(d.orderId));
+                                if (d.id) adminKnownOrderIds.add(String(d.id));
+                            });
+                            adminInitialOrdersLoaded = true;
+                        } else {
+                            if (typeof snapshot.docChanges === 'function') {
+                                snapshot.docChanges().forEach(change => {
+                                    if (change.type === 'added') {
+                                        const docId = change.doc.id;
+                                        const d = change.doc.data() || {};
+                                        const oId = String(d.orderId || d.id || docId).trim();
+                                        if (!adminKnownOrderIds.has(docId) && !adminKnownOrderIds.has(oId)) {
+                                            adminKnownOrderIds.add(docId);
+                                            if (oId) adminKnownOrderIds.add(oId);
+                                            const status = String(d.status || '').trim().toLowerCase();
+                                            if (status === 'placed' || status === 'new' || status === 'pending') {
+                                                hasNewIncomingOrder = true;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+
+                            if (hasNewIncomingOrder) {
+                                playAdminOrderChime();
+                                showToast('🔔 New incoming customer order received!');
+                            }
+                        }
+
                         mergeLiveOrdersIntoAdmin(liveOrders);
                     }, (err) => {
                         console.warn('Firestore admin orders listener notice:', err.message);

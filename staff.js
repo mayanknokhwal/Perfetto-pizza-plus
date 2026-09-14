@@ -702,6 +702,7 @@ function unlockStaffDashboard(user) {
     listenToFirestoreStaffOrders();
     loadCustomerOrders();
     renderOrders();
+    applyStaffTabFromUrl();
     scheduleClientMidnightCleanup();
     stopStaffOrderAlertSound();
 }
@@ -2824,6 +2825,36 @@ function switchStaffTab(tab) {
     renderOrders();
 }
 window.switchStaffTab = switchStaffTab;
+
+// 7C. DEEP-LINK TAB ROUTER (READS ?tab= / #tab from URL)
+function applyStaffTabFromUrl() {
+    try {
+        if (typeof window === 'undefined') return;
+        const urlParams = new URLSearchParams(window.location.search);
+        let tab = urlParams.get('tab') || window.location.hash.replace('#', '');
+        if (tab) {
+            tab = String(tab).toLowerCase().trim();
+            if (tab === 'rejected' || tab === 'cancelled' || tab === 'canceled' || tab === 'declined') {
+                tab = 'rejected';
+            } else if (tab === 'completed' || tab === 'delivered') {
+                tab = 'completed';
+            } else if (tab === 'pending' || tab === 'active') {
+                tab = 'pending';
+            }
+            if (['pending', 'completed', 'rejected'].includes(tab)) {
+                switchStaffTab(tab);
+            }
+        }
+    } catch (e) {
+        console.warn('Error reading staff tab routing parameter:', e);
+    }
+}
+window.applyStaffTabFromUrl = applyStaffTabFromUrl;
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', applyStaffTabFromUrl);
+    window.addEventListener('hashchange', applyStaffTabFromUrl);
+}
 
 function renderOrders() {
     const container = document.getElementById('orders-list-container');
@@ -5054,14 +5085,16 @@ window.updateStaffSoundToggleUI = updateStaffSoundToggleUI;
 window.startStaffAudioKeepAlive = startStaffAudioKeepAlive;
 window.stopStaffAudioKeepAlive = stopStaffAudioKeepAlive;
 
-// Prime Audio on page load
+// Prime Audio & apply deep-link tab routing on page load
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             getOrderAlertAudio();
+            applyStaffTabFromUrl();
         });
     } else {
         getOrderAlertAudio();
+        applyStaffTabFromUrl();
     }
 }
 
