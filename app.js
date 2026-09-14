@@ -16172,13 +16172,23 @@ function applyIncomingSettingsData(data) {
     let latVal = undefined;
     let lngVal = undefined;
     if (data.storeCoordinates && typeof data.storeCoordinates === 'object') {
-        if (data.storeCoordinates.lat !== undefined) latVal = parseFloat(data.storeCoordinates.lat);
-        if (data.storeCoordinates.lng !== undefined) lngVal = parseFloat(data.storeCoordinates.lng);
+        if (data.storeCoordinates.latitude !== undefined && data.storeCoordinates.latitude !== null && data.storeCoordinates.latitude !== '') {
+            latVal = parseFloat(data.storeCoordinates.latitude);
+        } else if (data.storeCoordinates.lat !== undefined && data.storeCoordinates.lat !== null && data.storeCoordinates.lat !== '') {
+            latVal = parseFloat(data.storeCoordinates.lat);
+        }
+        if (data.storeCoordinates.longitude !== undefined && data.storeCoordinates.longitude !== null && data.storeCoordinates.longitude !== '') {
+            lngVal = parseFloat(data.storeCoordinates.longitude);
+        } else if (data.storeCoordinates.lng !== undefined && data.storeCoordinates.lng !== null && data.storeCoordinates.lng !== '') {
+            lngVal = parseFloat(data.storeCoordinates.lng);
+        }
     }
-    if (latVal === undefined && data.restaurantLat !== undefined && data.restaurantLat !== null) latVal = parseFloat(data.restaurantLat);
-    if (lngVal === undefined && data.restaurantLng !== undefined && data.restaurantLng !== null) lngVal = parseFloat(data.restaurantLng);
-    if (latVal !== undefined && !isNaN(latVal)) localStorage.setItem(RESTAURANT_LAT_KEY, String(latVal));
-    if (lngVal !== undefined && !isNaN(lngVal)) localStorage.setItem(RESTAURANT_LNG_KEY, String(lngVal));
+    if (latVal === undefined && data.latitude !== undefined && data.latitude !== null && data.latitude !== '') latVal = parseFloat(data.latitude);
+    if (latVal === undefined && data.restaurantLat !== undefined && data.restaurantLat !== null && data.restaurantLat !== '') latVal = parseFloat(data.restaurantLat);
+    if (lngVal === undefined && data.longitude !== undefined && data.longitude !== null && data.longitude !== '') lngVal = parseFloat(data.longitude);
+    if (lngVal === undefined && data.restaurantLng !== undefined && data.restaurantLng !== null && data.restaurantLng !== '') lngVal = parseFloat(data.restaurantLng);
+    if (latVal !== undefined && !isNaN(latVal)) localStorage.setItem(RESTAURANT_LAT_KEY, String(Number(latVal.toFixed(6))));
+    if (lngVal !== undefined && !isNaN(lngVal)) localStorage.setItem(RESTAURANT_LNG_KEY, String(Number(lngVal.toFixed(6))));
 
     let radiusVal = data.deliveryRadius !== undefined && data.deliveryRadius !== null
         ? data.deliveryRadius

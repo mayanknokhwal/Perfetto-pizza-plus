@@ -4078,7 +4078,7 @@
                             <div class="search-box">
                                 <i class="fa-solid fa-indian-rupee-sign"></i>
                                 <input type="number" id="input-min-order-value" class="search-input" min="0"
-                                    placeholder="e.g. 80" oninput="markStoreSettingsDirty()">
+                                    placeholder="" oninput="markStoreSettingsDirty()">
                             </div>
                         </div>
 
@@ -4090,7 +4090,7 @@
                             <div class="search-box">
                                 <i class="fa-solid fa-truck-fast"></i>
                                 <input type="number" id="input-free-delivery-limit" class="search-input"
-                                    min="0" placeholder="e.g. 500" oninput="markStoreSettingsDirty()">
+                                    min="0" placeholder="" oninput="markStoreSettingsDirty()">
                             </div>
                         </div>
 
@@ -4102,7 +4102,7 @@
                             <div class="search-box">
                                 <i class="fa-solid fa-headset"></i>
                                 <input type="tel" id="input-customer-care-phone" class="search-input"
-                                    placeholder="e.g. 9414503886" maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
+                                    placeholder="" maxlength="10" inputmode="numeric" pattern="[0-9]{10}"
                                     oninput="onCustomerCarePhoneInput(this.value)"
                                     onchange="onCustomerCarePhoneChange(this.value)"
                                     onkeypress="return (event.charCode >= 48 && event.charCode <= 57)">
@@ -4132,7 +4132,7 @@
                             <div class="search-box" style="position: relative;">
                                 <i class="fa-solid fa-shield-halved"></i>
                                 <input type="password" id="input-master-delivery-otp" class="search-input"
-                                    placeholder="e.g. 9999" maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
+                                    placeholder="" maxlength="4" inputmode="numeric" pattern="[0-9]{4}"
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4); markStoreSettingsDirty();"
                                     onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
                                     style="padding-right: 42px; letter-spacing: 0.18em; font-weight: 800; font-family: monospace; font-size: 1.05rem;">
@@ -4232,7 +4232,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-1" class="zone-charge-input" min="0"
-                                        placeholder="0" oninput="markStoreSettingsDirty()">
+                                        placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4245,7 +4245,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-2" class="zone-charge-input" min="0"
-                                        placeholder="0" oninput="markStoreSettingsDirty()">
+                                        placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4258,7 +4258,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-3" class="zone-charge-input" min="0"
-                                        placeholder="0" oninput="markStoreSettingsDirty()">
+                                        placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4271,7 +4271,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-4" class="zone-charge-input" min="0"
-                                        placeholder="0" oninput="markStoreSettingsDirty()">
+                                        placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4284,7 +4284,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-5" class="zone-charge-input" min="0"
-                                        placeholder="0" oninput="markStoreSettingsDirty()">
+                                        placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
 
@@ -4297,7 +4297,7 @@
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-6" class="zone-charge-input" min="0"
-                                        placeholder="0" oninput="markStoreSettingsDirty()">
+                                        placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
                         </div>
@@ -4312,7 +4312,7 @@
                             </div>
                             <div class="map-header-hints">
                                 <i class="fa-solid fa-hand-pointer"></i> Drag pin, click map, or enter coordinates
-                                (Click "Save All Changes" to save)
+                                (Click "Save Store Settings" to save)
                             </div>
                         </div>
 
@@ -4329,7 +4329,7 @@
                                     </label>
                                     <div class="map-coord-input-wrap">
                                         <input type="number" step="any" id="input-restaurant-lat" class="map-coord-input"
-                                            value="29.533736" placeholder="e.g. 29.533736"
+                                            placeholder=""
                                             oninput="onManualCoordinateChange(); markStoreSettingsDirty();">
                                     </div>
                                 </div>
@@ -4341,7 +4341,7 @@
                                     </label>
                                     <div class="map-coord-input-wrap">
                                         <input type="number" step="any" id="input-restaurant-lng" class="map-coord-input"
-                                            value="73.447895" placeholder="e.g. 73.447895"
+                                            placeholder=""
                                             oninput="onManualCoordinateChange(); markStoreSettingsDirty();">
                                     </div>
                                 </div>
@@ -8324,11 +8324,15 @@
         const DEFAULT_RESTAURANT_LNG = 73.447895;
         const DEFAULT_DELIVERY_RADIUS_KM = 10; // Strictly restricted to 10 KM max
 
-        // Leaflet Map Global Instances
+        // Leaflet Map Global Instances & Coordinate State
         let adminLeafletMap = null;
         let adminRestaurantMarker = null;
         let adminCoverageCircle = null;
         let isMapVisible = false;
+        let currentStoreCoordinates = {
+            latitude: DEFAULT_RESTAURANT_LAT,
+            longitude: DEFAULT_RESTAURANT_LNG
+        };
 
         function getDeliveryZoneCharges() {
             try {
@@ -8341,7 +8345,7 @@
                         const raw = parsed[key];
                         if (raw !== undefined && raw !== null && raw !== '') {
                             const parsedNum = parseFloat(raw);
-                            result[key] = !isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : 0;
+                            result[key] = !isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : null;
                         } else {
                             result[key] = null; // Unconfigured/empty
                         }
@@ -8405,12 +8409,20 @@
 
         function getRestaurantLat() {
             const val = localStorage.getItem(RESTAURANT_LAT_KEY);
-            return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LAT;
+            if (val !== null && !isNaN(parseFloat(val))) return Number(parseFloat(val).toFixed(6));
+            if (currentStoreCoordinates && currentStoreCoordinates.latitude !== undefined && !isNaN(Number(currentStoreCoordinates.latitude))) {
+                return Number(Number(currentStoreCoordinates.latitude).toFixed(6));
+            }
+            return DEFAULT_RESTAURANT_LAT;
         }
 
         function getRestaurantLng() {
             const val = localStorage.getItem(RESTAURANT_LNG_KEY);
-            return val !== null ? parseFloat(val) : DEFAULT_RESTAURANT_LNG;
+            if (val !== null && !isNaN(parseFloat(val))) return Number(parseFloat(val).toFixed(6));
+            if (currentStoreCoordinates && currentStoreCoordinates.longitude !== undefined && !isNaN(Number(currentStoreCoordinates.longitude))) {
+                return Number(Number(currentStoreCoordinates.longitude).toFixed(6));
+            }
+            return DEFAULT_RESTAURANT_LNG;
         }
 
         function getDeliveryRadiusKm() {
@@ -8455,8 +8467,10 @@
                 setTimeout(() => {
                     if (adminLeafletMap) {
                         adminLeafletMap.invalidateSize();
-                        const lat = parseFloat(document.getElementById('input-restaurant-lat')?.value) || DEFAULT_RESTAURANT_LAT;
-                        const lng = parseFloat(document.getElementById('input-restaurant-lng')?.value) || DEFAULT_RESTAURANT_LNG;
+                        const latInput = document.getElementById('input-restaurant-lat');
+                        const lngInput = document.getElementById('input-restaurant-lng');
+                        const lat = (latInput && latInput.value.trim() !== '') ? Number(parseFloat(latInput.value).toFixed(6)) : getRestaurantLat();
+                        const lng = (lngInput && lngInput.value.trim() !== '') ? Number(parseFloat(lngInput.value).toFixed(6)) : getRestaurantLng();
                         updateMapFromCoordinates(lat, lng, currentAdminDeliveryRadius);
                     }
                 }, 100);
@@ -8484,7 +8498,16 @@
             const lngVal = parseFloat(lngInput.value);
 
             if (!isNaN(latVal) && !isNaN(lngVal) && latVal >= -90 && latVal <= 90 && lngVal >= -180 && lngVal <= 180) {
-                updateMapFromCoordinates(latVal, lngVal, currentAdminDeliveryRadius);
+                const formattedLat = Number(latVal.toFixed(6));
+                const formattedLng = Number(lngVal.toFixed(6));
+                currentStoreCoordinates = {
+                    latitude: formattedLat,
+                    longitude: formattedLng
+                };
+                localStorage.setItem(RESTAURANT_LAT_KEY, String(formattedLat));
+                localStorage.setItem(RESTAURANT_LNG_KEY, String(formattedLng));
+                updateMapFromCoordinates(formattedLat, formattedLng, currentAdminDeliveryRadius);
+                markStoreSettingsDirty();
             }
         }
 
@@ -8494,9 +8517,16 @@
 
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
-            const lat = latInput ? (parseFloat(latInput.value) || getRestaurantLat()) : getRestaurantLat();
-            const lng = lngInput ? (parseFloat(lngInput.value) || getRestaurantLng()) : getRestaurantLng();
+            const lat = (latInput && latInput.value.trim() !== '') ? Number(parseFloat(latInput.value).toFixed(6)) : getRestaurantLat();
+            const lng = (lngInput && lngInput.value.trim() !== '') ? Number(parseFloat(lngInput.value).toFixed(6)) : getRestaurantLng();
             const radiusKm = currentAdminDeliveryRadius;
+
+            if (latInput && latInput.value.trim() === '') latInput.value = lat;
+            if (lngInput && lngInput.value.trim() === '') lngInput.value = lng;
+            currentStoreCoordinates = {
+                latitude: lat,
+                longitude: lng
+            };
 
             if (!adminLeafletMap) {
                 adminLeafletMap = L.map('admin-location-map', {
@@ -8553,7 +8583,7 @@
                     </div>
                 `);
 
-                // Delivery Coverage Circle
+                // Delivery Coverage Circle (strictly bounded between 0.5 km and 10.0 km)
                 adminCoverageCircle = L.circle([lat, lng], {
                     color: '#ff6b00',
                     fillColor: '#3b82f6',
@@ -8566,12 +8596,13 @@
                 adminRestaurantMarker.on('drag', (e) => {
                     const pos = e.target.getLatLng();
                     if (adminCoverageCircle) adminCoverageCircle.setLatLng(pos);
-                    syncInputsFromMapPosition(pos.lat, pos.lng);
+                    syncInputsFromMapPosition(pos.lat, pos.lng, false);
                 });
 
                 adminRestaurantMarker.on('dragend', (e) => {
                     const pos = e.target.getLatLng();
-                    syncInputsFromMapPosition(pos.lat, pos.lng);
+                    if (adminCoverageCircle) adminCoverageCircle.setLatLng(pos);
+                    syncInputsFromMapPosition(pos.lat, pos.lng, true);
                 });
 
                 // Map Click Handler to Move Marker (Updates UI inputs with 2-way sync)
@@ -8579,7 +8610,7 @@
                     const pos = e.latlng;
                     if (adminRestaurantMarker) adminRestaurantMarker.setLatLng(pos);
                     if (adminCoverageCircle) adminCoverageCircle.setLatLng(pos);
-                    syncInputsFromMapPosition(pos.lat, pos.lng);
+                    syncInputsFromMapPosition(pos.lat, pos.lng, true);
                 });
 
                 // Invalidate map size on display
@@ -8591,11 +8622,18 @@
             }
         }
 
-        function syncInputsFromMapPosition(lat, lng) {
+        function syncInputsFromMapPosition(lat, lng, isCommitted = false) {
             const latInput = document.getElementById('input-restaurant-lat');
             const lngInput = document.getElementById('input-restaurant-lng');
-            const formattedLat = parseFloat(lat.toFixed(6));
-            const formattedLng = parseFloat(lng.toFixed(6));
+            const formattedLat = Number(Number(lat).toFixed(6));
+            const formattedLng = Number(Number(lng).toFixed(6));
+
+            currentStoreCoordinates = {
+                latitude: formattedLat,
+                longitude: formattedLng
+            };
+            localStorage.setItem(RESTAURANT_LAT_KEY, String(formattedLat));
+            localStorage.setItem(RESTAURANT_LNG_KEY, String(formattedLng));
 
             if (latInput && document.activeElement !== latInput) {
                 latInput.value = formattedLat;
@@ -8603,13 +8641,17 @@
             if (lngInput && document.activeElement !== lngInput) {
                 lngInput.value = formattedLng;
             }
+
+            if (isCommitted) {
+                markStoreSettingsDirty();
+            }
         }
 
         function updateMapFromCoordinates(lat, lng, radiusKm = currentAdminDeliveryRadius) {
             if (!adminLeafletMap) return;
-            const targetLat = parseFloat(lat) || DEFAULT_RESTAURANT_LAT;
-            const targetLng = parseFloat(lng) || DEFAULT_RESTAURANT_LNG;
-            const targetRadius = parseFloat(radiusKm) || currentAdminDeliveryRadius;
+            const targetLat = (lat !== undefined && !isNaN(parseFloat(lat))) ? Number(parseFloat(lat).toFixed(6)) : getRestaurantLat();
+            const targetLng = (lng !== undefined && !isNaN(parseFloat(lng))) ? Number(parseFloat(lng).toFixed(6)) : getRestaurantLng();
+            const targetRadius = (radiusKm !== undefined && !isNaN(parseFloat(radiusKm))) ? parseFloat(radiusKm) : currentAdminDeliveryRadius;
 
             const newPos = [targetLat, targetLng];
             if (adminRestaurantMarker) adminRestaurantMarker.setLatLng(newPos);
@@ -8795,22 +8837,49 @@
                 }
             }
 
-            // 6. Coordinates
+            // 6. Coordinates (Support { latitude, longitude } and { lat, lng })
             let latVal = undefined;
             let lngVal = undefined;
             if (data.storeCoordinates && typeof data.storeCoordinates === 'object') {
-                if (data.storeCoordinates.lat !== undefined) latVal = parseFloat(data.storeCoordinates.lat);
-                if (data.storeCoordinates.lng !== undefined) lngVal = parseFloat(data.storeCoordinates.lng);
+                if (data.storeCoordinates.latitude !== undefined && data.storeCoordinates.latitude !== null && data.storeCoordinates.latitude !== '') {
+                    latVal = parseFloat(data.storeCoordinates.latitude);
+                } else if (data.storeCoordinates.lat !== undefined && data.storeCoordinates.lat !== null && data.storeCoordinates.lat !== '') {
+                    latVal = parseFloat(data.storeCoordinates.lat);
+                }
+                if (data.storeCoordinates.longitude !== undefined && data.storeCoordinates.longitude !== null && data.storeCoordinates.longitude !== '') {
+                    lngVal = parseFloat(data.storeCoordinates.longitude);
+                } else if (data.storeCoordinates.lng !== undefined && data.storeCoordinates.lng !== null && data.storeCoordinates.lng !== '') {
+                    lngVal = parseFloat(data.storeCoordinates.lng);
+                }
             }
-            if (latVal === undefined && data.restaurantLat !== undefined) latVal = parseFloat(data.restaurantLat);
-            if (lngVal === undefined && data.restaurantLng !== undefined) lngVal = parseFloat(data.restaurantLng);
+            if (latVal === undefined && data.latitude !== undefined && data.latitude !== null && data.latitude !== '') {
+                latVal = parseFloat(data.latitude);
+            }
+            if (latVal === undefined && data.restaurantLat !== undefined && data.restaurantLat !== null && data.restaurantLat !== '') {
+                latVal = parseFloat(data.restaurantLat);
+            }
+            if (lngVal === undefined && data.longitude !== undefined && data.longitude !== null && data.longitude !== '') {
+                lngVal = parseFloat(data.longitude);
+            }
+            if (lngVal === undefined && data.restaurantLng !== undefined && data.restaurantLng !== null && data.restaurantLng !== '') {
+                lngVal = parseFloat(data.restaurantLng);
+            }
+
             if (latVal !== undefined && !isNaN(latVal)) {
+                latVal = Number(latVal.toFixed(6));
                 localStorage.setItem(RESTAURANT_LAT_KEY, String(latVal));
-                if (latInput && (forceUIUpdate || activeEl !== latInput)) latInput.value = latVal;
+                currentStoreCoordinates.latitude = latVal;
+                if (latInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== latInput))) {
+                    latInput.value = latVal;
+                }
             }
             if (lngVal !== undefined && !isNaN(lngVal)) {
+                lngVal = Number(lngVal.toFixed(6));
                 localStorage.setItem(RESTAURANT_LNG_KEY, String(lngVal));
-                if (lngInput && (forceUIUpdate || activeEl !== lngInput)) lngInput.value = lngVal;
+                currentStoreCoordinates.longitude = lngVal;
+                if (lngInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== lngInput))) {
+                    lngInput.value = lngVal;
+                }
             }
 
             // 7. Delivery Radius [0.5 - 10.0 KM]
@@ -8857,7 +8926,7 @@
                 }
             }
 
-            // 10. Flexible Zones
+            // 10. Flexible Zones (Zones 1 through 6)
             const rawZones = data.flexibleZones !== undefined ? data.flexibleZones : data.zoneCharges;
             if (rawZones) {
                 const zonesMap = {};
@@ -8877,7 +8946,7 @@
                     const zInput = document.getElementById(`input-zone-charge-${i}`);
                     if (zInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== zInput))) {
                         const val = zonesMap[`zone${i}`];
-                        zInput.value = (val !== null && val !== undefined) ? val : '';
+                        zInput.value = (val !== null && val !== undefined && val !== '') ? val : '';
                     }
                 }
             }
@@ -8925,10 +8994,10 @@
 
             // 1. Initial prefill from localStorage if available (avoids blank flash)
             const storedMin = localStorage.getItem(MIN_ORDER_KEY);
-            if (minInput && storedMin !== null) minInput.value = storedMin;
+            if (minInput && storedMin !== null && storedMin !== '') minInput.value = storedMin;
 
             const storedFree = localStorage.getItem(FREE_DELIVERY_KEY);
-            if (freeInput && storedFree !== null) freeInput.value = storedFree;
+            if (freeInput && storedFree !== null && storedFree !== '') freeInput.value = storedFree;
 
             const storedPhone = localStorage.getItem(CUSTOMER_CARE_PHONE_KEY);
             if (phoneInput && storedPhone) {
@@ -8940,10 +9009,18 @@
             if (masterOtpInput && storedOtp) masterOtpInput.value = storedOtp;
 
             const storedLat = localStorage.getItem(RESTAURANT_LAT_KEY);
-            if (latInput && storedLat !== null) latInput.value = storedLat;
+            if (storedLat !== null && !isNaN(parseFloat(storedLat))) {
+                const latNum = Number(parseFloat(storedLat).toFixed(6));
+                currentStoreCoordinates.latitude = latNum;
+                if (latInput) latInput.value = latNum;
+            }
 
             const storedLng = localStorage.getItem(RESTAURANT_LNG_KEY);
-            if (lngInput && storedLng !== null) lngInput.value = storedLng;
+            if (storedLng !== null && !isNaN(parseFloat(storedLng))) {
+                const lngNum = Number(parseFloat(storedLng).toFixed(6));
+                currentStoreCoordinates.longitude = lngNum;
+                if (lngInput) lngInput.value = lngNum;
+            }
 
             const storedOpen = localStorage.getItem(OPENING_TIME_KEY);
             if (openTimeInput && storedOpen) openTimeInput.value = storedOpen;
@@ -8973,7 +9050,7 @@
                 const zoneInput = document.getElementById(`input-zone-charge-${i}`);
                 if (zoneInput) {
                     const val = zoneCharges[`zone${i}`];
-                    zoneInput.value = (val !== null && val !== undefined) ? val : '';
+                    zoneInput.value = (val !== null && val !== undefined && val !== '') ? val : '';
                 }
             }
 
@@ -9043,8 +9120,8 @@
             const phoneRaw = (phoneInput && phoneInput.value.trim() !== '') ? phoneInput.value.trim() : (currentCustomerCarePhone || getCustomerCarePhone());
             const phoneVal = String(phoneRaw).replace(/[^0-9]/g, '').trim();
             const masterOtpVal = (masterOtpInput && masterOtpInput.value.trim() !== '') ? masterOtpInput.value.replace(/[^0-9]/g, '').slice(0, 4) : getMasterDeliveryOtp();
-            const latVal = latInput ? (parseFloat(latInput.value) || getRestaurantLat()) : getRestaurantLat();
-            const lngVal = lngInput ? (parseFloat(lngInput.value) || getRestaurantLng()) : getRestaurantLng();
+            const latVal = (latInput && latInput.value.trim() !== '') ? Number(parseFloat(latInput.value).toFixed(6)) : getRestaurantLat();
+            const lngVal = (lngInput && lngInput.value.trim() !== '') ? Number(parseFloat(lngInput.value).toFixed(6)) : getRestaurantLng();
 
             let radiusVal = parseFloat(currentAdminDeliveryRadius);
             if (isNaN(radiusVal) || radiusVal < 0.5) radiusVal = 0.5;
@@ -9061,13 +9138,13 @@
             const flexibleZonesList = [];
             for (let i = 1; i <= 6; i++) {
                 const zInput = document.getElementById(`input-zone-charge-${i}`);
-                let charge = 0;
+                let charge = null;
                 if (zInput && zInput.value.trim() !== '') {
                     const parsed = parseFloat(zInput.value.trim());
-                    charge = (!isNaN(parsed) && parsed >= 0) ? parsed : 0;
+                    charge = (!isNaN(parsed) && parsed >= 0) ? parsed : null;
                 }
                 zoneCharges[`zone${i}`] = charge;
-                flexibleZonesList.push(charge);
+                flexibleZonesList.push(charge !== null ? charge : 0);
             }
 
             // Strict exactly 10 digits validation check
@@ -9096,6 +9173,10 @@
             currentCustomerCarePhone = phoneVal;
             currentCustomerCareEnabled = isCareEnabled;
             currentAdminDeliveryRadius = radiusVal;
+            currentStoreCoordinates = {
+                latitude: latVal,
+                longitude: lngVal
+            };
 
             if (phoneInput) phoneInput.value = phoneVal;
             if (masterOtpInput) masterOtpInput.value = masterOtpVal;
@@ -9148,9 +9229,13 @@
                     deliveryRadius: radiusVal,
                     deliveryRadiusKm: radiusVal,
                     storeCoordinates: {
+                        latitude: latVal,
+                        longitude: lngVal,
                         lat: latVal,
                         lng: lngVal
                     },
+                    latitude: latVal,
+                    longitude: lngVal,
                     restaurantLat: latVal,
                     restaurantLng: lngVal,
                     manualOverride: manualOverrideVal,
@@ -9184,7 +9269,7 @@
                 if (showToastMsg) {
                     const careLabel = isCareEnabled ? 'Enabled' : 'Disabled';
                     showToast(`✅ Store Settings saved! Customer Care: ${careLabel} (+91 ${phoneVal})`);
-                    logAdminActivity(`Updated Store Settings & Customer Care (Care: ${careLabel}, Phone: ${phoneVal}, Radius: ${radiusVal.toFixed(1)} km, Min Order: ₹${minVal})`);
+                    logAdminActivity(`Updated Store Settings & Customer Care (Care: ${careLabel}, Phone: ${phoneVal}, Radius: ${radiusVal.toFixed(1)} km, Min Order: ₹${minVal}, Coords: ${latVal.toFixed(6)}, ${lngVal.toFixed(6)})`);
                 }
 
                 evaluateAndSyncShopStatus(true);

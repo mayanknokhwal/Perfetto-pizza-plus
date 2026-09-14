@@ -18,6 +18,43 @@ async function fetchLiveSettingsFromFirestore() {
         const storeSettingsDoc = await getFirestoreDoc('settings', 'storeSettings');
         const doc = { ...(storeSettingsDoc || {}), ...(storeConfigDoc || {}) };
         if (doc && Object.keys(doc).length > 0) {
+            let lat = undefined;
+            let lng = undefined;
+            if (doc.storeCoordinates && typeof doc.storeCoordinates === 'object') {
+                if (doc.storeCoordinates.latitude !== undefined && doc.storeCoordinates.latitude !== null && doc.storeCoordinates.latitude !== '') {
+                    lat = Number(doc.storeCoordinates.latitude);
+                } else if (doc.storeCoordinates.lat !== undefined && doc.storeCoordinates.lat !== null && doc.storeCoordinates.lat !== '') {
+                    lat = Number(doc.storeCoordinates.lat);
+                }
+                if (doc.storeCoordinates.longitude !== undefined && doc.storeCoordinates.longitude !== null && doc.storeCoordinates.longitude !== '') {
+                    lng = Number(doc.storeCoordinates.longitude);
+                } else if (doc.storeCoordinates.lng !== undefined && doc.storeCoordinates.lng !== null && doc.storeCoordinates.lng !== '') {
+                    lng = Number(doc.storeCoordinates.lng);
+                }
+            }
+            if (lat === undefined && doc.latitude !== undefined && doc.latitude !== null && doc.latitude !== '') lat = Number(doc.latitude);
+            if (lat === undefined && doc.restaurantLat !== undefined && doc.restaurantLat !== null && doc.restaurantLat !== '') lat = Number(doc.restaurantLat);
+            if (lng === undefined && doc.longitude !== undefined && doc.longitude !== null && doc.longitude !== '') lng = Number(doc.longitude);
+            if (lng === undefined && doc.restaurantLng !== undefined && doc.restaurantLng !== null && doc.restaurantLng !== '') lng = Number(doc.restaurantLng);
+
+            if (lat !== undefined && !isNaN(lat)) {
+                lat = Number(lat.toFixed(6));
+                doc.latitude = lat;
+                doc.restaurantLat = lat;
+            }
+            if (lng !== undefined && !isNaN(lng)) {
+                lng = Number(lng.toFixed(6));
+                doc.longitude = lng;
+                doc.restaurantLng = lng;
+            }
+            if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
+                doc.storeCoordinates = {
+                    latitude: lat,
+                    longitude: lng,
+                    lat: lat,
+                    lng: lng
+                };
+            }
             global.__perfettoStoreSettings = { ...global.__perfettoStoreSettings, ...doc };
         }
     } catch (e) {
@@ -66,16 +103,37 @@ async function handleSettingsRequest(req, res) {
 
             if (body.restaurantLat !== undefined) updateFields.restaurantLat = Number(body.restaurantLat);
             if (body.restaurantLng !== undefined) updateFields.restaurantLng = Number(body.restaurantLng);
+            if (body.latitude !== undefined) updateFields.latitude = Number(body.latitude);
+            if (body.longitude !== undefined) updateFields.longitude = Number(body.longitude);
+
+            let lat = updateFields.latitude !== undefined ? updateFields.latitude : updateFields.restaurantLat;
+            let lng = updateFields.longitude !== undefined ? updateFields.longitude : updateFields.restaurantLng;
+
             if (body.storeCoordinates && typeof body.storeCoordinates === 'object') {
-                const lat = Number(body.storeCoordinates.lat !== undefined ? body.storeCoordinates.lat : (updateFields.restaurantLat || 29.533736));
-                const lng = Number(body.storeCoordinates.lng !== undefined ? body.storeCoordinates.lng : (updateFields.restaurantLng || 73.447895));
-                updateFields.storeCoordinates = { lat, lng };
-                updateFields.restaurantLat = lat;
-                updateFields.restaurantLng = lng;
-            } else if (updateFields.restaurantLat !== undefined || updateFields.restaurantLng !== undefined) {
+                if (body.storeCoordinates.latitude !== undefined && body.storeCoordinates.latitude !== null && body.storeCoordinates.latitude !== '') {
+                    lat = Number(body.storeCoordinates.latitude);
+                } else if (body.storeCoordinates.lat !== undefined && body.storeCoordinates.lat !== null && body.storeCoordinates.lat !== '') {
+                    lat = Number(body.storeCoordinates.lat);
+                }
+                if (body.storeCoordinates.longitude !== undefined && body.storeCoordinates.longitude !== null && body.storeCoordinates.longitude !== '') {
+                    lng = Number(body.storeCoordinates.longitude);
+                } else if (body.storeCoordinates.lng !== undefined && body.storeCoordinates.lng !== null && body.storeCoordinates.lng !== '') {
+                    lng = Number(body.storeCoordinates.lng);
+                }
+            }
+
+            if (lat !== undefined && !isNaN(lat) && lng !== undefined && !isNaN(lng)) {
+                const lat6 = Number(lat.toFixed(6));
+                const lng6 = Number(lng.toFixed(6));
+                updateFields.latitude = lat6;
+                updateFields.longitude = lng6;
+                updateFields.restaurantLat = lat6;
+                updateFields.restaurantLng = lng6;
                 updateFields.storeCoordinates = {
-                    lat: updateFields.restaurantLat !== undefined ? updateFields.restaurantLat : 29.533736,
-                    lng: updateFields.restaurantLng !== undefined ? updateFields.restaurantLng : 73.447895
+                    latitude: lat6,
+                    longitude: lng6,
+                    lat: lat6,
+                    lng: lng6
                 };
             }
 
@@ -96,16 +154,16 @@ async function handleSettingsRequest(req, res) {
                 if (Array.isArray(zones)) {
                     for (let i = 1; i <= 6; i++) {
                         const zVal = zones[i - 1];
-                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
+                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
                         zonesObj[`zone${i}`] = c;
-                        zonesArr.push(c);
+                        zonesArr.push(c !== null ? c : 0);
                     }
                 } else if (typeof zones === 'object' && zones !== null) {
                     for (let i = 1; i <= 6; i++) {
                         const zVal = zones[`zone${i}`] !== undefined ? zones[`zone${i}`] : zones[i];
-                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
+                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
                         zonesObj[`zone${i}`] = c;
-                        zonesArr.push(c);
+                        zonesArr.push(c !== null ? c : 0);
                     }
                 }
                 updateFields.flexibleZones = zonesObj;
