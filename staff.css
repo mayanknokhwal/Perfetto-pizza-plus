@@ -1291,6 +1291,31 @@ body {
     padding: 16px;
 }
 
+.staff-modal-overlay[style*="display: none"],
+.incoming-order-overlay[style*="display: none"],
+.custom-confirm-overlay[style*="display: none"] {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+.order-card,
+.order-card .card-footer,
+.order-card .in-progress-action-stack,
+.order-card .staff-otp-verification-box {
+    pointer-events: auto;
+}
+
+.order-card .staff-otp-input:not(:disabled) {
+    pointer-events: auto !important;
+    cursor: text !important;
+}
+
+.order-card .btn-touch:not(:disabled) {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
 .staff-modal-card {
     background-color: var(--bg-card);
     border: 1.5px solid rgba(239, 68, 68, 0.4);

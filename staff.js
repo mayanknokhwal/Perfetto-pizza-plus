@@ -1706,6 +1706,64 @@ function processAutoAcceptanceForOnlineOrders() {
 // 3. INITIAL ORDERS DATASET & BACKEND SYNC (OLDEST FIRST QUEUE)
 // --------------------------------------------------------------------------
 const actionInFlightOrders = new Set();
+
+/**
+ * Checks whether an order is currently undergoing an in-flight mutation across any ID variant
+ */
+function isOrderActionInFlight(orderOrId) {
+    if (!orderOrId) return false;
+    if (typeof orderOrId === 'object') {
+        const id1 = String(orderOrId.id || '').trim();
+        const clean1 = id1.replace(/^#/, '').trim();
+        const id2 = String(orderOrId.orderId || '').trim();
+        const clean2 = id2.replace(/^#/, '').trim();
+        const docId = String(orderOrId.firestoreDocId || orderOrId.docId || '').trim();
+        return (id1 && actionInFlightOrders.has(id1)) ||
+               (clean1 && actionInFlightOrders.has(clean1)) ||
+               (id2 && actionInFlightOrders.has(id2)) ||
+               (clean2 && actionInFlightOrders.has(clean2)) ||
+               (docId && actionInFlightOrders.has(docId));
+    }
+    const raw = String(orderOrId).trim();
+    const clean = raw.replace(/^#/, '').trim();
+    return (raw && actionInFlightOrders.has(raw)) || (clean && actionInFlightOrders.has(clean));
+}
+
+/**
+ * Sets or unsets an order's in-flight mutation lock across all possible ID variants
+ */
+function setOrderActionInFlight(orderOrId, inFlight) {
+    if (!orderOrId) return;
+    const ids = [];
+    if (typeof orderOrId === 'object') {
+        if (orderOrId.id) {
+            ids.push(String(orderOrId.id).trim());
+            ids.push(String(orderOrId.id).replace(/^#/, '').trim());
+        }
+        if (orderOrId.orderId) {
+            ids.push(String(orderOrId.orderId).trim());
+            ids.push(String(orderOrId.orderId).replace(/^#/, '').trim());
+        }
+        if (orderOrId.firestoreDocId) {
+            ids.push(String(orderOrId.firestoreDocId).trim());
+        }
+        if (orderOrId.docId) {
+            ids.push(String(orderOrId.docId).trim());
+        }
+    } else {
+        ids.push(String(orderOrId).trim());
+        ids.push(String(orderOrId).replace(/^#/, '').trim());
+    }
+    ids.forEach(id => {
+        if (!id) return;
+        if (inFlight) {
+            actionInFlightOrders.add(id);
+        } else {
+            actionInFlightOrders.delete(id);
+        }
+    });
+}
+
 let staffOrders = [];
 
 function sortOrdersOldestFirst(orders) {
@@ -2009,7 +2067,52 @@ function stopStaffAudioKeepAlive() {
 }
 
 /**
- * Toggles the staff sound switch ON/OFF
+ * Unlocks Web AudioContext, primes HTML5 audio, requests screen wake lock,
+ * starts audio keep-alive, updates the header toggle indicator to "Sound Active",
+ * and alerts for any pending incoming new orders.
+ */
+function enableStaffSound(options = {}) {
+    console.log('🔔 [Staff Audio] Activating sound notifications via user interaction...');
+    isStaffSoundEnabled = true;
+
+    // 1. Immediately unlock and initialize browser AudioContext
+    const ctx = getStaffAudioContext();
+    if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+        ctx.resume().catch(() => {});
+    }
+    unlockStaffAudioAlerts(false);
+
+    // 2. Play 0.3-second confirmation test chime if requested
+    if (options.playChime) {
+        playSoundActivationChime();
+    }
+
+    // 3. Request Screen Wake Lock (prevents display sleep on kitchen device)
+    requestStaffWakeLock();
+
+    // 4. Start keep-alive audio heartbeat (every 25s)
+    startStaffAudioKeepAlive();
+
+    // 5. Update UI badge to active green state
+    updateStaffSoundToggleUI();
+    if (options.showToast) {
+        showStaffToast('🔔 Sound Active! Kitchen audio alerts & keep-alive enabled.');
+    }
+
+    // 6. Check for unhandled incoming new orders to alert immediately
+    const activeNewOrder = staffOrders.find(o => o.status === 'new');
+    if (activeNewOrder) {
+        const orderId = String(activeNewOrder.orderId || activeNewOrder.id);
+        const customerName = activeNewOrder.customerName || activeNewOrder.customer?.name || 'Customer';
+        const total = activeNewOrder.total || activeNewOrder.costs?.total || '';
+        const summary = total ? `${customerName} • ₹${total}` : customerName;
+        startOrderAlertAudio(orderId, summary);
+    }
+}
+window.enableStaffSound = enableStaffSound;
+
+/**
+ * Toggles the staff sound switch ON/OFF manually via header button
  */
 async function toggleStaffSoundState() {
     if (isStaffSoundEnabled) {
@@ -2022,44 +2125,54 @@ async function toggleStaffSoundState() {
         updateStaffSoundToggleUI();
         showStaffToast('🔕 Audio Muted. Kitchen alerts silenced.');
     } else {
-        // Switch ON: Unlock AudioContext, play 0.3s confirmation chime, request Screen Wake Lock, start keep-alive
-        console.log('🔔 [Staff Audio] Sound toggled ON by staff.');
-        isStaffSoundEnabled = true;
-
-        // 1. Immediately unlock and initialize browser AudioContext
-        const ctx = getStaffAudioContext();
-        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-            try {
-                await ctx.resume();
-            } catch (e) {}
-        }
-        unlockStaffAudioAlerts(false);
-
-        // 2. Play 0.3-second confirmation test chime
-        playSoundActivationChime();
-
-        // 3. Request Screen Wake Lock
-        requestStaffWakeLock();
-
-        // 4. Start keep-alive audio heartbeat (every 25s)
-        startStaffAudioKeepAlive();
-
-        // 5. Update UI badge
-        updateStaffSoundToggleUI();
-        showStaffToast('🔔 Sound Active! Kitchen audio alerts & keep-alive enabled.');
-
-        // 6. Check for unhandled incoming new orders to alert immediately
-        const activeNewOrder = staffOrders.find(o => o.status === 'new');
-        if (activeNewOrder) {
-            const orderId = String(activeNewOrder.orderId || activeNewOrder.id);
-            const customerName = activeNewOrder.customerName || activeNewOrder.customer?.name || 'Customer';
-            const total = activeNewOrder.total || activeNewOrder.costs?.total || '';
-            const summary = total ? `${customerName} • ₹${total}` : customerName;
-            startOrderAlertAudio(orderId, summary);
-        }
+        // Switch ON
+        enableStaffSound({ playChime: true, showToast: true });
     }
 }
 window.toggleStaffSoundState = toggleStaffSoundState;
+
+let hasUniversalAudioUnlocked = false;
+
+/**
+ * Attaches a global, one-time interaction listener to window/document for click, touchstart, pointerdown.
+ * Upon the user's very first interaction anywhere on screen (tapping card, changing tabs, clicking background):
+ * - Unlocks AudioContext to satisfy autoplay restrictions
+ * - Automatically updates application audio state to enabled
+ * - Switches header audio indicator from "Audio Muted" to green "Sound Active"
+ * - Keeps header button functional for direct manual toggling
+ */
+function setupUniversalAudioUnlock() {
+    const teardownListeners = () => {
+        ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
+            document.removeEventListener(evt, handleFirstInteraction, true);
+            window.removeEventListener(evt, handleFirstInteraction, true);
+        });
+    };
+
+    const handleFirstInteraction = (event) => {
+        if (hasUniversalAudioUnlocked) return;
+
+        // If the user tapped directly on the manual sound toggle button, let toggleStaffSoundState handle it
+        const soundToggleBtn = document.getElementById('btn-staff-sound-toggle');
+        if (soundToggleBtn && event && event.target && (soundToggleBtn === event.target || soundToggleBtn.contains(event.target))) {
+            hasUniversalAudioUnlocked = true;
+            teardownListeners();
+            return;
+        }
+
+        hasUniversalAudioUnlocked = true;
+        teardownListeners();
+
+        // Automatically unlock AudioContext, enable application sound state, and switch UI indicator to active green
+        enableStaffSound({ playChime: false, showToast: false });
+    };
+
+    ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
+        document.addEventListener(evt, handleFirstInteraction, { capture: true, passive: true });
+        window.addEventListener(evt, handleFirstInteraction, { capture: true, passive: true });
+    });
+}
+window.setupUniversalAudioUnlock = setupUniversalAudioUnlock;
 
 function unlockStaffAudioAlerts(silent = true) {
     // 1. Resume Web Audio Context if suspended
@@ -2376,24 +2489,15 @@ document.addEventListener('DOMContentLoaded', () => {
     checkStaffAuthSession();
     startStaffAutoExpireInterval();
 
-    // Dedicated Sound Toggle ALWAYS resets to OFF state on page reload/refresh
+    // Dedicated Sound Toggle starts in muted state on page reload/refresh
     isStaffSoundEnabled = false;
     updateStaffSoundToggleUI();
 
     // Check and show audio alert banner if audio context is suspended
     checkAndShowStaffAudioBanner();
 
-    // Auto-unlock audio on any touch/click/pointer interaction anywhere on document or window
-    const autoUnlockAudio = () => {
-        const ctx = getStaffAudioContext();
-        if (!isStaffAudioUnlocked || isAudioAutoplayBlocked || (ctx && ctx.state === 'suspended')) {
-            unlockStaffAudioAlerts(true);
-        }
-    };
-    ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'click', 'keydown'].forEach(evt => {
-        document.addEventListener(evt, autoUnlockAudio, { passive: true });
-        window.addEventListener(evt, autoUnlockAudio, { passive: true });
-    });
+    // Universal Tap-to-Unlock Audio: user's first tap anywhere unlocks audio & enables kitchen alerts
+    setupUniversalAudioUnlock();
 
     // Modal backdrop dismissal handlers
     const setupBackdropDismiss = (modalId, dismissFn) => {
@@ -3119,7 +3223,7 @@ function buildRejectedOrderCardHTML(order) {
 // --------------------------------------------------------------------------
 function buildOrderCardHTML(order) {
     const isOnline = isOnlinePaymentOrder(order);
-    const isInFlight = actionInFlightOrders.has(order.id);
+    const isInFlight = isOrderActionInFlight(order);
 
     // Live upward elapsed timer data
     const timerData = getOrderElapsedData(order);
@@ -3314,7 +3418,7 @@ function buildOrderCardHTML(order) {
 // --------------------------------------------------------------------------
 async function verifyAndCompleteOrderDelivery(orderId) {
     const rawId = String(orderId || '').replace(/^#/, '').trim();
-    if (actionInFlightOrders.has(rawId)) return;
+    if (isOrderActionInFlight(rawId)) return;
 
     const order = staffOrders.find(o => 
         String(o.id) === rawId || 
@@ -3534,8 +3638,8 @@ async function resolveExactFirestoreOrderDocId(db, order, fallbackOrderId) {
 
 async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPayload = {}) {
     const rawId = String(orderId || '').replace(/^#/, '').trim();
-    if (actionInFlightOrders.has(rawId)) return;
-    actionInFlightOrders.add(rawId);
+    if (isOrderActionInFlight(rawId)) return;
+    setOrderActionInFlight(rawId, true);
 
     // Silence any active order ringtone loop when staff interacts/accepts
     stopOrderAlertAudio();
@@ -3547,8 +3651,9 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         if (triggerBtn.classList) triggerBtn.classList.add('btn-loading');
     }
 
+    let order = null;
     try {
-        const order = staffOrders.find(o => 
+        order = staffOrders.find(o => 
             String(o.id) === rawId || 
             String(o.orderId) === rawId || 
             String(o.id).replace(/^#/, '') === rawId || 
@@ -3557,6 +3662,7 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         if (!order) {
             throw new Error(`Order #${rawId} not found in active kitchen queue.`);
         }
+        setOrderActionInFlight(order, true);
 
         const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
         const isRejected = (newStatus === 'rejected');
@@ -3687,17 +3793,69 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         if (isRejected) msg = `Order #${order.id} Declined / Rejected ❌`;
 
         showStaffToast(msg);
-        renderOrders();
+    } catch (err) {
+        console.error('Error updating order status:', err);
+        showStaffToast(`❌ Status update failed: ${err.message || 'Database error'}`);
+        throw err;
     } finally {
-        actionInFlightOrders.delete(rawId);
+        // 1. Unconditionally clear in-flight status across all order ID variants BEFORE re-rendering
+        setOrderActionInFlight(rawId, false);
+        if (order) setOrderActionInFlight(order, false);
+
+        // 2. Restore trigger button if it exists and wasn't detached
         if (triggerBtn) {
             triggerBtn.disabled = false;
             if (triggerBtn.classList) triggerBtn.classList.remove('btn-loading');
             if (originalTriggerHTML) triggerBtn.innerHTML = originalTriggerHTML;
         }
+
+        // 3. Re-render orders now that in-flight flags are completely cleared so buildOrderCardHTML generates active controls
+        renderOrders();
+
+        // 4. Directly guarantee card interactivity and remove any lingering disabled/pointer-events restrictions
+        ensureOrderCardInteractive(order?.id || rawId);
     }
 }
 window.updateOrderStatus = updateOrderStatus;
+
+/**
+ * Ensures all nested interactive elements inside an order card (OTP input, action buttons)
+ * are fully clickable, focusable, and responsive without requiring a page refresh.
+ */
+function ensureOrderCardInteractive(orderId) {
+    if (!orderId) return;
+    const cleanId = String(orderId).replace(/^#/, '').trim();
+    const rawId = String(orderId).trim();
+
+    // Look up card element by possible ID conventions
+    const card = document.getElementById(`card-${cleanId}`) ||
+                 document.getElementById(`card-${rawId}`) ||
+                 document.getElementById(`card-#${cleanId}`);
+    if (!card) return;
+
+    // 1. Remove pointer-events restrictions on the card container
+    card.style.pointerEvents = 'auto';
+
+    // 2. Locate OTP input field, unblock disabled, readOnly, and pointer-events
+    const otpInput = card.querySelector(`.staff-otp-input, input[id^="staff-otp-input-"], #staff-otp-input-${cleanId}, #staff-otp-input-${rawId}`);
+    if (otpInput) {
+        otpInput.removeAttribute('disabled');
+        otpInput.disabled = false;
+        otpInput.readOnly = false;
+        otpInput.style.pointerEvents = 'auto';
+    }
+
+    // 3. Locate all action buttons inside card footer, unblock disabled, btn-loading, and pointer-events
+    card.querySelectorAll('button, a').forEach(btn => {
+        btn.removeAttribute('disabled');
+        btn.disabled = false;
+        if (btn.classList) {
+            btn.classList.remove('btn-loading', 'is-disabled');
+        }
+        btn.style.pointerEvents = 'auto';
+    });
+}
+window.ensureOrderCardInteractive = ensureOrderCardInteractive;
 
 let pendingRejectOrderId = null;
 
@@ -3789,7 +3947,7 @@ async function confirmRejectOrder() {
     }
     const orderIdToReject = pendingRejectOrderId;
     const rawId = String(orderIdToReject).replace(/^#/, '').trim();
-    if (actionInFlightOrders.has(rawId)) return;
+    if (isOrderActionInFlight(rawId)) return;
 
     const reasonInput = document.getElementById('reject-modal-reason');
     const reasonError = document.getElementById('reject-modal-reason-error');
@@ -4730,25 +4888,29 @@ function showIncomingOrderModal(orderId, details) {
     }
 
     modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
     modal.setAttribute('aria-hidden', 'false');
 }
 
 /**
- * Hides the real-time incoming order popup modal
+ * Hides the real-time incoming order popup modal and guarantees pointer events are unblocked
  */
 function hideIncomingOrderModal() {
     const modal = document.getElementById('staff-incoming-order-modal');
     if (modal) {
         modal.style.display = 'none';
+        modal.style.pointerEvents = 'none';
         modal.setAttribute('aria-hidden', 'true');
     }
 }
+window.hideIncomingOrderModal = hideIncomingOrderModal;
 
 /**
  * Dismisses the incoming order popup and silences the continuous audio loop
  */
 function dismissIncomingOrderAlert() {
     stopOrderAlertAudio();
+    hideIncomingOrderModal();
     showStaffToast('Order alert silenced.');
 }
 window.dismissIncomingOrderAlert = dismissIncomingOrderAlert;
@@ -4759,6 +4921,7 @@ window.dismissIncomingOrderAlert = dismissIncomingOrderAlert;
 function acceptIncomingOrderFromModal() {
     const targetId = currentAlertingOrderId || (staffOrders.find(o => o.status === 'new')?.id);
     stopOrderAlertAudio();
+    hideIncomingOrderModal();
     if (targetId) {
         updateOrderStatus(targetId, 'preparing');
     } else {
