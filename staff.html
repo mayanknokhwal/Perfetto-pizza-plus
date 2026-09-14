@@ -291,7 +291,7 @@
                     </div>
                 </div>
 
-                <!-- ORDER STATUS TABS: PENDING VS COMPLETED -->
+                <!-- ORDER STATUS TABS: PENDING VS COMPLETED VS REJECTED -->
                 <nav class="staff-tabs-nav" aria-label="Order Status Navigation">
                     <button type="button" class="staff-tab-btn active" id="tab-btn-pending" onclick="switchStaffTab('pending')">
                         <i class="fa-solid fa-fire-burner"></i>
@@ -302,6 +302,11 @@
                         <i class="fa-solid fa-check-double"></i>
                         <span>Completed Orders</span>
                         <span class="tab-count-badge" id="completed-orders-count">0</span>
+                    </button>
+                    <button type="button" class="staff-tab-btn" id="tab-btn-rejected" onclick="switchStaffTab('rejected')">
+                        <i class="fa-solid fa-ban"></i>
+                        <span>Rejected Orders</span>
+                        <span class="tab-count-badge" id="rejected-orders-count">0</span>
                     </button>
                 </nav>
             </header>

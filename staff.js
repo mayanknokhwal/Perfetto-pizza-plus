@@ -2216,10 +2216,48 @@ function getDynamicTimerColor(elapsedSec) {
     };
 }
 
-function isFinishedStaffOrder(order) {
+const PENDING_STAFF_STATUSES = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready"]);
+const COMPLETED_STAFF_STATUSES = new Set(["delivered", "completed"]);
+const REJECTED_STAFF_STATUSES = new Set(["rejected", "cancelled", "canceled", "declined"]);
+
+function isPendingStaffOrder(order) {
     if (!order) return false;
-    const s = String(order.status || '').toLowerCase();
-    return s === 'completed' || s === 'delivered' || s === 'rejected' || s === 'cancelled' || s === 'declined';
+    const s = String(order.status || '').trim().toLowerCase();
+    return PENDING_STAFF_STATUSES.has(s);
+}
+
+function isCompletedStaffOrder(order) {
+    if (!order) return false;
+    const s = String(order.status || '').trim().toLowerCase();
+    return COMPLETED_STAFF_STATUSES.has(s);
+}
+
+function isRejectedStaffOrder(order) {
+    if (!order) return false;
+    const s = String(order.status || '').trim().toLowerCase();
+    return REJECTED_STAFF_STATUSES.has(s);
+}
+
+function isFinishedStaffOrder(order) {
+    return isCompletedStaffOrder(order) || isRejectedStaffOrder(order);
+}
+
+function formatStaffTimestamp(raw) {
+    if (!raw) return '';
+    try {
+        let d;
+        if (typeof raw === 'object' && typeof raw.toDate === 'function') {
+            d = raw.toDate();
+        } else if (typeof raw === 'object' && raw.seconds !== undefined) {
+            d = new Date(raw.seconds * 1000);
+        } else {
+            d = new Date(raw);
+        }
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) + ', ' + d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch (e) {
+        return '';
+    }
 }
 
 function getOrderElapsedData(order) {
@@ -2610,7 +2648,7 @@ window.openGoogleMapsNavigation = openGoogleMapsNavigation;
 // --------------------------------------------------------------------------
 // 7. TAB-BASED ORDER FILTERING & RENDERER (PENDING VS COMPLETED)
 // --------------------------------------------------------------------------
-let currentStaffTab = 'pending'; // 'pending' | 'completed'
+let currentStaffTab = 'pending'; // 'pending' | 'completed' | 'rejected'
 
 function switchStaffTab(tab) {
     currentStaffTab = tab;
@@ -2622,6 +2660,7 @@ function switchStaffTab(tab) {
 
     const btnPending = document.getElementById('tab-btn-pending');
     const btnCompleted = document.getElementById('tab-btn-completed');
+    const btnRejected = document.getElementById('tab-btn-rejected');
     const heading = document.getElementById('section-heading');
     const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
     const liveBadge = document.getElementById('live-pulse-badge');
@@ -2632,14 +2671,27 @@ function switchStaffTab(tab) {
     if (btnCompleted) {
         btnCompleted.classList.toggle('active', tab === 'completed');
     }
+    if (btnRejected) {
+        btnRejected.classList.toggle('active', tab === 'rejected');
+    }
 
     if (heading) {
-        heading.textContent = tab === 'pending' ? 'Active Kitchen Orders' : 'Completed Orders (Archived)';
+        if (tab === 'pending') {
+            heading.textContent = 'Active Kitchen Orders';
+        } else if (tab === 'completed') {
+            heading.textContent = 'Completed Orders (Delivered)';
+        } else {
+            heading.textContent = 'Rejected & Cancelled Orders';
+        }
     }
 
     const isAdmin = isStaffAdminUser(currentStaffUser);
     if (deleteCompletedBtn) {
-        deleteCompletedBtn.style.display = (tab === 'completed' && isAdmin) ? 'inline-flex' : 'none';
+        deleteCompletedBtn.style.display = ((tab === 'completed' || tab === 'rejected') && isAdmin) ? 'inline-flex' : 'none';
+        const spanText = deleteCompletedBtn.querySelector('span');
+        if (spanText) {
+            spanText.textContent = tab === 'rejected' ? 'Clear All Rejected' : 'Clear All Completed';
+        }
     }
 
     if (liveBadge) {
@@ -2655,6 +2707,7 @@ function renderOrders() {
     const emptyState = document.getElementById('empty-state');
     const pendingCountEl = document.getElementById('pending-orders-count');
     const completedCountEl = document.getElementById('completed-orders-count');
+    const rejectedCountEl = document.getElementById('rejected-orders-count');
     const deleteCompletedBtn = document.getElementById('btn-delete-all-completed');
     const liveBadge = document.getElementById('live-pulse-badge');
 
@@ -2665,9 +2718,13 @@ function renderOrders() {
     // Filter valid orders first (prevent ghost/undefined orders from rendering)
     const validOrders = staffOrders.filter(isValidStaffOrder);
 
-    // Separate active/pending orders from finished/declined orders
-    const pendingOrders = validOrders.filter(o => !isFinishedStaffOrder(o));
-    const completedOrders = validOrders.filter(o => isFinishedStaffOrder(o));
+    // 3 isolated partitions:
+    // Tab 1: Pending (placed, pending, preparing, out_for_delivery, ready)
+    const pendingOrders = validOrders.filter(isPendingStaffOrder);
+    // Tab 2: Completed (strictly delivered, completed)
+    const completedOrders = validOrders.filter(isCompletedStaffOrder);
+    // Tab 3: Rejected (strictly rejected, cancelled, canceled, declined)
+    const rejectedOrders = validOrders.filter(isRejectedStaffOrder);
 
     // If pending orders queue becomes empty, immediately stop and reset looping audio
     if (pendingOrders.length === 0 && isOrderAlertAudioPlaying) {
@@ -2676,23 +2733,28 @@ function renderOrders() {
 
     if (pendingCountEl) pendingCountEl.textContent = pendingOrders.length;
     if (completedCountEl) completedCountEl.textContent = completedOrders.length;
+    if (rejectedCountEl) rejectedCountEl.textContent = rejectedOrders.length;
 
-    // Role-Based Visibility Guard & Empty State Guard for "Clear All Completed"
+    // Role-Based Visibility Guard & Empty State Guard for "Clear All"
     const isAdmin = isStaffAdminUser(currentStaffUser);
     if (deleteCompletedBtn) {
-        if (currentStaffTab === 'completed' && isAdmin) {
+        if ((currentStaffTab === 'completed' || currentStaffTab === 'rejected') && isAdmin) {
             deleteCompletedBtn.style.display = 'inline-flex';
-            if (completedOrders.length === 0) {
-                // Empty state guard: disable button dynamically and update accessible title
+            const targetCount = currentStaffTab === 'completed' ? completedOrders.length : rejectedOrders.length;
+            const spanText = deleteCompletedBtn.querySelector('span');
+            if (spanText) {
+                spanText.textContent = currentStaffTab === 'rejected' ? 'Clear All Rejected' : 'Clear All Completed';
+            }
+            if (targetCount === 0) {
                 deleteCompletedBtn.disabled = true;
                 deleteCompletedBtn.classList.add('is-disabled');
                 deleteCompletedBtn.setAttribute('aria-disabled', 'true');
-                deleteCompletedBtn.title = 'No completed orders to clear';
+                deleteCompletedBtn.title = `No ${currentStaffTab} orders to clear`;
             } else {
                 deleteCompletedBtn.disabled = false;
                 deleteCompletedBtn.classList.remove('is-disabled');
                 deleteCompletedBtn.removeAttribute('aria-disabled');
-                deleteCompletedBtn.title = 'Clear all completed/archived orders';
+                deleteCompletedBtn.title = `Clear all ${currentStaffTab} orders`;
             }
         } else {
             deleteCompletedBtn.style.display = 'none';
@@ -2718,7 +2780,14 @@ function renderOrders() {
     let focusedSelectionStart = isInputFocused ? activeEl.selectionStart : null;
     let focusedSelectionEnd = isInputFocused ? activeEl.selectionEnd : null;
 
-    const currentList = currentStaffTab === 'pending' ? pendingOrders : completedOrders;
+    let currentList = [];
+    if (currentStaffTab === 'pending') {
+        currentList = pendingOrders;
+    } else if (currentStaffTab === 'completed') {
+        currentList = completedOrders;
+    } else {
+        currentList = rejectedOrders;
+    }
 
     if (currentList.length === 0) {
         container.innerHTML = '';
@@ -2729,11 +2798,17 @@ function renderOrders() {
                     <h4>No Pending Orders</h4>
                     <p>All active kitchen orders have been prepared or delivered.</p>
                 `;
-            } else {
+            } else if (currentStaffTab === 'completed') {
                 emptyState.innerHTML = `
                     <i class="fa-solid fa-clipboard-check"></i>
                     <h4>No Completed Orders</h4>
-                    <p>Finished &amp; delivered orders will appear here before 11:59 PM midnight cleanup.</p>
+                    <p>Delivered orders will appear here before 11:59 PM midnight cleanup.</p>
+                `;
+            } else {
+                emptyState.innerHTML = `
+                    <i class="fa-solid fa-ban"></i>
+                    <h4>No Rejected Orders</h4>
+                    <p>Rejected and cancelled orders will appear here with reason and timestamp.</p>
                 `;
             }
             emptyState.style.display = 'block';
@@ -2744,18 +2819,23 @@ function renderOrders() {
     if (emptyState) emptyState.style.display = 'none';
 
     // Pending orders: Oldest first (FIFO kitchen priority)
-    // Completed orders: Most recently finished first (LIFO)
+    // Completed & Rejected orders: Most recently finished first (LIFO)
     const sortedOrders = currentStaffTab === 'pending'
         ? sortOrdersOldestFirst(currentList)
         : [...currentList].sort((a, b) => {
-            const timeA = new Date(a.completedAt || a.updatedAt || a.createdAt || 0).getTime();
-            const timeB = new Date(b.completedAt || b.updatedAt || b.createdAt || 0).getTime();
+            const timeA = new Date(a.completedAt || a.deliveredAt || a.rejectedAt || a.cancelledAt || a.updatedAt || a.createdAt || 0).getTime();
+            const timeB = new Date(b.completedAt || b.deliveredAt || b.rejectedAt || b.cancelledAt || b.updatedAt || b.createdAt || 0).getTime();
             return timeB - timeA;
         });
 
-    const newHtml = currentStaffTab === 'completed'
-        ? sortedOrders.map(order => buildCompletedOrderCardHTML(order)).join('')
-        : sortedOrders.map(order => buildOrderCardHTML(order)).join('');
+    let newHtml = '';
+    if (currentStaffTab === 'pending') {
+        newHtml = sortedOrders.map(order => buildOrderCardHTML(order)).join('');
+    } else if (currentStaffTab === 'completed') {
+        newHtml = sortedOrders.map(order => buildCompletedOrderCardHTML(order)).join('');
+    } else {
+        newHtml = sortedOrders.map(order => buildRejectedOrderCardHTML(order)).join('');
+    }
 
     // If an OTP input is currently focused by the user:
     if (isInputFocused) {
@@ -2911,11 +2991,10 @@ function formatStaffOrderItem(item) {
 }
 
 // --------------------------------------------------------------------------
-// 8A. BUILD MINIMAL COMPLETED ORDER CARD HTML
+// 8A. BUILD MINIMAL COMPLETED ORDER CARD HTML (DELIVERED STRICTLY)
 // --------------------------------------------------------------------------
 function buildCompletedOrderCardHTML(order) {
     const isAdminViewer = isStaffAdminUser(currentStaffUser);
-    const isRejected = order.status === 'rejected';
 
     // Build Purchased Items List with clean formatting
     const rawItems = order.items || order.cart || order.orderItems || [];
@@ -2923,6 +3002,7 @@ function buildCompletedOrderCardHTML(order) {
 
     const totalVal = order.total || order.costs?.total || 0;
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
+    const deliveredTimeStr = formatStaffTimestamp(order.deliveredAt || order.completedAt || order.updatedAt);
 
     return `
         <article class="order-card completed-order-card" id="card-${order.id}">
@@ -2930,28 +3010,93 @@ function buildCompletedOrderCardHTML(order) {
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                 </div>
-                <div class="completed-card-status-badge ${isRejected ? 'status-declined' : 'status-delivered'}">
-                    <i class="fa-solid ${isRejected ? 'fa-ban' : 'fa-check-double'}"></i>
-                    <span>${isRejected ? 'Declined' : 'Delivered'}</span>
+                <div class="completed-card-status-badge status-delivered">
+                    <i class="fa-solid fa-check-double"></i>
+                    <span>Delivered</span>
                 </div>
             </div>
 
             <div class="card-body completed-card-body">
+                ${deliveredTimeStr ? `
+                <div style="font-size: 0.78rem; color: #10b981; margin: 4px 0 8px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-regular fa-clock"></i> <span>Delivered: ${escapeHtml(deliveredTimeStr)}</span>
+                </div>` : ''}
+
                 <div class="items-list">
                     ${itemsHTML || '<div class="item-row"><span class="item-name">Standard Items</span></div>'}
                 </div>
 
-                ${isRejected && order.rejectionReason ? `
-                <div style="font-size: 0.76rem; color: #ef4444; margin: 6px 0 2px; display: flex; align-items: center; gap: 5px; background: rgba(239, 68, 68, 0.08); padding: 5px 8px; border-radius: 6px; border-left: 3px solid #ef4444;">
-                    <i class="fa-solid fa-triangle-exclamation"></i> <span>${escapeHtml(order.rejectionReason)}</span>
+                <div class="completed-summary-bar">
+                    <span class="completed-total-label">Total Amount:</span>
+                    <span class="total-amount">₹${totalVal}</span>
+                </div>
+            </div>
+
+            ${isAdminViewer ? `
+            <div class="card-footer completed-card-footer">
+                <div class="action-btn-group" style="display: flex; justify-content: flex-end; align-items: center; width: 100%;">
+                    <button type="button" class="btn-outline-danger btn-sm" onclick="handleAdminDeleteOrder('${order.id}')" title="Delete Order (Admin Only)" style="padding: 6px 12px; font-size: 0.78rem; font-weight: 600; border-radius: 8px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-trash-can"></i> Delete
+                    </button>
+                </div>
+            </div>
+            ` : ''}
+        </article>
+    `;
+}
+
+// --------------------------------------------------------------------------
+// 8A-2. BUILD REJECTED & CANCELLED ORDER CARD HTML
+// --------------------------------------------------------------------------
+function buildRejectedOrderCardHTML(order) {
+    const isAdminViewer = isStaffAdminUser(currentStaffUser);
+
+    // Build Purchased Items List with clean formatting
+    const rawItems = order.items || order.cart || order.orderItems || [];
+    const itemsHTML = Array.isArray(rawItems) ? rawItems.map(formatStaffOrderItem).filter(Boolean).join('') : '';
+
+    const totalVal = order.total || order.costs?.total || 0;
+    const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
+    const reason = order.rejectionReason || order.cancelReason || order.reason || 'Not specified by kitchen';
+    const statusText = (order.status === 'cancelled' || order.status === 'canceled') ? 'Cancelled' : 'Rejected';
+    const rejectedTimeStr = formatStaffTimestamp(order.rejectedAt || order.cancelledAt || order.updatedAt || order.createdAt);
+
+    return `
+        <article class="order-card completed-order-card rejected-order-card" id="card-${order.id}" style="border-color: rgba(239, 68, 68, 0.35);">
+            <div class="card-head completed-card-head">
+                <div class="order-id-group">
+                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                </div>
+                <div class="completed-card-status-badge status-declined" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">
+                    <i class="fa-solid fa-ban"></i>
+                    <span>${statusText}</span>
+                </div>
+            </div>
+
+            <div class="card-body completed-card-body">
+                ${rejectedTimeStr ? `
+                <div style="font-size: 0.78rem; color: #ef4444; margin: 4px 0 8px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-regular fa-clock"></i> <span>Rejection Time: ${escapeHtml(rejectedTimeStr)}</span>
                 </div>` : ''}
-                ${isRejected && (order.walletRefunded || order.walletRefundAmount > 0) ? `
-                <div style="font-size: 0.74rem; color: #10b981; margin: 2px 0 6px; display: flex; align-items: center; gap: 5px; background: rgba(16, 185, 129, 0.08); padding: 5px 8px; border-radius: 6px; border-left: 3px solid #10b981;">
+
+                <div style="font-size: 0.82rem; color: #f87171; margin: 6px 0 10px; display: flex; align-items: flex-start; gap: 8px; background: rgba(239, 68, 68, 0.08); padding: 8px 10px; border-radius: 8px; border-left: 3px solid #ef4444;">
+                    <i class="fa-solid fa-triangle-exclamation" style="margin-top: 2px;"></i>
+                    <div>
+                        <strong style="color: #ef4444;">Reason:</strong> <span>${escapeHtml(reason)}</span>
+                    </div>
+                </div>
+
+                ${(order.walletRefunded || order.walletRefundAmount > 0) ? `
+                <div style="font-size: 0.74rem; color: #10b981; margin: 2px 0 8px; display: flex; align-items: center; gap: 5px; background: rgba(16, 185, 129, 0.08); padding: 6px 10px; border-radius: 6px; border-left: 3px solid #10b981;">
                     <i class="fa-solid fa-rotate-left"></i> <span>₹${order.walletRefundAmount || order.walletDiscount || order.usedWalletCash} refunded to customer wallet</span>
                 </div>` : ''}
 
+                <div class="items-list">
+                    ${itemsHTML || '<div class="item-row"><span class="item-name">Standard Items</span></div>'}
+                </div>
+
                 <div class="completed-summary-bar">
-                    <span class="completed-total-label">Total Amount:</span>
+                    <span class="completed-total-label">Order Total:</span>
                     <span class="total-amount">₹${totalVal}</span>
                 </div>
             </div>
@@ -4207,29 +4352,33 @@ window.recordStaffActivityLog = recordStaffActivityLog;
 async function handleDeleteAllCompletedOrders() {
     // 0. Security Guard: Verify active session role
     if (!isStaffAdminUser(currentStaffUser)) {
-        showStaffToast('⛔ Access Denied: Only Admins can clear completed orders.');
+        showStaffToast('⛔ Access Denied: Only Admins can clear orders.');
         return;
     }
 
-    const completedStatuses = ['completed', 'rejected', 'delivered', 'cancelled', 'archived'];
+    const isClearingRejected = currentStaffTab === 'rejected';
+    const completedStatuses = isClearingRejected
+        ? ['rejected', 'cancelled', 'canceled', 'declined']
+        : ['completed', 'delivered'];
+    const targetLabel = isClearingRejected ? 'rejected' : 'completed';
     const localCompleted = staffOrders.filter(o => completedStatuses.includes(String(o.status || '').toLowerCase()));
 
     if (localCompleted.length === 0) {
-        showStaffToast('ℹ️ No completed orders to clear.');
+        showStaffToast(`ℹ️ No ${targetLabel} orders to clear.`);
         return;
     }
 
     // 1. Confirmation Modal Dialog
-    const confirmMessage = 'Are you sure you want to delete all completed orders? This action is irreversible.';
+    const confirmMessage = `Are you sure you want to delete all ${targetLabel} orders? This action is irreversible.`;
     let confirmed = false;
     if (typeof showStaffConfirmDialog === 'function') {
         confirmed = await showStaffConfirmDialog({
-            title: 'Clear All Completed Orders?',
+            title: isClearingRejected ? 'Clear All Rejected Orders?' : 'Clear All Completed Orders?',
             message: confirmMessage,
             icon: '<i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>',
             iconBg: 'rgba(239, 68, 68, 0.12)',
             iconBorder: 'rgba(239, 68, 68, 0.3)',
-            confirmText: 'Yes, Delete All Completed',
+            confirmText: isClearingRejected ? 'Yes, Delete All Rejected' : 'Yes, Delete All Completed',
             cancelText: 'Cancel',
             confirmType: 'danger'
         });
@@ -4282,7 +4431,7 @@ async function handleDeleteAllCompletedOrders() {
                 });
                 await batch.commit();
             }
-            console.log(`🗑️ [Clear All Completed] Batch deleted ${ordersToDelete.size} order(s) from Firestore.`);
+            console.log(`🗑️ [Clear All ${targetLabel}] Batch deleted ${ordersToDelete.size} order(s) from Firestore.`);
         }
 
         // 3. Clear completed orders array in local state & localStorage
@@ -4314,7 +4463,7 @@ async function handleDeleteAllCompletedOrders() {
             adminRole = isMaster ? 'Master Admin' : (currentStaffUser.role || 'Admin');
             adminPhone = rawPhone ? `+91 ${rawPhone}` : (isMaster ? `+91 ${MASTER_ADMIN_PHONE_NUM}` : '—');
         }
-        const auditLogAction = `Cleared all completed orders via Staff Portal by ${adminRole}/${adminPhone}`;
+        const auditLogAction = `Cleared all ${targetLabel} orders via Staff Portal by ${adminRole}/${adminPhone}`;
         await recordStaffActivityLog(auditLogAction, {
             deletedCount: ordersToDelete.size || localCompleted.length
         });
@@ -4323,14 +4472,15 @@ async function handleDeleteAllCompletedOrders() {
         renderOrders();
 
         // 7. Success toast notification
-        showStaffToast('All completed orders cleared successfully.');
+        showStaffToast(`All ${targetLabel} orders cleared successfully.`);
     } catch (err) {
-        console.error('Error clearing completed orders:', err);
+        console.error('Error clearing orders:', err);
         showStaffToast('⚠️ Failed to clear orders: ' + err.message);
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> <span>Clear All Completed</span>';
+            const btnLabel = currentStaffTab === 'rejected' ? 'Clear All Rejected' : 'Clear All Completed';
+            btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> <span>${btnLabel}</span>`;
             // Re-run renderOrders to ensure empty state guard applies dynamically
             renderOrders();
         }

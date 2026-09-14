@@ -22,6 +22,7 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/index', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'admin.html')));
 app.get('/staff', (req, res) => res.sendFile(path.join(__dirname, 'staff.html')));
+app.get('/kitchen', (req, res) => res.sendFile(path.join(__dirname, 'staff.html')));
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
 app.get('/refund', (req, res) => res.sendFile(path.join(__dirname, 'refund.html')));

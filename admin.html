@@ -8110,9 +8110,11 @@
             updateRevenueStats();
         }
 
-        function getOrderTimestamp(o) {
+        function getOrderTimestamp(o, fieldName = null) {
             if (!o) return 0;
-            const raw = o.createdAt || o.timestamp || o.date || o.orderTime;
+            const raw = (fieldName && o[fieldName] !== undefined)
+                ? o[fieldName]
+                : (o.createdAt || o.timestamp || o.date || o.orderTime);
             if (!raw) return 0;
             if (typeof raw.toMillis === 'function') return raw.toMillis();
             if (typeof raw.toDate === 'function') return raw.toDate().getTime();
@@ -8121,6 +8123,10 @@
             const parsed = new Date(raw).getTime();
             return isNaN(parsed) ? 0 : parsed;
         }
+
+        const PENDING_ADMIN_STATUSES = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready"]);
+        const DELIVERED_ADMIN_STATUSES = new Set(["delivered", "completed"]);
+        const REJECTED_ADMIN_STATUSES = new Set(["rejected", "cancelled", "canceled", "declined"]);
 
         function applyOrderKPIsUI(list) {
             const revEl = document.getElementById('stat-total-revenue');
@@ -8142,22 +8148,32 @@
                     if (!isNaN(amount) && amount > 0) totalRev += amount;
 
                     const status = String(o.status || '').trim().toLowerCase();
-                    const orderTime = getOrderTimestamp(o);
-                    const isToday = orderTime >= startOfDay;
 
-                    // Pending Orders: live count of active unfulfilled orders (status: "placed", "preparing", or "out_for_delivery")
-                    if (status === 'placed' || status === 'preparing' || status === 'out_for_delivery' || status === 'out-for-delivery') {
+                    // Metric "PENDING ORDERS":
+                    // Live count matching Kitchen Portal: ["placed", "pending", "preparing", "out_for_delivery", "ready"]
+                    // Do NOT apply date cutoff (active pending orders must show immediately)
+                    if (PENDING_ADMIN_STATUSES.has(status)) {
                         pendingCount++;
                     }
 
-                    // Today's Rejected: count of orders cancelled or rejected today (createdAt >= startOfDay and status: "cancelled" or "rejected")
-                    if (isToday && (status === 'cancelled' || status === 'rejected' || status === 'canceled')) {
-                        todayRejectedCount++;
+                    // Metric "TODAY'S DELIVERED":
+                    // Status in ["delivered", "completed"] AND (createdAt >= startOfDay || deliveredAt >= startOfDay || completedAt >= startOfDay)
+                    if (DELIVERED_ADMIN_STATUSES.has(status)) {
+                        const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
+                        const deliveredTime = getOrderTimestamp(o, 'deliveredAt') || getOrderTimestamp(o, 'completedAt') || getOrderTimestamp(o, 'updatedAt');
+                        if (createdTime >= startOfDay || deliveredTime >= startOfDay) {
+                            todayDeliveredCount++;
+                        }
                     }
 
-                    // Today's Delivered: count of orders successfully completed today (createdAt >= startOfDay and status: "delivered")
-                    if (isToday && (status === 'delivered' || status === 'completed')) {
-                        todayDeliveredCount++;
+                    // Metric "TODAY'S REJECTED":
+                    // Status in ["rejected", "cancelled"] AND (createdAt >= startOfDay || rejectedAt >= startOfDay || cancelledAt >= startOfDay)
+                    if (REJECTED_ADMIN_STATUSES.has(status)) {
+                        const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
+                        const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt') || getOrderTimestamp(o, 'updatedAt');
+                        if (createdTime >= startOfDay || rejectedTime >= startOfDay) {
+                            todayRejectedCount++;
+                        }
                     }
                 });
             }
@@ -8190,10 +8206,7 @@
                     const res = await fetch(resolveApiUrl('/api/orders'));
                     const data = await res.json();
                     if (data && data.success && Array.isArray(data.orders)) {
-                        applyOrderKPIsUI(data.orders);
-                        try {
-                            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(data.orders));
-                        } catch (e) { }
+                        mergeLiveOrdersIntoAdmin(data.orders);
                     }
                 } catch (err) {
                     console.warn('Admin revenue Firestore sync notice (local resilience active):', err.message);
@@ -9774,32 +9787,7 @@
                 const res = await fetch(resolveApiUrl('/api/orders'));
                 const data = await res.json();
                 if (data && data.success && Array.isArray(data.orders)) {
-                    const serverOrders = data.orders;
-                    let localOrders = [];
-                    try {
-                        const stored = localStorage.getItem('perfettoCustomerOrders');
-                        if (stored) localOrders = JSON.parse(stored) || [];
-                    } catch (e) { }
-
-                    const mergedMap = new Map();
-                    serverOrders.forEach(o => {
-                        const id = String(o.orderId || o.id);
-                        mergedMap.set(id, o);
-                    });
-                    localOrders.forEach(o => {
-                        const id = String(o.orderId || o.id);
-                        if (!mergedMap.has(id)) mergedMap.set(id, o);
-                    });
-
-                    const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
-                        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-                    });
-
-                    try {
-                        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(mergedList));
-                    } catch (e) { }
-
-                    updateRevenueStats(mergedList);
+                    mergeLiveOrdersIntoAdmin(data.orders);
                 }
             } catch (err) {
                 // Fallback to local storage
@@ -13051,7 +13039,8 @@
             if (roleEl) roleEl.textContent = (user.role === 'Master Admin' || user.phone === MASTER_ADMIN_PHONE_NUM) ? 'Master Admin' : (user.role || 'Admin');
 
             // Connect live Firestore real-time listeners for all datasets
-            if (adminFirestore) {
+            const db = adminFirestore || getAdminFirestore();
+            if (db) {
                 listenToAdminLiveOrders();
                 listenToAdminMenuRealtime();
                 listenToAdminSettingsRealtime();
@@ -13980,47 +13969,74 @@
         }
 
         function listenToAdminLiveOrders() {
-            if (!adminFirestore || adminOrdersUnsubscribe) return;
+            const db = adminFirestore || getAdminFirestore();
+            if (!db || adminOrdersUnsubscribe) return;
             try {
-                adminOrdersUnsubscribe = adminFirestore.collection('orders')
-                    .orderBy('createdAt', 'desc')
-                    .limit(50)
+                // Match Kitchen Portal: query active orders collection with limit(150) without restrictive orderBy
+                adminOrdersUnsubscribe = db.collection('orders')
+                    .limit(150)
                     .onSnapshot((snapshot) => {
                         const liveOrders = [];
                         snapshot.forEach((doc) => {
-                            liveOrders.push(doc.data());
+                            const data = doc.data() || {};
+                            const docId = doc.id;
+                            liveOrders.push({
+                                ...data,
+                                firestoreDocId: docId,
+                                docId: docId,
+                                id: data.id || data.orderId || docId,
+                                orderId: data.orderId || data.id || docId
+                            });
                         });
-                        if (liveOrders.length > 0) {
-                            mergeLiveOrdersIntoAdmin(liveOrders);
-                        }
+                        mergeLiveOrdersIntoAdmin(liveOrders);
                     }, (err) => {
                         console.warn('Firestore admin orders listener notice:', err.message);
+                        if (typeof adminOrdersUnsubscribe === 'function') {
+                            try { adminOrdersUnsubscribe(); } catch (e) { }
+                        }
+                        adminOrdersUnsubscribe = null;
+                        setTimeout(() => {
+                            listenToAdminLiveOrders();
+                        }, 3000);
                     });
             } catch (e) {
                 console.warn('Error attaching Admin Firestore orders listener:', e);
+                adminOrdersUnsubscribe = null;
             }
         }
 
         function mergeLiveOrdersIntoAdmin(serverOrders) {
-            if (!Array.isArray(serverOrders) || serverOrders.length === 0) return;
-            let localOrders = [];
+            if (!Array.isArray(serverOrders)) return;
+            const mergedMap = new Map();
+
+            // 1. Server / Firestore orders are the single source of truth across all devices
+            serverOrders.forEach(o => {
+                if (o) {
+                    const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                    if (id) mergedMap.set(id, o);
+                }
+            });
+
+            // 2. Only preserve local orders if explicitly tagged as offline pending
             try {
                 const stored = localStorage.getItem('perfettoCustomerOrders');
-                if (stored) localOrders = JSON.parse(stored) || [];
+                if (stored) {
+                    const localOrders = JSON.parse(stored) || [];
+                    if (Array.isArray(localOrders)) {
+                        localOrders.forEach(o => {
+                            if (o && o._isLocalOfflinePending) {
+                                const id = String(o.orderId || o.id || '').trim();
+                                if (id && !mergedMap.has(id)) mergedMap.set(id, o);
+                            }
+                        });
+                    }
+                }
             } catch (e) { }
 
-            const mergedMap = new Map();
-            serverOrders.forEach(o => {
-                const id = String(o.orderId || o.id);
-                if (id) mergedMap.set(id, o);
-            });
-            localOrders.forEach(o => {
-                const id = String(o.orderId || o.id);
-                if (id && !mergedMap.has(id)) mergedMap.set(id, o);
-            });
-
             const mergedList = Array.from(mergedMap.values()).sort((a, b) => {
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+                const timeA = getOrderTimestamp(a);
+                const timeB = getOrderTimestamp(b);
+                return timeB - timeA;
             });
 
             try {

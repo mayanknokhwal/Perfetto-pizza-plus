@@ -12,6 +12,10 @@
       "destination": "/staff.html"
     },
     {
+      "source": "/kitchen",
+      "destination": "/staff.html"
+    },
+    {
       "source": "/terms",
       "destination": "/terms.html"
     },
