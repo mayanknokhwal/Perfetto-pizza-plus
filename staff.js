@@ -1894,11 +1894,13 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     const mergedList = sortOrdersOldestFirst(Array.from(mergedMap.values()).filter(isValidStaffOrder));
     staffOrders = mergedList;
 
-    // Check for newly arrived incoming orders (status === 'new' or 'pending') while app is active
+    // Check for newly arrived incoming orders (status === 'placed', 'new', or 'pending') while app is active
     if (isInitialOrdersSyncDone) {
         const newIncomingOrders = staffOrders.filter(o => {
             const id = getOrderMatchingKey(o);
-            return (o.status === 'new' || o.status === 'pending') && !staffSeenOrderIds.has(id);
+            const s = String(o.status || '').toLowerCase().trim();
+            const isIncoming = (s === 'placed' || s === 'pending' || s === 'new');
+            return isIncoming && !staffSeenOrderIds.has(id);
         });
 
         if (newIncomingOrders.length > 0) {
@@ -1909,6 +1911,19 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
             const summary = total ? `${customerName} • ₹${total}` : customerName;
 
             showStaffToast('🔔 New Customer Order Received in Real-Time!');
+            startOrderAlertAudio(orderId, summary);
+        }
+    } else {
+        // Initial load: check if there is an unhandled incoming order already in queue
+        const activeIncoming = staffOrders.find(o => {
+            const s = String(o.status || '').toLowerCase().trim();
+            return s === 'placed' || s === 'pending' || s === 'new';
+        });
+        if (activeIncoming && isStaffSoundEnabled) {
+            const orderId = String(activeIncoming.orderId || activeIncoming.id);
+            const customerName = activeIncoming.customerName || activeIncoming.customer?.name || 'Customer';
+            const total = activeIncoming.total || activeIncoming.costs?.total || '';
+            const summary = total ? `${customerName} • ₹${total}` : customerName;
             startOrderAlertAudio(orderId, summary);
         }
     }
@@ -2100,12 +2115,15 @@ function enableStaffSound(options = {}) {
         showStaffToast('🔔 Sound Active! Kitchen audio alerts & keep-alive enabled.');
     }
 
-    // 6. Check for unhandled incoming new orders to alert immediately
-    const activeNewOrder = staffOrders.find(o => o.status === 'new');
-    if (activeNewOrder) {
-        const orderId = String(activeNewOrder.orderId || activeNewOrder.id);
-        const customerName = activeNewOrder.customerName || activeNewOrder.customer?.name || 'Customer';
-        const total = activeNewOrder.total || activeNewOrder.costs?.total || '';
+    // 6. Check for unhandled incoming orders (status "placed", "pending", "new") to alert immediately
+    const activeIncomingOrder = staffOrders.find(o => {
+        const s = String(o.status || '').toLowerCase().trim();
+        return s === 'placed' || s === 'pending' || s === 'new';
+    });
+    if (activeIncomingOrder) {
+        const orderId = String(activeIncomingOrder.orderId || activeIncomingOrder.id);
+        const customerName = activeIncomingOrder.customerName || activeIncomingOrder.customer?.name || 'Customer';
+        const total = activeIncomingOrder.total || activeIncomingOrder.costs?.total || '';
         const summary = total ? `${customerName} • ₹${total}` : customerName;
         startOrderAlertAudio(orderId, summary);
     }
@@ -2135,37 +2153,49 @@ window.toggleStaffSoundState = toggleStaffSoundState;
 let hasUniversalAudioUnlocked = false;
 
 /**
- * Attaches a global, one-time interaction listener to window/document for click, touchstart, pointerdown.
- * Upon the user's very first interaction anywhere on screen (tapping card, changing tabs, clicking background):
+ * Attaches a global, persistent interaction listener to window/document for click, touchstart, pointerdown.
+ * Upon the user's interaction anywhere on screen (tapping card, changing tabs, clicking background):
  * - Unlocks AudioContext to satisfy autoplay restrictions
  * - Automatically updates application audio state to enabled
  * - Switches header audio indicator from "Audio Muted" to green "Sound Active"
  * - Keeps header button functional for direct manual toggling
  */
 function setupUniversalAudioUnlock() {
-    const teardownListeners = () => {
-        ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
-            document.removeEventListener(evt, handleFirstInteraction, true);
-            window.removeEventListener(evt, handleFirstInteraction, true);
-        });
-    };
-
     const handleFirstInteraction = (event) => {
-        if (hasUniversalAudioUnlocked) return;
-
-        // If the user tapped directly on the manual sound toggle button, let toggleStaffSoundState handle it
-        const soundToggleBtn = document.getElementById('btn-staff-sound-toggle');
-        if (soundToggleBtn && event && event.target && (soundToggleBtn === event.target || soundToggleBtn.contains(event.target))) {
-            hasUniversalAudioUnlocked = true;
-            teardownListeners();
-            return;
+        // Unlock Web AudioContext if suspended
+        const ctx = getStaffAudioContext();
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            ctx.resume().catch(() => {});
         }
 
-        hasUniversalAudioUnlocked = true;
-        teardownListeners();
+        // Prime persistent HTML5 Audio element
+        try {
+            const audio = getOrderAlertAudio();
+            if (audio) {
+                audio.muted = true;
+                const p = audio.play();
+                if (p !== undefined && typeof p.then === 'function') {
+                    p.then(() => {
+                        audio.pause();
+                        audio.currentTime = 0;
+                        audio.muted = false;
+                    }).catch(() => {
+                        audio.muted = false;
+                    });
+                }
+            }
+        } catch (e) { }
 
-        // Automatically unlock AudioContext, enable application sound state, and switch UI indicator to active green
+        // Enable staff sound state and reflect active UI
         enableStaffSound({ playChime: false, showToast: false });
+
+        if (isStaffSoundEnabled) {
+            hasUniversalAudioUnlocked = true;
+            ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
+                document.removeEventListener(evt, handleFirstInteraction, true);
+                window.removeEventListener(evt, handleFirstInteraction, true);
+            });
+        }
     };
 
     ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
@@ -2503,7 +2533,7 @@ function initStaffWebWorkerTimer() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function initStaffApp() {
     // Initial fetch of settings & check initial auth state
     fetchStaffSettingsFromBackend();
     checkStaffAuthSession();
@@ -2540,11 +2570,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const confirmModal = document.getElementById('staff-confirm-modal');
             if (confirmModal && confirmModal.style.display !== 'none') {
                 handleStaffConfirmResolve(false);
-                return;
-            }
-            const rejectModal = document.getElementById('staff-reject-modal');
-            if (rejectModal && rejectModal.style.display !== 'none') {
-                closeStaffRejectModal();
                 return;
             }
             const incomingModal = document.getElementById('staff-incoming-order-modal');
@@ -2611,7 +2636,14 @@ document.addEventListener('DOMContentLoaded', () => {
     staffAutoExpireInterval = setInterval(() => {
         sweepAutoExpiredOrders();
     }, 60000);
-});
+}
+
+// Auto-run initStaffApp regardless of whether DOMContentLoaded already fired
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStaffApp);
+} else {
+    initStaffApp();
+}
 
 // Re-acquire Screen Wake Lock, auto-resume audio context, and re-verify orders listener on visibility
 document.addEventListener('visibilitychange', () => {
@@ -4755,18 +4787,33 @@ function playSynthesizedAlertBeep() {
 }
 
 /**
- * Initializes HTML5 Audio element configured for continuous looping order alert audio
+ * Resolves absolute origin sound asset URL to ensure reliable loading across all route depths
+ */
+function getStaffAudioSrc() {
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+        return `${window.location.origin}/order-alert.mp3`;
+    }
+    return '/order-alert.mp3';
+}
+
+/**
+ * Initializes persistent HTML5 Audio element configured for continuous looping order alert audio
  */
 function getOrderAlertAudio() {
     if (!staffOrderAlertAudio && typeof Audio !== 'undefined') {
-        const audioSources = ['./order-alert.mp3', 'order-alert.mp3', './order alert.mp3', 'order alert.mp3'];
-        for (const src of audioSources) {
-            try {
-                staffOrderAlertAudio = new Audio(src);
-                staffOrderAlertAudio.loop = true;
-                staffOrderAlertAudio.preload = 'auto';
-                break;
-            } catch (e) { }
+        try {
+            staffOrderAlertAudio = new Audio(getStaffAudioSrc());
+            staffOrderAlertAudio.loop = true;
+            staffOrderAlertAudio.preload = 'auto';
+            staffOrderAlertAudio.volume = 1.0;
+            staffOrderAlertAudio.addEventListener('error', (err) => {
+                console.warn('Staff HTML5 audio asset loading error, falling back to harmonic chime:', err);
+                if (isOrderAlertAudioPlaying) {
+                    startSynthesizedBeepLoop();
+                }
+            });
+        } catch (e) {
+            console.warn('HTML5 Audio constructor notice:', e);
         }
     }
     if (staffOrderAlertAudio) {
@@ -4776,7 +4823,7 @@ function getOrderAlertAudio() {
 }
 
 /**
- * Starts continuous looping order alert audio ('./order-alert.mp3' with audio.loop = true)
+ * Starts continuous looping order alert audio ('/order-alert.mp3' with audio.loop = true)
  * Plays the alert track in a continuous loop for new incoming orders until accepted, rejected, or silenced.
  */
 function startSynthesizedBeepLoop() {
@@ -4816,7 +4863,9 @@ function startOrderAlertAudio(orderId = '', details = '') {
 
     // Fail-safe check: Is sound toggle currently ON?
     if (!isStaffSoundEnabled) {
-        console.log('🔕 [Staff Audio] Sound toggle is currently OFF. Audio suppressed for Order #' + currentAlertingOrderId);
+        console.log('🔕 [Staff Audio] Sound toggle is currently OFF. Audio queued for Order #' + currentAlertingOrderId);
+        pendingOrderAlertData = { orderId, details };
+        checkAndShowStaffAudioBanner();
         return;
     }
 
@@ -4836,7 +4885,7 @@ function startOrderAlertAudio(orderId = '', details = '') {
             audio.loop = true;
             audio.muted = false;
             const playPromise = audio.play();
-            if (playPromise !== undefined) {
+            if (playPromise !== undefined && typeof playPromise.then === 'function') {
                 playPromise.then(() => {
                     console.log('▶️ [Order Alert Loop] HTML5 Audio playing in continuous loop.');
                     isStaffAudioUnlocked = true;
@@ -4989,7 +5038,10 @@ window.dismissIncomingOrderAlert = dismissIncomingOrderAlert;
  * Accepts the incoming order from the modal and stops the continuous audio loop
  */
 function acceptIncomingOrderFromModal() {
-    const targetId = currentAlertingOrderId || (staffOrders.find(o => o.status === 'new')?.id);
+    const targetId = currentAlertingOrderId || (staffOrders.find(o => {
+        const s = String(o.status || '').toLowerCase().trim();
+        return s === 'placed' || s === 'pending' || s === 'new';
+    })?.id);
     stopOrderAlertAudio();
     hideIncomingOrderModal();
     if (targetId) {

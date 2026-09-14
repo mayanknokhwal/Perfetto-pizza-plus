@@ -14093,6 +14093,15 @@
         let adminAlertAudio = null;
         let adminAudioUnlocked = false;
 
+        function getAdminAudioSrc() {
+            try {
+                if (typeof window !== 'undefined' && window.location && window.location.origin) {
+                    return `${window.location.origin}/order-alert.mp3`;
+                }
+            } catch (e) { }
+            return '/order-alert.mp3';
+        }
+
         function getAdminAudioContext() {
             if (!adminAudioContext && (typeof window.AudioContext !== 'undefined' || typeof window.webkitAudioContext !== 'undefined')) {
                 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -14105,15 +14114,11 @@
 
         function initAdminAudio() {
             if (!adminAlertAudio && typeof Audio !== 'undefined') {
-                const sources = ['./order-alert.mp3', 'order-alert.mp3', '/order-alert.mp3'];
-                for (const src of sources) {
-                    try {
-                        adminAlertAudio = new Audio(src);
-                        adminAlertAudio.loop = false; // Strictly single-play chime (never loop)
-                        adminAlertAudio.preload = 'auto';
-                        break;
-                    } catch (e) { }
-                }
+                try {
+                    adminAlertAudio = new Audio(getAdminAudioSrc());
+                    adminAlertAudio.loop = false; // Strictly single-play chime (never loop)
+                    adminAlertAudio.preload = 'auto';
+                } catch (e) { }
             }
             if (adminAlertAudio) {
                 adminAlertAudio.loop = false;
@@ -14127,7 +14132,7 @@
 
             try {
                 const ctx = getAdminAudioContext();
-                if (ctx && ctx.state === 'suspended') {
+                if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
                     ctx.resume().catch(() => {});
                 }
             } catch (e) { }
@@ -14135,17 +14140,23 @@
             try {
                 const audio = initAdminAudio();
                 if (audio) {
+                    audio.muted = true;
                     const p = audio.play();
                     if (p && typeof p.then === 'function') {
                         p.then(() => {
                             audio.pause();
                             audio.currentTime = 0;
-                        }).catch(() => {});
+                            audio.muted = false;
+                        }).catch(() => {
+                            audio.muted = false;
+                        });
+                    } else {
+                        audio.muted = false;
                     }
                 }
             } catch (e) { }
 
-            ['click', 'touchstart', 'keydown'].forEach(evt => {
+            ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
                 window.removeEventListener(evt, unlockAdminAudioContext, { capture: true });
                 document.removeEventListener(evt, unlockAdminAudioContext, { capture: true });
             });
@@ -14153,7 +14164,7 @@
         }
 
         // Global one-time interaction listener across admin viewport to unlock browser audio context
-        ['click', 'touchstart', 'keydown'].forEach(evt => {
+        ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
             window.addEventListener(evt, unlockAdminAudioContext, { capture: true, once: true, passive: true });
             document.addEventListener(evt, unlockAdminAudioContext, { capture: true, once: true, passive: true });
         });
@@ -14162,36 +14173,42 @@
             console.log('🔔 [Admin Alert] Playing incoming order alert chime once...');
             try {
                 const ctx = getAdminAudioContext();
-                if (ctx && ctx.state === 'suspended') {
+                if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
                     ctx.resume().catch(() => {});
                 }
             } catch (e) { }
 
+            let playedHtml5 = false;
             try {
                 const audio = initAdminAudio();
                 if (audio) {
-                    audio.loop = false; // Never loop on admin dashboard
+                    audio.loop = false; // Strictly single-play chime (never loop)
+                    audio.muted = false;
                     audio.currentTime = 0;
                     const p = audio.play();
                     if (p && typeof p.then === 'function') {
-                        p.catch(err => {
+                        p.then(() => {
+                            console.log('🔔 [Admin Alert] Single chime audio playback started successfully.');
+                        }).catch(err => {
                             console.warn('Admin HTML5 audio play prevented by autoplay policy:', err.message);
                             playAdminSynthesizedChime();
                         });
+                        playedHtml5 = true;
                     }
-                    return;
                 }
             } catch (e) {
                 console.warn('Error playing admin audio chime:', e);
             }
-            playAdminSynthesizedChime();
+            if (!playedHtml5) {
+                playAdminSynthesizedChime();
+            }
         }
 
         function playAdminSynthesizedChime() {
             try {
                 const ctx = getAdminAudioContext();
                 if (!ctx) return;
-                if (ctx.state === 'suspended') {
+                if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
                     ctx.resume().catch(() => {});
                 }
                 const now = ctx.currentTime;
@@ -14212,7 +14229,15 @@
 
         function listenToAdminLiveOrders() {
             const db = adminFirestore || getAdminFirestore();
-            if (!db || adminOrdersUnsubscribe) return;
+            if (!db) {
+                setTimeout(() => {
+                    if (currentAdminUser && !adminOrdersUnsubscribe) {
+                        listenToAdminLiveOrders();
+                    }
+                }, 1500);
+                return;
+            }
+            if (adminOrdersUnsubscribe) return;
             try {
                 // Match Kitchen Portal: query active orders collection with limit(150) without restrictive orderBy
                 adminOrdersUnsubscribe = db.collection('orders')
@@ -14287,6 +14312,29 @@
         function mergeLiveOrdersIntoAdmin(serverOrders) {
             if (!Array.isArray(serverOrders)) return;
             const mergedMap = new Map();
+
+            // Check if any incoming orders were not yet seen (fallback in case docChanges didn't catch or REST sync)
+            if (adminInitialOrdersLoaded) {
+                let foundNew = false;
+                serverOrders.forEach(o => {
+                    if (!o) return;
+                    const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                    const status = String(o.status || '').trim().toLowerCase();
+                    if (id && !adminKnownOrderIds.has(id)) {
+                        adminKnownOrderIds.add(id);
+                        if (o.orderId) adminKnownOrderIds.add(String(o.orderId));
+                        if (o.id) adminKnownOrderIds.add(String(o.id));
+                        if (o.firestoreDocId) adminKnownOrderIds.add(String(o.firestoreDocId));
+                        if (status === 'placed' || status === 'new' || status === 'pending') {
+                            foundNew = true;
+                        }
+                    }
+                });
+                if (foundNew) {
+                    playAdminOrderChime();
+                    showToast('🔔 New incoming customer order received!');
+                }
+            }
 
             // 1. Server / Firestore orders are the single source of truth across all devices
             serverOrders.forEach(o => {
