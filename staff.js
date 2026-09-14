@@ -2153,52 +2153,66 @@ window.toggleStaffSoundState = toggleStaffSoundState;
 let hasUniversalAudioUnlocked = false;
 
 /**
- * Attaches a global, persistent interaction listener to window/document for click, touchstart, pointerdown.
+ * Attaches a global, persistent interaction listener to window/document for click, touchstart, touchend, pointerdown, keydown.
  * Upon the user's interaction anywhere on screen (tapping card, changing tabs, clicking background):
+ * - Requests native browser notification permission (Notification.requestPermission())
  * - Unlocks AudioContext to satisfy autoplay restrictions
+ * - Explicitly primes the persistent HTMLAudioElement with unmuted near-zero volume play so Android Chrome allows background/stream playback
  * - Automatically updates application audio state to enabled
  * - Switches header audio indicator from "Audio Muted" to green "Sound Active"
  * - Keeps header button functional for direct manual toggling
  */
 function setupUniversalAudioUnlock() {
     const handleFirstInteraction = (event) => {
-        // Unlock Web AudioContext if suspended
+        // 1. Request Web Notification permission on genuine user gesture
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            try {
+                Notification.requestPermission().catch(() => {});
+            } catch (e) { }
+        }
+
+        // 2. Unlock Web AudioContext if suspended
         const ctx = getStaffAudioContext();
         if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
             ctx.resume().catch(() => {});
         }
 
-        // Prime persistent HTML5 Audio element
+        // 3. Explicitly prime persistent HTML5 Audio element
+        // Android Chrome requires genuine user gesture with unmuted play attempt to clear subsequent autoplay locks
         try {
             const audio = getOrderAlertAudio();
             if (audio) {
-                audio.muted = true;
+                audio.muted = false;
+                audio.volume = 0.01;
                 const p = audio.play();
                 if (p !== undefined && typeof p.then === 'function') {
                     p.then(() => {
                         audio.pause();
                         audio.currentTime = 0;
-                        audio.muted = false;
-                    }).catch(() => {
-                        audio.muted = false;
+                        audio.volume = 1.0;
+                        isStaffAudioUnlocked = true;
+                        console.log('📱 [Mobile Audio Engine] Primed persistent HTMLAudioElement successfully on genuine user gesture.');
+                    }).catch((err) => {
+                        console.warn('Audio prime notice:', err.message);
+                        audio.volume = 1.0;
                     });
                 }
             }
         } catch (e) { }
 
-        // Enable staff sound state and reflect active UI
+        // 4. Enable staff sound state and reflect active UI
         enableStaffSound({ playChime: false, showToast: false });
 
         if (isStaffSoundEnabled) {
             hasUniversalAudioUnlocked = true;
-            ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
+            ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
                 document.removeEventListener(evt, handleFirstInteraction, true);
                 window.removeEventListener(evt, handleFirstInteraction, true);
             });
         }
     };
 
-    ['click', 'touchstart', 'pointerdown', 'keydown'].forEach(evt => {
+    ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
         document.addEventListener(evt, handleFirstInteraction, { capture: true, passive: true });
         window.addEventListener(evt, handleFirstInteraction, { capture: true, passive: true });
     });
@@ -2206,27 +2220,34 @@ function setupUniversalAudioUnlock() {
 window.setupUniversalAudioUnlock = setupUniversalAudioUnlock;
 
 function unlockStaffAudioAlerts(silent = true) {
-    // 1. Resume Web Audio Context if suspended
+    // 1. Request Web Notification permission if still default
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        try {
+            Notification.requestPermission().catch(() => {});
+        } catch (e) { }
+    }
+
+    // 2. Resume Web Audio Context if suspended
     const ctx = getStaffAudioContext();
-    if (ctx && ctx.state === 'suspended') {
+    if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
         ctx.resume().then(() => {
             checkAndShowStaffAudioBanner();
         }).catch(() => {});
     }
 
-    // 2. Prime HTML5 Audio element to bypass WebView autoplay restrictions
+    // 3. Prime HTML5 Audio element to bypass Android Chrome and WebView autoplay restrictions
     try {
         const audio = getOrderAlertAudio();
         if (audio) {
-            audio.loop = false;
-            const prevMuted = audio.muted;
-            audio.muted = true;
+            audio.loop = true;
+            audio.muted = false;
+            audio.volume = 0.01;
             const playPromise = audio.play();
-            if (playPromise !== undefined) {
+            if (playPromise !== undefined && typeof playPromise.then === 'function') {
                 playPromise.then(() => {
                     audio.pause();
                     audio.currentTime = 0;
-                    audio.muted = prevMuted;
+                    audio.volume = 1.0;
                     isStaffAudioUnlocked = true;
                     isAudioAutoplayBlocked = false;
                     dismissStaffAudioBanner();
@@ -2237,7 +2258,7 @@ function unlockStaffAudioAlerts(silent = true) {
                         startOrderAlertAudio(orderId, details);
                     }
                 }).catch((err) => {
-                    audio.muted = prevMuted;
+                    audio.volume = 1.0;
                     console.warn('Audio prime note:', err.message);
                 });
             }
@@ -4741,6 +4762,92 @@ let staffOrderAlertAudio = null;
 let isOrderAlertAudioPlaying = false;
 let currentAlertingOrderId = null;
 let staffAudioContext = null;
+let staffVibrationInterval = null;
+
+/**
+ * Triggers hardware vibration alert pattern: 300ms on, 150ms off, 300ms on, 150ms off, 500ms on
+ */
+function triggerStaffVibration() {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try {
+            navigator.vibrate([300, 150, 300, 150, 500]);
+        } catch (e) { }
+    }
+}
+
+function startStaffVibrationLoop() {
+    stopStaffVibrationLoop();
+    triggerStaffVibration();
+    staffVibrationInterval = setInterval(() => {
+        if (isOrderAlertAudioPlaying) {
+            triggerStaffVibration();
+        } else {
+            stopStaffVibrationLoop();
+        }
+    }, 2500);
+}
+
+function stopStaffVibrationLoop() {
+    if (staffVibrationInterval) {
+        clearInterval(staffVibrationInterval);
+        staffVibrationInterval = null;
+    }
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        try {
+            navigator.vibrate(0);
+        } catch (e) { }
+    }
+}
+window.startStaffVibrationLoop = startStaffVibrationLoop;
+window.stopStaffVibrationLoop = stopStaffVibrationLoop;
+
+/**
+ * Dispatches a native browser push/system notification if granted
+ */
+function dispatchStaffOrderNotification(orderId, details) {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+    if (Notification.permission !== 'granted') return;
+
+    let targetOrder = null;
+    if (orderId) {
+        targetOrder = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
+    }
+    if (!targetOrder) {
+        targetOrder = staffOrders.find(o => {
+            const s = String(o.status || '').trim().toLowerCase();
+            return s === 'placed' || s === 'pending' || s === 'new';
+        });
+    }
+
+    const orderNumber = targetOrder ? (targetOrder.orderId || targetOrder.id) : (orderId || 'New');
+    const customerName = targetOrder ? (targetOrder.customerName || targetOrder.customer?.name || targetOrder.name || 'Customer') : 'Customer';
+    const itemsCount = targetOrder && Array.isArray(targetOrder.items) 
+        ? targetOrder.items.reduce((acc, it) => acc + (it.qty || 1), 0)
+        : 1;
+    const totalAmount = targetOrder ? (targetOrder.total || targetOrder.finalPayable || targetOrder.totalAmount || 0) : 0;
+
+    const title = `🔔 New Order Arrived! (#${orderNumber})`;
+    const body = `Customer: ${customerName} | ${itemsCount} item(s) | ₹${totalAmount}`;
+
+    try {
+        const notif = new Notification(title, {
+            body: body,
+            icon: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
+            badge: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
+            tag: `perfetto-order-${orderNumber}`,
+            renotify: true,
+            requireInteraction: true
+        });
+
+        notif.onclick = function() {
+            window.focus();
+            try { this.close(); } catch (e) { }
+        };
+    } catch (e) {
+        console.warn('System Notification error:', e);
+    }
+}
+window.dispatchStaffOrderNotification = dispatchStaffOrderNotification;
 
 /**
  * Initializes and retrieves the Web Audio Context for synthesized tone fallbacks
@@ -4806,6 +4913,8 @@ function getOrderAlertAudio() {
             staffOrderAlertAudio.loop = true;
             staffOrderAlertAudio.preload = 'auto';
             staffOrderAlertAudio.volume = 1.0;
+            // Explicit preload request
+            staffOrderAlertAudio.load();
             staffOrderAlertAudio.addEventListener('error', (err) => {
                 console.warn('Staff HTML5 audio asset loading error, falling back to harmonic chime:', err);
                 if (isOrderAlertAudioPlaying) {
@@ -4861,6 +4970,10 @@ function startOrderAlertAudio(orderId = '', details = '') {
     // Always display incoming order popup modal
     showIncomingOrderModal(orderId, details);
 
+    // Dispatch Native Browser Notification & Hardware Vibration Alert
+    dispatchStaffOrderNotification(orderId, details);
+    startStaffVibrationLoop();
+
     // Fail-safe check: Is sound toggle currently ON?
     if (!isStaffSoundEnabled) {
         console.log('🔕 [Staff Audio] Sound toggle is currently OFF. Audio queued for Order #' + currentAlertingOrderId);
@@ -4884,6 +4997,7 @@ function startOrderAlertAudio(orderId = '', details = '') {
             audio.currentTime = 0;
             audio.loop = true;
             audio.muted = false;
+            audio.volume = 1.0;
             const playPromise = audio.play();
             if (playPromise !== undefined && typeof playPromise.then === 'function') {
                 playPromise.then(() => {
@@ -4919,6 +5033,9 @@ function stopOrderAlertAudio() {
     isOrderAlertAudioPlaying = false;
     currentAlertingOrderId = null;
     pendingOrderAlertData = null;
+
+    // Stop hardware vibration pattern immediately
+    stopStaffVibrationLoop();
 
     if (synthesizedBeepInterval) {
         clearInterval(synthesizedBeepInterval);
@@ -4956,7 +5073,10 @@ function showIncomingOrderModal(orderId, details) {
         targetOrder = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
     }
     if (!targetOrder) {
-        targetOrder = staffOrders.find(o => o.status === 'new') || staffOrders[0];
+        targetOrder = staffOrders.find(o => {
+            const s = String(o.status || '').trim().toLowerCase();
+            return s === 'placed' || s === 'pending' || s === 'new';
+        }) || staffOrders[0];
     }
 
     const orderTagEl = document.getElementById('incoming-modal-order-tag');
