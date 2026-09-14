@@ -4108,7 +4108,7 @@ const RESTAURANT_LAT_KEY = 'restaurantLatitude';
 const RESTAURANT_LNG_KEY = 'restaurantLongitude';
 const DELIVERY_RADIUS_KEY = 'deliveryRadiusKm';
 
-// 6 Flexible Zone Delivery Charges Keys & Defaults
+// 10 Flexible Zone Delivery Charges Keys & Defaults
 const ZONE_CHARGES_KEY = 'perfettoDeliveryZones';
 const DEFAULT_ZONE_CHARGES = {
     zone1: 0,
@@ -4116,8 +4116,27 @@ const DEFAULT_ZONE_CHARGES = {
     zone3: 0,
     zone4: 0,
     zone5: 0,
-    zone6: 0
+    zone6: 0,
+    zone7: 0,
+    zone8: 0,
+    zone9: 0,
+    zone10: 0
 };
+
+// In-Store / Dine-In Distance Threshold (0.05 km - 0.15 km)
+const IN_STORE_THRESHOLD_KEY = 'perfetto_in_store_threshold';
+const DEFAULT_IN_STORE_THRESHOLD = 0.05;
+
+function getInStoreThreshold() {
+    const val = localStorage.getItem(IN_STORE_THRESHOLD_KEY);
+    if (val !== null && val !== undefined && val !== '') {
+        const parsed = parseFloat(val);
+        if (!isNaN(parsed)) {
+            return Math.min(0.15, Math.max(0.05, parseFloat(parsed.toFixed(2))));
+        }
+    }
+    return DEFAULT_IN_STORE_THRESHOLD;
+}
 
 const DEFAULT_RESTAURANT_LAT = 29.533736;
 const DEFAULT_RESTAURANT_LNG = 73.447895;
@@ -4129,7 +4148,7 @@ function getDeliveryZoneCharges() {
         if (stored) {
             const parsed = JSON.parse(stored);
             const result = {};
-            for (let i = 1; i <= 6; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const key = `zone${i}`;
                 const raw = parsed[key];
                 if (raw !== undefined && raw !== null && raw !== '') {
@@ -4185,20 +4204,42 @@ function calculateDistanceHaversine(lat1, lon1, lat2, lon2) {
     return R * c; // Distance in KM
 }
 
-// Map calculated distance (KM) to one of the 6 admin-configured distance zones
+// Map calculated distance (KM) to In-Store or one of the 10 admin-configured distance zones
 function getDeliveryZoneForDistance(distKm) {
-    if (distKm <= 0.5) {
-        return { zoneNum: 1, zoneKey: 'zone1', zoneLabel: 'Zone 1 (0 - 0.5 KM)', range: '0 - 0.5 KM' };
+    const threshold = getInStoreThreshold();
+    const radius = getDeliveryRadiusKm();
+
+    if (distKm <= threshold) {
+        return {
+            zoneNum: 0,
+            zoneKey: 'in_store',
+            zoneLabel: `In-Store / Dine-In (0 - ${threshold.toFixed(2)} KM)`,
+            range: `0 - ${threshold.toFixed(2)} KM`,
+            isInStore: true,
+            isOutOfRange: false
+        };
+    } else if (distKm <= 1.0) {
+        return { zoneNum: 1, zoneKey: 'zone1', zoneLabel: `Zone 1 (${threshold.toFixed(2)} - 1 KM)`, range: `${threshold.toFixed(2)} - 1 KM`, isInStore: false, isOutOfRange: distKm > radius };
     } else if (distKm <= 2.0) {
-        return { zoneNum: 2, zoneKey: 'zone2', zoneLabel: 'Zone 2 (0.5 - 2 KM)', range: '0.5 - 2 KM' };
+        return { zoneNum: 2, zoneKey: 'zone2', zoneLabel: 'Zone 2 (1 - 2 KM)', range: '1 - 2 KM', isInStore: false, isOutOfRange: distKm > radius };
+    } else if (distKm <= 3.0) {
+        return { zoneNum: 3, zoneKey: 'zone3', zoneLabel: 'Zone 3 (2 - 3 KM)', range: '2 - 3 KM', isInStore: false, isOutOfRange: distKm > radius };
     } else if (distKm <= 4.0) {
-        return { zoneNum: 3, zoneKey: 'zone3', zoneLabel: 'Zone 3 (2 - 4 KM)', range: '2 - 4 KM' };
+        return { zoneNum: 4, zoneKey: 'zone4', zoneLabel: 'Zone 4 (3 - 4 KM)', range: '3 - 4 KM', isInStore: false, isOutOfRange: distKm > radius };
+    } else if (distKm <= 5.0) {
+        return { zoneNum: 5, zoneKey: 'zone5', zoneLabel: 'Zone 5 (4 - 5 KM)', range: '4 - 5 KM', isInStore: false, isOutOfRange: distKm > radius };
     } else if (distKm <= 6.0) {
-        return { zoneNum: 4, zoneKey: 'zone4', zoneLabel: 'Zone 4 (4 - 6 KM)', range: '4 - 6 KM' };
+        return { zoneNum: 6, zoneKey: 'zone6', zoneLabel: 'Zone 6 (5 - 6 KM)', range: '5 - 6 KM', isInStore: false, isOutOfRange: distKm > radius };
+    } else if (distKm <= 7.0) {
+        return { zoneNum: 7, zoneKey: 'zone7', zoneLabel: 'Zone 7 (6 - 7 KM)', range: '6 - 7 KM', isInStore: false, isOutOfRange: distKm > radius };
     } else if (distKm <= 8.0) {
-        return { zoneNum: 5, zoneKey: 'zone5', zoneLabel: 'Zone 5 (6 - 8 KM)', range: '6 - 8 KM' };
+        return { zoneNum: 8, zoneKey: 'zone8', zoneLabel: 'Zone 8 (7 - 8 KM)', range: '7 - 8 KM', isInStore: false, isOutOfRange: distKm > radius };
+    } else if (distKm <= 9.0) {
+        return { zoneNum: 9, zoneKey: 'zone9', zoneLabel: 'Zone 9 (8 - 9 KM)', range: '8 - 9 KM', isInStore: false, isOutOfRange: distKm > radius };
+    } else if (distKm <= 10.0) {
+        return { zoneNum: 10, zoneKey: 'zone10', zoneLabel: 'Zone 10 (9 - 10 KM)', range: '9 - 10 KM', isInStore: false, isOutOfRange: distKm > radius };
     } else {
-        return { zoneNum: 6, zoneKey: 'zone6', zoneLabel: 'Zone 6 (8 - 10 KM)', range: '8 - 10 KM' };
+        return { zoneNum: 11, zoneKey: 'out_of_range', zoneLabel: 'Out of Delivery Range (> 10 KM)', range: '> 10 KM', isInStore: false, isOutOfRange: true };
     }
 }
 
@@ -4245,32 +4286,43 @@ function calculateDynamicDeliveryInfo(subtotal, customCoords = null) {
     const restLat = getRestaurantLat();
     const restLng = getRestaurantLng();
     const zoneCharges = getDeliveryZoneCharges();
+    const threshold = getInStoreThreshold();
+    const maxRadius = getDeliveryRadiusKm();
 
     let distanceKm = null;
     let zoneInfo = null;
     let baseDeliveryFee = 0;
     let hasVerifiedGps = false;
+    let isOutOfRange = false;
 
     if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number' && !isNaN(coords.lat) && !isNaN(coords.lng)) {
         hasVerifiedGps = true;
         const rawDist = calculateDistanceHaversine(restLat, restLng, coords.lat, coords.lng);
         distanceKm = parseFloat(rawDist.toFixed(2));
         zoneInfo = getDeliveryZoneForDistance(distanceKm);
-        const configuredCharge = zoneCharges[zoneInfo.zoneKey];
-        baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge))
-            ? parseFloat(configuredCharge)
-            : 0;
+        isOutOfRange = zoneInfo.isOutOfRange || (distanceKm > maxRadius) || (distanceKm > 10.0);
+
+        if (zoneInfo.isInStore || distanceKm <= threshold) {
+            baseDeliveryFee = 0;
+        } else if (isOutOfRange) {
+            baseDeliveryFee = 0;
+        } else {
+            const configuredCharge = zoneCharges[zoneInfo.zoneKey];
+            baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge))
+                ? parseFloat(configuredCharge)
+                : 0;
+        }
     } else {
         // Default to Zone 1 base charge when coordinates are not yet set
-        zoneInfo = getDeliveryZoneForDistance(0);
-        const configuredCharge = zoneCharges[zoneInfo.zoneKey];
+        zoneInfo = getDeliveryZoneForDistance(0.5 > threshold ? 0.5 : (threshold + 0.01));
+        const configuredCharge = zoneCharges.zone1;
         baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge))
             ? parseFloat(configuredCharge)
             : 0;
     }
 
-    const isFreeDelivery = (subtotal >= freeDeliveryLim && subtotal > 0);
-    const finalDeliveryFee = isFreeDelivery ? 0 : baseDeliveryFee;
+    const isFreeDelivery = (!isOutOfRange && (zoneInfo?.isInStore || (subtotal >= freeDeliveryLim && subtotal > 0)));
+    const finalDeliveryFee = (isFreeDelivery || zoneInfo?.isInStore) ? 0 : baseDeliveryFee;
 
     return {
         hasVerifiedGps,
@@ -4280,6 +4332,7 @@ function calculateDynamicDeliveryInfo(subtotal, customCoords = null) {
         baseDeliveryFee,
         isFreeDelivery,
         finalDeliveryFee,
+        isOutOfRange,
         freeDeliveryLimit: freeDeliveryLim
     };
 }
@@ -4287,10 +4340,10 @@ function calculateDynamicDeliveryInfo(subtotal, customCoords = null) {
 function isWithinDeliveryRadius(userLat, userLng) {
     const restLat = getRestaurantLat();
     const restLng = getRestaurantLng();
-    const maxRadius = getDeliveryRadiusKm();
+    const maxRadius = Math.min(10, getDeliveryRadiusKm());
     const dist = calculateDistanceHaversine(restLat, restLng, userLat, userLng);
     return {
-        isAllowed: dist <= maxRadius,
+        isAllowed: dist <= maxRadius && dist <= 10.0,
         distanceKm: parseFloat(dist.toFixed(2)),
         maxRadiusKm: maxRadius
     };
@@ -16202,6 +16255,17 @@ function applyIncomingSettingsData(data) {
         }
     }
 
+    let threshVal = undefined;
+    if (data.inStoreThreshold !== undefined && data.inStoreThreshold !== null && data.inStoreThreshold !== '') {
+        threshVal = parseFloat(data.inStoreThreshold);
+    } else if (data.in_store_threshold !== undefined && data.in_store_threshold !== null && data.in_store_threshold !== '') {
+        threshVal = parseFloat(data.in_store_threshold);
+    }
+    if (threshVal !== undefined && !isNaN(threshVal)) {
+        threshVal = Math.min(0.15, Math.max(0.05, parseFloat(threshVal.toFixed(2))));
+        localStorage.setItem(IN_STORE_THRESHOLD_KEY, threshVal.toFixed(2));
+    }
+
     const zones = data.flexibleZones !== undefined && data.flexibleZones !== null
         ? data.flexibleZones
         : (data.zoneCharges !== undefined && data.zoneCharges !== null ? data.zoneCharges : undefined);
@@ -16210,12 +16274,12 @@ function applyIncomingSettingsData(data) {
         if (typeof zones === 'string') {
             try { zonesObj = JSON.parse(zones); } catch (e) { }
         } else if (Array.isArray(zones)) {
-            for (let i = 1; i <= 6; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const zVal = zones[i - 1];
                 zonesObj[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
             }
         } else if (typeof zones === 'object' && zones !== null) {
-            for (let i = 1; i <= 6; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const zVal = zones[`zone${i}`] !== undefined ? zones[`zone${i}`] : zones[i];
                 zonesObj[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : 0;
             }

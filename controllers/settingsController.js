@@ -55,6 +55,43 @@ async function fetchLiveSettingsFromFirestore() {
                     lng: lng
                 };
             }
+
+            let thresh = undefined;
+            if (doc.inStoreThreshold !== undefined && doc.inStoreThreshold !== null && doc.inStoreThreshold !== '') {
+                thresh = Number(doc.inStoreThreshold);
+            } else if (doc.in_store_threshold !== undefined && doc.in_store_threshold !== null && doc.in_store_threshold !== '') {
+                thresh = Number(doc.in_store_threshold);
+            }
+            if (thresh !== undefined && !isNaN(thresh)) {
+                thresh = Math.min(0.15, Math.max(0.05, parseFloat(thresh.toFixed(2))));
+                doc.inStoreThreshold = thresh;
+                doc.in_store_threshold = thresh;
+            }
+
+            const rawLiveZones = doc.flexibleZones !== undefined ? doc.flexibleZones : doc.zoneCharges;
+            if (rawLiveZones) {
+                let zonesObj = {};
+                let zonesArr = [];
+                if (Array.isArray(rawLiveZones)) {
+                    for (let i = 1; i <= 10; i++) {
+                        const zVal = rawLiveZones[i - 1];
+                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
+                        zonesObj[`zone${i}`] = c;
+                        zonesArr.push(c !== null ? c : 0);
+                    }
+                } else if (typeof rawLiveZones === 'object' && rawLiveZones !== null) {
+                    for (let i = 1; i <= 10; i++) {
+                        const zVal = rawLiveZones[`zone${i}`] !== undefined ? rawLiveZones[`zone${i}`] : rawLiveZones[i];
+                        const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
+                        zonesObj[`zone${i}`] = c;
+                        zonesArr.push(c !== null ? c : 0);
+                    }
+                }
+                doc.flexibleZones = zonesObj;
+                doc.zoneCharges = zonesObj;
+                doc.flexibleZonesList = zonesArr;
+            }
+
             global.__perfettoStoreSettings = { ...global.__perfettoStoreSettings, ...doc };
         }
     } catch (e) {
@@ -147,19 +184,31 @@ async function handleSettingsRequest(req, res) {
                 updateFields.deliveryRadiusKm = r;
             }
 
+            let thresh = undefined;
+            if (body.inStoreThreshold !== undefined && body.inStoreThreshold !== null && body.inStoreThreshold !== '') {
+                thresh = Number(body.inStoreThreshold);
+            } else if (body.in_store_threshold !== undefined && body.in_store_threshold !== null && body.in_store_threshold !== '') {
+                thresh = Number(body.in_store_threshold);
+            }
+            if (thresh !== undefined && !isNaN(thresh)) {
+                thresh = Math.min(0.15, Math.max(0.05, parseFloat(thresh.toFixed(2))));
+                updateFields.inStoreThreshold = thresh;
+                updateFields.in_store_threshold = thresh;
+            }
+
             const zones = body.flexibleZones !== undefined ? body.flexibleZones : body.zoneCharges;
             if (zones !== undefined) {
                 let zonesObj = {};
                 let zonesArr = [];
                 if (Array.isArray(zones)) {
-                    for (let i = 1; i <= 6; i++) {
+                    for (let i = 1; i <= 10; i++) {
                         const zVal = zones[i - 1];
                         const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
                         zonesObj[`zone${i}`] = c;
                         zonesArr.push(c !== null ? c : 0);
                     }
                 } else if (typeof zones === 'object' && zones !== null) {
-                    for (let i = 1; i <= 6; i++) {
+                    for (let i = 1; i <= 10; i++) {
                         const zVal = zones[`zone${i}`] !== undefined ? zones[`zone${i}`] : zones[i];
                         const c = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
                         zonesObj[`zone${i}`] = c;

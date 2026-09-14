@@ -4211,23 +4211,58 @@
                         </div>
                     </div>
 
-                    <!-- FLEXIBLE ZONE DELIVERY CHARGES (6 INDEPENDENT DISTANCE ZONES) -->
+                    <!-- FLEXIBLE ZONE DELIVERY CHARGES (10 INDEPENDENT DISTANCE ZONES + IN-STORE THRESHOLD) -->
                     <div class="delivery-zones-section">
-                        <div class="delivery-zones-header">
-                            <h4>
-                                <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Flexible
-                                Zone Delivery Charges (₹)
-                            </h4>
-                            <p>Configure custom delivery charges for specific distance ranges from your restaurant
-                                location.</p>
+                        <div class="delivery-zones-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                            <div>
+                                <h4>
+                                    <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Flexible
+                                    Zone Delivery Charges (₹)
+                                </h4>
+                                <p>Configure custom delivery charges for specific distance ranges from your restaurant location.</p>
+                            </div>
+                            <!-- In-Store / Dine-In Distance Threshold Control (0.05 - 0.15 km) -->
+                            <div class="in-store-threshold-box" style="background: var(--bg-surface-elevated, #1e293b); border: 1.5px solid rgba(255, 107, 0, 0.3); border-radius: 12px; padding: 10px 16px; display: flex; align-items: center; gap: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                <div>
+                                    <label for="input-in-store-threshold" style="display: block; font-size: 0.82rem; font-weight: 700; color: #ffffff; margin-bottom: 2px;">
+                                        <i class="fa-solid fa-store" style="color: var(--accent-green, #10b981);"></i> In-Store / Dine-In Threshold (km)
+                                    </label>
+                                    <span style="font-size: 0.72rem; color: var(--text-muted); display: block;">Orders within this distance are ₹0 Delivery</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <button type="button" class="btn-radius-step" onclick="stepInStoreThreshold(-0.01)" title="Decrease threshold (-0.01 km)" style="width: 32px; height: 32px;">
+                                        <i class="fa-solid fa-minus"></i>
+                                    </button>
+                                    <input type="number" id="input-in-store-threshold" class="search-input" min="0.05" max="0.15" step="0.01" value="0.05"
+                                        oninput="onInStoreThresholdChange(this.value); markStoreSettingsDirty();"
+                                        onchange="onInStoreThresholdChange(this.value); markStoreSettingsDirty();"
+                                        style="width: 76px; text-align: center; font-weight: 800; font-family: monospace; font-size: 0.95rem; padding: 6px 4px; border-radius: 8px;">
+                                    <button type="button" class="btn-radius-step" onclick="stepInStoreThreshold(0.01)" title="Increase threshold (+0.01 km)" style="width: 32px; height: 32px;">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="delivery-zones-grid">
-                            <!-- Zone 1: 0 - 0.5 KM -->
+                            <!-- In-Store: 0 - [Threshold] KM (Always ₹0) -->
+                            <div class="zone-charge-card in-store-card" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.05);">
+                                <div class="zone-badge-label">
+                                    <span style="color: var(--accent-green, #10b981);"><i class="fa-solid fa-utensils"></i> In-Store</span>
+                                    <span class="zone-km-pill" id="zone-instore-km-pill" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">0 - 0.05 KM</span>
+                                </div>
+                                <div class="zone-charge-input-box" style="opacity: 0.95; padding-top: 4px;">
+                                    <span style="font-weight: 800; color: #10b981; font-size: 0.92rem; display: flex; align-items: center; gap: 4px;">
+                                        <i class="fa-solid fa-circle-check"></i> ₹ 0 (Free)
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- Zone 1: [Threshold] - 1.0 KM -->
                             <div class="zone-charge-card">
                                 <div class="zone-badge-label">
                                     <span>Zone 1</span>
-                                    <span class="zone-km-pill">0 - 0.5 KM</span>
+                                    <span class="zone-km-pill" id="zone-1-km-pill">0.05 - 1 KM</span>
                                 </div>
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
@@ -4236,11 +4271,11 @@
                                 </div>
                             </div>
 
-                            <!-- Zone 2: 0.5 - 2 KM -->
+                            <!-- Zone 2: 1.0 - 2.0 KM -->
                             <div class="zone-charge-card">
                                 <div class="zone-badge-label">
                                     <span>Zone 2</span>
-                                    <span class="zone-km-pill">0.5 - 2 KM</span>
+                                    <span class="zone-km-pill">1 - 2 KM</span>
                                 </div>
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
@@ -4249,11 +4284,11 @@
                                 </div>
                             </div>
 
-                            <!-- Zone 3: 2 - 4 KM -->
+                            <!-- Zone 3: 2.0 - 3.0 KM -->
                             <div class="zone-charge-card">
                                 <div class="zone-badge-label">
                                     <span>Zone 3</span>
-                                    <span class="zone-km-pill">2 - 4 KM</span>
+                                    <span class="zone-km-pill">2 - 3 KM</span>
                                 </div>
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
@@ -4262,11 +4297,11 @@
                                 </div>
                             </div>
 
-                            <!-- Zone 4: 4 - 6 KM -->
+                            <!-- Zone 4: 3.0 - 4.0 KM -->
                             <div class="zone-charge-card">
                                 <div class="zone-badge-label">
                                     <span>Zone 4</span>
-                                    <span class="zone-km-pill">4 - 6 KM</span>
+                                    <span class="zone-km-pill">3 - 4 KM</span>
                                 </div>
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
@@ -4275,11 +4310,11 @@
                                 </div>
                             </div>
 
-                            <!-- Zone 5: 6 - 8 KM -->
+                            <!-- Zone 5: 4.0 - 5.0 KM -->
                             <div class="zone-charge-card">
                                 <div class="zone-badge-label">
                                     <span>Zone 5</span>
-                                    <span class="zone-km-pill">6 - 8 KM</span>
+                                    <span class="zone-km-pill">4 - 5 KM</span>
                                 </div>
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
@@ -4288,15 +4323,67 @@
                                 </div>
                             </div>
 
-                            <!-- Zone 6: 8 - 10 KM -->
+                            <!-- Zone 6: 5.0 - 6.0 KM -->
                             <div class="zone-charge-card">
                                 <div class="zone-badge-label">
                                     <span>Zone 6</span>
-                                    <span class="zone-km-pill">8 - 10 KM</span>
+                                    <span class="zone-km-pill">5 - 6 KM</span>
                                 </div>
                                 <div class="zone-charge-input-box">
                                     <i class="fa-solid fa-indian-rupee-sign"></i>
                                     <input type="number" id="input-zone-charge-6" class="zone-charge-input" min="0"
+                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                </div>
+                            </div>
+
+                            <!-- Zone 7: 6.0 - 7.0 KM -->
+                            <div class="zone-charge-card">
+                                <div class="zone-badge-label">
+                                    <span>Zone 7</span>
+                                    <span class="zone-km-pill">6 - 7 KM</span>
+                                </div>
+                                <div class="zone-charge-input-box">
+                                    <i class="fa-solid fa-indian-rupee-sign"></i>
+                                    <input type="number" id="input-zone-charge-7" class="zone-charge-input" min="0"
+                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                </div>
+                            </div>
+
+                            <!-- Zone 8: 7.0 - 8.0 KM -->
+                            <div class="zone-charge-card">
+                                <div class="zone-badge-label">
+                                    <span>Zone 8</span>
+                                    <span class="zone-km-pill">7 - 8 KM</span>
+                                </div>
+                                <div class="zone-charge-input-box">
+                                    <i class="fa-solid fa-indian-rupee-sign"></i>
+                                    <input type="number" id="input-zone-charge-8" class="zone-charge-input" min="0"
+                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                </div>
+                            </div>
+
+                            <!-- Zone 9: 8.0 - 9.0 KM -->
+                            <div class="zone-charge-card">
+                                <div class="zone-badge-label">
+                                    <span>Zone 9</span>
+                                    <span class="zone-km-pill">8 - 9 KM</span>
+                                </div>
+                                <div class="zone-charge-input-box">
+                                    <i class="fa-solid fa-indian-rupee-sign"></i>
+                                    <input type="number" id="input-zone-charge-9" class="zone-charge-input" min="0"
+                                        placeholder="" oninput="markStoreSettingsDirty()">
+                                </div>
+                            </div>
+
+                            <!-- Zone 10: 9.0 - 10.0 KM -->
+                            <div class="zone-charge-card">
+                                <div class="zone-badge-label">
+                                    <span>Zone 10</span>
+                                    <span class="zone-km-pill">9 - 10 KM</span>
+                                </div>
+                                <div class="zone-charge-input-box">
+                                    <i class="fa-solid fa-indian-rupee-sign"></i>
+                                    <input type="number" id="input-zone-charge-10" class="zone-charge-input" min="0"
                                         placeholder="" oninput="markStoreSettingsDirty()">
                                 </div>
                             </div>
@@ -8308,7 +8395,7 @@
             evaluateAndSyncShopStatus(true);
         }
 
-        // 6 Flexible Zone Delivery Charges Keys & Defaults
+        // 10 Flexible Zone Delivery Charges Keys & Defaults
         const ZONE_CHARGES_KEY = 'perfettoDeliveryZones';
         const DEFAULT_ZONE_CHARGES = {
             zone1: 0,
@@ -8316,8 +8403,66 @@
             zone3: 0,
             zone4: 0,
             zone5: 0,
-            zone6: 0
+            zone6: 0,
+            zone7: 0,
+            zone8: 0,
+            zone9: 0,
+            zone10: 0
         };
+
+        // In-Store / Dine-In Distance Threshold (0.05 km - 0.15 km)
+        const IN_STORE_THRESHOLD_KEY = 'perfetto_in_store_threshold';
+        const DEFAULT_IN_STORE_THRESHOLD = 0.05;
+
+        function getInStoreThreshold() {
+            const val = localStorage.getItem(IN_STORE_THRESHOLD_KEY);
+            if (val !== null && val !== undefined && val !== '') {
+                const parsed = parseFloat(val);
+                if (!isNaN(parsed)) {
+                    return Math.min(0.15, Math.max(0.05, parseFloat(parsed.toFixed(2))));
+                }
+            }
+            return DEFAULT_IN_STORE_THRESHOLD;
+        }
+
+        function updateInStoreThresholdUI(val) {
+            const clamped = Math.min(0.15, Math.max(0.05, parseFloat(Number(val).toFixed(2))));
+            const thresholdInput = document.getElementById('input-in-store-threshold');
+            if (thresholdInput) {
+                thresholdInput.value = clamped.toFixed(2);
+            }
+            const inStoreKmPill = document.getElementById('zone-instore-km-pill');
+            if (inStoreKmPill) {
+                inStoreKmPill.textContent = `0 - ${clamped.toFixed(2)} KM`;
+            }
+            const zone1KmPill = document.getElementById('zone-1-km-pill');
+            if (zone1KmPill) {
+                zone1KmPill.textContent = `${clamped.toFixed(2)} - 1 KM`;
+            }
+        }
+
+        function stepInStoreThreshold(delta) {
+            const current = getInStoreThreshold();
+            const next = Math.min(0.15, Math.max(0.05, parseFloat((current + delta).toFixed(2))));
+            localStorage.setItem(IN_STORE_THRESHOLD_KEY, next.toFixed(2));
+            updateInStoreThresholdUI(next);
+            if (typeof markStoreSettingsDirty === 'function') markStoreSettingsDirty();
+        }
+
+        function onInStoreThresholdChange(val) {
+            let parsed = parseFloat(val);
+            if (isNaN(parsed)) parsed = DEFAULT_IN_STORE_THRESHOLD;
+            const clamped = Math.min(0.15, Math.max(0.05, parseFloat(parsed.toFixed(2))));
+            localStorage.setItem(IN_STORE_THRESHOLD_KEY, clamped.toFixed(2));
+            const inStoreKmPill = document.getElementById('zone-instore-km-pill');
+            if (inStoreKmPill) {
+                inStoreKmPill.textContent = `0 - ${clamped.toFixed(2)} KM`;
+            }
+            const zone1KmPill = document.getElementById('zone-1-km-pill');
+            if (zone1KmPill) {
+                zone1KmPill.textContent = `${clamped.toFixed(2)} - 1 KM`;
+            }
+        }
 
         const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
         const DEFAULT_RESTAURANT_LAT = 29.533736;
@@ -8340,7 +8485,7 @@
                 if (stored) {
                     const parsed = JSON.parse(stored);
                     const result = {};
-                    for (let i = 1; i <= 6; i++) {
+                    for (let i = 1; i <= 10; i++) {
                         const key = `zone${i}`;
                         const raw = parsed[key];
                         if (raw !== undefined && raw !== null && raw !== '') {
@@ -8355,7 +8500,10 @@
             } catch (e) {
                 console.error('Error reading delivery zone charges:', e);
             }
-            return { zone1: null, zone2: null, zone3: null, zone4: null, zone5: null, zone6: null };
+            return {
+                zone1: null, zone2: null, zone3: null, zone4: null, zone5: null,
+                zone6: null, zone7: null, zone8: null, zone9: null, zone10: null
+            };
         }
 
         function getMinOrderValue() {
@@ -8926,23 +9074,39 @@
                 }
             }
 
-            // 10. Flexible Zones (Zones 1 through 6)
+            // 10. In-Store / Dine-In Distance Threshold (0.05 - 0.15 km)
+            let threshVal = undefined;
+            if (data.inStoreThreshold !== undefined && data.inStoreThreshold !== null && data.inStoreThreshold !== '') {
+                threshVal = parseFloat(data.inStoreThreshold);
+            } else if (data.in_store_threshold !== undefined && data.in_store_threshold !== null && data.in_store_threshold !== '') {
+                threshVal = parseFloat(data.in_store_threshold);
+            }
+            if (threshVal !== undefined && !isNaN(threshVal)) {
+                threshVal = Math.min(0.15, Math.max(0.05, parseFloat(threshVal.toFixed(2))));
+                localStorage.setItem(IN_STORE_THRESHOLD_KEY, threshVal.toFixed(2));
+                const thresholdInput = document.getElementById('input-in-store-threshold');
+                if (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== thresholdInput)) {
+                    updateInStoreThresholdUI(threshVal);
+                }
+            }
+
+            // 11. Flexible Zones (Zones 1 through 10)
             const rawZones = data.flexibleZones !== undefined ? data.flexibleZones : data.zoneCharges;
             if (rawZones) {
                 const zonesMap = {};
                 if (Array.isArray(rawZones)) {
-                    for (let i = 1; i <= 6; i++) {
+                    for (let i = 1; i <= 10; i++) {
                         const zVal = rawZones[i - 1];
                         zonesMap[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
                     }
                 } else if (typeof rawZones === 'object') {
-                    for (let i = 1; i <= 6; i++) {
+                    for (let i = 1; i <= 10; i++) {
                         const zVal = rawZones[`zone${i}`] !== undefined ? rawZones[`zone${i}`] : rawZones[i];
                         zonesMap[`zone${i}`] = (zVal !== null && zVal !== undefined && zVal !== '') ? (parseFloat(zVal) || 0) : null;
                     }
                 }
                 localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(zonesMap));
-                for (let i = 1; i <= 6; i++) {
+                for (let i = 1; i <= 10; i++) {
                     const zInput = document.getElementById(`input-zone-charge-${i}`);
                     if (zInput && (forceUIUpdate || (!isStoreSettingsDirty && activeEl !== zInput))) {
                         const val = zonesMap[`zone${i}`];
@@ -9045,8 +9209,11 @@
             currentAdminDeliveryRadius = getDeliveryRadiusKm();
             updateRadiusStepperUI(currentAdminDeliveryRadius);
 
+            const inStoreThreshold = getInStoreThreshold();
+            updateInStoreThresholdUI(inStoreThreshold);
+
             const zoneCharges = getDeliveryZoneCharges();
-            for (let i = 1; i <= 6; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const zoneInput = document.getElementById(`input-zone-charge-${i}`);
                 if (zoneInput) {
                     const val = zoneCharges[`zone${i}`];
@@ -9133,10 +9300,16 @@
             const isAutoScheduleOn = toggleAutoSchedule ? toggleAutoSchedule.checked : getAutoScheduleEnabled();
             const manualOverrideVal = 'none';
 
-            // Collect 6 Flexible Zone Delivery Charges
+            // Collect In-Store / Dine-In Distance Threshold
+            const thresholdInput = document.getElementById('input-in-store-threshold');
+            let inStoreThresholdVal = (thresholdInput && thresholdInput.value.trim() !== '') ? parseFloat(thresholdInput.value) : getInStoreThreshold();
+            if (isNaN(inStoreThresholdVal)) inStoreThresholdVal = DEFAULT_IN_STORE_THRESHOLD;
+            inStoreThresholdVal = Math.min(0.15, Math.max(0.05, parseFloat(inStoreThresholdVal.toFixed(2))));
+
+            // Collect 10 Flexible Zone Delivery Charges
             const zoneCharges = {};
             const flexibleZonesList = [];
-            for (let i = 1; i <= 6; i++) {
+            for (let i = 1; i <= 10; i++) {
                 const zInput = document.getElementById(`input-zone-charge-${i}`);
                 let charge = null;
                 if (zInput && zInput.value.trim() !== '') {
@@ -9198,6 +9371,7 @@
                 localStorage.setItem(RESTAURANT_LAT_KEY, latVal.toString());
                 localStorage.setItem(RESTAURANT_LNG_KEY, lngVal.toString());
                 localStorage.setItem(DELIVERY_RADIUS_KEY, radiusVal.toString());
+                localStorage.setItem(IN_STORE_THRESHOLD_KEY, inStoreThresholdVal.toFixed(2));
                 localStorage.setItem(ZONE_CHARGES_KEY, JSON.stringify(zoneCharges));
                 localStorage.setItem(OPENING_TIME_KEY, openingTimeVal);
                 localStorage.setItem(CLOSING_TIME_KEY, closingTimeVal);
@@ -9223,6 +9397,8 @@
                     closingTime: closingTimeVal,
                     autoScheduleMode: isAutoScheduleOn,
                     autoScheduleEnabled: isAutoScheduleOn,
+                    inStoreThreshold: inStoreThresholdVal,
+                    in_store_threshold: inStoreThresholdVal,
                     flexibleZones: zoneCharges,
                     flexibleZonesList: flexibleZonesList,
                     zoneCharges: zoneCharges,
