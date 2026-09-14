@@ -2329,14 +2329,33 @@ function getDynamicTimerColor(elapsedSec) {
     };
 }
 
-const PENDING_STAFF_STATUSES = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready"]);
+const PENDING_STAFF_STATUSES = new Set([
+    "new",
+    "placed",
+    "pending",
+    "confirmed",
+    "received",
+    "order_placed",
+    "preparing",
+    "kitchen",
+    "ready",
+    "ready_for_pickup",
+    "delivery",
+    "out_for_delivery",
+    "out-for-delivery",
+    "dispatched",
+    "in_transit"
+]);
 const COMPLETED_STAFF_STATUSES = new Set(["delivered", "completed"]);
 const REJECTED_STAFF_STATUSES = new Set(["rejected", "cancelled", "canceled", "declined"]);
 
 function isPendingStaffOrder(order) {
     if (!order) return false;
     const s = String(order.status || '').trim().toLowerCase();
-    return PENDING_STAFF_STATUSES.has(s);
+    // Strictly exclude completed and rejected/cancelled orders
+    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
+    // Any other order status is considered pending/active in kitchen
+    return PENDING_STAFF_STATUSES.has(s) || true;
 }
 
 function isCompletedStaffOrder(order) {
@@ -2895,6 +2914,7 @@ function renderOrders() {
 
     if (currentList.length === 0) {
         container.innerHTML = '';
+        container.style.display = 'none';
         if (emptyState) {
             if (currentStaffTab === 'pending') {
                 emptyState.innerHTML = `
@@ -2921,6 +2941,7 @@ function renderOrders() {
     }
 
     if (emptyState) emptyState.style.display = 'none';
+    container.style.display = '';
 
     // Pending orders: Oldest first (FIFO kitchen priority)
     // Completed & Rejected orders: Most recently finished first (LIFO)
@@ -3261,7 +3282,10 @@ function buildOrderCardHTML(order) {
         </div>
     `;
 
-    if (order.status === 'new') {
+    const normalizedStatus = String(order.status || '').trim().toLowerCase();
+    const isInitialOrderState = ['new', 'placed', 'pending', 'confirmed', 'received', 'order_placed'].includes(normalizedStatus);
+
+    if (isInitialOrderState) {
         actionButtonsHTML = `
             <div class="cod-action-group">
                 <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''}>
@@ -4906,12 +4930,27 @@ function hideIncomingOrderModal() {
 window.hideIncomingOrderModal = hideIncomingOrderModal;
 
 /**
- * Dismisses the incoming order popup and silences the continuous audio loop
+ * Dismisses the incoming order popup and silences the continuous audio loop,
+ * while keeping the incoming order card fully visible and operable in the Pending Orders queue.
  */
 function dismissIncomingOrderAlert() {
+    const alertingId = currentAlertingOrderId;
     stopOrderAlertAudio();
     hideIncomingOrderModal();
-    showStaffToast('Order alert silenced.');
+
+    // Ensure the pending orders tab is active and re-render the pending feed
+    if (currentStaffTab !== 'pending') {
+        switchStaffTab('pending');
+    } else {
+        renderOrders();
+    }
+
+    // Ensure interactive state on the dismissed order card
+    if (alertingId) {
+        ensureOrderCardInteractive(alertingId);
+    }
+
+    showStaffToast('Order alert silenced. Order is waiting in Pending queue.');
 }
 window.dismissIncomingOrderAlert = dismissIncomingOrderAlert;
 
