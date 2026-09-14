@@ -26,6 +26,11 @@ app.get('/kitchen', (req, res) => res.sendFile(path.join(__dirname, 'staff.html'
 app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
 app.get('/refund', (req, res) => res.sendFile(path.join(__dirname, 'refund.html')));
+app.get('/firebase-messaging-sw.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.sendFile(path.join(__dirname, 'firebase-messaging-sw.js'));
+});
 
 // Serve static HTML/CSS/JS/Assets from root
 app.use(express.static(__dirname));

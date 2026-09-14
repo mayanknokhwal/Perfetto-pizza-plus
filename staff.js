@@ -60,15 +60,135 @@ const firebaseConfig = window.FIREBASE_CONFIG || {
   storageBucket: "website-fa79c.firebasestorage.app",
   messagingSenderId: "1070276115284",
   appId: "1:1070276115284:web:ebcb37d56f3af2a2d326c1",
-  measurementId: "G-DT7MRXDMZ0"
+  measurementId: "G-DT7MRXDMZ0",
+  vapidKey: "BAzvQIJwnZ7a1vVUH4k9sNE3dHGFN2b5wRiwe8Ae4AAIjGN-RqTouVe36mYj-HhI-R1RTkFYvbuOtFQ1tjfDvIk"
 };
 const FIREBASE_CONFIG = firebaseConfig;
 window.FIREBASE_CONFIG = firebaseConfig;
+const FIREBASE_VAPID_KEY = window.FIREBASE_VAPID_KEY || (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.vapidKey) || "BAzvQIJwnZ7a1vVUH4k9sNE3dHGFN2b5wRiwe8Ae4AAIjGN-RqTouVe36mYj-HhI-R1RTkFYvbuOtFQ1tjfDvIk";
+window.FIREBASE_VAPID_KEY = FIREBASE_VAPID_KEY;
 
 let staffFirebaseAuth = null;
 let staffFirestore = null;
 let staffOrdersUnsubscribe = null;
 let staffTeamUnsubscribe = null;
+let staffFcmMessaging = null;
+let staffFcmToken = null;
+let staffSwRegistration = null;
+
+/**
+ * Production-grade FCM Web Push & Service Worker Engine
+ */
+async function initStaffFCM() {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+        console.log('ℹ️ [FCM Web Push] ServiceWorker not supported on this platform.');
+        return null;
+    }
+
+    try {
+        if (!staffSwRegistration) {
+            staffSwRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                scope: '/'
+            });
+            console.log('✅ [FCM Service Worker] Registered successfully with scope:', staffSwRegistration.scope);
+        }
+
+        if (typeof firebase !== 'undefined' && firebase.messaging) {
+            if (!staffFcmMessaging) {
+                if (!firebase.apps || !firebase.apps.length) {
+                    const config = window.FIREBASE_CONFIG || firebaseConfig;
+                    try { firebase.initializeApp(config); } catch (e) { }
+                }
+                staffFcmMessaging = firebase.messaging();
+
+                // Listen for foreground FCM push messages
+                staffFcmMessaging.onMessage((payload) => {
+                    console.log('📬 [FCM Foreground Push] Received message:', payload);
+                    const data = payload.data || payload.notification || {};
+                    const orderNumber = data.orderNumber || data.orderId || data.id || 'New';
+                    const customerName = data.customerName || data.customer || 'Customer';
+                    const items = data.items || data.itemsSummary || 'Pizza Order';
+                    const total = data.total || data.totalAmount || '';
+                    const summary = total ? `${customerName} • ${items} • ₹${total}` : `${customerName} • ${items}`;
+
+                    // Hybrid Dual-Layer Alert Trigger:
+                    // 1. Trigger continuous physical chime alert
+                    startOrderAlertAudio(orderNumber, summary);
+
+                    // 2. Hardware haptics
+                    triggerStaffVibration();
+
+                    // 3. Foreground-fallback notification if tab is hidden
+                    if (document.visibilityState === 'hidden') {
+                        dispatchStaffOrderNotification(orderNumber, summary);
+                    }
+                });
+            }
+
+            // Retrieve push token if permission is already granted
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                await requestAndRegisterStaffFcmToken(staffSwRegistration);
+            }
+        }
+
+        return staffSwRegistration;
+    } catch (err) {
+        console.warn('FCM Service Worker initialization notice:', err.message);
+        return null;
+    }
+}
+window.initStaffFCM = initStaffFCM;
+
+async function requestAndRegisterStaffFcmToken(swReg) {
+    if (typeof firebase === 'undefined' || !firebase.messaging) return null;
+    try {
+        const messaging = staffFcmMessaging || firebase.messaging();
+        const reg = swReg || staffSwRegistration || (await navigator.serviceWorker.ready);
+
+        const token = await messaging.getToken({
+            vapidKey: FIREBASE_VAPID_KEY,
+            serviceWorkerRegistration: reg
+        });
+
+        if (token) {
+            console.log('🔑 [FCM Web Push Token] Registration successful:', token.slice(0, 16) + '...');
+            staffFcmToken = token;
+            window.staffFcmToken = token;
+            recordStaffDeviceToken(token);
+            return token;
+        } else {
+            console.warn('⚠️ [FCM Web Push] No registration token returned.');
+        }
+    } catch (err) {
+        console.warn('Notice acquiring FCM registration token:', err.message);
+    }
+    return null;
+}
+window.requestAndRegisterStaffFcmToken = requestAndRegisterStaffFcmToken;
+
+async function recordStaffDeviceToken(token) {
+    if (!token) return;
+    try {
+        const db = getStaffFirestore();
+        if (db) {
+            const staffUser = currentStaffUser || {};
+            const staffPhone = staffUser.phone || staffUser.mobile || 'staff';
+            const docId = String(token).slice(0, 36).replace(/[^a-zA-Z0-9_-]/g, '_');
+            await db.collection('staff_devices').doc(docId).set({
+                token: token,
+                phone: staffPhone,
+                role: staffUser.role || 'staff',
+                name: staffUser.fullName || staffUser.name || 'Kitchen Staff',
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userAgent: (typeof navigator !== 'undefined' && navigator.userAgent) || ''
+            }, { merge: true });
+            console.log('☁️ [FCM Device Registered] Token recorded in Firestore staff_devices.');
+        }
+    } catch (err) {
+        console.warn('Notice saving FCM device token to Firestore:', err.message);
+    }
+}
+window.recordStaffDeviceToken = recordStaffDeviceToken;
 
 function getStaffFirestore() {
     if (staffFirestore) return staffFirestore;
@@ -101,6 +221,8 @@ async function initStaffFirebase() {
         if (db) {
             listenToFirestoreStaffOrders();
         }
+        // Initialize FCM Service Worker and push messaging
+        initStaffFCM();
     } catch (e) {
         console.warn('Staff Firebase init notice:', e.message);
     }
@@ -705,6 +827,11 @@ function unlockStaffDashboard(user) {
     applyStaffTabFromUrl();
     scheduleClientMidnightCleanup();
     stopStaffOrderAlertSound();
+
+    // Register & persist staff FCM push token upon authentication
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        requestAndRegisterStaffFcmToken();
+    }
 }
 
 let activeStaffSessionListener = null;
@@ -2164,11 +2291,19 @@ let hasUniversalAudioUnlocked = false;
  */
 function setupUniversalAudioUnlock() {
     const handleFirstInteraction = (event) => {
-        // 1. Request Web Notification permission on genuine user gesture
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-            try {
-                Notification.requestPermission().catch(() => {});
-            } catch (e) { }
+        // 1. Request Web Notification permission on genuine user gesture & register FCM token
+        if (typeof Notification !== 'undefined') {
+            if (Notification.permission === 'default') {
+                try {
+                    Notification.requestPermission().then((perm) => {
+                        if (perm === 'granted') {
+                            requestAndRegisterStaffFcmToken();
+                        }
+                    }).catch(() => {});
+                } catch (e) { }
+            } else if (Notification.permission === 'granted') {
+                requestAndRegisterStaffFcmToken();
+            }
         }
 
         // 2. Unlock Web AudioContext if suspended
@@ -2220,11 +2355,19 @@ function setupUniversalAudioUnlock() {
 window.setupUniversalAudioUnlock = setupUniversalAudioUnlock;
 
 function unlockStaffAudioAlerts(silent = true) {
-    // 1. Request Web Notification permission if still default
-    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        try {
-            Notification.requestPermission().catch(() => {});
-        } catch (e) { }
+    // 1. Request Web Notification permission if still default & acquire FCM token
+    if (typeof Notification !== 'undefined') {
+        if (Notification.permission === 'default') {
+            try {
+                Notification.requestPermission().then((perm) => {
+                    if (perm === 'granted') {
+                        requestAndRegisterStaffFcmToken();
+                    }
+                }).catch(() => {});
+            } catch (e) { }
+        } else if (Notification.permission === 'granted') {
+            requestAndRegisterStaffFcmToken();
+        }
     }
 
     // 2. Resume Web Audio Context if suspended
@@ -5023,6 +5166,8 @@ function startOrderAlertAudio(orderId = '', details = '') {
         startSynthesizedBeepLoop();
     }
 }
+window.startOrderAlertAudio = startOrderAlertAudio;
+window.triggerIncomingOrderAlert = startOrderAlertAudio;
 
 /**
  * Stops and resets the order alert audio immediately (audio.pause(), audio.currentTime = 0)
