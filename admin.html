@@ -4488,7 +4488,7 @@
                                             <i class="fa-solid fa-plus"></i>
                                         </button>
                                     </div>
-                                    <span style="font-size: 0.76rem; color: var(--text-muted);">(0.5 – 10 KM)</span>
+                                    <span id="radius-bounds-label" style="font-size: 0.76rem; color: var(--text-muted);">(0.05 – 10.0 KM)</span>
                                 </div>
                             </div>
                         </div>
@@ -8587,6 +8587,16 @@
             if (zone1KmPill) {
                 zone1KmPill.textContent = `${clamped.toFixed(2)} - 1 KM`;
             }
+
+            // Enforce that delivery radius cannot be lower than the dynamic in-store threshold
+            if (currentAdminDeliveryRadius < clamped) {
+                currentAdminDeliveryRadius = clamped;
+                localStorage.setItem(DELIVERY_RADIUS_KEY, String(currentAdminDeliveryRadius));
+                if (adminCoverageCircle) {
+                    adminCoverageCircle.setRadius(currentAdminDeliveryRadius * 1000);
+                }
+            }
+            updateRadiusStepperUI(currentAdminDeliveryRadius);
         }
 
         function stepInStoreThreshold(delta) {
@@ -8610,6 +8620,16 @@
             if (zone1KmPill) {
                 zone1KmPill.textContent = `${clamped.toFixed(2)} - 1 KM`;
             }
+
+            // Enforce that delivery radius cannot be lower than the dynamic in-store threshold
+            if (currentAdminDeliveryRadius < clamped) {
+                currentAdminDeliveryRadius = clamped;
+                localStorage.setItem(DELIVERY_RADIUS_KEY, String(currentAdminDeliveryRadius));
+                if (adminCoverageCircle) {
+                    adminCoverageCircle.setRadius(currentAdminDeliveryRadius * 1000);
+                }
+            }
+            updateRadiusStepperUI(currentAdminDeliveryRadius);
         }
 
         const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
@@ -8723,10 +8743,11 @@
 
         function getDeliveryRadiusKm() {
             const val = localStorage.getItem(DELIVERY_RADIUS_KEY);
+            const minThreshold = getInStoreThreshold();
             let num = val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
-            if (isNaN(num) || num < 0.5) num = 0.5;
+            if (isNaN(num) || num < minThreshold) num = minThreshold;
             if (num > 10.0) num = 10.0;
-            return parseFloat(num.toFixed(1));
+            return parseFloat(num.toFixed(2));
         }
 
         // Active in-memory delivery radius (can be stepped by admin before saving)
@@ -8958,10 +8979,11 @@
             adminLeafletMap.panTo(newPos);
         }
 
-        // STEP-BY-STEP RADIUS CONTROLLER (0.5 KM INCREMENTS/DECREMENTS, MIN 0.5 KM, MAX 10.0 KM)
+        // STEP-BY-STEP RADIUS CONTROLLER (DYNAMIC MIN inStoreThreshold, MAX 10.0 KM)
         function stepDeliveryRadius(step) {
-            let nextVal = parseFloat((currentAdminDeliveryRadius + step).toFixed(1));
-            if (nextVal < 0.5) nextVal = 0.5;
+            const minThreshold = getInStoreThreshold();
+            let nextVal = parseFloat((currentAdminDeliveryRadius + step).toFixed(2));
+            if (nextVal < minThreshold) nextVal = minThreshold;
             if (nextVal > 10.0) nextVal = 10.0;
 
             currentAdminDeliveryRadius = nextVal;
@@ -8975,15 +8997,20 @@
         }
 
         function updateRadiusStepperUI(val) {
+            const minThreshold = getInStoreThreshold();
             const displayEl = document.getElementById('radius-step-display');
             const btnDec = document.getElementById('btn-radius-dec');
             const btnInc = document.getElementById('btn-radius-inc');
+            const boundsLabel = document.getElementById('radius-bounds-label');
 
             if (displayEl) {
-                displayEl.textContent = `${val.toFixed(1)} KM`;
+                displayEl.textContent = `${Number(val).toFixed(2)} KM`;
+            }
+            if (boundsLabel) {
+                boundsLabel.textContent = `(${minThreshold.toFixed(2)} – 10.0 KM)`;
             }
             if (btnDec) {
-                btnDec.disabled = (val <= 0.5);
+                btnDec.disabled = (val <= minThreshold);
             }
             if (btnInc) {
                 btnInc.disabled = (val >= 10.0);
@@ -9178,12 +9205,13 @@
                 }
             }
 
-            // 7. Delivery Radius [0.5 - 10.0 KM]
+            // 7. Delivery Radius [inStoreThreshold - 10.0 KM]
+            const minThresh = getInStoreThreshold();
             let radVal = data.deliveryRadius !== undefined ? parseFloat(data.deliveryRadius) : (data.deliveryRadiusKm !== undefined ? parseFloat(data.deliveryRadiusKm) : undefined);
             if (radVal !== undefined && !isNaN(radVal)) {
-                if (radVal < 0.5) radVal = 0.5;
+                if (radVal < minThresh) radVal = minThresh;
                 if (radVal > 10.0) radVal = 10.0;
-                radVal = parseFloat(radVal.toFixed(1));
+                radVal = parseFloat(radVal.toFixed(2));
                 currentAdminDeliveryRadius = radVal;
                 localStorage.setItem(DELIVERY_RADIUS_KEY, String(radVal));
                 updateRadiusStepperUI(currentAdminDeliveryRadius);
@@ -9451,21 +9479,21 @@
             const latVal = (latInput && latInput.value.trim() !== '') ? Number(parseFloat(latInput.value).toFixed(6)) : getRestaurantLat();
             const lngVal = (lngInput && lngInput.value.trim() !== '') ? Number(parseFloat(lngInput.value).toFixed(6)) : getRestaurantLng();
 
-            let radiusVal = parseFloat(currentAdminDeliveryRadius);
-            if (isNaN(radiusVal) || radiusVal < 0.5) radiusVal = 0.5;
-            if (radiusVal > 10.0) radiusVal = 10.0;
-            radiusVal = parseFloat(radiusVal.toFixed(1));
-
-            const openingTimeVal = opValidation.openTime;
-            const closingTimeVal = opValidation.closeTime;
-            const isAutoScheduleOn = toggleAutoSchedule ? toggleAutoSchedule.checked : getAutoScheduleEnabled();
-            const manualOverrideVal = 'none';
-
             // Collect In-Store / Dine-In Distance Threshold
             const thresholdInput = document.getElementById('input-in-store-threshold');
             let inStoreThresholdVal = (thresholdInput && thresholdInput.value.trim() !== '') ? parseFloat(thresholdInput.value) : getInStoreThreshold();
             if (isNaN(inStoreThresholdVal)) inStoreThresholdVal = DEFAULT_IN_STORE_THRESHOLD;
             inStoreThresholdVal = Math.min(0.15, Math.max(0.05, parseFloat(inStoreThresholdVal.toFixed(2))));
+
+            let radiusVal = parseFloat(currentAdminDeliveryRadius);
+            if (isNaN(radiusVal) || radiusVal < inStoreThresholdVal) radiusVal = inStoreThresholdVal;
+            if (radiusVal > 10.0) radiusVal = 10.0;
+            radiusVal = parseFloat(radiusVal.toFixed(2));
+
+            const openingTimeVal = opValidation.openTime;
+            const closingTimeVal = opValidation.closeTime;
+            const isAutoScheduleOn = toggleAutoSchedule ? toggleAutoSchedule.checked : getAutoScheduleEnabled();
+            const manualOverrideVal = 'none';
 
             // Collect 10 Flexible Zone Delivery Charges
             const zoneCharges = {};

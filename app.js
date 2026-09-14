@@ -4208,7 +4208,11 @@ function getRestaurantLng() {
 
 function getDeliveryRadiusKm() {
     const val = localStorage.getItem(DELIVERY_RADIUS_KEY);
-    return val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
+    const minThreshold = getInStoreThreshold();
+    let num = val !== null ? parseFloat(val) : DEFAULT_DELIVERY_RADIUS_KM;
+    if (isNaN(num) || num < minThreshold) num = minThreshold;
+    if (num > 10.0) num = 10.0;
+    return parseFloat(num.toFixed(2));
 }
 
 // Calculate distance in kilometers between two coordinates using Haversine formula
@@ -4267,7 +4271,7 @@ function getDeliveryZoneForDistance(distKm) {
 function getCustomerVerifiedCoordinates() {
     // 1. In-memory confirmed GPS coordinates
     if (currentCustomerGps && typeof currentCustomerGps.lat === 'number' && typeof currentCustomerGps.lng === 'number' && !isNaN(currentCustomerGps.lat) && !isNaN(currentCustomerGps.lng)) {
-        return { lat: currentCustomerGps.lat, lng: currentCustomerGps.lng };
+        return { lat: currentCustomerGps.lat, lng: currentCustomerGps.lng, isLiveGps: Boolean(currentCustomerGps.isLiveGps) };
     }
 
     // 2. Hidden inputs in profile form
@@ -4277,7 +4281,8 @@ function getCustomerVerifiedCoordinates() {
         const lat = parseFloat(latHidden.value);
         const lng = parseFloat(lngHidden.value);
         if (!isNaN(lat) && !isNaN(lng)) {
-            return { lat, lng };
+            const isLive = document.getElementById('customer-gps-is-live')?.value === 'true';
+            return { lat, lng, isLiveGps: isLive };
         }
     }
 
@@ -4290,7 +4295,7 @@ function getCustomerVerifiedCoordinates() {
                 const lat = parseFloat(p.gpsLat);
                 const lng = parseFloat(p.gpsLng);
                 if (!isNaN(lat) && !isNaN(lng)) {
-                    return { lat, lng };
+                    return { lat, lng, isLiveGps: Boolean(p.isLiveGps) };
                 }
             }
         }
@@ -4323,7 +4328,16 @@ function calculateDynamicDeliveryInfo(subtotal, customCoords = null) {
         isOutOfRange = zoneInfo.isOutOfRange || (distanceKm > maxRadius) || (distanceKm > 10.0);
 
         if (zoneInfo.isInStore || distanceKm <= threshold) {
-            baseDeliveryFee = 0;
+            // Dine-in / In-Store (₹0 delivery fee) strictly requires verification via live "Detect My Live GPS"
+            if (coords && coords.isLiveGps === true) {
+                baseDeliveryFee = 0;
+            } else {
+                // Manual selection without verified live GPS: apply Zone 1 delivery fee
+                const configuredCharge = zoneCharges.zone1;
+                baseDeliveryFee = (configuredCharge !== undefined && configuredCharge !== null && !isNaN(configuredCharge))
+                    ? parseFloat(configuredCharge)
+                    : 0;
+            }
         } else if (isOutOfRange) {
             baseDeliveryFee = 0;
         } else {
@@ -9841,6 +9855,83 @@ let currentCustomerGps = null; // Confirmed coords { lat: number, lng: number }
 let lastGpsAccuracyMeters = null; // Accuracy in meters from Geolocation API
 const MAX_ALLOWED_ACCURACY_METERS = 250; // Threshold for precise location (anything higher is approximate/rough IP/cell fix)
 
+// Calculate dynamic square bounding box centered on store with maxBounds
+function getStoreDeliveryBoundingBox() {
+    const storeLat = getRestaurantLat();
+    const storeLng = getRestaurantLng();
+    const deliveryRadius = getDeliveryRadiusKm();
+
+    // North/South delta: latOffset = (deliveryRadius / 111.32)
+    const latOffset = deliveryRadius / 111.32;
+    // East/West delta: lngOffset = (deliveryRadius / (111.32 * Math.cos(storeLat * (Math.PI / 180))))
+    const lngOffset = deliveryRadius / (111.32 * Math.cos(storeLat * (Math.PI / 180)));
+
+    const southWest = [storeLat - latOffset, storeLng - lngOffset];
+    const northEast = [storeLat + latOffset, storeLng + lngOffset];
+    return {
+        bounds: [southWest, northEast],
+        latOffset,
+        lngOffset,
+        storeLat,
+        storeLng,
+        deliveryRadius
+    };
+}
+
+// Manual Drag Protection Against In-Store Fraud:
+// If the pin is manually dragged inside 0 to inStoreThreshold (the dine-in zone),
+// clamp/push the pin coordinates outward to inStoreThreshold + 0.01 km (Zone 1).
+function pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold) {
+    const storeLat = getRestaurantLat();
+    const storeLng = getRestaurantLng();
+    const dist = calculateDistanceHaversine(storeLat, storeLng, lat, lng);
+    const targetDistKm = parseFloat((inStoreThreshold + 0.01).toFixed(2));
+
+    if (dist >= targetDistKm) {
+        return { lat, lng, wasPushed: false, dist: parseFloat(dist.toFixed(2)) };
+    }
+
+    if (dist < 0.0001) {
+        // Pin placed directly on store marker
+        const latOffset = targetDistKm / 111.32;
+        const newLat = parseFloat((storeLat + latOffset).toFixed(6));
+        const newLng = parseFloat(storeLng.toFixed(6));
+        return {
+            lat: newLat,
+            lng: newLng,
+            wasPushed: true,
+            dist: parseFloat(calculateDistanceHaversine(storeLat, storeLng, newLat, newLng).toFixed(2))
+        };
+    }
+
+    const dLat = (lat - storeLat) * (Math.PI / 180);
+    const dLon = (lng - storeLng) * (Math.PI / 180);
+    const storeLatRad = storeLat * (Math.PI / 180);
+    const storeLngRad = storeLng * (Math.PI / 180);
+
+    const y = Math.sin(dLon) * Math.cos(lat * (Math.PI / 180));
+    const x = Math.cos(storeLatRad) * Math.sin(lat * (Math.PI / 180)) -
+        Math.sin(storeLatRad) * Math.cos(lat * (Math.PI / 180)) * Math.cos(dLon);
+    const bearing = Math.atan2(y, x);
+
+    const R = 6371; // Earth radius in KM
+    const angularDist = targetDistKm / R;
+
+    const pushedLatRad = Math.asin(Math.sin(storeLatRad) * Math.cos(angularDist) +
+        Math.cos(storeLatRad) * Math.sin(angularDist) * Math.cos(bearing));
+    const pushedLngRad = storeLngRad + Math.atan2(Math.sin(bearing) * Math.sin(angularDist) * Math.cos(storeLatRad),
+        Math.cos(angularDist) - Math.sin(storeLatRad) * Math.sin(pushedLatRad));
+
+    const newLat = parseFloat((pushedLatRad * (180 / Math.PI)).toFixed(6));
+    const newLng = parseFloat((pushedLngRad * (180 / Math.PI)).toFixed(6));
+    return {
+        lat: newLat,
+        lng: newLng,
+        wasPushed: true,
+        dist: parseFloat(calculateDistanceHaversine(storeLat, storeLng, newLat, newLng).toFixed(2))
+    };
+}
+
 function openCustomerMapModal() {
     const modal = document.getElementById('customer-map-modal');
     const openBtn = document.getElementById('btn-open-map-modal');
@@ -9924,19 +10015,37 @@ function launchCustomerMapModal(initialLat, initialLng) {
     modal.style.display = 'flex';
     modal.setAttribute('aria-hidden', 'false');
 
-    customerTempCoords = { lat: initialLat, lng: initialLng };
+    customerTempCoords = { lat: initialLat, lng: initialLng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
     updateMapModalCoordsDisplay(initialLat, initialLng);
 
     setTimeout(() => {
         initCustomerLeafletMap(initialLat, initialLng);
         if (customerLeafletMap) {
             customerLeafletMap.invalidateSize();
+            const { bounds } = getStoreDeliveryBoundingBox();
+            const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
+            customerLeafletMap.setMaxBounds(squareBounds);
+            customerLeafletMap.options.maxBounds = squareBounds;
+            customerLeafletMap.options.maxBoundsViscosity = 1.0;
+            const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
+            if (computedMinZoom && !isNaN(computedMinZoom)) {
+                customerLeafletMap.setMinZoom(computedMinZoom);
+            }
         }
     }, 150);
 
     setTimeout(() => {
         if (customerLeafletMap) {
             customerLeafletMap.invalidateSize();
+            const { bounds } = getStoreDeliveryBoundingBox();
+            const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
+            customerLeafletMap.setMaxBounds(squareBounds);
+            customerLeafletMap.options.maxBounds = squareBounds;
+            customerLeafletMap.options.maxBoundsViscosity = 1.0;
+            const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
+            if (computedMinZoom && !isNaN(computedMinZoom)) {
+                customerLeafletMap.setMinZoom(computedMinZoom);
+            }
         }
     }, 350);
 }
@@ -9982,9 +10091,8 @@ function initCustomerLeafletMap(lat, lng) {
         popupAnchor: [0, -36]
     });
 
-    const storeLat = getRestaurantLat();
-    const storeLng = getRestaurantLng();
-    const radiusKm = getDeliveryRadiusKm();
+    const { bounds, storeLat, storeLng, deliveryRadius } = getStoreDeliveryBoundingBox();
+    const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
 
     const storeMarkerHtml = `
         <div style="
@@ -10019,8 +10127,16 @@ function initCustomerLeafletMap(lat, lng) {
         customerLeafletMap = L.map('customer-location-map', {
             center: [lat, lng],
             zoom: 15,
+            maxBounds: squareBounds,
+            maxBoundsViscosity: 1.0,
             zoomControl: true
         });
+
+        // Compute dynamic minZoom that fits bounding square within viewport
+        const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
+        if (computedMinZoom && !isNaN(computedMinZoom)) {
+            customerLeafletMap.setMinZoom(computedMinZoom);
+        }
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -10040,17 +10156,15 @@ function initCustomerLeafletMap(lat, lng) {
             </div>
         `);
 
-        // Delivery Coverage Circle
-        if (radiusKm && !isNaN(radiusKm) && radiusKm > 0) {
-            customerCoverageCircle = L.circle([storeLat, storeLng], {
-                color: '#ff6b00',
-                weight: 1.5,
-                dashArray: '5, 5',
-                fillColor: '#ff6b00',
-                fillOpacity: 0.07,
-                radius: radiusKm * 1000
-            }).addTo(customerLeafletMap);
-        }
+        // Delivery Coverage Circle (Radius = deliveryRadius * 1000 meters)
+        customerCoverageCircle = L.circle([storeLat, storeLng], {
+            color: '#ff6b00',
+            weight: 2,
+            dashArray: '6, 6',
+            fillColor: '#ff6b00',
+            fillOpacity: 0.12,
+            radius: deliveryRadius * 1000
+        }).addTo(customerLeafletMap);
 
         // Customer Location Marker
         customerLocationMarker = L.marker([lat, lng], {
@@ -10066,30 +10180,77 @@ function initCustomerLeafletMap(lat, lng) {
             </div>
         `);
 
-        const handleMarkerPositionChange = (e) => {
+        const handleMarkerDrag = (e) => {
+            const pos = e.target.getLatLng();
+            const curLat = parseFloat(pos.lat.toFixed(6));
+            const curLng = parseFloat(pos.lng.toFixed(6));
+            customerTempCoords = { lat: curLat, lng: curLng, isLiveGps: false };
+            updateMapModalCoordsDisplay(curLat, curLng);
+        };
+
+        const handleMarkerDragEnd = (e) => {
             const pos = e.target.getLatLng();
             let newLat = parseFloat(pos.lat.toFixed(6));
             let newLng = parseFloat(pos.lng.toFixed(6));
-            customerTempCoords = { lat: newLat, lng: newLng };
+
+            // Manual Drag Protection Against In-Store Fraud:
+            const inStoreThreshold = getInStoreThreshold();
+            const pushed = pushCoordsOutOfInStoreZone(newLat, newLng, inStoreThreshold);
+            if (pushed.wasPushed) {
+                newLat = pushed.lat;
+                newLng = pushed.lng;
+                if (customerLocationMarker) {
+                    customerLocationMarker.setLatLng([newLat, newLng]);
+                }
+                showToast(`📍 In-Store (₹0 delivery) requires live GPS verification. Pin placed in Zone 1 (${(inStoreThreshold + 0.01).toFixed(2)} km).`);
+            }
+
+            customerTempCoords = { lat: newLat, lng: newLng, isLiveGps: false };
             updateMapModalCoordsDisplay(newLat, newLng);
         };
 
-        customerLocationMarker.on('drag', handleMarkerPositionChange);
-        customerLocationMarker.on('dragend', handleMarkerPositionChange);
-        customerLocationMarker.on('move', handleMarkerPositionChange);
+        customerLocationMarker.on('drag', handleMarkerDrag);
+        customerLocationMarker.on('dragend', handleMarkerDragEnd);
 
         customerLeafletMap.on('click', (e) => {
             const pos = e.latlng;
             let newLat = parseFloat(pos.lat.toFixed(6));
             let newLng = parseFloat(pos.lng.toFixed(6));
-            customerTempCoords = { lat: newLat, lng: newLng };
+
+            // Manual Drag Protection Against In-Store Fraud:
+            const inStoreThreshold = getInStoreThreshold();
+            const pushed = pushCoordsOutOfInStoreZone(newLat, newLng, inStoreThreshold);
+            if (pushed.wasPushed) {
+                newLat = pushed.lat;
+                newLng = pushed.lng;
+                showToast(`📍 In-Store (₹0 delivery) requires live GPS verification. Pin placed in Zone 1 (${(inStoreThreshold + 0.01).toFixed(2)} km).`);
+            }
+
+            customerTempCoords = { lat: newLat, lng: newLng, isLiveGps: false };
             if (customerLocationMarker) {
                 customerLocationMarker.setLatLng([newLat, newLng]);
             }
             updateMapModalCoordsDisplay(newLat, newLng);
         });
     } else {
-        customerTempCoords = { lat, lng };
+        const inStoreThreshold = getInStoreThreshold();
+        if (!customerTempCoords?.isLiveGps) {
+            const pushed = pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold);
+            if (pushed.wasPushed) {
+                lat = pushed.lat;
+                lng = pushed.lng;
+            }
+        }
+        customerTempCoords = { lat, lng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
+
+        customerLeafletMap.setMaxBounds(squareBounds);
+        customerLeafletMap.options.maxBounds = squareBounds;
+        customerLeafletMap.options.maxBoundsViscosity = 1.0;
+        const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
+        if (computedMinZoom && !isNaN(computedMinZoom)) {
+            customerLeafletMap.setMinZoom(computedMinZoom);
+        }
+
         customerLeafletMap.invalidateSize();
         customerLeafletMap.setView([lat, lng], 15);
         if (customerLocationMarker) {
@@ -10100,9 +10261,7 @@ function initCustomerLeafletMap(lat, lng) {
         }
         if (customerCoverageCircle) {
             customerCoverageCircle.setLatLng([storeLat, storeLng]);
-            if (radiusKm && !isNaN(radiusKm) && radiusKm > 0) {
-                customerCoverageCircle.setRadius(radiusKm * 1000);
-            }
+            customerCoverageCircle.setRadius(deliveryRadius * 1000);
         }
         updateMapModalCoordsDisplay(lat, lng);
     }
@@ -10158,7 +10317,7 @@ function updateMapModalCoordsDisplay(lat, lng) {
         if (!check.isAllowed) {
             banner.className = 'map-zone-status-banner out-zone';
             if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
-            text.textContent = `Your selected location is outside our delivery radius of ${check.maxRadiusKm} km (${check.distanceKm} km away). Please move your pin inside the circle.`;
+            text.textContent = 'Delivery not available at this location. Please select a point within the delivery zone.';
         } else {
             banner.className = 'map-zone-status-banner in-zone';
             if (icon) icon.className = 'fa-solid fa-circle-check';
@@ -10170,6 +10329,7 @@ function updateMapModalCoordsDisplay(lat, lng) {
         confirmBtn.disabled = !check.isAllowed;
         confirmBtn.style.opacity = check.isAllowed ? '1' : '0.5';
         confirmBtn.style.pointerEvents = check.isAllowed ? 'auto' : 'none';
+        confirmBtn.title = check.isAllowed ? 'Confirm this delivery location' : 'Delivery not available at this location. Please select a point within the delivery zone.';
     }
 }
 
@@ -10206,7 +10366,7 @@ function handleDetectLiveGps() {
                 showToast(`📍 Location detected! Drag marker or tap anywhere to fine-tune.`);
             }
 
-            customerTempCoords = { lat, lng };
+            customerTempCoords = { lat, lng, isLiveGps: true };
 
             if (customerLeafletMap) {
                 customerLeafletMap.setView([lat, lng], 16);
@@ -10261,7 +10421,7 @@ function handleConfirmMapLocation() {
     // Delivery Radius Boundary Validation
     const radiusCheck = isWithinDeliveryRadius(lat, lng);
     if (!radiusCheck.isAllowed) {
-        showToast(`🚫 Out of Delivery Area: Your selected location is ${radiusCheck.distanceKm} km away. We only deliver within ${radiusCheck.maxRadiusKm} km of our store. Please move your pin inside the circle.`);
+        showToast('Delivery not available at this location. Please select a point within the delivery zone.');
         const banner = document.getElementById('map-zone-status-banner');
         if (banner) {
             banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -10269,10 +10429,12 @@ function handleConfirmMapLocation() {
         return;
     }
 
-    currentCustomerGps = { lat, lng };
+    const isLiveGps = Boolean(customerTempCoords && customerTempCoords.isLiveGps === true);
+    currentCustomerGps = { lat, lng, isLiveGps };
 
     const latHidden = document.getElementById('customer-gps-lat');
     const lngHidden = document.getElementById('customer-gps-lng');
+    const isLiveHidden = document.getElementById('customer-gps-is-live');
     const statusBadge = document.getElementById('gps-status-badge');
     const coordsDisplay = document.getElementById('gps-coordinates-display');
     const coordsText = document.getElementById('gps-coords-text');
@@ -10282,10 +10444,11 @@ function handleConfirmMapLocation() {
 
     if (latHidden) latHidden.value = lat;
     if (lngHidden) lngHidden.value = lng;
+    if (isLiveHidden) isLiveHidden.value = isLiveGps ? 'true' : 'false';
 
     if (statusBadge) {
         statusBadge.className = 'gps-status-badge gps-success';
-        statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Verified';
+        statusBadge.innerHTML = isLiveGps ? '<i class="fa-solid fa-circle-check"></i> Live GPS Verified' : '<i class="fa-solid fa-circle-check"></i> GPS Location Fixed';
         statusBadge.style.display = 'inline-flex';
     }
 
@@ -10318,6 +10481,7 @@ function handleConfirmMapLocation() {
             if (existingProfile && typeof existingProfile === 'object') {
                 existingProfile.gpsLat = lat;
                 existingProfile.gpsLng = lng;
+                existingProfile.isLiveGps = isLiveGps;
                 localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(existingProfile));
             }
         }
@@ -11119,12 +11283,15 @@ function renderProfileHeaderAndInputs(profile) {
 
         // Pre-fill GPS coordinate state
         if (profile.gpsLat !== undefined && profile.gpsLat !== null && profile.gpsLng !== undefined && profile.gpsLng !== null) {
-            currentCustomerGps = { lat: profile.gpsLat, lng: profile.gpsLng };
+            const isLive = Boolean(profile.isLiveGps);
+            currentCustomerGps = { lat: profile.gpsLat, lng: profile.gpsLng, isLiveGps: isLive };
             if (latHidden) latHidden.value = profile.gpsLat;
             if (lngHidden) lngHidden.value = profile.gpsLng;
+            const isLiveHidden = document.getElementById('customer-gps-is-live');
+            if (isLiveHidden) isLiveHidden.value = isLive ? 'true' : 'false';
             if (statusBadge) {
                 statusBadge.className = 'gps-status-badge gps-success';
-                statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> GPS Location Fixed';
+                statusBadge.innerHTML = isLive ? '<i class="fa-solid fa-circle-check"></i> Live GPS Verified' : '<i class="fa-solid fa-circle-check"></i> GPS Location Fixed';
                 statusBadge.style.display = 'inline-flex';
             }
             if (coordsDisplay) {
@@ -16263,18 +16430,6 @@ function applyIncomingSettingsData(data) {
     if (latVal !== undefined && !isNaN(latVal)) localStorage.setItem(RESTAURANT_LAT_KEY, String(Number(latVal.toFixed(6))));
     if (lngVal !== undefined && !isNaN(lngVal)) localStorage.setItem(RESTAURANT_LNG_KEY, String(Number(lngVal.toFixed(6))));
 
-    let radiusVal = data.deliveryRadius !== undefined && data.deliveryRadius !== null
-        ? data.deliveryRadius
-        : (data.deliveryRadiusKm !== undefined && data.deliveryRadiusKm !== null ? data.deliveryRadiusKm : data.delivery_radius);
-    if (radiusVal !== undefined && radiusVal !== null) {
-        let r = parseFloat(radiusVal);
-        if (!isNaN(r)) {
-            if (r < 0.5) r = 0.5;
-            if (r > 10.0) r = 10.0;
-            localStorage.setItem(DELIVERY_RADIUS_KEY, String(parseFloat(r.toFixed(1))));
-        }
-    }
-
     let threshVal = undefined;
     if (data.inStoreThreshold !== undefined && data.inStoreThreshold !== null && data.inStoreThreshold !== '') {
         threshVal = parseFloat(data.inStoreThreshold);
@@ -16284,6 +16439,19 @@ function applyIncomingSettingsData(data) {
     if (threshVal !== undefined && !isNaN(threshVal)) {
         threshVal = Math.min(0.15, Math.max(0.05, parseFloat(threshVal.toFixed(2))));
         localStorage.setItem(IN_STORE_THRESHOLD_KEY, threshVal.toFixed(2));
+    }
+
+    const minThreshold = getInStoreThreshold();
+    let radiusVal = data.deliveryRadius !== undefined && data.deliveryRadius !== null
+        ? data.deliveryRadius
+        : (data.deliveryRadiusKm !== undefined && data.deliveryRadiusKm !== null ? data.deliveryRadiusKm : data.delivery_radius);
+    if (radiusVal !== undefined && radiusVal !== null) {
+        let r = parseFloat(radiusVal);
+        if (!isNaN(r)) {
+            if (r < minThreshold) r = minThreshold;
+            if (r > 10.0) r = 10.0;
+            localStorage.setItem(DELIVERY_RADIUS_KEY, String(parseFloat(r.toFixed(2))));
+        }
     }
 
     const zones = data.flexibleZones !== undefined && data.flexibleZones !== null
@@ -17005,7 +17173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize customer GPS coords from saved profile if available
     const savedProfile = getSavedDeliveryProfile();
     if (savedProfile && savedProfile.gpsLat !== null && savedProfile.gpsLng !== null) {
-        currentCustomerGps = { lat: savedProfile.gpsLat, lng: savedProfile.gpsLng };
+        currentCustomerGps = { lat: savedProfile.gpsLat, lng: savedProfile.gpsLng, isLiveGps: Boolean(savedProfile.isLiveGps) };
     }
 
     initTheme();
