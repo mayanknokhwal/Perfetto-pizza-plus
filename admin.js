@@ -442,14 +442,14 @@ export function validateMenuItemPrice(item) {
  * @returns {{ isValid: boolean, error?: string }}
  */
 export function validateAddonPrice(price, addonName = 'Add-on') {
-    const num = Number(price);
-    if (isNaN(num) || num < MIN_ADDON_PRICE || num > MAX_ADDON_PRICE) {
+    const cleanAddonPrice = price === "" || price === undefined || price === null ? 0 : Number(price);
+    if (isNaN(cleanAddonPrice) || cleanAddonPrice < MIN_ADDON_PRICE || cleanAddonPrice > MAX_ADDON_PRICE) {
         return {
             isValid: false,
             error: `${addonName} price must be between ₹${MIN_ADDON_PRICE} and ₹${MAX_ADDON_PRICE}`
         };
     }
-    return { isValid: true };
+    return { isValid: true, price: cleanAddonPrice };
 }
 
 /**
