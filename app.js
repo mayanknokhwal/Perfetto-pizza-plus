@@ -1316,6 +1316,11 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
     if (tabName === 'profile' || tabName === 'home') {
         updateStoreNoticeUI();
     }
+    if (tabName === 'home') {
+        if (typeof renderDynamicOfferSlider === 'function') {
+            renderDynamicOfferSlider();
+        }
+    }
 
     // Update Floating Cart Pill Bar visibility on tab switch
     updateFloatingCartBar();
@@ -2376,50 +2381,11 @@ async function fetchLiveBannersFromBackend() {
         const res = await fetch(resolveApiUrl('/api/banners'));
         if (res.ok) {
             const data = await res.json();
-            if (data && data.success && Array.isArray(data.banners) && data.banners.length > 0) {
-                const normalized = data.banners.slice(0, 4).map((b, i) => {
-                    const bannerObj = (b && typeof b === 'object') ? b : {};
-                    const slot1Data = (data.slot1 && typeof data.slot1 === 'object') ? data.slot1 : {};
-                    const slot2Data = (data.slot2 && typeof data.slot2 === 'object') ? data.slot2 : {};
-                    const slot3Data = (data.slot3 && typeof data.slot3 === 'object') ? data.slot3 : {};
-                    const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
-                    const isPizza = cat.toLowerCase() === 'pizza';
-
-                    const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Momos').trim() : '';
-                    const rawBuyQty = i === 2 ? parseInt(bannerObj.buyQty || slot3Data.buyQty || 2, 10) : 0;
-                    const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
-                    const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
-
-                    return {
-                        id: bannerObj.id || `b${i + 1}`,
-                        url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
-                        enabled: bannerObj.enabled !== false,
-                        targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
-                        discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
-                        minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
-                        rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
-                        rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
-                        rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
-                        buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat) : '',
-                        buyQty: i === 2 ? ((!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2) : 0,
-                        freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
-                    };
-                });
-                const rawMaxOffers = parseInt(data.max_offers_per_order || data.maxOffersPerOrder, 10);
-                if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
-                    customerMaxOffersPerOrder = rawMaxOffers;
-                    localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
+            if (data && data.success) {
+                if (typeof applyIncomingDailyBannersData === 'function') {
+                    applyIncomingDailyBannersData(data);
+                    return;
                 }
-                const rawMaxQty = parseInt(data.max_qty_per_offer || data.maxQtyPerOffer, 10);
-                if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
-                    customerMaxQtyPerOffer = rawMaxQty;
-                    localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
-                }
-                localStorage.setItem('perfetto_daily_banners', JSON.stringify(normalized));
-                if (typeof renderDynamicOfferSlider === 'function') {
-                    renderDynamicOfferSlider(normalized);
-                }
-                return;
             }
         }
     } catch (e) { }
@@ -12143,20 +12109,29 @@ function showToast(msg, duration = 3500) {
 // --------------------------------------------------------------------------
 const DEFAULT_FALLBACK_BANNER_LOGO = '';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: '', enabled: true, targetProductId: '', discountPercent: 0 },
-    { id: 'b2', url: '', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: '', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
-    { id: 'b4', url: '', enabled: true }
+    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: '', discountPercent: 55 },
+    { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+    { id: 'b4', url: '', enabled: false }
 ];
 
 window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
 window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
 
-function resolveBannerUrl(url) {
-    if (!url || typeof url !== 'string') return '';
-    const trimmed = url.trim();
-    if (!trimmed || trimmed.length < 4) return '';
-    return trimmed;
+function resolveBannerUrl(input) {
+    if (!input) return '';
+    if (typeof input === 'string') {
+        const trimmed = input.trim();
+        return (trimmed && trimmed.length >= 4) ? trimmed : '';
+    }
+    if (typeof input === 'object') {
+        const candidate = input.url || input.imageUrl || input.image || input.bannerUrl || input.src || '';
+        if (typeof candidate === 'string') {
+            const trimmed = candidate.trim();
+            return (trimmed && trimmed.length >= 4) ? trimmed : '';
+        }
+    }
+    return '';
 }
 window.resolveBannerUrl = resolveBannerUrl;
 
@@ -12181,7 +12156,10 @@ let offerSliderWasSwipeGesture = false;
 let currentOfferSlideIndex = 0;
 
 function createBannerSlideHTML(banner, originalIdx, isClone = false) {
-    const safeUrl = resolveBannerUrl(banner.url);
+    const rawUrl = (banner && typeof banner === 'object')
+        ? (banner.url || banner.imageUrl || banner.image || banner.bannerUrl || banner.src || '')
+        : (typeof banner === 'string' ? banner : '');
+    const safeUrl = resolveBannerUrl(rawUrl);
     const isSlot1 = (banner.id === 'b1');
     const hasSpotlight = isSlot1 && Boolean(banner.targetProductId && String(banner.targetProductId).trim()) && Number(banner.discountPercent) >= 2;
     const isSlot2 = (banner.id === 'b2');
@@ -12199,7 +12177,7 @@ function createBannerSlideHTML(banner, originalIdx, isClone = false) {
              ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
              ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
              onclick="handleBannerSlideClick(${originalIdx}, '${escapeHtml(banner.id || ('b' + (originalIdx + 1)))}')">
-            ${safeUrl ? `<img src="${safeUrl}" alt="Daily Offer ${originalIdx + 1}" class="offer-img" onerror="handleBannerImgError(this)">` : `<div class="banner-skeleton-shimmer"></div>`}
+            ${safeUrl ? `<img src="${safeUrl}" alt="Daily Offer ${originalIdx + 1}" class="offer-img" loading="eager" decoding="async" referrerpolicy="no-referrer" onerror="handleBannerImgError(this)">` : `<div class="banner-skeleton-shimmer"></div>`}
             ${hasSpotlight ? `
                 <div class="banner-spotlight-tap-hint">
                     <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
@@ -16515,8 +16493,25 @@ function applyIncomingSettingsData(data) {
 
 function applyIncomingDailyBannersData(docData) {
     if (!docData || typeof docData !== 'object') return;
-    let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
+    
+    // Support docData.banners array, raw array docData, or slot1..slot4 fields
+    let rawList = null;
     if (Array.isArray(docData.banners) && docData.banners.length > 0) {
+        rawList = docData.banners;
+    } else if (Array.isArray(docData) && docData.length > 0) {
+        rawList = docData;
+    } else if (docData.slot1 || docData.slot2 || docData.slot3 || docData.slot4) {
+        rawList = [
+            docData.slot1 ? { id: 'b1', ...docData.slot1 } : null,
+            docData.slot2 ? { id: 'b2', ...docData.slot2 } : null,
+            docData.slot3 ? { id: 'b3', ...docData.slot3 } : null,
+            docData.slot4 ? { id: 'b4', ...docData.slot4 } : null
+        ];
+    }
+
+    let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS)) : [];
+    
+    if (Array.isArray(rawList) && rawList.length > 0) {
         const rawMaxOffers = parseInt(docData.max_offers_per_order || docData.maxOffersPerOrder, 10);
         if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
             customerMaxOffersPerOrder = rawMaxOffers;
@@ -16530,8 +16525,10 @@ function applyIncomingDailyBannersData(docData) {
         const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
         const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
         const slot3Data = (docData.slot3 && typeof docData.slot3 === 'object') ? docData.slot3 : {};
-        banners = docData.banners.slice(0, 4).map((b, i) => {
+
+        banners = rawList.slice(0, 4).map((b, i) => {
             const bannerObj = (b && typeof b === 'object') ? b : {};
+            const slotData = (i === 0 ? slot1Data : (i === 1 ? slot2Data : (i === 2 ? slot3Data : {}))) || {};
             const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
             const isPizza = cat.toLowerCase() === 'pizza';
 
@@ -16540,9 +16537,13 @@ function applyIncomingDailyBannersData(docData) {
             const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
             const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
 
+            const rawCandidateUrl = bannerObj.url || bannerObj.imageUrl || bannerObj.image || bannerObj.bannerUrl || bannerObj.src ||
+                                    slotData.url || slotData.imageUrl || slotData.image || slotData.bannerUrl || slotData.src || '';
+            const resolvedUrl = typeof resolveBannerUrl === 'function' ? resolveBannerUrl(rawCandidateUrl) : (rawCandidateUrl || '');
+
             return {
                 id: bannerObj.id || `b${i + 1}`,
-                url: typeof resolveBannerUrl === 'function' ? resolveBannerUrl(bannerObj.url) : (bannerObj.url || (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined' ? DEFAULT_FALLBACK_BANNER_LOGO : '')),
+                url: resolvedUrl,
                 enabled: bannerObj.enabled !== false,
                 targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
                 discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
@@ -16556,6 +16557,38 @@ function applyIncomingDailyBannersData(docData) {
             };
         });
     }
+
+    // Safety guard: If incoming docData has ZERO valid banner URLs, preserve working cached banners from localStorage
+    const hasAnyValidUrl = banners.some(b => b && b.url);
+    if (!hasAnyValidUrl) {
+        try {
+            const saved = localStorage.getItem('perfetto_daily_banners');
+            if (saved) {
+                const parsedSaved = JSON.parse(saved);
+                if (Array.isArray(parsedSaved) && parsedSaved.some(b => b && b.url)) {
+                    banners = banners.map((b, idx) => {
+                        const fallbackItem = parsedSaved[idx];
+                        if (!b.url && fallbackItem && fallbackItem.url) {
+                            b.url = fallbackItem.url;
+                        }
+                        return b;
+                    });
+                }
+            }
+        } catch (e) { }
+    }
+
+    // If still no valid URLs, fill with default active banner URLs
+    if (!banners.some(b => b && b.url) && typeof DEFAULT_DAILY_BANNERS !== 'undefined') {
+        banners = banners.map((b, idx) => {
+            const def = DEFAULT_DAILY_BANNERS[idx];
+            if (!b.url && def && def.url) {
+                b.url = def.url;
+            }
+            return b;
+        });
+    }
+
     localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));
     if (typeof renderDynamicOfferSlider === 'function') {
         renderDynamicOfferSlider(banners);
@@ -16563,21 +16596,37 @@ function applyIncomingDailyBannersData(docData) {
 }
 
 async function fetchSettingsFromFirestoreDirect() {
-    if (!customerFirestore) return;
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+    if (!fs) return;
     try {
         const [storeSettingsSnap, storeConfigSnap, bannersSnap] = await Promise.allSettled([
-            customerFirestore.collection('settings').doc('storeSettings').get(),
-            customerFirestore.collection('settings').doc('store_config').get(),
-            customerFirestore.collection('settings').doc('daily_banners').get()
+            fs.collection('settings').doc('storeSettings').get(),
+            fs.collection('settings').doc('store_config').get(),
+            fs.collection('settings').doc('daily_banners').get()
         ]);
-        if (storeSettingsSnap.status === 'fulfilled' && storeSettingsSnap.value.exists) {
+        if (storeSettingsSnap.status === 'fulfilled' && storeSettingsSnap.value && storeSettingsSnap.value.exists) {
             applyIncomingSettingsData(storeSettingsSnap.value.data());
         }
-        if (storeConfigSnap.status === 'fulfilled' && storeConfigSnap.value.exists) {
+        if (storeConfigSnap.status === 'fulfilled' && storeConfigSnap.value && storeConfigSnap.value.exists) {
             applyIncomingSettingsData(storeConfigSnap.value.data());
         }
-        if (bannersSnap.status === 'fulfilled' && bannersSnap.value.exists) {
+        if (bannersSnap.status === 'fulfilled' && bannersSnap.value && bannersSnap.value.exists) {
             applyIncomingDailyBannersData(bannersSnap.value.data());
+        } else {
+            // Fallback: Check if subdocs banners/slot1, banners/slot2, banners/slot3 exist
+            try {
+                const [s1, s2, s3] = await Promise.allSettled([
+                    fs.collection('banners').doc('slot1').get(),
+                    fs.collection('banners').doc('slot2').get(),
+                    fs.collection('banners').doc('slot3').get()
+                ]);
+                const slot1Data = (s1.status === 'fulfilled' && s1.value && s1.value.exists) ? s1.value.data() : null;
+                const slot2Data = (s2.status === 'fulfilled' && s2.value && s2.value.exists) ? s2.value.data() : null;
+                const slot3Data = (s3.status === 'fulfilled' && s3.value && s3.value.exists) ? s3.value.data() : null;
+                if (slot1Data || slot2Data || slot3Data) {
+                    applyIncomingDailyBannersData({ slot1: slot1Data, slot2: slot2Data, slot3: slot3Data });
+                }
+            } catch (slotErr) { }
         }
     } catch (e) {
         console.warn('Firestore settings direct fetch notice:', e.message);

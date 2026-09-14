@@ -9808,20 +9808,29 @@
         // --------------------------------------------------------------------------
         const DEFAULT_FALLBACK_BANNER_LOGO = '';
         const DEFAULT_DAILY_BANNERS = [
-            { id: 'b1', url: '', enabled: true },
-            { id: 'b2', url: '', enabled: true },
-            { id: 'b3', url: '', enabled: true },
-            { id: 'b4', url: '', enabled: true }
+            { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: '', discountPercent: 55 },
+            { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+            { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+            { id: 'b4', url: '', enabled: false }
         ];
 
         window.DEFAULT_FALLBACK_BANNER_LOGO = DEFAULT_FALLBACK_BANNER_LOGO;
         window.DEFAULT_DAILY_BANNERS = DEFAULT_DAILY_BANNERS;
 
-        function resolveBannerUrl(url) {
-            if (!url || typeof url !== 'string') return '';
-            const trimmed = url.trim();
-            if (!trimmed || trimmed.length < 4) return '';
-            return trimmed;
+        function resolveBannerUrl(input) {
+            if (!input) return '';
+            if (typeof input === 'string') {
+                const trimmed = input.trim();
+                return (trimmed && trimmed.length >= 4) ? trimmed : '';
+            }
+            if (typeof input === 'object') {
+                const candidate = input.url || input.imageUrl || input.image || input.bannerUrl || input.src || '';
+                if (typeof candidate === 'string') {
+                    const trimmed = candidate.trim();
+                    return (trimmed && trimmed.length >= 4) ? trimmed : '';
+                }
+            }
+            return '';
         }
         window.resolveBannerUrl = resolveBannerUrl;
 
@@ -9897,9 +9906,10 @@
             let normalized = [];
             for (let i = 0; i < 4; i++) {
                 const item = list[i] || DEFAULT_DAILY_BANNERS[i] || { id: `b${i + 1}`, url: '', enabled: true };
+                const rawUrl = item.url || item.imageUrl || item.image || item.bannerUrl || item.src || '';
                 const bannerObj = {
                     id: (item.id && String(item.id).trim()) || `b${i + 1}`,
-                    url: resolveBannerUrl(item.url),
+                    url: resolveBannerUrl(rawUrl),
                     enabled: item.enabled !== false
                 };
                 if (i === 0) {
@@ -10031,9 +10041,10 @@
                 const inputEl = document.getElementById(`banner-input-${i}`);
                 const toggleEl = document.getElementById(`banner-toggle-${i}`);
                 const current = (Array.isArray(bannersList) && bannersList[i]) || (adminDailyBannersList && adminDailyBannersList[i]) || DEFAULT_DAILY_BANNERS[i];
+                const rawCandidate = (inputEl && inputEl.value) || current.url || current.imageUrl || current.image || current.bannerUrl || current.src || '';
                 const bannerItem = {
                     id: current.id || `b${i + 1}`,
-                    url: resolveBannerUrl(inputEl ? inputEl.value : current.url),
+                    url: resolveBannerUrl(rawCandidate),
                     enabled: toggleEl ? toggleEl.checked : (current.enabled !== false)
                 };
                 if (i === 0) {
@@ -10784,6 +10795,8 @@
                                  alt="Banner #${idx + 1} Preview" 
                                  class="banner-thumbnail-img" 
                                  id="banner-thumb-${idx}" 
+                                 loading="eager"
+                                 referrerpolicy="no-referrer"
                                  onerror="handleBannerImgError(this)">
                         </div>
                         <div class="banner-input-wrapper" style="flex: 1;">
