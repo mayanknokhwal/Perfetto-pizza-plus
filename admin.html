@@ -4047,31 +4047,31 @@
 
                     <div class="stat-card">
                         <div class="stat-info">
-                            <div class="stat-label">Food Categories</div>
-                            <div class="stat-value" id="stat-total-categories">0</div>
+                            <div class="stat-label">Pending Orders</div>
+                            <div class="stat-value" id="stat-pending-orders">0</div>
                         </div>
                         <div class="stat-icon icon-orange">
-                            <i class="fa-solid fa-layer-group"></i>
+                            <i class="fa-solid fa-clock"></i>
                         </div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-info">
-                            <div class="stat-label">Total Menu Items</div>
-                            <div class="stat-value" id="stat-total-items">0</div>
-                        </div>
-                        <div class="stat-icon icon-blue">
-                            <i class="fa-solid fa-pizza-slice"></i>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-info">
-                            <div class="stat-label">Out of Stock Items</div>
-                            <div class="stat-value" id="stat-unavailable-items">0</div>
+                            <div class="stat-label">Today's Rejected</div>
+                            <div class="stat-value" id="stat-rejected-orders">0</div>
                         </div>
                         <div class="stat-icon icon-red">
-                            <i class="fa-solid fa-circle-xmark"></i>
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <div class="stat-label">Today's Delivered</div>
+                            <div class="stat-value" id="stat-delivered-orders">0</div>
+                        </div>
+                        <div class="stat-icon icon-green">
+                            <i class="fa-solid fa-circle-check"></i>
                         </div>
                     </div>
                 </div> <!-- STORE SETTINGS & SUPPORT CONFIGURATION CARD -->
@@ -8048,14 +8048,6 @@
             const categories = new Set(menuItems.map(i => i.category));
             const totalItems = menuItems.length;
             const availableItems = menuItems.filter(i => i.available).length;
-            const unavailableItems = totalItems - availableItems;
-
-            const catEl = document.getElementById('stat-total-categories');
-            const totalEl = document.getElementById('stat-total-items');
-            const unavailEl = document.getElementById('stat-unavailable-items');
-            if (catEl) catEl.textContent = categories.size;
-            if (totalEl) totalEl.textContent = totalItems;
-            if (unavailEl) unavailEl.textContent = unavailableItems;
 
             const menuCatCountEl = document.getElementById('menu-stat-cat-count');
             const menuTotalItemsEl = document.getElementById('menu-stat-total-items');
@@ -8064,11 +8056,69 @@
             if (menuTotalItemsEl) menuTotalItemsEl.textContent = totalItems;
             if (menuAvailItemsEl) menuAvailItemsEl.textContent = availableItems;
 
-            // Update revenue from customer orders
+            // Update top KPI cards (revenue & real-time order metrics)
             updateRevenueStats();
         }
 
-        // 7B. LIVE REVENUE STATS ENGINE (DEDUPLICATED & UNIFIED)
+        function getOrderTimestamp(o) {
+            if (!o) return 0;
+            const raw = o.createdAt || o.timestamp || o.date || o.orderTime;
+            if (!raw) return 0;
+            if (typeof raw.toMillis === 'function') return raw.toMillis();
+            if (typeof raw.toDate === 'function') return raw.toDate().getTime();
+            if (raw.seconds !== undefined) return raw.seconds * 1000;
+            if (typeof raw === 'number') return raw;
+            const parsed = new Date(raw).getTime();
+            return isNaN(parsed) ? 0 : parsed;
+        }
+
+        function applyOrderKPIsUI(list) {
+            const revEl = document.getElementById('stat-total-revenue');
+            const pendingEl = document.getElementById('stat-pending-orders');
+            const rejectedEl = document.getElementById('stat-rejected-orders');
+            const deliveredEl = document.getElementById('stat-delivered-orders');
+
+            const startOfDay = new Date().setHours(0, 0, 0, 0);
+
+            let totalRev = 0;
+            let pendingCount = 0;
+            let todayRejectedCount = 0;
+            let todayDeliveredCount = 0;
+
+            if (Array.isArray(list) && list.length > 0) {
+                list.forEach((o) => {
+                    if (!o) return;
+                    const amount = Number(o.total || (o.costs && o.costs.total) || 0);
+                    if (!isNaN(amount) && amount > 0) totalRev += amount;
+
+                    const status = String(o.status || '').trim().toLowerCase();
+                    const orderTime = getOrderTimestamp(o);
+                    const isToday = orderTime >= startOfDay;
+
+                    // Pending Orders: live count of active unfulfilled orders (status: "placed", "preparing", or "out_for_delivery")
+                    if (status === 'placed' || status === 'preparing' || status === 'out_for_delivery' || status === 'out-for-delivery') {
+                        pendingCount++;
+                    }
+
+                    // Today's Rejected: count of orders cancelled or rejected today (createdAt >= startOfDay and status: "cancelled" or "rejected")
+                    if (isToday && (status === 'cancelled' || status === 'rejected' || status === 'canceled')) {
+                        todayRejectedCount++;
+                    }
+
+                    // Today's Delivered: count of orders successfully completed today (createdAt >= startOfDay and status: "delivered")
+                    if (isToday && (status === 'delivered' || status === 'completed')) {
+                        todayDeliveredCount++;
+                    }
+                });
+            }
+
+            if (revEl) revEl.textContent = `₹${totalRev.toLocaleString('en-IN')}`;
+            if (pendingEl) pendingEl.textContent = pendingCount;
+            if (rejectedEl) rejectedEl.textContent = todayRejectedCount;
+            if (deliveredEl) deliveredEl.textContent = todayDeliveredCount;
+        }
+
+        // 7B. LIVE ORDER & REVENUE STATS ENGINE (DEDUPLICATED & UNIFIED)
         async function updateRevenueStats(ordersData) {
             let ordersList = [];
             if (Array.isArray(ordersData)) {
@@ -8082,30 +8132,15 @@
                 } catch (e) { }
             }
 
-            function applyRevenueUI(list) {
-                const revEl = document.getElementById('stat-total-revenue') || document.querySelector('.stat-value');
-                if (revEl) {
-                    if (Array.isArray(list) && list.length > 0) {
-                        const totalRev = list.reduce((sum, o) => {
-                            const amount = Number(o.total || (o.costs && o.costs.total) || 0);
-                            return sum + (isNaN(amount) ? 0 : amount);
-                        }, 0);
-                        revEl.textContent = `₹${totalRev.toLocaleString('en-IN')}`;
-                    } else {
-                        revEl.textContent = '₹0';
-                    }
-                }
-            }
-
-            applyRevenueUI(ordersList);
+            applyOrderKPIsUI(ordersList);
 
             // If called without arguments or local list is empty, fetch fresh orders from API
-            if (!ordersData) {
+            if (!ordersData && (!ordersList || ordersList.length === 0)) {
                 try {
                     const res = await fetch(resolveApiUrl('/api/orders'));
                     const data = await res.json();
                     if (data && data.success && Array.isArray(data.orders)) {
-                        applyRevenueUI(data.orders);
+                        applyOrderKPIsUI(data.orders);
                         try {
                             localStorage.setItem('perfettoCustomerOrders', JSON.stringify(data.orders));
                         } catch (e) { }
@@ -8116,6 +8151,7 @@
             }
         }
         window.updateRevenueStats = updateRevenueStats;
+        window.updateDashboardOrderStats = updateRevenueStats;
 
         // 8. TAB NAVIGATION CONTROLLER
         function switchTab(tabName) {
