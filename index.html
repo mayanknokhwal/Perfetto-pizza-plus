@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Perfetto Pizza | Mobile Food Delivery</title>
-    <meta name="theme-color" content="#ff6b00">
+    <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Perfetto">
@@ -27,9 +27,157 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="stylesheet" href="styles.css">
+
+    <!-- Critical Startup Splash Styles (Pure Black #000000 Immediate Render - Zero Flash) -->
+    <style id="app-splash-critical-css">
+        html.splash-active,
+        html.splash-active body,
+        body.splash-active {
+            background-color: #000000 !important;
+            overflow: hidden !important;
+        }
+
+        .app-splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            background-color: #000000 !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999999;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: auto;
+            margin: 0;
+            padding: 0;
+            border: none;
+            outline: none;
+        }
+
+        .app-splash-screen.fade-out {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        .app-splash-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            max-width: 320px;
+            width: 100%;
+            gap: 20px;
+            margin: auto;
+        }
+
+        .app-splash-brand {
+            position: relative;
+            width: 116px;
+            height: 116px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50% !important;
+            background: #000000 !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+            -webkit-mask-image: -webkit-radial-gradient(white, black);
+            mask-image: radial-gradient(white, black);
+        }
+
+        .app-splash-logo {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            border-radius: 50% !important;
+            display: block !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+            background: #000000 !important;
+            image-rendering: -webkit-optimize-contrast;
+            animation: appSplashEmblemGlow 2.4s ease-in-out infinite alternate;
+        }
+
+        .app-splash-loader {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 38px;
+        }
+
+        .app-splash-spinner {
+            width: 34px;
+            height: 34px;
+            border: 3px solid rgba(255, 107, 0, 0.16);
+            border-top-color: #ff6b00;
+            border-radius: 50%;
+            animation: appSplashSpin 0.85s linear infinite;
+            box-shadow: 0 0 16px rgba(255, 107, 0, 0.3);
+        }
+
+        .app-splash-status {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 0.94rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            letter-spacing: 0.035em;
+            margin: 0;
+            padding: 0;
+            opacity: 0.92;
+            transition: opacity 0.25s ease;
+        }
+
+        @keyframes appSplashSpin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes appSplashEmblemGlow {
+            0% {
+                filter: drop-shadow(0 0 4px rgba(255, 107, 0, 0.25));
+            }
+            100% {
+                filter: drop-shadow(0 0 14px rgba(255, 107, 0, 0.55));
+            }
+        }
+    </style>
 </head>
 
-<body>
+<body class="splash-active">
+    <!-- ========================================================== -->
+    <!-- APP SPLASH & PRELOADER SCREEN (UNIFIED PURE BLACK THEME) -->
+    <!-- ========================================================== -->
+    <div id="app-splash-screen" class="app-splash-screen" aria-label="Loading Perfetto Pizza" role="status">
+        <div class="app-splash-container">
+            <div class="app-splash-brand">
+                <img src="/apple-touch-icon.png" alt="Perfetto Pizza Emblem" class="app-splash-logo" width="116" height="116">
+            </div>
+            <div class="app-splash-loader">
+                <div class="app-splash-spinner" aria-hidden="true"></div>
+            </div>
+            <p class="app-splash-status" id="app-splash-status">Loading Perfetto...</p>
+        </div>
+    </div>
+
     <!-- App Frame (Mobile-first container) -->
     <div class="app-frame">
 

@@ -17363,6 +17363,85 @@ window.startUnifiedSmartSync = startUnifiedSmartSync;
 window.startPeriodicMenuSync = startUnifiedSmartSync;
 
 // --------------------------------------------------------------------------
+// APP SPLASH & PRELOADER CONTROLLER (PURE BLACK UNIFIED THEME)
+// --------------------------------------------------------------------------
+let isAppSplashDismissed = false;
+let appSplashDismissTimer = null;
+let appSplashFallbackTimer = null;
+let appSplashTextUpdateTimer = null;
+const APP_SPLASH_START_TIME = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+const APP_SPLASH_MIN_DISPLAY_MS = 450;
+const APP_SPLASH_SAFE_TIMEOUT_MS = 1500;
+
+function updateAppSplashStatus(text) {
+    const statusEl = document.getElementById('app-splash-status');
+    if (statusEl && !isAppSplashDismissed) {
+        statusEl.style.opacity = '0';
+        setTimeout(() => {
+            if (!isAppSplashDismissed) {
+                statusEl.textContent = text;
+                statusEl.style.opacity = '0.92';
+            }
+        }, 120);
+    }
+}
+
+function dismissAppSplashScreen() {
+    if (isAppSplashDismissed) return;
+    isAppSplashDismissed = true;
+
+    if (appSplashDismissTimer) clearTimeout(appSplashDismissTimer);
+    if (appSplashFallbackTimer) clearTimeout(appSplashFallbackTimer);
+    if (appSplashTextUpdateTimer) clearTimeout(appSplashTextUpdateTimer);
+
+    const splash = document.getElementById('app-splash-screen');
+    if (!splash) {
+        if (typeof document !== 'undefined') {
+            document.documentElement.classList.remove('splash-active');
+            if (document.body) document.body.classList.remove('splash-active');
+        }
+        return;
+    }
+
+    // 1. Initiate buttery smooth fade-out
+    splash.classList.add('fade-out');
+    if (typeof document !== 'undefined') {
+        document.documentElement.classList.remove('splash-active');
+        if (document.body) document.body.classList.remove('splash-active');
+    }
+
+    // 2. Hide and disarm completely once fade animation completes
+    setTimeout(() => {
+        splash.style.display = 'none';
+        splash.setAttribute('aria-hidden', 'true');
+    }, 450);
+}
+window.dismissAppSplashScreen = dismissAppSplashScreen;
+window.updateAppSplashStatus = updateAppSplashStatus;
+
+function scheduleAppSplashDismissal() {
+    // 1. Dynamic textual progress update after 600ms if initial network sync is underway
+    appSplashTextUpdateTimer = setTimeout(() => {
+        if (!isAppSplashDismissed) {
+            updateAppSplashStatus('Preparing Fresh Menu...');
+        }
+    }, 600);
+
+    // 2. Safe timeout fallback to guard against slow network or Firestore lag
+    appSplashFallbackTimer = setTimeout(() => {
+        dismissAppSplashScreen();
+    }, APP_SPLASH_SAFE_TIMEOUT_MS);
+
+    // 3. Graceful dismissal once critical DOM elements and initial storefront are initialized
+    const elapsed = ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now()) - APP_SPLASH_START_TIME;
+    const remainingTime = Math.max(0, APP_SPLASH_MIN_DISPLAY_MS - elapsed);
+
+    appSplashDismissTimer = setTimeout(() => {
+        dismissAppSplashScreen();
+    }, remainingTime);
+}
+
+// --------------------------------------------------------------------------
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -17403,6 +17482,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check and synchronize app settings version on startup
     checkAndSyncSettingsVersion();
     initSettingsVersionVisibilityHooks();
+
+    // Trigger smooth splash dismissal with safe threshold once local storefront is mounted
+    scheduleAppSplashDismissal();
 
     // 1. Initial live menu, settings & store notice fetch
     fetchLiveMenuFromBackend();
@@ -17652,3 +17734,5 @@ window.handleClaimScratchReward = handleClaimScratchReward;
 window.triggerScratchCelebrationConfetti = triggerScratchCelebrationConfetti;
 window.updateSpendHungerBar = updateSpendHungerBar;
 window.checkAndSyncSettingsVersion = checkAndSyncSettingsVersion;
+window.dismissAppSplashScreen = dismissAppSplashScreen;
+window.updateAppSplashStatus = updateAppSplashStatus;
