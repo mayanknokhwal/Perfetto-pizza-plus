@@ -569,6 +569,79 @@ function getEffectiveDiscountedUnitPrice(menuItem, basePrice) {
     return Math.round(rawPrice);
 }
 
+/**
+ * 3-Tier Priority Classifier for Customer Menu Items:
+ * - Tier 1 (Top Priority): Items where discount is actively enabled and valid (discountPercent > 0).
+ * - Tier 2 (Standard Priority): In-stock/available items with no active discount.
+ * - Tier 3 (Bottom Priority): Items marked as out-of-stock, unavailable, or hidden from instant ordering.
+ */
+function getCustomerMenuItemTier(item) {
+    if (!item) return 3;
+
+    // Check availability first: unavailable or out-of-stock items belong strictly to Tier 3 (Bottom Priority)
+    const isAvail = typeof isProductAvailable === 'function'
+        ? isProductAvailable(item)
+        : (item.available !== false && item.is_available !== false && !item.out_of_stock);
+    if (!isAvail) {
+        return 3;
+    }
+
+    // Check if discount is actively enabled and valid (discountPercent > 0)
+    let hasValidActiveDiscount = false;
+    if (typeof getItemEffectiveDiscount === 'function') {
+        const disc = getItemEffectiveDiscount(item);
+        if (disc && disc.isDiscountActive && disc.discountPercent > 0) {
+            hasValidActiveDiscount = true;
+        }
+    }
+    if (!hasValidActiveDiscount) {
+        const itemDiscountPercent = Number(item.appliedDiscountPercent || item.discountPercent || item.discount || 0);
+        if (item.isDiscountActive && itemDiscountPercent > 0) {
+            hasValidActiveDiscount = true;
+        }
+    }
+
+    if (hasValidActiveDiscount) {
+        return 1; // Tier 1: Discount actively enabled & valid
+    }
+
+    return 2; // Tier 2: In-stock / available with no active discount
+}
+window.getCustomerMenuItemTier = getCustomerMenuItemTier;
+
+/**
+ * 3-Tier Priority Comparator with Locale-Aware Alphabetical Tie-Breaking (A to Z):
+ * 1. Tier 1 (Discounted) before Tier 2 (Available) before Tier 3 (Out of Stock).
+ * 2. Within each tier, items sort alphabetically by name (A to Z) using localeCompare.
+ * 3. Case sensitivity does not disrupt alphabetical ordering.
+ */
+function compareCustomerMenuItemsTieredPriority(a, b) {
+    if (!a && !b) return 0;
+    if (!a) return 1;
+    if (!b) return -1;
+
+    const tierA = getCustomerMenuItemTier(a);
+    const tierB = getCustomerMenuItemTier(b);
+
+    if (tierA !== tierB) {
+        return tierA - tierB;
+    }
+
+    // Tie-break alphabetically by item name (A to Z) using locale-aware case-insensitive comparison
+    const nameA = String(a.name || a.title || '').trim();
+    const nameB = String(b.name || b.title || '').trim();
+
+    const caseInsensitiveDiff = nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
+    if (caseInsensitiveDiff !== 0) {
+        return caseInsensitiveDiff;
+    }
+
+    // Secondary deterministic tie-break preserving exact casing if identical under base sensitivity
+    return nameA.localeCompare(nameB, undefined, { numeric: true });
+}
+window.compareCustomerMenuItemsTieredPriority = compareCustomerMenuItemsTieredPriority;
+
+
 function getPizzaSizeAddonRates(size = 'M') {
     const pAddons = getCustomerCategoryAddons('Pizza');
     if (pAddons && pAddons.sizes && pAddons.sizes[size]) {
@@ -2597,7 +2670,7 @@ function getSubItems(categoryName, categoryImg) {
     if (storedItems) {
         const catItems = storedItems.filter(i => i.category === categoryName);
         if (catItems.length > 0) {
-            return catItems.map(item => {
+            const mapped = catItems.map(item => {
                 const isAvail = isProductAvailable(item);
                 return {
                     ...item,
@@ -2607,6 +2680,7 @@ function getSubItems(categoryName, categoryImg) {
                     out_of_stock: !isAvail
                 };
             });
+            return mapped.sort(compareCustomerMenuItemsTieredPriority);
         }
     }
 
@@ -2615,7 +2689,7 @@ function getSubItems(categoryName, categoryImg) {
             ...item,
             img: item.img || categoryImg,
             available: true
-        }));
+        })).sort(compareCustomerMenuItemsTieredPriority);
     }
 
     return [
@@ -2623,7 +2697,7 @@ function getSubItems(categoryName, categoryImg) {
         { id: `${categoryName}-2`, name: `${categoryName} Option 2`, desc: `Special chef recipe variation for ${categoryName}`, price: 199.00, tag: "Variety 2", img: categoryImg, available: true },
         { id: `${categoryName}-3`, name: `${categoryName} Option 3`, desc: `Deluxe portion variation for ${categoryName}`, price: 219.00, tag: "Variety 3", img: categoryImg, available: true },
         { id: `${categoryName}-4`, name: `${categoryName} Option 4`, desc: `Combo style variation for ${categoryName}`, price: 259.00, tag: "Variety 4", img: categoryImg, available: true }
-    ];
+    ].sort(compareCustomerMenuItemsTieredPriority);
 }
 
 function changePizzaSize(pizzaId, size, basePrice, event) {
@@ -2757,6 +2831,9 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
     }
 
     const items = getSubItems(categoryName, categoryImg);
+    if (Array.isArray(items)) {
+        items.sort(compareCustomerMenuItemsTieredPriority);
+    }
 
     const translatedCat = typeof tCategory === 'function' ? tCategory(categoryName) : categoryName;
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
@@ -16097,8 +16174,8 @@ function setupLocalStorageSync() {
             updateCartUI();
             updateProfileTotalsUI();
         }
-        // 3. Menu changed by Admin
-        if (!e.key || e.key === MENU_STORAGE_KEY) {
+        // 3. Menu, Category Discounts, or Addons changed by Admin
+        if (!e.key || e.key === MENU_STORAGE_KEY || e.key === 'perfetto_category_discounts' || e.key === 'perfetto_category_addons') {
             if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
                 openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
             }
@@ -16654,11 +16731,52 @@ function listenToStoreStatusRealtime() {
 }
 window.listenToStoreStatusRealtime = listenToStoreStatusRealtime;
 
+let customerMenuRealtimeUnsubscribe = null;
+
+function setupCustomerMenuRealtimeListener() {
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+    if (!fs) return;
+    if (customerMenuRealtimeUnsubscribe) return;
+
+    try {
+        customerMenuRealtimeUnsubscribe = fs.collection('settings').doc('menu').onSnapshot((doc) => {
+            if (doc && doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
+                if (doc.data().categoryAddons) {
+                    try {
+                        customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons });
+                        localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
+                    } catch (e) { }
+                }
+                if (doc.data().categoryDiscounts) {
+                    try {
+                        customerCategoryDiscounts = { ...doc.data().categoryDiscounts };
+                        localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
+                    } catch (e) { }
+                }
+                const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
+                try {
+                    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                } catch (e) { }
+                syncCartWithLatestMenu(freshItems);
+                refreshActiveCustomerView(freshItems);
+                updateCartUI();
+            }
+        }, (err) => {
+            console.warn('Firestore menu onSnapshot notice:', err);
+        });
+    } catch (e) {
+        console.warn('Could not setup customerMenuRealtimeListener:', e);
+    }
+}
+window.setupCustomerMenuRealtimeListener = setupCustomerMenuRealtimeListener;
+
 // Real-Time & Direct Listeners for Menu Items, Prices, Availability & Store Rates
 function listenToRealtimeMenuAndRates() {
     if (!customerFirestore) return;
 
-    // Spark Plan Optimization: Direct fetch on startup instead of persistent onSnapshot to keep WebSocket connections << 100
+    // Real-time listener for menu updates (availability, discounts, custom prices) from Admin
+    setupCustomerMenuRealtimeListener();
+
     fetchMenuFromFirestoreDirect();
     fetchSettingsFromFirestoreDirect();
 
@@ -16675,6 +16793,17 @@ function listenToRealtimeMenuAndRates() {
         try {
             const bc = new BroadcastChannel('perfetto_store_sync');
             bc.onmessage = (event) => {
+                if (event.data && (event.data.type === 'menu_updated' || event.data.type === 'menu_saved')) {
+                    if (event.data.items) {
+                        const freshItems = sanitizeStoredMenuItems(event.data.items) || event.data.items;
+                        try {
+                            localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                        } catch (e) { }
+                        refreshActiveCustomerView(freshItems);
+                    } else if (typeof fetchMenuFromFirestoreDirect === 'function') {
+                        fetchMenuFromFirestoreDirect();
+                    }
+                }
                 if (event.data && event.data.type === 'store_status_updated' && event.data.settings) {
                     applyIncomingSettingsData(event.data.settings);
                 }
