@@ -14092,6 +14092,7 @@
         let adminAudioContext = null;
         let adminAlertAudio = null;
         let adminAudioUnlocked = false;
+        let lastAdminChimeTimestamp = 0;
 
         function getAdminAudioSrc() {
             try {
@@ -14118,6 +14119,12 @@
                     adminAlertAudio = new Audio(getAdminAudioSrc());
                     adminAlertAudio.loop = false; // Strictly single-play chime (never loop)
                     adminAlertAudio.preload = 'auto';
+                    adminAlertAudio.onended = function() {
+                        try {
+                            adminAlertAudio.pause();
+                            adminAlertAudio.currentTime = 0;
+                        } catch (e) { }
+                    };
                 } catch (e) { }
             }
             if (adminAlertAudio) {
@@ -14170,7 +14177,14 @@
         });
 
         function playAdminOrderChime() {
-            console.log('🔔 [Admin Alert] Playing incoming order alert chime once...');
+            const now = Date.now();
+            if (now - lastAdminChimeTimestamp < 2000) {
+                // Debounce duplicate invocations within the same batch
+                return;
+            }
+            lastAdminChimeTimestamp = now;
+
+            console.log('🔔 [Admin Alert] Playing incoming order alert chime once (single-play)...');
             try {
                 const ctx = getAdminAudioContext();
                 if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
@@ -14227,6 +14241,22 @@
         }
         window.playAdminOrderChime = playAdminOrderChime;
 
+        function getAdminOrderMatchingKeys(docId, data = {}) {
+            const keys = new Set();
+            if (docId) {
+                const s = String(docId).trim();
+                keys.add(s);
+                keys.add(s.replace(/^#/, '').trim());
+            }
+            const oId = data.orderId || data.id || data.firestoreDocId;
+            if (oId) {
+                const s = String(oId).trim();
+                keys.add(s);
+                keys.add(s.replace(/^#/, '').trim());
+            }
+            return Array.from(keys).filter(Boolean);
+        }
+
         function listenToAdminLiveOrders() {
             const db = adminFirestore || getAdminFirestore();
             if (!db) {
@@ -14261,22 +14291,21 @@
                         // Detect new incoming orders and trigger single chime
                         if (!adminInitialOrdersLoaded) {
                             snapshot.forEach(doc => {
-                                adminKnownOrderIds.add(doc.id);
                                 const d = doc.data() || {};
-                                if (d.orderId) adminKnownOrderIds.add(String(d.orderId));
-                                if (d.id) adminKnownOrderIds.add(String(d.id));
+                                getAdminOrderMatchingKeys(doc.id, d).forEach(k => adminKnownOrderIds.add(k));
                             });
                             adminInitialOrdersLoaded = true;
+                            console.log(`📡 [Admin Orders] Initial hydration complete (${snapshot.size} orders recorded, alerts suppressed).`);
                         } else {
                             if (typeof snapshot.docChanges === 'function') {
                                 snapshot.docChanges().forEach(change => {
                                     if (change.type === 'added') {
                                         const docId = change.doc.id;
                                         const d = change.doc.data() || {};
-                                        const oId = String(d.orderId || d.id || docId).trim();
-                                        if (!adminKnownOrderIds.has(docId) && !adminKnownOrderIds.has(oId)) {
-                                            adminKnownOrderIds.add(docId);
-                                            if (oId) adminKnownOrderIds.add(oId);
+                                        const keys = getAdminOrderMatchingKeys(docId, d);
+                                        const isKnown = keys.some(k => adminKnownOrderIds.has(k));
+                                        if (!isKnown) {
+                                            keys.forEach(k => adminKnownOrderIds.add(k));
                                             const status = String(d.status || '').trim().toLowerCase();
                                             if (status === 'placed' || status === 'new' || status === 'pending') {
                                                 hasNewIncomingOrder = true;
@@ -14320,11 +14349,10 @@
                     if (!o) return;
                     const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
                     const status = String(o.status || '').trim().toLowerCase();
-                    if (id && !adminKnownOrderIds.has(id)) {
-                        adminKnownOrderIds.add(id);
-                        if (o.orderId) adminKnownOrderIds.add(String(o.orderId));
-                        if (o.id) adminKnownOrderIds.add(String(o.id));
-                        if (o.firestoreDocId) adminKnownOrderIds.add(String(o.firestoreDocId));
+                    const keys = getAdminOrderMatchingKeys(id, o);
+                    const isKnown = keys.some(k => adminKnownOrderIds.has(k));
+                    if (!isKnown) {
+                        keys.forEach(k => adminKnownOrderIds.add(k));
                         if (status === 'placed' || status === 'new' || status === 'pending') {
                             foundNew = true;
                         }
@@ -14334,6 +14362,13 @@
                     playAdminOrderChime();
                     showToast('🔔 New incoming customer order received!');
                 }
+            } else {
+                // Populate initial seen keys
+                serverOrders.forEach(o => {
+                    if (!o) return;
+                    const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                    getAdminOrderMatchingKeys(id, o).forEach(k => adminKnownOrderIds.add(k));
+                });
             }
 
             // 1. Server / Firestore orders are the single source of truth across all devices
