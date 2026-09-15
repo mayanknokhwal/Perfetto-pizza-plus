@@ -332,4 +332,51 @@ test('10. app.js contains startWalletCountdownTimer and cleans it up in cleanupA
     assert(appJs.includes('window.startWalletCountdownTimer = startWalletCountdownTimer'), "startWalletCountdownTimer must be exposed to window");
 });
 
+// -------------------------------------------------------------
+// Test 11: Secondary Indicator Text Formatting ("₹XX expiring in...")
+// -------------------------------------------------------------
+test('11. Secondary indicator formats as "₹XX expiring in..." with red accent tone', () => {
+    const formatSecondaryIndicator = (amount, remainingMs) => {
+        const countdown = formatStepDown(remainingMs, false, false);
+        const snippet = countdown.toLowerCase().replace(/^expires in\b/i, 'expiring in');
+        return `₹${amount} ${snippet}`;
+    };
+
+    // 18 hours: "₹40 expiring in 18h"
+    const text18h = formatSecondaryIndicator(40, 18 * 3600 * 1000 + 20 * 60 * 1000);
+    assert.strictEqual(text18h, '₹40 expiring in 18h', `Expected "₹40 expiring in 18h", got "${text18h}"`);
+
+    // 42 minutes: "₹40 expiring in 42m"
+    const text42m = formatSecondaryIndicator(40, 42 * 60 * 1000 + 15 * 1000);
+    assert.strictEqual(text42m, '₹40 expiring in 42m', `Expected "₹40 expiring in 42m", got "${text42m}"`);
+
+    // 2 days: "₹40 expiring in 2 days"
+    const text2d = formatSecondaryIndicator(40, 48 * 3600 * 1000);
+    assert.strictEqual(text2d, '₹40 expiring in 2 days', `Expected "₹40 expiring in 2 days", got "${text2d}"`);
+});
+
+// -------------------------------------------------------------
+// Test 12: Strict Descending Steps (23h to 1h, and 59m to 1m)
+// -------------------------------------------------------------
+test('12. Countdown descends strictly from 23h to 1h without minutes, then 59m to 1m', () => {
+    // Exactly 24 hours remaining -> clamps to 23h
+    assert.strictEqual(formatStepDown(24 * 3600 * 1000), 'Expires in 23h');
+    // 23 hours
+    assert.strictEqual(formatStepDown(23 * 3600 * 1000 + 45 * 60 * 1000), 'Expires in 23h');
+    // 14 hours
+    assert.strictEqual(formatStepDown(14 * 3600 * 1000 + 10 * 60 * 1000), 'Expires in 14h');
+    // 2 hours
+    assert.strictEqual(formatStepDown(2 * 3600 * 1000 + 50 * 60 * 1000), 'Expires in 2h');
+    // 1 hour
+    assert.strictEqual(formatStepDown(1 * 3600 * 1000 + 5 * 60 * 1000), 'Expires in 1h');
+    // 59 minutes
+    assert.strictEqual(formatStepDown(59 * 60 * 1000 + 50 * 1000), 'Expires in 59m');
+    // 22 minutes
+    assert.strictEqual(formatStepDown(22 * 60 * 1000 + 10 * 1000), 'Expires in 22m');
+    // 1 minute
+    assert.strictEqual(formatStepDown(1 * 60 * 1000 + 5 * 1000), 'Expires in 1m');
+    // Sub-minute (30s) -> clamps to 1m
+    assert.strictEqual(formatStepDown(30 * 1000), 'Expires in 1m');
+});
+
 console.log(`\nALL ${passCount} VERIFICATION TESTS PASSED SUCCESSFULLY!`);

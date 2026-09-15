@@ -4577,11 +4577,11 @@ function formatStepDownExpiryCountdown(remainingMs, isHindi = false, compact = f
     }
 
     if (remainingMs >= MS_IN_HOUR) {
-        const hours = Math.floor(remainingMs / MS_IN_HOUR);
+        const hours = Math.min(23, Math.floor(remainingMs / MS_IN_HOUR));
         return isHindi ? `${hours}h में समाप्त` : `Expires in ${hours}h`;
     }
 
-    const minutes = Math.max(1, Math.floor(remainingMs / MS_IN_MINUTE));
+    const minutes = Math.min(59, Math.max(1, Math.floor(remainingMs / MS_IN_MINUTE)));
     return isHindi ? `${minutes}m में समाप्त` : `Expires in ${minutes}m`;
 }
 window.formatStepDownExpiryCountdown = formatStepDownExpiryCountdown;
@@ -6062,6 +6062,9 @@ function startWalletCountdownTimer() {
     }
     // Update every 30 seconds to tick minutes/hours and auto-expire
     walletCountdownInterval = setInterval(() => {
+        if (currentCustomerWallet) {
+            reconcileWalletTranches(currentCustomerWallet);
+        }
         const cardEl = document.getElementById('profile-wallet-card');
         if (cardEl && cardEl.offsetParent !== null) {
             updateProfileWalletUI();
@@ -6152,7 +6155,8 @@ function updateProfileWalletUI() {
                     if (isHindi) {
                         expiringCountdownEl.textContent = `${countdownText}`;
                     } else {
-                        expiringCountdownEl.textContent = countdownText.toLowerCase();
+                        const snippet = countdownText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
+                        expiringCountdownEl.textContent = snippet;
                     }
                 }
             }
