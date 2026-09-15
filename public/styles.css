@@ -7693,6 +7693,84 @@ button.btn-disabled-stock {
     padding: 1px 5px;
 }
 
+.wallet-tx-item.tx-refund {
+    border-left: 3px solid #10b981;
+}
+
+.wallet-tx-item.tx-hold {
+    border-left: 3px solid #f59e0b;
+}
+
+.wallet-tx-amount.amount-refund {
+    color: #047857;
+}
+
+[data-theme="dark"] .wallet-tx-amount.amount-refund {
+    color: #34d399;
+}
+
+.wallet-tx-amount.amount-hold {
+    color: #d97706;
+}
+
+[data-theme="dark"] .wallet-tx-amount.amount-hold {
+    color: #fbbf24;
+}
+
+.tx-badge-refund {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #059669;
+    background: rgba(16, 185, 129, 0.14);
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
+[data-theme="dark"] .tx-badge-refund {
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.22);
+}
+
+.tx-badge-hold {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.14);
+    border-radius: 4px;
+    padding: 1px 6px;
+}
+
+[data-theme="dark"] .tx-badge-hold {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.22);
+}
+
+.wallet-locked-inline-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px dashed rgba(245, 158, 11, 0.35);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-top: 8px;
+}
+
+[data-theme="dark"] .wallet-locked-inline-notice {
+    color: #fcd34d;
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
 /* OTP Modal Cashback Card */
 .otp-cashback-reward-card {
     position: relative;

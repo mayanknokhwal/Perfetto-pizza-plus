@@ -575,18 +575,18 @@ async function handleOrdersRequest(req, res) {
                         if (userDoc.scratchCards.length > 50) userDoc.scratchCards.length = 50;
                     }
 
-                    // Settle wallet redemption debit on order creation if wallet cash was used
+                    // Transition wallet redemption to escrow hold on order creation if wallet cash was used
                     if (usedWallet > 0) {
                         userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
-                        if (!userDoc.walletTransactions.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === String(finalOrderId))) {
+                        if (!userDoc.walletTransactions.some(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === String(finalOrderId))) {
                             userDoc.walletTransactions.unshift({
-                                id: `tx_debit_${finalOrderId}`,
-                                type: 'debit',
+                                id: `tx_hold_${finalOrderId}`,
+                                type: 'hold',
                                 amount: usedWallet,
                                 orderId: String(finalOrderId),
-                                description: `Redeemed on Order #${finalOrderId}`,
+                                description: `Wallet hold for Order #${finalOrderId}`,
                                 createdAt: orderDoc.createdAt,
-                                status: 'completed'
+                                status: 'LOCKED_HOLD'
                             });
                         }
 
@@ -755,23 +755,31 @@ async function handleOrdersRequest(req, res) {
 
                         userDoc.walletTransactions = Array.isArray(userDoc.walletTransactions) ? userDoc.walletTransactions : [];
 
-                        // 1A. Settle wallet redemption debit on delivery if not already recorded
+                        // 1A. Settle wallet redemption debit on delivery (commit hold)
                         if (usedWallet > 0) {
-                            const debitAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === String(targetId));
-                            if (!debitAlreadyLogged) {
-                                const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
-                                const newBalAfterDebit = Math.max(0, currentBal - usedWallet);
-                                userDoc.walletBalance = newBalAfterDebit;
-                                userDoc.balance = newBalAfterDebit;
-                                userDoc.walletTransactions.unshift({
-                                    id: `tx_debit_${targetId}`,
-                                    type: 'debit',
-                                    amount: usedWallet,
-                                    orderId: String(targetId),
-                                    description: `Redeemed on Order #${targetId}`,
-                                    createdAt: new Date().toISOString(),
-                                    status: 'completed'
-                                });
+                            const holdTx = userDoc.walletTransactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === String(targetId));
+                            if (holdTx) {
+                                holdTx.type = 'debit';
+                                holdTx.status = 'completed';
+                                holdTx.description = `Redeemed on Order #${targetId}`;
+                                holdTx.completedAt = new Date().toISOString();
+                            } else {
+                                const debitAlreadyLogged = userDoc.walletTransactions.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === String(targetId) && tx.status === 'completed');
+                                if (!debitAlreadyLogged) {
+                                    const currentBal = Number(userDoc.walletBalance || userDoc.balance || 0);
+                                    const newBalAfterDebit = Math.max(0, currentBal - usedWallet);
+                                    userDoc.walletBalance = newBalAfterDebit;
+                                    userDoc.balance = newBalAfterDebit;
+                                    userDoc.walletTransactions.unshift({
+                                        id: `tx_debit_${targetId}`,
+                                        type: 'debit',
+                                        amount: usedWallet,
+                                        orderId: String(targetId),
+                                        description: `Redeemed on Order #${targetId}`,
+                                        createdAt: new Date().toISOString(),
+                                        status: 'completed'
+                                    });
+                                }
                             }
                         }
 
@@ -931,13 +939,22 @@ async function handleOrdersRequest(req, res) {
                         userDoc.balance = newBal;
                         userDoc.updatedAt = new Date().toISOString();
 
+                        // Release hold if present
+                        if (Array.isArray(userDoc.walletTransactions)) {
+                            const holdTx = userDoc.walletTransactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === String(targetId) && tx.status === 'LOCKED_HOLD');
+                            if (holdTx) {
+                                holdTx.status = 'released';
+                            }
+                        }
+
                         const refundTx = {
                             id: `tx_refund_${targetId}`,
                             orderId: String(targetId),
                             amount: refundAmount,
                             type: 'REFUND',
-                            title: `Refund for Auto-Expired Order #${targetId}`,
-                            description: `Refund ₹${refundAmount} for Auto-Expired Order #${targetId}`,
+                            title: `+₹${refundAmount} Refund`,
+                            description: `+₹${refundAmount} Refund for Order #${targetId}`,
+                            status: 'completed',
                             timestamp: new Date().toISOString(),
                             createdAt: new Date().toISOString()
                         };

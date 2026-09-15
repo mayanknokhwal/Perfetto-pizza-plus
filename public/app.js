@@ -4799,11 +4799,13 @@ function reconcileWalletTranches(wallet) {
 
     wallet.transactions.forEach(tx => {
         if (!tx) return;
-        if (tx.type === 'debit') {
-            const amt = Math.max(0, Math.abs(Number(tx.amount) || 0));
-            if (amt > 0) {
-                const debitTime = tx.createdAt ? new Date(tx.createdAt).getTime() : nowMs;
-                debits.push({ tx, amount: amt, time: isNaN(debitTime) ? nowMs : debitTime });
+        if (tx.type === 'debit' || (tx.type === 'hold' && tx.status === 'LOCKED_HOLD')) {
+            if (tx.status !== 'released' && tx.status !== 'cancelled') {
+                const amt = Math.max(0, Math.abs(Number(tx.amount) || 0));
+                if (amt > 0) {
+                    const debitTime = tx.createdAt ? new Date(tx.createdAt).getTime() : nowMs;
+                    debits.push({ tx, amount: amt, time: isNaN(debitTime) ? nowMs : debitTime });
+                }
             }
         } else if (tx.type === 'credit') {
             if (tx.initialAmount === undefined) {
@@ -5313,6 +5315,33 @@ function updateCartCashbackIncentiveBar(subtotal) {
 }
 window.updateCartCashbackIncentiveBar = updateCartCashbackIncentiveBar;
 
+function getActiveLockedWalletInfo() {
+    let lockedAmount = 0;
+    const lockedOrderIds = [];
+    try {
+        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (Array.isArray(orders)) {
+            const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+            orders.forEach(o => {
+                if (!o) return;
+                const st = String(o.status || '').toLowerCase().trim();
+                if (!terminalStatuses.includes(st)) {
+                    const held = Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0);
+                    if (held > 0) {
+                        lockedAmount += held;
+                        const idClean = String(o.id || o.orderId || '').replace(/^#/, '');
+                        if (idClean && !lockedOrderIds.includes(idClean)) {
+                            lockedOrderIds.push(idClean);
+                        }
+                    }
+                }
+            });
+        }
+    } catch (e) {}
+    return { lockedAmount, lockedOrderIds };
+}
+window.getActiveLockedWalletInfo = getActiveLockedWalletInfo;
+
 function updateCheckoutWalletUI() {
     const walletCard = document.getElementById('checkout-wallet-card');
     const availValEl = document.getElementById('checkout-wallet-available-val');
@@ -5329,9 +5358,10 @@ function updateCheckoutWalletUI() {
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
     const availableBalance = getEffectiveWalletBalance();
+    const { lockedAmount, lockedOrderIds } = getActiveLockedWalletInfo();
 
     // System Toggle Behavior: When disabled, existing wallet balance remains 100% redeemable until exhausted
-    if (availableBalance <= 0 || cart.length === 0) {
+    if ((availableBalance <= 0 && lockedAmount <= 0) || cart.length === 0) {
         walletCard.style.display = 'none';
         isWalletRedemptionSelected = false;
         appliedWalletDiscountAmount = 0;
@@ -5342,6 +5372,22 @@ function updateCheckoutWalletUI() {
     // Show wallet card
     walletCard.style.display = 'block';
     if (availValEl) availValEl.textContent = formatPrice(availableBalance);
+
+    // Display inline notice if wallet balance is currently locked in an active order
+    let lockedNoticeEl = document.getElementById('checkout-wallet-locked-notice');
+    if (lockedAmount > 0) {
+        if (!lockedNoticeEl) {
+            lockedNoticeEl = document.createElement('div');
+            lockedNoticeEl.id = 'checkout-wallet-locked-notice';
+            lockedNoticeEl.className = 'wallet-locked-inline-notice';
+            walletCard.appendChild(lockedNoticeEl);
+        }
+        const orderLabel = lockedOrderIds.length > 0 ? `active Order #${lockedOrderIds.join(', #')}` : 'an active order';
+        lockedNoticeEl.innerHTML = `<i class="fa-solid fa-lock"></i> <span>₹${lockedAmount} is currently locked in ${orderLabel}.</span>`;
+        lockedNoticeEl.style.display = 'flex';
+    } else if (lockedNoticeEl) {
+        lockedNoticeEl.style.display = 'none';
+    }
 
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     const savedProfile = getSavedDeliveryProfile();
@@ -5473,6 +5519,19 @@ function updateCheckoutCashbackTeaser(subtotal) {
 window.updateCheckoutCashbackTeaser = updateCheckoutCashbackTeaser;
 
 function handleToggleUseWallet(isChecked) {
+    const { lockedAmount, lockedOrderIds } = (typeof getActiveLockedWalletInfo === 'function') ? getActiveLockedWalletInfo() : { lockedAmount: 0, lockedOrderIds: [] };
+    const avail = (typeof getEffectiveWalletBalance === 'function') ? getEffectiveWalletBalance() : 0;
+
+    if (isChecked && avail <= 0 && lockedAmount > 0) {
+        const orderLabel = lockedOrderIds.length > 0 ? `active Order #${lockedOrderIds.join(', #')}` : 'an active order';
+        showToast(`Your previous wallet balance of ₹${lockedAmount} is currently locked in ${orderLabel}.`);
+        isWalletRedemptionSelected = false;
+        const cb = document.getElementById('checkbox-use-wallet');
+        if (cb) cb.checked = false;
+        updateCheckoutWalletUI();
+        return;
+    }
+
     isWalletRedemptionSelected = isChecked;
     updateCheckoutWalletUI();
 }
@@ -5487,30 +5546,31 @@ async function debitCustomerWallet(phone, amount, orderId) {
     if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
 
-    // Idempotency check: prevent duplicate debit for the exact same order
+    // Idempotency check: prevent duplicate hold for the exact same order
     if (effectiveOrderId && effectiveOrderId !== 'ORDER' && effectiveOrderId !== '--') {
-        const alreadyDebited = existingTx.some(tx => tx && tx.type === 'debit' && String(tx.orderId) === effectiveOrderId);
+        const alreadyDebited = existingTx.some(tx => tx && (tx.type === 'debit' || tx.type === 'hold') && String(tx.orderId) === effectiveOrderId && tx.status !== 'released');
         if (alreadyDebited) {
-            console.log(`[WALLET] Order #${effectiveOrderId} has already been debited. Skipping duplicate debit.`);
+            console.log(`[WALLET] Order #${effectiveOrderId} has already been held/debited. Skipping duplicate.`);
             return;
         }
     }
 
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
 
-    // Prepend debit transaction record
-    const debitTxData = {
-        type: 'debit',
+    // Prepend escrow hold transaction record (funds locked in escrow until delivery or rejection)
+    const holdTxData = {
+        id: `tx_hold_${effectiveOrderId}`,
+        type: 'hold',
         amount: debitAmt,
         orderId: effectiveOrderId,
-        description: `Redeemed on Order #${effectiveOrderId}`,
+        description: `Wallet hold for Order #${effectiveOrderId}`,
         createdAt: new Date().toISOString(),
-        status: 'completed'
+        status: 'LOCKED_HOLD'
     };
-    existingTx.unshift(debitTxData);
+    existingTx.unshift(holdTxData);
     currentCustomerWallet.transactions = existingTx.slice(0, 30);
 
-    // Reconcile tranches with FIFO deduction against credit tranches
+    // Reconcile tranches with FIFO deduction against credit tranches (reducing spendable balance)
     const updatedWalletBalance = reconcileWalletTranches(currentCustomerWallet);
 
     updateProfileWalletUI();
@@ -5529,15 +5589,7 @@ async function debitCustomerWallet(phone, amount, orderId) {
                     : new Date().toISOString()
             }, { merge: true }).catch(() => {});
 
-            await walletRef.collection('transactions').add({
-                type: 'debit',
-                amount: debitAmt,
-                orderId: effectiveOrderId,
-                description: `Redeemed on Order #${effectiveOrderId}`,
-                createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                    ? firebase.firestore.FieldValue.serverTimestamp()
-                    : new Date().toISOString()
-            }).catch(() => {});
+            await walletRef.collection('transactions').doc(`tx_hold_${effectiveOrderId}`).set(holdTxData, { merge: true }).catch(() => {});
 
             // Also sync to users/phone_{cleanPhone} and users/{cleanPhone}
             const userDocRef = customerFirestore.collection('users').doc(`phone_${cleanPhone}`);
@@ -5554,10 +5606,62 @@ async function debitCustomerWallet(phone, amount, orderId) {
             await userDocRefRaw.set(userPayload, { merge: true }).catch(() => {});
         }
     } catch (err) {
-        console.warn('Error debiting customer wallet in Firestore:', err);
+        console.warn('Error recording wallet hold in Firestore:', err);
     }
 }
 window.debitCustomerWallet = debitCustomerWallet;
+
+function commitWalletHold(orderId) {
+    if (!currentCustomerWallet || !Array.isArray(currentCustomerWallet.transactions)) return;
+    const effectiveOrderId = String(orderId || '');
+    const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === effectiveOrderId);
+    if (holdTx) {
+        holdTx.type = 'debit';
+        holdTx.status = 'completed';
+        holdTx.description = `Redeemed on Order #${effectiveOrderId}`;
+        holdTx.completedAt = new Date().toISOString();
+        reconcileWalletTranches(currentCustomerWallet);
+        updateProfileWalletUI();
+        renderProfileWalletTxList();
+        updateCheckoutWalletUI();
+    }
+}
+window.commitWalletHold = commitWalletHold;
+
+function releaseWalletHold(orderId, refundAmount) {
+    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
+
+    const effectiveOrderId = String(orderId || '');
+    const refundAmt = Math.round(Number(refundAmount) || 0);
+
+    const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === effectiveOrderId);
+    if (holdTx) {
+        holdTx.status = 'released';
+    }
+
+    const txId = `tx_refund_${effectiveOrderId}`;
+    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && String(tx.orderId) === effectiveOrderId)));
+    if (!alreadyRefunded && refundAmt > 0) {
+        const refundTx = {
+            id: txId,
+            type: 'REFUND',
+            amount: refundAmt,
+            orderId: effectiveOrderId,
+            title: `+₹${refundAmt} Refund`,
+            description: `+₹${refundAmt} Refund for Order #${effectiveOrderId}`,
+            status: 'completed',
+            createdAt: new Date().toISOString()
+        };
+        currentCustomerWallet.transactions.unshift(refundTx);
+    }
+
+    reconcileWalletTranches(currentCustomerWallet);
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    updateCheckoutWalletUI();
+}
+window.releaseWalletHold = releaseWalletHold;
 
 /**
  * Returns the exact reward and cashback slab value configured in the remote Firestore database
@@ -5903,11 +6007,22 @@ function renderProfileWalletTxList() {
 
     container.innerHTML = txList.slice(0, 15).map(tx => {
         const isCredit = (tx.type === 'credit');
+        const isRefund = (tx.type === 'REFUND' || tx.type === 'refund');
+        const isHold = (tx.type === 'hold' || tx.status === 'LOCKED_HOLD');
+        const isPositive = isCredit || isRefund;
         const amt = Math.abs(Number(tx.amount) || 0);
         const dateStr = tx.createdAt ? new Date(tx.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently';
 
         let expiryNotice = '';
-        if (isCredit) {
+        if (isRefund) {
+            expiryNotice = '<span class="tx-badge-refund"><i class="fa-solid fa-rotate-left"></i> Refunded</span>';
+        } else if (isHold) {
+            if (tx.status === 'released') {
+                expiryNotice = '<span class="tx-badge-used"><i class="fa-solid fa-rotate-left"></i> Hold Released</span>';
+            } else {
+                expiryNotice = '<span class="tx-badge-hold"><i class="fa-solid fa-lock"></i> Locked Hold</span>';
+            }
+        } else if (isCredit) {
             const remaining = tx.remainingAmount !== undefined
                 ? Number(tx.remainingAmount)
                 : (tx.status === 'used' ? 0 : amt);
@@ -5927,16 +6042,27 @@ function renderProfileWalletTxList() {
             }
         }
 
-        const txTitle = tx.description || (isCredit ? `credited +₹${amt} for Order #${tx.orderId || ''}` : `Redeemed on Order #${tx.orderId || ''}`);
+        let txTitle = tx.description || tx.title;
+        if (!txTitle) {
+            if (isRefund) txTitle = `Refund for Order #${tx.orderId || ''}`;
+            else if (isHold) txTitle = `Wallet hold for Order #${tx.orderId || ''}`;
+            else if (isCredit) txTitle = `credited +₹${amt} for Order #${tx.orderId || ''}`;
+            else txTitle = `Redeemed on Order #${tx.orderId || ''}`;
+        }
+
+        const amountPrefix = isPositive ? '+' : (isHold ? '' : '-');
+        const amountSuffix = isRefund ? ' Refund' : '';
+        const rowClass = isRefund ? 'tx-credit tx-refund' : (isCredit ? 'tx-credit' : (isHold ? 'tx-hold' : 'tx-debit'));
+        const amountClass = isRefund ? 'amount-credit amount-refund' : (isCredit ? 'amount-credit' : (isHold ? 'amount-hold' : 'amount-debit'));
 
         return `
-            <div class="wallet-tx-item ${isCredit ? 'tx-credit' : 'tx-debit'}">
+            <div class="wallet-tx-item ${rowClass}">
                 <div class="wallet-tx-left">
-                    <span class="wallet-tx-title">${txTitle}</span>
+                    <span class="wallet-tx-title">${escapeHtml(txTitle)}</span>
                     <span class="wallet-tx-date">${dateStr}</span>
                 </div>
                 <div class="wallet-tx-right">
-                    <span class="wallet-tx-amount ${isCredit ? 'amount-credit' : 'amount-debit'}">${isCredit ? '+' : '-'}₹${amt}</span>
+                    <span class="wallet-tx-amount ${amountClass}">${amountPrefix}₹${amt}${amountSuffix}</span>
                     <span class="wallet-tx-expiry">${expiryNotice}</span>
                 </div>
             </div>
@@ -9212,8 +9338,8 @@ function revealScratchCardReward() {
         // Render explicit deferred status message
         if (hintText) {
             hintText.textContent = isHindi
-                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर सफलतापूर्वक डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
-                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is successfully delivered.`;
+                ? `रिवॉर्ड अनलॉक हो गया! ऑर्डर डिलीवर होने पर कैशबैक आपके वॉलेट में जोड़ दिया जाएगा।`
+                : `Reward Unlocked! Cashback will be credited to your wallet once your order is delivered.`;
         }
         if (hintIcon) {
             hintIcon.className = 'fa-solid fa-truck-fast fa-bounce';
@@ -9304,8 +9430,8 @@ async function handleClaimScratchReward() {
 
     // If order is not yet delivered, remind customer and close:
     showToast(isHindi 
-        ? `🎁 बधाई! ₹${amount} कैशबैक ऑर्डर डिलीवर होने पर आपके वॉलेट में जुड़ जाएगा।` 
-        : `🎁 Congratulations! ₹${amount} cashback will be credited to your wallet once delivered.`, 4500);
+        ? `🎁 रिवॉर्ड अनलॉक हो गया! ₹${amount} कैशबैक ऑर्डर डिलीवर होने पर आपके वॉलेट में जोड़ दिया जाएगा।` 
+        : `🎁 Reward Unlocked! Cashback of ₹${amount} will be credited to your wallet once your order is delivered.`, 4500);
     closeScratchCardModal();
 }
 
@@ -11676,7 +11802,9 @@ async function autoRejectExpiredCustomerOrder(order) {
         order.walletRefundAmount = refundAmount;
         order.walletRefundedAt = nowIso;
 
-        if (currentCustomerWallet) {
+        if (typeof releaseWalletHold === 'function') {
+            releaseWalletHold(orderId, refundAmount);
+        } else if (currentCustomerWallet) {
             const currentBal = Number(currentCustomerWallet.balance || 0);
             currentCustomerWallet.balance = currentBal + refundAmount;
             if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
@@ -11688,8 +11816,8 @@ async function autoRejectExpiredCustomerOrder(order) {
                     type: 'REFUND',
                     amount: refundAmount,
                     orderId: orderId,
-                    title: `Refund for Auto-Expired Order #${orderId}`,
-                    description: `Auto-refund ₹${refundAmount} for expired order #${orderId}`,
+                    title: `+₹${refundAmount} Refund`,
+                    description: `+₹${refundAmount} Refund for Order #${orderId}`,
                     createdAt: nowIso
                 });
             }
@@ -11752,8 +11880,8 @@ async function autoRejectExpiredCustomerOrder(order) {
                     orderId: orderId,
                     amount: refundAmount,
                     type: 'REFUND',
-                    title: `Refund for Auto-Expired Order #${orderId}`,
-                    description: `Auto-refund ₹${refundAmount} for expired order #${orderId}`,
+                    title: `+₹${refundAmount} Refund`,
+                    description: `+₹${refundAmount} Refund for Order #${orderId}`,
                     timestamp: serverTs,
                     createdAt: serverTs
                 };
@@ -11887,28 +12015,54 @@ function renderOrderHistoryDetails() {
                     : false;
                 const isAlreadyCredited = (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited');
 
-                if (isDelivered && isScratchRevealed && !isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet) {
-                    if (orderCashback > 0) {
+                if (isDelivered) {
+                    if (typeof commitWalletHold === 'function') {
+                        commitWalletHold(targetOrderId);
+                    }
+                    if (isScratchRevealed && !isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet) {
+                        if (orderCashback > 0) {
+                            o.scratchClaimed = true;
+                            o.rewardStatus = 'credited';
+                            if (o.scratchCard) {
+                                o.scratchCard.claimed = true;
+                                o.scratchCard.status = 'credited';
+                                o.scratchCard.claimedAt = new Date().toISOString();
+                            }
+                            const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
+                            creditCustomerWallet(phone, orderCashback, targetOrderId);
+                            isScratchClaimed = true;
+                            safeStorage.setJSON('perfettoCustomerOrders', orders);
+                        }
+                    } else if (alreadyCreditedInWallet || isAlreadyCredited) {
                         o.scratchClaimed = true;
                         o.rewardStatus = 'credited';
                         if (o.scratchCard) {
                             o.scratchCard.claimed = true;
                             o.scratchCard.status = 'credited';
-                            o.scratchCard.claimedAt = new Date().toISOString();
                         }
-                        const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
-                        creditCustomerWallet(phone, orderCashback, targetOrderId);
                         isScratchClaimed = true;
+                    }
+                } else if (isCancelled) {
+                    const heldAmount = Math.round(Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0));
+                    if (heldAmount > 0 && !o.walletRefunded) {
+                        o.walletRefunded = true;
+                        o.walletRefundAmount = heldAmount;
+                        if (typeof releaseWalletHold === 'function') {
+                            releaseWalletHold(targetOrderId, heldAmount);
+                        }
                         safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
-                } else if (alreadyCreditedInWallet || isAlreadyCredited) {
-                    o.scratchClaimed = true;
-                    o.rewardStatus = 'credited';
-                    if (o.scratchCard) {
-                        o.scratchCard.claimed = true;
-                        o.scratchCard.status = 'credited';
+                    if (o.rewardStatus !== 'voided') {
+                        o.rewardStatus = 'voided';
+                        o.wonCashback = 0;
+                        o.earnedCashback = 0;
+                        if (o.scratchCard) {
+                            o.scratchCard.voided = true;
+                            o.scratchCard.status = 'CANCELLED';
+                            o.scratchCard.wonAmount = 0;
+                        }
+                        safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
-                    isScratchClaimed = true;
                 }
 
                     return `

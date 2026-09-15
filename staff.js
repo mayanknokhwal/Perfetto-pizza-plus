@@ -672,8 +672,8 @@ async function autoRejectExpiredOrder(order) {
                     orderId: orderId,
                     amount: refundAmount,
                     type: 'REFUND',
-                    title: `Refund for Auto-Expired Order #${orderId}`,
-                    description: `Auto-refund ₹${refundAmount} for expired order #${orderId}`,
+                    title: `+₹${refundAmount} Refund`,
+                    description: `+₹${refundAmount} Refund for Order #${orderId}`,
                     status: 'completed',
                     timestamp: serverTs,
                     createdAt: serverTs
@@ -4595,6 +4595,19 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
         const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
         if (rejectReason) patchPayload.rejectionReason = rejectReason;
         if (extraPayload && extraPayload.masterOtp) patchPayload.masterOtp = extraPayload.masterOtp;
+        const refundAmount = Math.round(Number(
+            order?.walletDeductedAmount ||
+            order?.walletUsed ||
+            order?.walletDiscount ||
+            order?.usedWalletCash ||
+            order?.appliedWalletDiscount ||
+            order?.usedWallet ||
+            0
+        ));
+        if (refundAmount > 0) {
+            patchPayload.walletRefunded = true;
+            patchPayload.walletRefundAmount = refundAmount;
+        }
     }
 
     const db = getStaffFirestore();
@@ -4785,15 +4798,108 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 await batch.commit();
                 firestoreSucceeded = true;
                 console.log(`✅ [STAFF OTP] Atomic delivery batch committed for Order #${exactDocId}`);
-            } else {
-                if (isRejected) {
-                    fsUpdate.status = 'rejected';
-                    fsUpdate.rejectedAt = serverTs;
-                    fsUpdate.rewardStatus = 'voided';
-                    fsUpdate.wonCashback = 0;
-                    const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
-                    if (rejectReason) fsUpdate.rejectionReason = rejectReason;
+            } else if (isRejected) {
+                fsUpdate.status = 'rejected';
+                fsUpdate.rejectedAt = serverTs;
+                fsUpdate.rewardStatus = 'voided';
+                fsUpdate.wonCashback = 0;
+                fsUpdate.earnedCashback = 0;
+                if (order && order.scratchCard) {
+                    fsUpdate['scratchCard.status'] = 'CANCELLED';
+                    fsUpdate['scratchCard.voided'] = true;
+                    fsUpdate['scratchCard.wonAmount'] = 0;
+                    fsUpdate['scratchCard.amount'] = 0;
                 }
+                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
+                if (rejectReason) fsUpdate.rejectionReason = rejectReason;
+
+                const refundAmount = Math.round(Number(
+                    order?.walletDeductedAmount ||
+                    order?.walletUsed ||
+                    order?.walletDiscount ||
+                    order?.usedWalletCash ||
+                    order?.appliedWalletDiscount ||
+                    order?.usedWallet ||
+                    0
+                ));
+
+                const rawPhone = order?.customerPhone || order?.phone || order?.customer?.phone || extraPayload?.customerPhone || '';
+                const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
+
+                if (refundAmount > 0 && cleanPhone && FieldValue) {
+                    fsUpdate.walletRefunded = true;
+                    fsUpdate.walletRefundAmount = refundAmount;
+                    fsUpdate.walletRefundedAt = serverTs;
+
+                    const batch = db.batch();
+                    const orderRef = db.collection('orders').doc(exactDocId);
+                    batch.set(orderRef, fsUpdate, { merge: true });
+
+                    const txId = `tx_refund_${rawId}`;
+                    const refundTxLog = {
+                        id: txId,
+                        orderId: String(rawId),
+                        amount: refundAmount,
+                        type: 'REFUND',
+                        title: `+₹${refundAmount} Refund`,
+                        description: `+₹${refundAmount} Refund for Order #${rawId}`,
+                        status: 'completed',
+                        timestamp: serverTs,
+                        createdAt: serverTs
+                    };
+
+                    const inDocTxEntry = {
+                        id: txId,
+                        type: 'REFUND',
+                        amount: refundAmount,
+                        orderId: String(rawId),
+                        title: `+₹${refundAmount} Refund`,
+                        description: `+₹${refundAmount} Refund for Order #${rawId}`,
+                        createdAt: new Date().toISOString(),
+                        status: 'completed'
+                    };
+
+                    // 1. Wallets collection
+                    const walletRef = db.collection('wallets').doc(cleanPhone);
+                    batch.set(walletRef, {
+                        phone: cleanPhone,
+                        balance: FieldValue.increment(refundAmount),
+                        transactions: FieldValue.arrayUnion(inDocTxEntry),
+                        updatedAt: serverTs
+                    }, { merge: true });
+                    batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                    // 2. Users phone_
+                    const userPhoneRef = db.collection('users').doc(`phone_${cleanPhone}`);
+                    batch.set(userPhoneRef, {
+                        phone: cleanPhone,
+                        walletBalance: FieldValue.increment(refundAmount),
+                        balance: FieldValue.increment(refundAmount),
+                        walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
+                        updatedAt: serverTs
+                    }, { merge: true });
+                    batch.set(userPhoneRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                    // 3. Users raw
+                    const userRawRef = db.collection('users').doc(cleanPhone);
+                    batch.set(userRawRef, {
+                        phone: cleanPhone,
+                        walletBalance: FieldValue.increment(refundAmount),
+                        balance: FieldValue.increment(refundAmount),
+                        walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
+                        updatedAt: serverTs
+                    }, { merge: true });
+                    batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                    await batch.commit();
+                    firestoreSucceeded = true;
+                    console.log(`✅ [STAFF REJECT] Atomic wallet refund committed for Order #${exactDocId}`);
+                } else {
+                    console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
+                    await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
+                    firestoreSucceeded = true;
+                }
+            } else {
                 console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
                 await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
                 firestoreSucceeded = true;
