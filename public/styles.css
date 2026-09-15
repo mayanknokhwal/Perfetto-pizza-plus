@@ -7523,12 +7523,86 @@ button.btn-disabled-stock {
     display: flex;
     align-items: center;
     gap: 5px;
+    transition: all 0.2s ease;
 }
 
 [data-theme="dark"] .wallet-expiry-tag {
     color: #fbbf24;
     background: rgba(245, 158, 11, 0.14);
     border-color: rgba(245, 158, 11, 0.3);
+}
+
+.wallet-expiry-tag.is-urgent {
+    color: #b91c1c;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+[data-theme="dark"] .wallet-expiry-tag.is-urgent {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.16);
+    border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* Earliest Expiring Balance Red Highlight Indicator */
+.wallet-expiring-alert {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #dc2626;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.35;
+    animation: fadeInExpiringAlert 0.25s ease-out;
+}
+
+[data-theme="dark"] .wallet-expiring-alert {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #fca5a5;
+}
+
+.wallet-expiring-alert i {
+    font-size: 0.85rem;
+    color: #ef4444;
+    flex-shrink: 0;
+}
+
+[data-theme="dark"] .wallet-expiring-alert i {
+    color: #f87171;
+}
+
+.wallet-expiring-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.expiring-amount-red {
+    font-weight: 800;
+    color: #dc2626 !important;
+    font-family: var(--font-heading, inherit);
+    letter-spacing: -0.01em;
+}
+
+[data-theme="dark"] .expiring-amount-red {
+    color: #f87171 !important;
+}
+
+.expiring-countdown-text {
+    color: inherit;
+    font-weight: 600;
+}
+
+@keyframes fadeInExpiringAlert {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .wallet-rules-hint {
@@ -7667,6 +7741,18 @@ button.btn-disabled-stock {
 [data-theme="dark"] .tx-badge-validity {
     color: #fbbf24;
     background: rgba(245, 158, 11, 0.22);
+}
+
+.tx-badge-validity.is-urgent {
+    color: #dc2626;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+[data-theme="dark"] .tx-badge-validity.is-urgent {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.35);
 }
 
 .tx-badge-used {

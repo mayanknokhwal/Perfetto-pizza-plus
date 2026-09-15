@@ -4539,6 +4539,53 @@ function formatExpiryDaysLabel(days, isHindi) {
 }
 window.formatExpiryDaysLabel = formatExpiryDaysLabel;
 
+/**
+ * Computes step-down countdown text from milliseconds remaining:
+ * - Greater than 24 hours remaining:
+ *     Displays standard day threshold (e.g., "Expires in 2 days", "Expires in 1 day")
+ * - Between 24 hours and 1 hour remaining:
+ *     Switches to an hourly countdown descending from 23 hours down to 1 hour (e.g., "Expires in 23h", "Expires in 18h", "Expires in 1h")
+ *     Does not render minutes during this multi-hour phase.
+ * - Less than 1 hour remaining (final 60 minutes):
+ *     Transitions countdown to minute-level resolution descending from 59 minutes (e.g., "Expires in 59m", "Expires in 42m", "Expires in 1m")
+ * - Expired:
+ *     Returns "Expired" or Hindi equivalent.
+ *
+ * @param {number} remainingMs 
+ * @param {boolean} [isHindi=false] 
+ * @param {boolean} [compact=false] 
+ * @returns {string}
+ */
+function formatStepDownExpiryCountdown(remainingMs, isHindi = false, compact = false) {
+    if (remainingMs <= 0) {
+        return isHindi ? 'समाप्त हो गया' : 'Expired';
+    }
+
+    const MS_IN_MINUTE = 60 * 1000;
+    const MS_IN_HOUR = 60 * MS_IN_MINUTE;
+    const MS_IN_DAY = 24 * MS_IN_HOUR;
+
+    if (remainingMs > MS_IN_DAY) {
+        const days = Math.ceil(remainingMs / MS_IN_DAY);
+        if (compact) {
+            return isHindi ? `${days}d में समाप्त` : `Expires in ${days}d`;
+        }
+        if (isHindi) {
+            return days === 1 ? '1 दिन में समाप्त' : `${days} दिनों में समाप्त`;
+        }
+        return days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
+    }
+
+    if (remainingMs >= MS_IN_HOUR) {
+        const hours = Math.floor(remainingMs / MS_IN_HOUR);
+        return isHindi ? `${hours}h में समाप्त` : `Expires in ${hours}h`;
+    }
+
+    const minutes = Math.max(1, Math.floor(remainingMs / MS_IN_MINUTE));
+    return isHindi ? `${minutes}m में समाप्त` : `Expires in ${minutes}m`;
+}
+window.formatStepDownExpiryCountdown = formatStepDownExpiryCountdown;
+
 let customerWalletConfig = (function() {
     try {
         const stored = localStorage.getItem('perfetto_wallet_config');
@@ -4956,6 +5003,60 @@ function getActiveCreditTranches() {
     });
 }
 window.getActiveCreditTranches = getActiveCreditTranches;
+
+/**
+ * Identifies active unexpired wallet credits, determining the nearest upcoming
+ * expiry timestamp and its associated active remaining monetary portion.
+ * @param {Object} [wallet=currentCustomerWallet]
+ * @returns {{ hasExpiring: boolean, earliestExpMs: number, expiringAmount: number, remainingMs: number }}
+ */
+function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
+    if (!wallet) return { hasExpiring: false, earliestExpMs: Infinity, expiringAmount: 0, remainingMs: 0 };
+    if (typeof reconcileWalletTranches === 'function') {
+        reconcileWalletTranches(wallet);
+    }
+    const nowMs = Date.now();
+    const activeTranches = (typeof getActiveCreditTranches === 'function') ? getActiveCreditTranches() : [];
+
+    let earliestExpMs = Infinity;
+    let expiringAmount = 0;
+
+    // Group active remaining amounts by nearest expiry timestamp
+    for (const tranche of activeTranches) {
+        const rem = Number(tranche.remainingAmount !== undefined ? tranche.remainingAmount : (tranche.initialAmount !== undefined ? tranche.initialAmount : tranche.amount)) || 0;
+        if (rem > 0 && tranche.expiresAt) {
+            const expMs = typeof tranche.expiresAt === 'number' ? tranche.expiresAt : new Date(tranche.expiresAt).getTime();
+            if (!isNaN(expMs) && expMs > nowMs) {
+                if (expMs < earliestExpMs) {
+                    earliestExpMs = expMs;
+                    expiringAmount = rem;
+                } else if (expMs === earliestExpMs) {
+                    expiringAmount += rem;
+                }
+            }
+        }
+    }
+
+    // Fallback if wallet has top-level expiresAt and single balance
+    if (earliestExpMs === Infinity && wallet.expiresAt) {
+        const expMs = typeof wallet.expiresAt === 'number' ? wallet.expiresAt : new Date(wallet.expiresAt).getTime();
+        if (!isNaN(expMs) && expMs > nowMs) {
+            earliestExpMs = expMs;
+            expiringAmount = Number(wallet.balance) || 0;
+        }
+    }
+
+    const hasExpiring = (earliestExpMs < Infinity && expiringAmount > 0);
+    const remainingMs = hasExpiring ? Math.max(0, earliestExpMs - nowMs) : 0;
+
+    return {
+        hasExpiring,
+        earliestExpMs,
+        expiringAmount: Math.round(expiringAmount),
+        remainingMs
+    };
+}
+window.getEarliestExpiringWalletBatch = getEarliestExpiringWalletBatch;
 
 function getEffectiveWalletBalance() {
     if (currentCustomerWallet) {
@@ -5953,6 +6054,22 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
 }
 window.creditCustomerWallet = creditCustomerWallet;
 
+let walletCountdownInterval = null;
+function startWalletCountdownTimer() {
+    if (walletCountdownInterval) {
+        clearInterval(walletCountdownInterval);
+        walletCountdownInterval = null;
+    }
+    // Update every 30 seconds to tick minutes/hours and auto-expire
+    walletCountdownInterval = setInterval(() => {
+        const cardEl = document.getElementById('profile-wallet-card');
+        if (cardEl && cardEl.offsetParent !== null) {
+            updateProfileWalletUI();
+        }
+    }, 30000);
+}
+window.startWalletCountdownTimer = startWalletCountdownTimer;
+
 function updateProfileWalletUI() {
     const cardEl = document.getElementById('profile-wallet-card');
     const statusPill = document.getElementById('profile-wallet-status-pill');
@@ -6002,42 +6119,46 @@ function updateProfileWalletUI() {
         }
     }
 
+    const expiringAlert = document.getElementById('profile-wallet-expiring-alert');
+    const expiringAmountEl = document.getElementById('profile-wallet-expiring-amount');
+    const expiringCountdownEl = document.getElementById('profile-wallet-expiring-countdown');
+
     if (balance <= 0) {
         if (expiryTag) expiryTag.style.display = 'none';
+        if (expiringAlert) expiringAlert.style.display = 'none';
     } else {
-        const activeTranches = getActiveCreditTranches();
-        const nowMs = Date.now();
-        let earliestExpMs = Infinity;
+        const earliestBatch = getEarliestExpiringWalletBatch();
 
-        for (const tranche of activeTranches) {
-            const rem = Number(tranche.remainingAmount !== undefined ? tranche.remainingAmount : (tranche.initialAmount !== undefined ? tranche.initialAmount : tranche.amount)) || 0;
-            if (rem > 0 && tranche.expiresAt) {
-                const expMs = typeof tranche.expiresAt === 'number' ? tranche.expiresAt : new Date(tranche.expiresAt).getTime();
-                if (!isNaN(expMs) && expMs > nowMs && expMs < earliestExpMs) {
-                    earliestExpMs = expMs;
-                }
-            }
-        }
+        if (earliestBatch.hasExpiring && earliestBatch.remainingMs > 0) {
+            const countdownText = formatStepDownExpiryCountdown(earliestBatch.remainingMs, isHindi, false);
+            const isUrgent = earliestBatch.remainingMs <= (24 * 60 * 60 * 1000);
 
-        if (earliestExpMs === Infinity && currentCustomerWallet && currentCustomerWallet.expiresAt) {
-            const expMs = typeof currentCustomerWallet.expiresAt === 'number' ? currentCustomerWallet.expiresAt : new Date(currentCustomerWallet.expiresAt).getTime();
-            if (!isNaN(expMs) && expMs > nowMs) {
-                earliestExpMs = expMs;
-            }
-        }
-
-        if (earliestExpMs < Infinity) {
-            const daysLeft = Math.max(1, Math.ceil((earliestExpMs - nowMs) / (1000 * 60 * 60 * 24)));
             if (expiryTag && expiryText) {
                 expiryTag.style.display = 'flex';
-                if (isHindi) {
-                    expiryText.textContent = daysLeft <= 1 ? '1 दिन में समाप्त' : `${daysLeft} दिनों में समाप्त`;
+                if (isUrgent) {
+                    expiryTag.classList.add('is-urgent');
                 } else {
-                    expiryText.textContent = daysLeft <= 1 ? 'Expires in 1 day' : `Expires in ${daysLeft} days`;
+                    expiryTag.classList.remove('is-urgent');
+                }
+                expiryText.textContent = countdownText;
+            }
+
+            if (expiringAlert) {
+                expiringAlert.style.display = 'flex';
+                if (expiringAmountEl) {
+                    expiringAmountEl.textContent = `₹${earliestBatch.expiringAmount}`;
+                }
+                if (expiringCountdownEl) {
+                    if (isHindi) {
+                        expiringCountdownEl.textContent = `${countdownText}`;
+                    } else {
+                        expiringCountdownEl.textContent = countdownText.toLowerCase();
+                    }
                 }
             }
         } else {
             if (expiryTag) expiryTag.style.display = 'none';
+            if (expiringAlert) expiringAlert.style.display = 'none';
         }
     }
 
@@ -6103,6 +6224,7 @@ function renderProfileWalletTxList() {
 
     const txList = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
     const now = Date.now();
+    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     // Enforce strict reverse chronological order by creation timestamp and cap to 15 entries
     const sortedTxList = [...txList].sort((a, b) => {
@@ -6147,13 +6269,15 @@ function renderProfileWalletTxList() {
                 expiryNotice = '<span class="tx-badge-used"><i class="fa-solid fa-check"></i> Redeemed</span>';
             } else if (tx.expiresAt) {
                 const expTime = new Date(tx.expiresAt).getTime();
-                if (expTime < now) {
+                const remainingMs = expTime - now;
+                if (remainingMs <= 0) {
                     expiryNotice = '<span class="tx-badge-expired"><i class="fa-solid fa-clock"></i> Expired</span>';
                 } else {
-                    const days = Math.max(1, Math.ceil((expTime - now) / (1000 * 60 * 60 * 24)));
-                    const daysLabel = days === 1 ? 'Expires in 1d' : `Expires in ${days}d`;
+                    const countdownStr = formatStepDownExpiryCountdown(remainingMs, isHindi, true);
                     const amtLabel = (remaining < amt) ? ` (₹${remaining} active)` : '';
-                    expiryNotice = `<span class="tx-badge-validity"><i class="fa-solid fa-hourglass-half"></i> ${daysLabel}${amtLabel}</span>`;
+                    const isUrgent = remainingMs <= (24 * 60 * 60 * 1000);
+                    const urgentClass = isUrgent ? 'is-urgent' : '';
+                    expiryNotice = `<span class="tx-badge-validity ${urgentClass}"><i class="fa-solid fa-hourglass-half"></i> ${countdownStr}${amtLabel}</span>`;
                 }
             }
         }
@@ -11686,6 +11810,7 @@ function updateProfileTotalsUI() {
     // Update Perfetto Wallet UI in Profile Tab & sync latest Firestore balance
     updateProfileWalletUI();
     renderProfileWalletTxList();
+    startWalletCountdownTimer();
     if (currentProfile && currentProfile.phone) {
         fetchCustomerWallet(currentProfile.phone).then(() => {
             updateProfileWalletUI();
@@ -17915,6 +18040,10 @@ function cleanupAllCustomerListeners() {
         if (typeof settingsVersionRealtimeUnsubscribe === 'function') {
             settingsVersionRealtimeUnsubscribe();
             settingsVersionRealtimeUnsubscribe = null;
+        }
+        if (walletCountdownInterval) {
+            clearInterval(walletCountdownInterval);
+            walletCountdownInterval = null;
         }
         if (customerOrdersUnsubscribeMap && customerOrdersUnsubscribeMap.size > 0) {
             customerOrdersUnsubscribeMap.forEach((unsub) => {
