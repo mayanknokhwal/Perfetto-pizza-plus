@@ -2019,31 +2019,35 @@ body {
 }
 
 .incoming-footer-actions {
-    display: grid;
-    grid-template-columns: 1fr 1.6fr;
-    gap: 12px;
-    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-top: 8px;
 }
 
 .btn-dismiss-incoming {
-    background: rgba(255, 255, 255, 0.08);
-    color: #cbd5e1;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 14px 16px;
+    width: 100%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.06) 100%);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    padding: 14px 20px;
     border-radius: var(--radius-md, 12px);
-    font-weight: 600;
-    font-size: 0.95rem;
+    font-weight: 700;
+    font-size: 1.02rem;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: all 0.2s;
+    gap: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transition: all 0.2s ease;
 }
 
 .btn-dismiss-incoming:hover,
 .btn-dismiss-incoming:active {
-    background: rgba(255, 255, 255, 0.15);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
     color: #ffffff;
 }
 

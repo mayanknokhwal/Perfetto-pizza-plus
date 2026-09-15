@@ -386,7 +386,7 @@
                 <div class="incoming-modal-header text-center">
                     <span class="incoming-live-tag"><i class="fa-solid fa-bell fa-shake"></i> NEW ORDER ARRIVED</span>
                     <h3 class="staff-modal-title" id="incoming-modal-order-tag">Order #--</h3>
-                    <p class="incoming-modal-time" id="incoming-modal-time">Continuous alert playing until accepted...</p>
+                    <p class="incoming-modal-time" id="incoming-modal-time">Continuous alert playing until silenced...</p>
                 </div>
 
                 <div class="staff-modal-body">
@@ -411,11 +411,8 @@
                 </div>
 
                 <div class="staff-modal-footer incoming-footer-actions">
-                    <button type="button" class="btn-touch btn-dismiss-incoming" onclick="dismissIncomingOrderAlert()" title="Dismiss / Silence Alert">
+                    <button type="button" class="btn-touch btn-dismiss-incoming" id="btn-incoming-dismiss-alert" onclick="dismissIncomingOrderAlert()" title="Dismiss / Silence Alert">
                         <i class="fa-solid fa-volume-xmark"></i> Dismiss
-                    </button>
-                    <button type="button" class="btn-touch btn-accept-incoming" id="btn-incoming-accept-order" onclick="acceptIncomingOrderFromModal()" title="Accept Order & Start Preparation">
-                        <i class="fa-solid fa-fire-burner"></i> Accept Order
                     </button>
                 </div>
             </div>
