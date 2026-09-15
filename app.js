@@ -4992,37 +4992,6 @@ function calculateValidWalletBalance(walletDoc) {
     };
 }
 
-async function fetchCustomerWallet(phone) {
-    if (!phone) return currentCustomerWallet;
-    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
-    if (!cleanPhone) return currentCustomerWallet;
-
-    if (customerFirestore) {
-        try {
-            const doc = await customerFirestore.collection('wallets').doc(cleanPhone).get();
-            if (doc.exists && doc.data()) {
-                const valid = calculateValidWalletBalance(doc.data());
-                currentCustomerWallet = {
-                    ...doc.data(),
-                    ...valid
-                };
-                reconcileWalletTranches(currentCustomerWallet);
-                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
-                localStorage.setItem('perfetto_wallet_balance', currentCustomerWallet.balance);
-                return currentCustomerWallet;
-            }
-        } catch (e) {
-            console.warn('Error fetching customer wallet:', e.message);
-        }
-    }
-
-    if (currentCustomerWallet) {
-        reconcileWalletTranches(currentCustomerWallet);
-    }
-    return currentCustomerWallet;
-}
-window.fetchCustomerWallet = fetchCustomerWallet;
-
 function getCustomerFirestore() {
     if (customerFirestore) return customerFirestore;
     if (window.db) {
@@ -5042,6 +5011,136 @@ function getCustomerFirestore() {
     }
     return null;
 }
+
+/**
+ * Enforces a strict Firestore query constraint on the customer's wallet ledger:
+ * - Orders strictly by creation timestamp descending ('createdAt', 'desc')
+ * - Attaches a hard query limit of 15 records (.limit(15))
+ * - Prevents excessive document reads and protects Spark Plan quota
+ * @param {string} phone 
+ * @returns {Promise<Array>}
+ */
+async function fetchCustomerWalletLedger(phone) {
+    if (!phone) return [];
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone) return [];
+
+    const fs = getCustomerFirestore() || customerFirestore;
+    if (!fs) return [];
+
+    try {
+        let fetchedTxs = [];
+
+        // Primary: Dedicated customer wallet subcollection with hard limit of 15 sorted desc
+        try {
+            const txQuery = fs.collection('wallets')
+                .doc(cleanPhone)
+                .collection('transactions')
+                .orderBy('createdAt', 'desc')
+                .limit(15);
+
+            const snap = await txQuery.get();
+            if (snap && !snap.empty) {
+                snap.forEach(doc => {
+                    if (doc.exists) {
+                        fetchedTxs.push({ id: doc.id, ...doc.data() });
+                    }
+                });
+            }
+        } catch (subErr) {
+            console.warn('Notice querying wallets transaction subcollection:', subErr.message);
+        }
+
+        // Secondary fallback: user doc transactions subcollection
+        if (fetchedTxs.length === 0) {
+            try {
+                const userTxQuery = fs.collection('users')
+                    .doc(`phone_${cleanPhone}`)
+                    .collection('transactions')
+                    .orderBy('createdAt', 'desc')
+                    .limit(15);
+
+                const userSnap = await userTxQuery.get();
+                if (userSnap && !userSnap.empty) {
+                    userSnap.forEach(doc => {
+                        if (doc.exists) {
+                            fetchedTxs.push({ id: doc.id, ...doc.data() });
+                        }
+                    });
+                }
+            } catch (uErr) {
+                // Ignore missing subcollection/index notice
+            }
+        }
+
+        // Tertiary fallback: embedded array in wallet/user document if subcollection was unpopulated
+        if (fetchedTxs.length === 0 && currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) {
+            fetchedTxs = [...currentCustomerWallet.transactions];
+        }
+
+        // Strictly enforce descending sort by creation timestamp and clamp to exactly 15 records
+        fetchedTxs.sort((a, b) => {
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+            return timeB - timeA;
+        });
+        const constrainedTxs = fetchedTxs.slice(0, 15);
+
+        if (!currentCustomerWallet) {
+            currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+        }
+        currentCustomerWallet.transactions = constrainedTxs;
+
+        try {
+            localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+        } catch (e) {}
+
+        renderProfileWalletTxList();
+        return constrainedTxs;
+    } catch (err) {
+        console.warn('Notice in fetchCustomerWalletLedger:', err.message);
+        return [];
+    }
+}
+window.fetchCustomerWalletLedger = fetchCustomerWalletLedger;
+
+async function fetchCustomerWallet(phone) {
+    if (!phone) return currentCustomerWallet;
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone) return currentCustomerWallet;
+
+    const fs = getCustomerFirestore() || customerFirestore;
+    if (fs) {
+        try {
+            const doc = await fs.collection('wallets').doc(cleanPhone).get();
+            if (doc.exists && doc.data()) {
+                const valid = calculateValidWalletBalance(doc.data());
+                currentCustomerWallet = {
+                    ...doc.data(),
+                    ...valid
+                };
+            }
+
+            // Enforce constrained 15 recent transactions query
+            await fetchCustomerWalletLedger(cleanPhone);
+
+            if (currentCustomerWallet) {
+                reconcileWalletTranches(currentCustomerWallet);
+                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+                localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
+                return currentCustomerWallet;
+            }
+        } catch (e) {
+            console.warn('Error fetching customer wallet:', e.message);
+        }
+    }
+
+    if (currentCustomerWallet) {
+        reconcileWalletTranches(currentCustomerWallet);
+    }
+    return currentCustomerWallet;
+}
+window.fetchCustomerWallet = fetchCustomerWallet;
 
 let customerUserRealtimeUnsubscribe = null;
 
@@ -5975,6 +6074,16 @@ function toggleWalletLedgerView() {
     if (arrow) {
         arrow.className = isHidden ? 'fa-solid fa-chevron-up' : 'fa-solid fa-chevron-down';
     }
+
+    // When expanding the accordion, query the 15 most recent records strictly sorted by creation timestamp descending
+    if (isHidden) {
+        const phone = (currentUserProfile && currentUserProfile.phone)
+            || (currentCustomerWallet && currentCustomerWallet.phone)
+            || '';
+        if (phone) {
+            fetchCustomerWalletLedger(phone);
+        }
+    }
 }
 window.toggleWalletLedgerView = toggleWalletLedgerView;
 
@@ -5995,7 +6104,14 @@ function renderProfileWalletTxList() {
     const txList = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
     const now = Date.now();
 
-    if (txList.length === 0) {
+    // Enforce strict reverse chronological order by creation timestamp and cap to 15 entries
+    const sortedTxList = [...txList].sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+        return timeB - timeA;
+    }).slice(0, 15);
+
+    if (sortedTxList.length === 0) {
         const firstSlabMin = getSlab1Threshold(customerWalletConfig);
         container.innerHTML = `
             <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
@@ -6005,7 +6121,7 @@ function renderProfileWalletTxList() {
         return;
     }
 
-    container.innerHTML = txList.slice(0, 15).map(tx => {
+    container.innerHTML = sortedTxList.map(tx => {
         const isCredit = (tx.type === 'credit');
         const isRefund = (tx.type === 'REFUND' || tx.type === 'refund');
         const isHold = (tx.type === 'hold' || tx.status === 'LOCKED_HOLD');
@@ -17072,6 +17188,7 @@ function listenToCustomerActiveOrders() {
             try {
                 customerPhoneOrdersUnsubscribe = customerFirestore.collection('orders')
                     .where('customerPhone', '==', verifiedPhone)
+                    .limit(25)
                     .onSnapshot((snapshot) => {
                         if (!snapshot) return;
                         const remoteOrders = [];
@@ -17783,6 +17900,18 @@ function cleanupAllCustomerListeners() {
             customerWalletRealtimeUnsubscribe();
             customerWalletRealtimeUnsubscribe = null;
         }
+        if (typeof customerUserRealtimeUnsubscribe === 'function') {
+            customerUserRealtimeUnsubscribe();
+            customerUserRealtimeUnsubscribe = null;
+        }
+        if (typeof customerPhoneOrdersUnsubscribe === 'function') {
+            customerPhoneOrdersUnsubscribe();
+            customerPhoneOrdersUnsubscribe = null;
+        }
+        if (typeof customerMenuRealtimeUnsubscribe === 'function') {
+            customerMenuRealtimeUnsubscribe();
+            customerMenuRealtimeUnsubscribe = null;
+        }
         if (typeof settingsVersionRealtimeUnsubscribe === 'function') {
             settingsVersionRealtimeUnsubscribe();
             settingsVersionRealtimeUnsubscribe = null;
@@ -17799,6 +17928,7 @@ function cleanupAllCustomerListeners() {
         console.warn('Error during customer listener cleanup:', e);
     }
 }
+window.cleanupAllCustomerListeners = cleanupAllCustomerListeners;
 
 window.addEventListener('beforeunload', cleanupAllCustomerListeners);
 window.addEventListener('pagehide', cleanupAllCustomerListeners);
