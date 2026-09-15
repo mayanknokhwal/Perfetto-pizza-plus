@@ -38,34 +38,44 @@ const STATIC_FILES = [
     'favicon.ico'
 ];
 
-console.log('📦 [1/4] Synchronizing static assets into public directory...');
-let copiedCount = 0;
-for (const file of STATIC_FILES) {
-    const srcPath = path.join(ROOT_DIR, file);
-    const destPath = path.join(PUBLIC_DIR, file);
-    if (fs.existsSync(srcPath)) {
-        fs.copyFileSync(srcPath, destPath);
-        copiedCount++;
-    }
-}
-console.log(`   ✓ Copied ${copiedCount} root static files to public/`);
+const TARGET_DIRS = [
+    PUBLIC_DIR,
+    path.join(ROOT_DIR, 'dist')
+];
 
-// Copy lib/ directory into public/lib/
-const SRC_LIB = path.join(ROOT_DIR, 'lib');
-const DEST_LIB = path.join(PUBLIC_DIR, 'lib');
-if (fs.existsSync(SRC_LIB)) {
-    if (!fs.existsSync(DEST_LIB)) {
-        fs.mkdirSync(DEST_LIB, { recursive: true });
+console.log('📦 [1/4] Synchronizing static assets into build output directories (public/ & dist/)...');
+for (const targetDir of TARGET_DIRS) {
+    if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
     }
-    const libFiles = fs.readdirSync(SRC_LIB);
-    for (const lf of libFiles) {
-        const s = path.join(SRC_LIB, lf);
-        const d = path.join(DEST_LIB, lf);
-        if (fs.statSync(s).isFile()) {
-            fs.copyFileSync(s, d);
+    let copiedCount = 0;
+    for (const file of STATIC_FILES) {
+        const srcPath = path.join(ROOT_DIR, file);
+        const destPath = path.join(targetDir, file);
+        if (fs.existsSync(srcPath)) {
+            fs.copyFileSync(srcPath, destPath);
+            copiedCount++;
         }
     }
-    console.log(`   ✓ Synchronized lib/ directory to public/lib/`);
+
+    // Copy lib/ directory
+    const SRC_LIB = path.join(ROOT_DIR, 'lib');
+    const DEST_LIB = path.join(targetDir, 'lib');
+    if (fs.existsSync(SRC_LIB)) {
+        if (!fs.existsSync(DEST_LIB)) {
+            fs.mkdirSync(DEST_LIB, { recursive: true });
+        }
+        const libFiles = fs.readdirSync(SRC_LIB);
+        for (const lf of libFiles) {
+            const s = path.join(SRC_LIB, lf);
+            const d = path.join(DEST_LIB, lf);
+            if (fs.statSync(s).isFile()) {
+                fs.copyFileSync(s, d);
+            }
+        }
+    }
+    const relName = path.relative(ROOT_DIR, targetDir);
+    console.log(`   ✓ Synchronized ${copiedCount} files + lib/ into ${relName}/`);
 }
 
 // 2. Syntax Check all critical JS files

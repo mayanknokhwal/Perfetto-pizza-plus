@@ -42,6 +42,10 @@
     {
       "source": "/auth",
       "destination": "/api"
+    },
+    {
+      "source": "/((?!api|auth|admin|staff|kitchen|terms|privacy|refund|firebase-messaging-sw\\.js|.*\\.[\\w]+$).*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [

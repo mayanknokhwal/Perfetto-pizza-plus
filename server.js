@@ -36,8 +36,23 @@ app.get('/firebase-messaging-sw.js', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
 
-// Mount Serverless API application
-app.use(apiApp);
+// Mount Serverless API application for /api and /auth
+app.use('/api', apiApp);
+app.use('/auth', apiApp);
+
+// SPA Fallback: Route all non-asset GET requests directly to index.html (Express 5 compatible)
+app.use((req, res, next) => {
+    if (req.method !== 'GET') {
+        return next();
+    }
+    if (req.path.startsWith('/api') || req.path.startsWith('/auth')) {
+        return next();
+    }
+    if (path.extname(req.path)) {
+        return next();
+    }
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 let serverInstance = null;
 
