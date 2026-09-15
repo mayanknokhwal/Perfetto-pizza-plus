@@ -269,10 +269,10 @@
                     </div>
                     <div class="header-actions">
                         <!-- Dedicated Sound ON/OFF Header Toggle -->
-                        <button type="button" class="btn-staff-sound-toggle sound-off" id="btn-staff-sound-toggle" onclick="toggleStaffSoundState()" title="Tap to Toggle Kitchen Audio Alerts" aria-pressed="false">
+                        <button type="button" class="btn-staff-sound-toggle sound-on" id="btn-staff-sound-toggle" onclick="toggleStaffSoundState()" title="Sound Active (Tap to Mute Kitchen Alerts)" aria-pressed="true">
                             <span class="sound-toggle-dot"></span>
-                            <i class="fa-solid fa-volume-xmark" id="staff-sound-icon"></i>
-                            <span id="staff-sound-label">🔕 Audio Muted (Tap to Enable Sound)</span>
+                            <i class="fa-solid fa-bell" id="staff-sound-icon"></i>
+                            <span id="staff-sound-label">🔔 Sound Active</span>
                         </button>
                         <!-- Lock / Sign Out Button -->
                         <button type="button" class="btn-staff-lock" id="btn-staff-logout" onclick="handleStaffLogout()" title="Lock Staff Portal">

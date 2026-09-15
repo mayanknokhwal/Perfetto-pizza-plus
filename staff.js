@@ -400,6 +400,8 @@ function getMasterDeliveryOtp() {
 }
 
 let staffOrdersReconnectTimeout = null;
+let isFirestoreInitialHydrationDone = false;
+const processedOrderDocIds = new Set();
 
 function listenToFirestoreStaffOrders() {
     const db = getStaffFirestore();
@@ -416,6 +418,99 @@ function listenToFirestoreStaffOrders() {
 
     function processOrdersSnapshot(snapshot) {
         if (!snapshot) return;
+
+        const docChanges = typeof snapshot.docChanges === 'function' ? snapshot.docChanges() : [];
+        const isFirstHydration = !isFirestoreInitialHydrationDone;
+
+        if (isFirstHydration) {
+            // Exclude initial collection hydration so already existing orders do not re-alarm on page load
+            snapshot.forEach((doc) => {
+                const docId = doc.id;
+                const data = doc.data() || {};
+                const orderId = String(data.orderId || data.id || docId);
+                const matchingKey = String(orderId).replace(/^#/, '').trim();
+                processedOrderDocIds.add(docId);
+                processedOrderDocIds.add(orderId);
+                staffSeenOrderIds.add(docId);
+                staffSeenOrderIds.add(orderId);
+                if (matchingKey) {
+                    processedOrderDocIds.add(matchingKey);
+                    staffSeenOrderIds.add(matchingKey);
+                }
+            });
+            isFirestoreInitialHydrationDone = true;
+            console.log(`📡 [Firestore Orders] Initial collection hydration complete (${snapshot.size} orders recorded, alerts suppressed).`);
+        } else {
+            // Real-time snapshot updates: check for newly added documents
+            for (const change of docChanges) {
+                const doc = change.doc;
+                const data = doc.data() || {};
+                const docId = doc.id;
+                const orderId = String(data.orderId || data.id || docId);
+                const matchingKey = String(orderId).replace(/^#/, '').trim();
+                const status = String(data.status || '').toLowerCase().trim();
+                const isIncoming = (status === 'placed' || status === 'pending' || status === 'new');
+
+                if (change.type === 'added') {
+                    // Check if this document has already been processed/seen
+                    const isKnown = processedOrderDocIds.has(docId) || 
+                                    processedOrderDocIds.has(orderId) || 
+                                    (matchingKey && processedOrderDocIds.has(matchingKey));
+
+                    if (!isKnown) {
+                        processedOrderDocIds.add(docId);
+                        processedOrderDocIds.add(orderId);
+                        if (matchingKey) processedOrderDocIds.add(matchingKey);
+                        staffSeenOrderIds.add(docId);
+                        staffSeenOrderIds.add(orderId);
+                        if (matchingKey) staffSeenOrderIds.add(matchingKey);
+
+                        if (isIncoming) {
+                            console.log(`🔥 [Firestore Real-Time] Genuinely new incoming order detected via docChanges: Order #${orderId} (Status: ${status})`);
+                            const customerName = data.customerName || data.customer?.name || 'Customer';
+                            const total = data.total || data.costs?.total || '';
+                            const summary = total ? `${customerName} • ₹${total}` : customerName;
+
+                            // 1. Immediately set the incoming modal state to visible
+                            showIncomingOrderModal(orderId, summary, data);
+
+                            // 2. Immediately invoke the primed audio chime to loop continuously
+                            startOrderAlertAudio(orderId, summary, data);
+
+                            // 3. Fire the vibration sequence
+                            startStaffVibrationLoop();
+
+                            // 4. Toast notification
+                            showStaffToast(`🔔 New Order #${orderId} Received in Real-Time!`);
+                        }
+                    }
+                } else if (change.type === 'modified') {
+                    processedOrderDocIds.add(docId);
+                    processedOrderDocIds.add(orderId);
+                    if (matchingKey) processedOrderDocIds.add(matchingKey);
+
+                    // If currently alerting for this order and status transitioned away from incoming, stop alert
+                    if (!isIncoming && currentAlertingOrderId && (
+                        currentAlertingOrderId === orderId || 
+                        currentAlertingOrderId === docId || 
+                        currentAlertingOrderId === matchingKey
+                    )) {
+                        console.log(`🛑 [Firestore Real-Time] Alerting order #${orderId} transitioned to '${status}'. Stopping alert.`);
+                        stopOrderAlertAudio();
+                    }
+                } else if (change.type === 'removed') {
+                    if (currentAlertingOrderId && (
+                        currentAlertingOrderId === orderId || 
+                        currentAlertingOrderId === docId || 
+                        currentAlertingOrderId === matchingKey
+                    )) {
+                        console.log(`🛑 [Firestore Real-Time] Alerting order #${orderId} removed. Stopping alert.`);
+                        stopOrderAlertAudio();
+                    }
+                }
+            }
+        }
+
         const liveOrders = [];
         snapshot.forEach((doc) => {
             const data = doc.data() || {};
@@ -2103,21 +2198,10 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
             const summary = total ? `${customerName} • ₹${total}` : customerName;
 
             showStaffToast('🔔 New Customer Order Received in Real-Time!');
-            startOrderAlertAudio(orderId, summary);
+            startOrderAlertAudio(orderId, summary, latestNew);
         }
     } else {
-        // Initial load: check if there is an unhandled incoming order already in queue
-        const activeIncoming = staffOrders.find(o => {
-            const s = String(o.status || '').toLowerCase().trim();
-            return s === 'placed' || s === 'pending' || s === 'new';
-        });
-        if (activeIncoming && isStaffSoundEnabled) {
-            const orderId = String(activeIncoming.orderId || activeIncoming.id);
-            const customerName = activeIncoming.customerName || activeIncoming.customer?.name || 'Customer';
-            const total = activeIncoming.total || activeIncoming.costs?.total || '';
-            const summary = total ? `${customerName} • ₹${total}` : customerName;
-            startOrderAlertAudio(orderId, summary);
-        }
+        // Exclude initial collection hydration so already existing orders do not re-alarm on page load
     }
 
     // Populate seen order IDs
@@ -2137,7 +2221,15 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     renderOrders();
 }
 
-let isStaffSoundEnabled = false; // Persistent sound switch: ALWAYS resets to OFF (false) on every page reload/refresh
+let isStaffSoundEnabled = true; // Sound switch defaults to active ON, respects saved localStorage preference
+try {
+    const saved = localStorage.getItem('staff_sound_enabled');
+    if (saved === 'false') {
+        isStaffSoundEnabled = false;
+    }
+} catch (e) {
+    isStaffSoundEnabled = true;
+}
 let isStaffAudioUnlocked = false;
 let isAudioAutoplayBlocked = false;
 let pendingOrderAlertData = null;
@@ -2276,12 +2368,15 @@ function stopStaffAudioKeepAlive() {
 
 /**
  * Unlocks Web AudioContext, primes HTML5 audio, requests screen wake lock,
- * starts audio keep-alive, updates the header toggle indicator to "Sound Active",
- * and alerts for any pending incoming new orders.
+ * starts audio keep-alive, updates the header toggle indicator to "Sound Active".
+ * Standalone Sound Pill: acts purely as an indicator and volume mute override.
  */
 function enableStaffSound(options = {}) {
     console.log('🔔 [Staff Audio] Activating sound notifications via user interaction...');
     isStaffSoundEnabled = true;
+    try {
+        localStorage.setItem('staff_sound_enabled', 'true');
+    } catch (e) { }
 
     // 1. Immediately unlock and initialize browser AudioContext
     const ctx = getStaffAudioContext();
@@ -2307,37 +2402,64 @@ function enableStaffSound(options = {}) {
         showStaffToast('🔔 Sound Active! Kitchen audio alerts & keep-alive enabled.');
     }
 
-    // 6. Check for unhandled incoming orders (status "placed", "pending", "new") to alert immediately
-    const activeIncomingOrder = staffOrders.find(o => {
-        const s = String(o.status || '').toLowerCase().trim();
-        return s === 'placed' || s === 'pending' || s === 'new';
-    });
-    if (activeIncomingOrder) {
-        const orderId = String(activeIncomingOrder.orderId || activeIncomingOrder.id);
-        const customerName = activeIncomingOrder.customerName || activeIncomingOrder.customer?.name || 'Customer';
-        const total = activeIncomingOrder.total || activeIncomingOrder.costs?.total || '';
-        const summary = total ? `${customerName} • ₹${total}` : customerName;
-        startOrderAlertAudio(orderId, summary);
-    }
+    // Notice: Step 6 (retroactive search for past incoming orders) has been DECOUPLED and removed.
+    // Audio and modal trigger exclusively from real-time database snapshot additions.
 }
 window.enableStaffSound = enableStaffSound;
 
 /**
- * Toggles the staff sound switch ON/OFF manually via header button
+ * Toggles the staff sound switch ON/OFF manually via header button.
+ * Acts purely as an indicator and volume mute override.
  */
 async function toggleStaffSoundState() {
     if (isStaffSoundEnabled) {
         // Switch OFF: Mute alerts, stop keep-alive, release wake lock, update UI
         console.log('🔕 [Staff Audio] Sound toggled OFF by staff.');
         isStaffSoundEnabled = false;
-        stopOrderAlertAudio();
+        try {
+            localStorage.setItem('staff_sound_enabled', 'false');
+        } catch (e) { }
+
+        // Pause audio if currently playing (volume mute override)
+        try {
+            if (staffOrderAlertAudio) {
+                staffOrderAlertAudio.pause();
+            }
+        } catch (e) { }
+        if (synthesizedBeepInterval) {
+            clearInterval(synthesizedBeepInterval);
+            synthesizedBeepInterval = null;
+        }
+
         stopStaffAudioKeepAlive();
         releaseStaffWakeLock();
         updateStaffSoundToggleUI();
         showStaffToast('🔕 Audio Muted. Kitchen alerts silenced.');
     } else {
         // Switch ON
+        try {
+            localStorage.setItem('staff_sound_enabled', 'true');
+        } catch (e) { }
         enableStaffSound({ playChime: true, showToast: true });
+
+        // If an order alert is active while unmuting, resume audio chime loop
+        if (isOrderAlertAudioPlaying && currentAlertingOrderId) {
+            try {
+                const audio = getOrderAlertAudio();
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.loop = true;
+                    audio.muted = false;
+                    audio.volume = 1.0;
+                    const p = audio.play();
+                    if (p && typeof p.then === 'function') {
+                        p.catch(() => startSynthesizedBeepLoop());
+                    }
+                }
+            } catch (e) {
+                startSynthesizedBeepLoop();
+            }
+        }
     }
 }
 window.toggleStaffSoundState = toggleStaffSoundState;
@@ -2768,9 +2890,18 @@ function initStaffApp() {
     checkStaffAuthSession();
     startStaffAutoExpireInterval();
 
-    // Dedicated Sound Toggle starts in muted state on page reload/refresh
-    isStaffSoundEnabled = false;
+    // Sound switch reflects active preference (defaults to active ON)
+    try {
+        const saved = localStorage.getItem('staff_sound_enabled');
+        isStaffSoundEnabled = saved !== 'false';
+    } catch (e) {
+        isStaffSoundEnabled = true;
+    }
     updateStaffSoundToggleUI();
+
+    // Preload audio and audio context early
+    getOrderAlertAudio();
+    getStaffAudioContext();
 
     // Check and show audio alert banner if audio context is suspended
     checkAndShowStaffAudioBanner();
@@ -5156,7 +5287,7 @@ function startSynthesizedBeepLoop() {
     }, 2500);
 }
 
-function startOrderAlertAudio(orderId = '', details = '') {
+function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
         return; // Already playing for this order
     }
@@ -5176,7 +5307,7 @@ function startOrderAlertAudio(orderId = '', details = '') {
     }
 
     // Always display incoming order popup modal
-    showIncomingOrderModal(orderId, details);
+    showIncomingOrderModal(orderId, details, orderData);
 
     // Dispatch Native Browser Notification & Hardware Vibration Alert
     dispatchStaffOrderNotification(orderId, details);
@@ -5274,12 +5405,12 @@ function stopOrderAlertAudio() {
 /**
  * Displays the real-time incoming order popup modal
  */
-function showIncomingOrderModal(orderId, details) {
+function showIncomingOrderModal(orderId, details, orderData = null) {
     const modal = document.getElementById('staff-incoming-order-modal');
     if (!modal) return;
 
-    let targetOrder = null;
-    if (orderId) {
+    let targetOrder = orderData;
+    if (!targetOrder && orderId) {
         targetOrder = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
     }
     if (!targetOrder) {
