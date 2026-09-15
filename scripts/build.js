@@ -35,7 +35,11 @@ const STATIC_FILES = [
     'translations.js',
     'order-alert.mp3',
     'firebase-messaging-sw.js',
-    'favicon.ico'
+    'favicon.ico',
+    'manifest.json',
+    'icon-192.png',
+    'icon-512.png',
+    'apple-touch-icon.png'
 ];
 
 const TARGET_DIRS = [

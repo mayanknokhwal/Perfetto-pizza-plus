@@ -6415,7 +6415,15 @@ function getActiveBannerOfferTypes(currentCart = cart) {
     if (list.some(i => (i.isSpotlightDeal || i.isBannerDeal) && !i.isFreeGift && !i.isBogoCombo && !i.isBogoReward && !i.isBogoQualifying)) {
         offers.add('spotlight');
     }
-    if (list.some(i => i.isFreeGift)) {
+    const isBanner2SpendOfferActive = (function () {
+        try {
+            return sessionStorage.getItem('banner2SpendOfferActive') === 'true' &&
+                   sessionStorage.getItem('banner2SpendBarDismissed') !== 'true';
+        } catch (e) {
+            return false;
+        }
+    })();
+    if (list.some(i => i.isFreeGift) || isBanner2SpendOfferActive) {
         offers.add('freeGift');
     }
     if (list.some(i => i.isBogoCombo || i.isBogoReward || i.isBogoQualifying)) {
@@ -6880,11 +6888,17 @@ function dismissSpendHungerBar(event) {
     }
     try {
         sessionStorage.setItem('banner2SpendBarDismissed', 'true');
+        sessionStorage.removeItem('banner2SpendOfferActive');
     } catch (e) { }
 
     const hungerWrapper = document.getElementById('spend-hunger-bar-wrapper');
     if (hungerWrapper) {
         hungerWrapper.style.display = 'none';
+    }
+    if (Array.isArray(cart) && cart.some(item => item.isFreeGift)) {
+        cart = cart.filter(item => !item.isFreeGift);
+        saveCartToStorage();
+        updateCartUI();
     }
     showToast('Notification dismissed');
 }
@@ -15010,26 +15024,30 @@ function isDailyOfferItem(item) {
 window.isDailyOfferItem = isDailyOfferItem;
 
 function hasDailyOfferInCart(currentCart = cart) {
-    return Array.isArray(currentCart) && currentCart.some(isDailyOfferItem);
+    const hasItem = Array.isArray(currentCart) && currentCart.some(isDailyOfferItem);
+    const isBanner2Active = (function () {
+        try {
+            return sessionStorage.getItem('banner2SpendOfferActive') === 'true' &&
+                   sessionStorage.getItem('banner2SpendBarDismissed') !== 'true';
+        } catch (e) { return false; }
+    })();
+    return Boolean(hasItem || isBanner2Active);
 }
 window.hasDailyOfferInCart = hasDailyOfferInCart;
 
-function getActiveBannerOfferTypes(currentCart = cart) {
-    const types = new Set();
-    if (!Array.isArray(currentCart)) return types;
-    currentCart.forEach(i => {
-        if (i.isBannerDeal && i.bannerOfferType) types.add(i.bannerOfferType);
-        if (i.isSpotlightDeal) types.add('spotlight');
-        if (i.isFreeGift) types.add('free_gift');
-        if (i.isBogoCombo || i.isBogoReward) types.add('bogo');
-    });
-    return types;
-}
-window.getActiveBannerOfferTypes = getActiveBannerOfferTypes;
-
 function removeDailyOffersFromCart() {
-    if (!Array.isArray(cart)) return;
-    cart = cart.filter(item => !isDailyOfferItem(item));
+    if (Array.isArray(cart)) {
+        cart = cart.filter(item => !isDailyOfferItem(item));
+    }
+    try {
+        sessionStorage.removeItem('banner2SpendOfferActive');
+        sessionStorage.setItem('banner2SpendBarDismissed', 'true');
+        sessionStorage.removeItem('banner1OfferActive');
+    } catch (e) { }
+    const hungerWrapper = document.getElementById('spend-hunger-bar-wrapper');
+    if (hungerWrapper) {
+        hungerWrapper.style.display = 'none';
+    }
     saveCartToStorage();
     updateCartUI();
 }
@@ -15079,10 +15097,13 @@ function showOfferConflictModal({ title, message, iconType = 'swap', actions = [
 
     let actionsHtml = '';
     actions.forEach((act, idx) => {
-        const isPrimary = act.primary ? 'primary' : 'secondary';
+        const isPrimary = Boolean(act.primary);
+        const btnClass = isPrimary
+            ? 'offer-conflict-btn primary btn-conflict-action btn-conflict-primary'
+            : 'offer-conflict-btn secondary btn-conflict-action btn-conflict-secondary';
         const iconHtml = act.icon ? `<i class="fa-solid ${act.icon}"></i>` : '';
         actionsHtml += `
-            <button type="button" class="offer-conflict-btn ${isPrimary}" onclick="handleOfferConflictAction(${idx})">
+            <button type="button" class="${btnClass}" onclick="handleOfferConflictAction(${idx})">
                 ${iconHtml}
                 <span>${escapeHtml(act.label)}</span>
             </button>

@@ -12019,50 +12019,83 @@ button.btn-disabled-stock {
 .offer-conflict-actions-box {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    margin-top: 4px;
+    margin-top: 14px;
 }
 
+.offer-conflict-btn,
 .btn-conflict-action {
     width: 100%;
-    padding: 12px 18px;
+    min-height: 48px;
+    padding: 13px 20px;
     border-radius: 14px;
-    font-size: 0.92rem;
+    font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    transition: all 0.2s ease;
+    gap: 10px;
+    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
     border: none;
+    box-sizing: border-box;
+    font-family: inherit;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    user-select: none;
 }
 
+/* Primary Action: "Switch to Combo" - vibrant solid gradient with prominent white bold typography */
+.offer-conflict-btn.primary,
 .btn-conflict-primary {
     background: linear-gradient(135deg, #ff6b00 0%, #ea580c 100%);
-    color: #ffffff;
-    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+    color: #ffffff !important;
+    box-shadow: 0 4px 16px rgba(234, 88, 12, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.offer-conflict-btn.primary:hover,
 .btn-conflict-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(234, 88, 12, 0.45);
+    box-shadow: 0 6px 22px rgba(234, 88, 12, 0.55);
+    background: linear-gradient(135deg, #ff7a1a 0%, #f97316 100%);
 }
 
+.offer-conflict-btn.primary:active,
+.btn-conflict-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35);
+}
+
+/* Secondary Action: "Keep Daily Offer" - sleek dark surface with explicit subtle border outline */
+.offer-conflict-btn.secondary,
 .btn-conflict-secondary {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-main, #ffffff);
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    background: #1e293b;
+    color: #f1f5f9 !important;
+    border: 1px solid #334155;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
+.offer-conflict-btn.secondary:hover,
 .btn-conflict-secondary:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: #334155;
+    color: #ffffff !important;
+    border-color: #475569;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.offer-conflict-btn.secondary:active,
+.btn-conflict-secondary:active {
+    transform: translateY(0);
+    background: #0f172a;
 }
 
 .btn-conflict-cancel {
     background: transparent;
     color: var(--text-muted, #94a3b8);
+    min-height: 44px;
     padding: 10px 18px;
     border: 1px solid transparent;
 }
@@ -12083,15 +12116,25 @@ button.btn-disabled-stock {
     color: #0f172a;
 }
 
+[data-theme="light"] .offer-conflict-btn.secondary,
 [data-theme="light"] .btn-conflict-secondary {
-    background: #f1f5f9;
-    color: #0f172a;
-    border-color: rgba(0, 0, 0, 0.08);
+    background: #f8fafc;
+    color: #0f172a !important;
+    border: 1.5px solid #cbd5e1;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .offer-conflict-btn.secondary:hover,
+[data-theme="light"] .btn-conflict-secondary:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+    color: #020617 !important;
 }
 
 [data-theme="light"] .btn-conflict-cancel {
     color: #64748b;
 }
+
 
 
 

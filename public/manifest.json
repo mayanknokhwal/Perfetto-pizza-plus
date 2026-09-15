@@ -1,0 +1,25 @@
+{
+  "name": "Perfetto Pizza Plus",
+  "short_name": "Perfetto Pizza",
+  "description": "Authentic Wood-Fired Pizzas, Combos & Fast Food Delivery",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#070d19",
+  "theme_color": "#ff6b00",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
