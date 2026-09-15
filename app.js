@@ -8738,56 +8738,7 @@ function setupScratchCanvas(order, rewardAmount) {
     ctx.lineWidth = 1;
     ctx.strokeRect(14, 14, width - 28, height - 28);
 
-    // 6. Central Badge & Guidance Text
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    const isWalletUsed = Boolean(order && (Number(order.usedWallet || order.usedWalletCash || order.walletDiscount || order.appliedWalletDiscount) > 0));
-    const isThankYouReward = isWalletUsed || (order && order.rewardTitle === 'Thank You Cashback Reward') || (rewardAmount === 10 && (order && order.rewardTitle && order.rewardTitle.includes('Thank You')));
-    let targetAmount = 10;
-    if (isThankYouReward) {
-        targetAmount = 10;
-    } else {
-        const subtotal = Number(order && order.subtotal) || 0;
-        const boundaries = (typeof getCashbackRewardBoundaries === 'function') ? getCashbackRewardBoundaries(subtotal) : { max: 0 };
-        targetAmount = boundaries.max || Math.max(0, Math.round(Number(rewardAmount || (order && (order.wonCashback || order.earnedCashback)) || 10)));
-    }
-    const dynamicTargetAmount = targetAmount;
-
-    // Center pill box
-    const badgeW = width - 70;
-    const badgeH = 76;
-    const badgeX = (width - badgeW) / 2;
-    const badgeY = (height - badgeH) / 2;
-
-    ctx.fillStyle = 'rgba(20, 15, 28, 0.55)';
-    ctx.beginPath();
-    if (ctx.roundRect) {
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 14);
-    } else {
-        ctx.rect(badgeX, badgeY, badgeW, badgeH);
-    }
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(255, 235, 150, 0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Central typography
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.font = 'bold 14px "Outfit", "Inter", sans-serif';
-    ctx.fillStyle = '#fffdf0';
-    ctx.fillText('✨ SCRATCH & WIN ✨', width / 2, badgeY + 20);
-
-    ctx.font = '800 17px "Outfit", "Inter", sans-serif';
-    ctx.fillStyle = '#fffae0';
-    const foilWinText = isHindi ? 'मिस्ट्री कैशबैक जीतें 🎁' : 'Win Mystery Cashback 🎁';
-    ctx.fillText(foilWinText, width / 2, badgeY + 42);
-
-    ctx.font = '500 11px "Outfit", "Inter", sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillText(isHindi ? 'रिवॉर्ड देखने के लिए स्क्रैच करें ✨' : 'Scratch the card to reveal ✨', width / 2, badgeY + 61);
-
+    // 6. Clean uninterrupted golden foil plate (zero foreground promotional text or badges)
     initScratchCardCanvasEvents();
 }
 
@@ -8796,13 +8747,21 @@ function initScratchCardCanvasEvents() {
     if (!canvas || canvas.__scratchEventsBound) return;
     canvas.__scratchEventsBound = true;
 
-    const brushRadius = 22; // Smooth comfortable brush radius in CSS px
+    // Calibrated realistic fingertip/thumb clearing radius in CSS px (small circular patch)
+    const brushRadius = 12;
+
+    let canvasRect = null;
+    function updateRect() {
+        if (canvas) {
+            canvasRect = canvas.getBoundingClientRect();
+        }
+    }
 
     function getCoords(clientX, clientY) {
-        const rect = canvas.getBoundingClientRect();
+        if (!canvasRect) updateRect();
         return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
+            x: clientX - canvasRect.left,
+            y: clientY - canvasRect.top
         };
     }
 
@@ -8866,9 +8825,11 @@ function initScratchCardCanvasEvents() {
         }
     }
 
-    // Touch Event Handlers (passive event handling + touch-action: none eliminates mobile dragging lag)
+    // Touch Event Handlers with preventDefault to eliminate background page scroll and pointer lag
     function onTouchStart(e) {
         if (isScratchCardRevealed) return;
+        if (e.cancelable) e.preventDefault();
+        updateRect();
         isScratchingCard = true;
         const touch = e.touches[0];
         const coords = getCoords(touch.clientX, touch.clientY);
@@ -8879,6 +8840,7 @@ function initScratchCardCanvasEvents() {
 
     function onTouchMove(e) {
         if (!isScratchingCard || isScratchCardRevealed) return;
+        if (e.cancelable) e.preventDefault();
         const touch = e.touches[0];
         const coords = getCoords(touch.clientX, touch.clientY);
         eraseContinuousPath(scratchLastX, scratchLastY, coords.x, coords.y);
@@ -8887,8 +8849,9 @@ function initScratchCardCanvasEvents() {
         triggerCheck();
     }
 
-    function onTouchEnd() {
+    function onTouchEnd(e) {
         if (!isScratchingCard) return;
+        if (e.cancelable) e.preventDefault();
         isScratchingCard = false;
         checkScratchCompletion();
     }
@@ -8897,6 +8860,7 @@ function initScratchCardCanvasEvents() {
     function onMouseDown(e) {
         if (isScratchCardRevealed || e.button !== 0) return;
         e.preventDefault();
+        updateRect();
         isScratchingCard = true;
         const coords = getCoords(e.clientX, e.clientY);
         scratchLastX = coords.x;
@@ -8920,16 +8884,20 @@ function initScratchCardCanvasEvents() {
         checkScratchCompletion();
     }
 
-    // Bind touch events on canvas with passive: true so browser renders drag gestures instantly without lag
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
-    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    // Bind touch events on canvas with passive: false to prevent background scrolling
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: false });
 
     // Bind mouse events on canvas and window
     canvas.addEventListener('mousedown', onMouseDown);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
+
+    // Update rect on viewport resize or scroll
+    window.addEventListener('resize', updateRect, { passive: true });
+    window.addEventListener('scroll', updateRect, { passive: true });
 }
 
 function checkScratchCompletion() {

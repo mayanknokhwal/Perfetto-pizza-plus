@@ -7997,47 +7997,76 @@ button.btn-disabled-stock {
 }
 
 /* --------------------------------------------------------------------------
-   PROFILE INACTIVE STORE POLICY / NOTICE ROW (Directly beneath Legal Policies)
+   PROFILE INACTIVE STORE POLICY / NOTICE ROW (Harmonized Native Row Entry)
+   Strip outer perimeter border and blend identically with standard settings items
    -------------------------------------------------------------------------- */
 .menu-item-row.profile-notice-inactive-row {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    margin-top: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 12px 0;
+    margin: 0;
+    box-shadow: none;
+    border-bottom: none;
+    transition: all 0.2s ease;
 }
 
 .menu-item-row.profile-notice-inactive-row:hover {
-    border-color: var(--text-muted);
-    background: var(--bg-surface-elevated);
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.menu-item-row.profile-notice-inactive-row:active {
+    transform: translateY(0);
 }
 
 .menu-item-icon.icon-profile-notice-muted {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
     background: rgba(100, 116, 139, 0.12) !important;
-    color: var(--text-muted) !important;
-    border: 1px solid rgba(100, 116, 139, 0.22);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
-    transition: transform 0.2s ease;
+    color: #64748b !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
 }
 
 .menu-item-row.profile-notice-inactive-row:hover .menu-item-icon.icon-profile-notice-muted {
-    transform: scale(1.04);
+    transform: scale(1.05);
 }
 
 [data-theme="dark"] .menu-item-icon.icon-profile-notice-muted {
-    background: rgba(148, 163, 184, 0.15) !important;
+    background: rgba(148, 163, 184, 0.18) !important;
     color: #94a3b8 !important;
-    border-color: rgba(148, 163, 184, 0.25);
 }
 
 .profile-notice-muted-title {
-    font-weight: 700;
+    font-size: 0.9rem;
+    font-weight: var(--fw-bold, 700);
     color: var(--text-main);
 }
 
 .profile-notice-muted-subtitle {
     font-size: 0.75rem;
     color: var(--text-muted);
-    margin-top: 2px;
-    line-height: 1.35;
+    margin-top: 1px;
+}
+
+.menu-item-row.profile-notice-inactive-row .item-arrow {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.menu-item-row.profile-notice-inactive-row:hover .item-arrow {
+    transform: translateX(2px);
+    color: var(--text-main);
 }
 
 /* Profile List Icons */
@@ -8438,6 +8467,7 @@ button.btn-disabled-stock {
     background: #110e19;
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none;
 }
 
 /* REVEAL CONTENT (UNDER CANVAS) */
