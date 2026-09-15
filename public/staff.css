@@ -2652,6 +2652,70 @@ body {
    15. DUAL-OPTIMIZED RESPONSIVE ARCHITECTURE (MOBILE & DESKTOP SCREENS)
    ========================================================================== */
 
+/* Base Tab Label Responsive Utility */
+.tab-label-text {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Compact Mobile Screens (< 540px) */
+@media (max-width: 539px) {
+    .tab-label-suffix {
+        display: none !important;
+    }
+
+    .staff-tabs-nav {
+        padding: 6px 8px 10px 8px;
+        gap: 6px;
+    }
+
+    .staff-tab-btn {
+        padding: 6px 6px;
+        font-size: 0.82rem;
+        min-height: 46px;
+        gap: 5px;
+    }
+
+    .staff-tab-btn i {
+        font-size: 0.85rem;
+    }
+
+    .tab-count-badge {
+        min-width: 20px;
+        height: 20px;
+        font-size: 0.72rem;
+        padding: 0 4px;
+    }
+
+    .customer-address-box {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .address-actions-group {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-customer-call,
+    .btn-auto-gps {
+        flex: 1;
+        justify-content: center;
+        min-height: 44px;
+    }
+
+    .cod-action-group {
+        gap: 8px;
+    }
+
+    .btn-touch {
+        min-height: 48px;
+        font-size: 0.94rem;
+    }
+}
+
 /* Mobile Handheld Devices (< 768px) */
 @media (max-width: 767px) {
     .staff-app {
@@ -2681,21 +2745,25 @@ body {
     .btn-staff-sound-toggle {
         flex: 1;
         justify-content: center;
-        padding: 7px 10px;
-        font-size: 0.72rem;
+        padding: 8px 12px;
+        min-height: 44px;
+        font-size: 0.76rem;
     }
 
     .btn-staff-lock {
         flex-shrink: 0;
+        min-height: 44px;
+        padding: 8px 14px;
     }
 
     .role-bar {
         padding: 8px 14px;
+        flex-wrap: wrap;
+        gap: 8px;
     }
 
-    .staff-tabs-nav {
-        padding: 8px 14px;
-        gap: 8px;
+    .user-email-pill {
+        max-width: 100%;
     }
 
     .staff-main {
@@ -2707,18 +2775,28 @@ body {
     }
 
     .card-head {
-        padding: 12px 12px;
+        padding: 12px 14px;
     }
 
     .card-body {
-        padding: 12px 12px;
+        padding: 12px 14px;
+    }
+
+    /* Comfortable touch targets on mobile */
+    .btn-touch {
+        min-height: 48px;
+        padding: 10px 14px;
+    }
+
+    .btn-dismiss-incoming {
+        min-height: 52px;
     }
 }
 
 /* Tablet & Intermediate Devices (768px - 1023px) */
 @media (min-width: 768px) and (max-width: 1023px) {
     .staff-app {
-        max-width: 960px;
+        max-width: 980px;
     }
 
     .orders-cards-container {
@@ -2729,12 +2807,22 @@ body {
     .staff-main {
         padding: 18px 20px;
     }
+
+    .staff-tabs-nav {
+        padding: 8px 20px 12px 20px;
+        gap: 12px;
+    }
+
+    .staff-tab-btn {
+        min-height: 46px;
+        font-size: 0.92rem;
+    }
 }
 
-/* Desktop & Large Laptop Displays (>= 1024px) */
+/* Desktop & Dense Kitchen Display Scanning (1024px - 1439px) */
 @media (min-width: 1024px) {
     .staff-app {
-        max-width: 1480px;
+        max-width: 1520px;
         margin: 0 auto;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -2749,22 +2837,35 @@ body {
         font-size: 1.35rem;
     }
 
+    .brand-tag {
+        font-size: 0.78rem;
+    }
+
     .role-bar {
         padding: 10px 28px;
     }
 
     .staff-tabs-nav {
-        padding: 10px 28px;
-        gap: 16px;
+        padding: 10px 28px 14px 28px;
+        gap: 14px;
     }
 
     .staff-tab-btn {
         padding: 10px 20px;
         font-size: 0.95rem;
+        min-height: 48px;
+        border-radius: var(--radius-md);
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .staff-tab-btn:hover:not(.active) {
+        background-color: var(--bg-surface-3);
+        border-color: rgba(255, 255, 255, 0.15);
+        color: #ffffff;
     }
 
     .staff-main {
-        padding: 24px 28px;
+        padding: 22px 28px;
     }
 
     .section-title-bar {
@@ -2775,13 +2876,18 @@ body {
         font-size: 1.35rem;
     }
 
+    /* 3-Column Dense Grid on Desktop */
     .orders-cards-container {
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 22px;
+        gap: 20px;
+        align-items: stretch;
     }
 
     .order-card {
         border-radius: 18px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
         transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
     }
 
@@ -2797,17 +2903,54 @@ body {
 
     .card-body {
         padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        flex: 1;
+    }
+
+    /* Dense, scannable order items table on desktop */
+    .item-row {
+        padding: 4px 0;
+        font-size: 0.92rem;
+    }
+
+    .item-title-row {
+        gap: 8px;
+    }
+
+    .card-footer {
+        padding: 12px 16px;
+    }
+
+    .btn-touch {
+        min-height: 48px;
+        font-size: 0.94rem;
+        cursor: pointer;
     }
 }
 
-/* Ultra-Wide Kitchen Display Monitors (>= 1440px) */
+/* Ultra-Wide Kitchen Display Monitors (1440px - 1919px) */
 @media (min-width: 1440px) {
     .staff-app {
-        max-width: 1720px;
+        max-width: 1780px;
+    }
+
+    /* 4-Column High-Efficiency Kitchen Display Grid */
+    .orders-cards-container {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 22px;
+    }
+}
+
+/* Super Ultra-Wide Displays (>= 1920px) */
+@media (min-width: 1920px) {
+    .staff-app {
+        max-width: 1920px;
     }
 
     .orders-cards-container {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
         gap: 24px;
     }
 }

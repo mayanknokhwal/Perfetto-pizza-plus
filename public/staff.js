@@ -5267,6 +5267,17 @@ function getOrderAlertAudio() {
                     startSynthesizedBeepLoop();
                 }
             });
+            // Fail-safe loop restart: if browser loop policy or buffer glitch terminates playback prematurely
+            staffOrderAlertAudio.addEventListener('ended', () => {
+                if (isOrderAlertAudioPlaying && isStaffSoundEnabled) {
+                    console.log('🔄 [Staff Audio Engine] Siren track reached end, restarting continuous loop...');
+                    try {
+                        staffOrderAlertAudio.currentTime = 0;
+                        const p = staffOrderAlertAudio.play();
+                        if (p && typeof p.then === 'function') p.catch(() => {});
+                    } catch (e) { }
+                }
+            });
         } catch (e) {
             console.warn('HTML5 Audio constructor notice:', e);
         }
@@ -5501,6 +5512,18 @@ function dismissIncomingOrderAlert() {
     showStaffToast('Order alert silenced. Order is waiting in Pending queue.');
 }
 window.dismissIncomingOrderAlert = dismissIncomingOrderAlert;
+
+// Desktop Keyboard Usability: Pressing Escape silences the incoming audio alert
+if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+            const modal = document.getElementById('staff-incoming-order-modal');
+            if (modal && modal.style.display !== 'none' && modal.getAttribute('aria-hidden') !== 'true') {
+                dismissIncomingOrderAlert();
+            }
+        }
+    });
+}
 
 /**
  * Accepts the incoming order from the modal and stops the continuous audio loop

@@ -346,6 +346,7 @@ a {
     position: relative;
     box-shadow: 0 0 50px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.05);
     transition: background-color 0.35s ease;
+    overflow-x: hidden;
     overflow-x: clip;
 }
 
@@ -540,7 +541,7 @@ body.lang-modal-open {
     border: 1px solid var(--border-color, #e2e8f0);
     border-bottom: none;
     border-radius: 28px 28px 0 0;
-    padding: 12px 22px 32px 22px;
+    padding: 12px 22px max(28px, calc(16px + env(safe-area-inset-bottom, 12px))) 22px;
     box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28);
     transform: translateY(100%);
     transition: transform 0.36s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1678,8 +1679,8 @@ body.shop-closed #btn-pay-online {
 }
 
 .qty-btn {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 10px;
     background-color: var(--bg-surface);
     color: var(--text-main);
@@ -1687,7 +1688,7 @@ body.shop-closed #btn-pay-online {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1rem;
+    font-size: 1.1rem;
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -2484,6 +2485,7 @@ html[lang="hi"] .nav-label {
     margin: 0 0 2px 0;
     white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
     height: auto;
     min-height: auto;
     font-family: var(--font-heading);
@@ -2708,13 +2710,13 @@ html[lang="hi"] .nav-label {
 .add-cart-btn,
 .add-to-cart-btn {
     width: 100%;
-    min-height: 36px;
+    min-height: 42px;
     background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
     color: #ffffff;
-    padding: 7px 8px;
+    padding: 10px 8px;
     border: none;
     border-radius: 0 0 18px 18px;
-    font-size: 0.80rem;
+    font-size: 0.84rem;
     font-weight: var(--fw-black);
     font-family: var(--font-heading);
     display: flex;
@@ -3129,13 +3131,13 @@ html[lang="hi"] .nav-label {
 .cold-drinks-add-cart-btn,
 .mojito-add-cart-btn {
     width: 100%;
-    min-height: 36px;
+    min-height: 42px;
     background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
     color: #ffffff;
-    padding: 7px 8px;
+    padding: 10px 8px;
     border: none;
     border-radius: 0 0 17px 17px;
-    font-size: 0.78rem;
+    font-size: 0.82rem;
     font-weight: var(--fw-black);
     font-family: var(--font-heading);
     display: flex;
@@ -5656,6 +5658,7 @@ button.btn-disabled-stock {
     left: 0;
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     background-color: rgba(0, 0, 0, 0.68);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
@@ -5675,6 +5678,7 @@ button.btn-disabled-stock {
     width: 100%;
     max-width: 520px;
     max-height: 90vh;
+    max-height: 90dvh;
     display: flex;
     flex-direction: column;
     box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
@@ -12134,7 +12138,7 @@ button.btn-disabled-stock {
 }
 
 .offer-conflict-title {
-    font-size: 1.25rem;
+    font-size: 1.30rem;
     font-weight: 800;
     font-family: var(--font-heading);
     color: var(--text-main, #ffffff);
@@ -12143,9 +12147,10 @@ button.btn-disabled-stock {
 }
 
 .offer-conflict-message {
-    font-size: 0.9rem;
-    color: var(--text-muted, #94a3b8);
-    line-height: 1.45;
+    font-size: 0.96rem;
+    font-weight: 500;
+    color: #cbd5e1;
+    line-height: 1.55;
     margin: 0;
 }
 
@@ -12160,10 +12165,10 @@ button.btn-disabled-stock {
 .offer-conflict-btn,
 .btn-conflict-action {
     width: 100%;
-    min-height: 48px;
+    min-height: 50px;
     padding: 13px 20px;
     border-radius: 14px;
-    font-size: 0.95rem;
+    font-size: 0.98rem;
     font-weight: 700;
     cursor: pointer;
     display: inline-flex;
@@ -12177,21 +12182,28 @@ button.btn-disabled-stock {
     letter-spacing: 0.01em;
     text-decoration: none;
     user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Primary Action: "Switch to Combo" - vibrant solid gradient with prominent white bold typography */
 .offer-conflict-btn.primary,
 .btn-conflict-primary {
+    min-height: 52px;
     background: linear-gradient(135deg, #ff6b00 0%, #ea580c 100%);
     color: #ffffff !important;
-    box-shadow: 0 4px 16px rgba(234, 88, 12, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 1.02rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    box-shadow: 0 6px 20px rgba(234, 88, 12, 0.45);
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 .offer-conflict-btn.primary:hover,
 .btn-conflict-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 22px rgba(234, 88, 12, 0.55);
+    box-shadow: 0 8px 24px rgba(234, 88, 12, 0.6);
     background: linear-gradient(135deg, #ff7a1a 0%, #f97316 100%);
 }
 
@@ -12204,9 +12216,10 @@ button.btn-disabled-stock {
 /* Secondary Action: "Keep Daily Offer" - sleek dark surface with explicit subtle border outline */
 .offer-conflict-btn.secondary,
 .btn-conflict-secondary {
+    min-height: 50px;
     background: #1e293b;
-    color: #f1f5f9 !important;
-    border: 1px solid #334155;
+    color: #ffffff !important;
+    border: 1.5px solid #475569;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
@@ -12214,7 +12227,7 @@ button.btn-disabled-stock {
 .btn-conflict-secondary:hover {
     background: #334155;
     color: #ffffff !important;
-    border-color: #475569;
+    border-color: #64748b;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
@@ -12231,6 +12244,7 @@ button.btn-disabled-stock {
     min-height: 44px;
     padding: 10px 18px;
     border: 1px solid transparent;
+    touch-action: manipulation;
 }
 
 .btn-conflict-cancel:hover {
@@ -12241,7 +12255,7 @@ button.btn-disabled-stock {
 /* Light Theme overrides for Conflict Modal */
 [data-theme="light"] .offer-conflict-card {
     background: #ffffff;
-    border-color: rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.1);
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
 }
 
@@ -12249,23 +12263,27 @@ button.btn-disabled-stock {
     color: #0f172a;
 }
 
+[data-theme="light"] .offer-conflict-message {
+    color: #334155;
+}
+
 [data-theme="light"] .offer-conflict-btn.secondary,
 [data-theme="light"] .btn-conflict-secondary {
     background: #f8fafc;
     color: #0f172a !important;
-    border: 1.5px solid #cbd5e1;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    border: 1.5px solid #94a3b8;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .offer-conflict-btn.secondary:hover,
 [data-theme="light"] .btn-conflict-secondary:hover {
     background: #e2e8f0;
-    border-color: #94a3b8;
+    border-color: #64748b;
     color: #020617 !important;
 }
 
 [data-theme="light"] .btn-conflict-cancel {
-    color: #64748b;
+    color: #475569;
 }
 
 

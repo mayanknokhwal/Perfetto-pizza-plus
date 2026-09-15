@@ -15984,8 +15984,14 @@ function renderCustomerSearchResults(queryLower, originalQuery) {
         }
     });
 
-    matchingPizzas.sort((a, b) => b.score - a.score);
-    matchingOtherProducts.sort((a, b) => b.score - a.score);
+    matchingPizzas.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return compareCustomerMenuItemsTieredPriority(a.item, b.item);
+    });
+    matchingOtherProducts.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return compareCustomerMenuItemsTieredPriority(a.item, b.item);
+    });
 
     // 2A. Render Matching Pizzas (Exact 2-Column Pizza Card Grid Layout)
     if (pizzasGrid && matchingPizzas.length > 0) {

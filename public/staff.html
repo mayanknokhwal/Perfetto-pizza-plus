@@ -300,17 +300,17 @@
                 <nav class="staff-tabs-nav" aria-label="Order Status Navigation">
                     <button type="button" class="staff-tab-btn active" id="tab-btn-pending" onclick="switchStaffTab('pending')">
                         <i class="fa-solid fa-fire-burner"></i>
-                        <span>Pending Orders</span>
+                        <span class="tab-label-text">Pending<span class="tab-label-suffix"> Orders</span></span>
                         <span class="tab-count-badge" id="pending-orders-count">0</span>
                     </button>
                     <button type="button" class="staff-tab-btn" id="tab-btn-completed" onclick="switchStaffTab('completed')">
                         <i class="fa-solid fa-check-double"></i>
-                        <span>Completed Orders</span>
+                        <span class="tab-label-text">Completed<span class="tab-label-suffix"> Orders</span></span>
                         <span class="tab-count-badge" id="completed-orders-count">0</span>
                     </button>
                     <button type="button" class="staff-tab-btn" id="tab-btn-rejected" onclick="switchStaffTab('rejected')">
                         <i class="fa-solid fa-ban"></i>
-                        <span>Rejected Orders</span>
+                        <span class="tab-label-text">Rejected<span class="tab-label-suffix"> Orders</span></span>
                         <span class="tab-count-badge" id="rejected-orders-count">0</span>
                     </button>
                 </nav>
@@ -377,8 +377,8 @@
         </div>
 
         <!-- REAL-TIME INCOMING NEW ORDER MODAL & CONTINUOUS RINGTONE ALERT -->
-        <div class="staff-modal-overlay incoming-order-overlay" id="staff-incoming-order-modal" aria-hidden="true" style="display: none;">
-            <div class="staff-modal-card incoming-order-card" role="dialog" aria-labelledby="incoming-modal-title">
+        <div class="staff-modal-overlay incoming-order-overlay" id="staff-incoming-order-modal" aria-hidden="true" style="display: none;" onclick="if(event.target===this) dismissIncomingOrderAlert();">
+            <div class="staff-modal-card incoming-order-card" role="dialog" aria-labelledby="incoming-modal-title" onclick="event.stopPropagation();">
                 <div class="incoming-pulse-ring">
                     <div class="incoming-alert-badge">
                         <i class="fa-solid fa-pizza-slice fa-bounce"></i>
