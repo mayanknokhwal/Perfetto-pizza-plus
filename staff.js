@@ -402,6 +402,7 @@ function getMasterDeliveryOtp() {
 let staffOrdersReconnectTimeout = null;
 let isFirestoreInitialHydrationDone = false;
 const processedOrderDocIds = new Set();
+const staffIncomingAlertedIds = new Set();
 
 function listenToFirestoreStaffOrders() {
     const db = getStaffFirestore();
@@ -433,15 +434,18 @@ function listenToFirestoreStaffOrders() {
                 processedOrderDocIds.add(orderId);
                 staffSeenOrderIds.add(docId);
                 staffSeenOrderIds.add(orderId);
+                staffIncomingAlertedIds.add(docId);
+                staffIncomingAlertedIds.add(orderId);
                 if (matchingKey) {
                     processedOrderDocIds.add(matchingKey);
                     staffSeenOrderIds.add(matchingKey);
+                    staffIncomingAlertedIds.add(matchingKey);
                 }
             });
             isFirestoreInitialHydrationDone = true;
             console.log(`📡 [Firestore Orders] Initial collection hydration complete (${snapshot.size} orders recorded, alerts suppressed).`);
         } else {
-            // Real-time snapshot updates: check for newly added documents
+            // Real-time snapshot updates: check for newly added or status-modified documents
             for (const change of docChanges) {
                 const doc = change.doc;
                 const data = doc.data() || {};
@@ -451,13 +455,15 @@ function listenToFirestoreStaffOrders() {
                 const status = String(data.status || '').toLowerCase().trim();
                 const isIncoming = (status === 'placed' || status === 'pending' || status === 'new');
 
-                if (change.type === 'added') {
-                    // Check if this document has already been processed/seen
-                    const isKnown = processedOrderDocIds.has(docId) || 
-                                    processedOrderDocIds.has(orderId) || 
-                                    (matchingKey && processedOrderDocIds.has(matchingKey));
+                if (change.type === 'added' || change.type === 'modified') {
+                    const isAlreadyAlerted = staffIncomingAlertedIds.has(docId) ||
+                                             staffIncomingAlertedIds.has(orderId) ||
+                                             (matchingKey && staffIncomingAlertedIds.has(matchingKey));
 
-                    if (!isKnown) {
+                    if (isIncoming && !isAlreadyAlerted) {
+                        staffIncomingAlertedIds.add(docId);
+                        staffIncomingAlertedIds.add(orderId);
+                        if (matchingKey) staffIncomingAlertedIds.add(matchingKey);
                         processedOrderDocIds.add(docId);
                         processedOrderDocIds.add(orderId);
                         if (matchingKey) processedOrderDocIds.add(matchingKey);
@@ -465,38 +471,32 @@ function listenToFirestoreStaffOrders() {
                         staffSeenOrderIds.add(orderId);
                         if (matchingKey) staffSeenOrderIds.add(matchingKey);
 
-                        if (isIncoming) {
-                            console.log(`🔥 [Firestore Real-Time] Genuinely new incoming order detected via docChanges: Order #${orderId} (Status: ${status})`);
-                            const customerName = data.customerName || data.customer?.name || 'Customer';
-                            const total = data.total || data.costs?.total || '';
-                            const summary = total ? `${customerName} • ₹${total}` : customerName;
+                        console.log(`🔥 [Firestore Real-Time] Incoming order detected via docChanges (${change.type}): Order #${orderId} (Status: ${status})`);
+                        const customerName = data.customerName || data.customer?.name || 'Customer';
+                        const total = data.total || data.costs?.total || '';
+                        const summary = total ? `${customerName} • ₹${total}` : customerName;
 
-                            // 1. Immediately set the incoming modal state to visible
-                            showIncomingOrderModal(orderId, summary, data);
+                        // 1. Immediately set the incoming modal state to visible
+                        showIncomingOrderModal(orderId, summary, data);
 
-                            // 2. Immediately invoke the primed audio chime to loop continuously
-                            startOrderAlertAudio(orderId, summary, data);
+                        // 2. Immediately invoke the primed audio chime to loop continuously
+                        startOrderAlertAudio(orderId, summary, data);
 
-                            // 3. Fire the vibration sequence
-                            startStaffVibrationLoop();
+                        // 3. Fire the vibration sequence
+                        startStaffVibrationLoop();
 
-                            // 4. Toast notification
-                            showStaffToast(`🔔 New Order #${orderId} Received in Real-Time!`);
+                        // 4. Toast notification
+                        showStaffToast(`🔔 New Order #${orderId} Received in Real-Time!`);
+                    } else if (change.type === 'modified' && !isIncoming) {
+                        // If currently alerting for this order and status transitioned away from incoming, stop alert
+                        if (currentAlertingOrderId && (
+                            currentAlertingOrderId === orderId || 
+                            currentAlertingOrderId === docId || 
+                            currentAlertingOrderId === matchingKey
+                        )) {
+                            console.log(`🛑 [Firestore Real-Time] Alerting order #${orderId} transitioned to '${status}'. Stopping alert.`);
+                            stopOrderAlertAudio();
                         }
-                    }
-                } else if (change.type === 'modified') {
-                    processedOrderDocIds.add(docId);
-                    processedOrderDocIds.add(orderId);
-                    if (matchingKey) processedOrderDocIds.add(matchingKey);
-
-                    // If currently alerting for this order and status transitioned away from incoming, stop alert
-                    if (!isIncoming && currentAlertingOrderId && (
-                        currentAlertingOrderId === orderId || 
-                        currentAlertingOrderId === docId || 
-                        currentAlertingOrderId === matchingKey
-                    )) {
-                        console.log(`🛑 [Firestore Real-Time] Alerting order #${orderId} transitioned to '${status}'. Stopping alert.`);
-                        stopOrderAlertAudio();
                     }
                 } else if (change.type === 'removed') {
                     if (currentAlertingOrderId && (
@@ -2500,12 +2500,12 @@ function setupUniversalAudioUnlock() {
         }
 
         // 3. Explicitly prime persistent HTML5 Audio element
-        // Android Chrome requires genuine user gesture with unmuted play attempt to clear subsequent autoplay locks
+        // Android Chrome / iOS WebKit requires genuine user gesture with unmuted near-zero volume play
         try {
             const audio = getOrderAlertAudio();
             if (audio) {
                 audio.muted = false;
-                audio.volume = 0.01;
+                audio.volume = 0.001;
                 const p = audio.play();
                 if (p !== undefined && typeof p.then === 'function') {
                     p.then(() => {
@@ -2513,7 +2513,14 @@ function setupUniversalAudioUnlock() {
                         audio.currentTime = 0;
                         audio.volume = 1.0;
                         isStaffAudioUnlocked = true;
+                        isAudioAutoplayBlocked = false;
+                        dismissStaffAudioBanner();
                         console.log('📱 [Mobile Audio Engine] Primed persistent HTMLAudioElement successfully on genuine user gesture.');
+                        if (pendingOrderAlertData && isStaffSoundEnabled) {
+                            const { orderId, details, orderData } = pendingOrderAlertData;
+                            pendingOrderAlertData = null;
+                            startOrderAlertAudio(orderId, details, orderData);
+                        }
                     }).catch((err) => {
                         console.warn('Audio prime notice:', err.message);
                         audio.volume = 1.0;
@@ -2571,7 +2578,7 @@ function unlockStaffAudioAlerts(silent = true) {
         if (audio) {
             audio.loop = true;
             audio.muted = false;
-            audio.volume = 0.01;
+            audio.volume = 0.001;
             const playPromise = audio.play();
             if (playPromise !== undefined && typeof playPromise.then === 'function') {
                 playPromise.then(() => {
@@ -2582,10 +2589,10 @@ function unlockStaffAudioAlerts(silent = true) {
                     isAudioAutoplayBlocked = false;
                     dismissStaffAudioBanner();
                     console.log('🔓 [Staff Audio] Audio element primed for notifications.');
-                    if (pendingOrderAlertData && isOrderAlertAudioPlaying && isStaffSoundEnabled) {
-                        const { orderId, details } = pendingOrderAlertData;
+                    if (pendingOrderAlertData && isStaffSoundEnabled) {
+                        const { orderId, details, orderData } = pendingOrderAlertData;
                         pendingOrderAlertData = null;
-                        startOrderAlertAudio(orderId, details);
+                        startOrderAlertAudio(orderId, details, orderData);
                     }
                 }).catch((err) => {
                     audio.volume = 1.0;

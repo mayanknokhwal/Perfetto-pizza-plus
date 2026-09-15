@@ -22,6 +22,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 
+    <!-- Preload Incoming Order Alert Audio -->
+    <link rel="preload" href="/order-alert.mp3" as="audio" type="audio/mpeg">
+
     <!-- MSG91 OTP Widget Script Loader (Headless Mode / Custom UI) -->
     <script type="text/javascript">
         var configuration = {
@@ -14356,10 +14359,9 @@
             return adminAlertAudio;
         }
 
-        function unlockAdminAudioContext() {
-            if (adminAudioUnlocked) return;
-            adminAudioUnlocked = true;
+        let adminActiveChimeNodes = [];
 
+        function unlockAdminAudioContext() {
             try {
                 const ctx = getAdminAudioContext();
                 if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
@@ -14370,76 +14372,31 @@
             try {
                 const audio = initAdminAudio();
                 if (audio) {
-                    audio.muted = true;
+                    audio.muted = false;
+                    audio.volume = 0.001; // unmuted low volume to satisfy browser autoplay policies
                     const p = audio.play();
                     if (p && typeof p.then === 'function') {
                         p.then(() => {
                             audio.pause();
                             audio.currentTime = 0;
-                            audio.muted = false;
+                            audio.volume = 1.0;
+                            adminAudioUnlocked = true;
+                            console.log('🔓 [Admin Audio] Audio element and context primed successfully.');
                         }).catch(() => {
-                            audio.muted = false;
+                            audio.volume = 1.0;
                         });
-                    } else {
-                        audio.muted = false;
                     }
                 }
             } catch (e) { }
 
-            ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
-                window.removeEventListener(evt, unlockAdminAudioContext, { capture: true });
-                document.removeEventListener(evt, unlockAdminAudioContext, { capture: true });
-            });
-            console.log('🔊 [Admin Audio] Audio context successfully unlocked by user interaction.');
+            adminAudioUnlocked = true;
         }
 
-        // Global one-time interaction listener across admin viewport to unlock browser audio context
+        // Global persistent interaction listener across admin viewport to unlock browser audio context
         ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
-            window.addEventListener(evt, unlockAdminAudioContext, { capture: true, once: true, passive: true });
-            document.addEventListener(evt, unlockAdminAudioContext, { capture: true, once: true, passive: true });
+            window.addEventListener(evt, unlockAdminAudioContext, { capture: true, passive: true });
+            document.addEventListener(evt, unlockAdminAudioContext, { capture: true, passive: true });
         });
-
-        function playAdminOrderChime() {
-            const now = Date.now();
-            if (now - lastAdminChimeTimestamp < 2000) {
-                // Debounce duplicate invocations within the same batch
-                return;
-            }
-            lastAdminChimeTimestamp = now;
-
-            console.log('🔔 [Admin Alert] Playing incoming order alert chime once (single-play)...');
-            try {
-                const ctx = getAdminAudioContext();
-                if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-                    ctx.resume().catch(() => {});
-                }
-            } catch (e) { }
-
-            let playedHtml5 = false;
-            try {
-                const audio = initAdminAudio();
-                if (audio) {
-                    audio.loop = false; // Strictly single-play chime (never loop)
-                    audio.muted = false;
-                    audio.currentTime = 0;
-                    const p = audio.play();
-                    if (p && typeof p.then === 'function') {
-                        p.then(() => {
-                            console.log('🔔 [Admin Alert] Single chime audio playback started successfully.');
-                        }).catch(err => {
-                            console.warn('Admin HTML5 audio play prevented by autoplay policy:', err.message);
-                            playAdminSynthesizedChime();
-                        });
-                        playedHtml5 = true;
-                    }
-                }
-            } catch (e) {
-                console.warn('Error playing admin audio chime:', e);
-            }
-            if (!playedHtml5) {
-                playAdminSynthesizedChime();
-            }
-        }
 
         function playAdminSynthesizedChime() {
             try {
@@ -14449,18 +14406,53 @@
                     ctx.resume().catch(() => {});
                 }
                 const now = ctx.currentTime;
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, now); // A5
-                osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15); // E6
-                gain.gain.setValueAtTime(0.25, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(now);
-                osc.stop(now + 0.6);
-            } catch (e) { }
+                // Elegant isolated 3-tone harmonic chime: E5 (659.25Hz) -> A5 (880Hz) -> E6 (1318.51Hz)
+                const masterGain = ctx.createGain();
+                masterGain.connect(ctx.destination);
+                adminActiveChimeNodes.push(masterGain);
+
+                const tones = [
+                    { freq: 659.25, time: 0.00, dur: 0.45, vol: 0.35 },
+                    { freq: 880.00, time: 0.15, dur: 0.50, vol: 0.40 },
+                    { freq: 1318.51, time: 0.32, dur: 0.85, vol: 0.30 }
+                ];
+
+                tones.forEach(t => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(t.freq, now + t.time);
+                    
+                    gain.gain.setValueAtTime(0.001, now + t.time);
+                    gain.gain.exponentialRampToValueAtTime(t.vol, now + t.time + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + t.time + t.dur);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+                    osc.start(now + t.time);
+                    osc.stop(now + t.time + t.dur + 0.05);
+                });
+
+                // Auto-cleanup node reference once chime naturally terminates
+                setTimeout(() => {
+                    const idx = adminActiveChimeNodes.indexOf(masterGain);
+                    if (idx !== -1) adminActiveChimeNodes.splice(idx, 1);
+                }, 1300);
+            } catch (e) {
+                console.warn('Admin synthesized chime error:', e);
+            }
+        }
+
+        function playAdminOrderChime() {
+            const now = Date.now();
+            if (now - lastAdminChimeTimestamp < 2000) {
+                // Debounce duplicate invocations within the same batch
+                return;
+            }
+            lastAdminChimeTimestamp = now;
+
+            console.log('🔔 [Admin Alert] Playing isolated order alert chime once (single-play)...');
+            playAdminSynthesizedChime();
         }
         window.playAdminOrderChime = playAdminOrderChime;
 
@@ -14516,7 +14508,7 @@
         window.showAdminOrderAlert = showAdminOrderAlert;
 
         /**
-         * Dismisses the incoming order banner and immediately halts audio chime if playing
+         * Dismisses the incoming order banner and immediately halts audio chime if playing mid-chime
          */
         function dismissAdminOrderAlert() {
             const banner = document.getElementById('admin-incoming-order-banner');
@@ -14528,7 +14520,24 @@
                 adminAlertAutoDismissTimeout = null;
             }
 
-            // Immediately stop/pause audio chime and reset playback position to 0
+            // Immediately silence any active synthesized chime
+            try {
+                const ctx = getAdminAudioContext();
+                const now = ctx ? ctx.currentTime : 0;
+                while (adminActiveChimeNodes.length > 0) {
+                    const g = adminActiveChimeNodes.pop();
+                    if (g && g.gain) {
+                        try {
+                            if (ctx) {
+                                g.gain.cancelScheduledValues(now);
+                                g.gain.setValueAtTime(0, now);
+                            }
+                        } catch (e) { }
+                    }
+                }
+            } catch (e) { }
+
+            // Immediately stop/pause HTML5 audio chime if playing and reset
             try {
                 const audio = initAdminAudio();
                 if (audio) {
@@ -14583,23 +14592,23 @@
                         } else {
                             if (typeof snapshot.docChanges === 'function') {
                                 snapshot.docChanges().forEach(change => {
-                                    if (change.type === 'added') {
-                                        const docId = change.doc.id;
-                                        const d = change.doc.data() || {};
-                                        const keys = getAdminOrderMatchingKeys(docId, d);
+                                    const docId = change.doc.id;
+                                    const d = change.doc.data() || {};
+                                    const keys = getAdminOrderMatchingKeys(docId, d);
+                                    const status = String(d.status || '').trim().toLowerCase();
+                                    const isIncoming = (status === 'placed' || status === 'new' || status === 'pending');
+
+                                    if (change.type === 'added' || change.type === 'modified') {
                                         const isKnown = keys.some(k => adminKnownOrderIds.has(k));
-                                        if (!isKnown) {
+                                        if (isIncoming && !isKnown) {
                                             keys.forEach(k => adminKnownOrderIds.add(k));
-                                            const status = String(d.status || '').trim().toLowerCase();
-                                            if (status === 'placed' || status === 'new' || status === 'pending') {
-                                                hasNewIncomingOrder = true;
-                                                latestIncomingOrderData = {
-                                                    orderId: d.orderId || d.id || docId,
-                                                    customerName: d.customerName || d.customer?.name || d.name || 'Customer',
-                                                    total: d.total !== undefined ? d.total : (d.finalPayable !== undefined ? d.finalPayable : (d.totalAmount !== undefined ? d.totalAmount : (d.costs?.total || 0))),
-                                                    ...d
-                                                };
-                                            }
+                                            hasNewIncomingOrder = true;
+                                            latestIncomingOrderData = {
+                                                orderId: d.orderId || d.id || docId,
+                                                customerName: d.customerName || d.customer?.name || d.name || 'Customer',
+                                                total: d.total !== undefined ? d.total : (d.finalPayable !== undefined ? d.finalPayable : (d.totalAmount !== undefined ? d.totalAmount : (d.costs?.total || 0))),
+                                                ...d
+                                            };
                                         }
                                     }
                                 });
