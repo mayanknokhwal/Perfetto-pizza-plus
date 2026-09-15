@@ -14373,6 +14373,8 @@
                     adminAlertAudio = new Audio(getAdminAudioSrc());
                     adminAlertAudio.loop = false; // Strictly single-play chime (never loop)
                     adminAlertAudio.preload = 'auto';
+                    adminAlertAudio.muted = false;
+                    adminAlertAudio.volume = 1.0;
                     adminAlertAudio.onended = function() {
                         try {
                             adminAlertAudio.pause();
@@ -14386,6 +14388,7 @@
             }
             return adminAlertAudio;
         }
+        window.initAdminAudio = initAdminAudio;
 
         let adminActiveChimeNodes = [];
 
@@ -14399,18 +14402,19 @@
 
             try {
                 const audio = initAdminAudio();
-                if (audio) {
-                    audio.muted = false;
-                    audio.volume = 0.001; // unmuted low volume to satisfy browser autoplay policies
+                if (audio && !adminAudioUnlocked) {
+                    audio.muted = true;
                     const p = audio.play();
                     if (p && typeof p.then === 'function') {
                         p.then(() => {
                             audio.pause();
                             audio.currentTime = 0;
+                            audio.muted = false;
                             audio.volume = 1.0;
                             adminAudioUnlocked = true;
                             console.log('🔓 [Admin Audio] Audio element and context primed successfully.');
                         }).catch(() => {
+                            audio.muted = false;
                             audio.volume = 1.0;
                         });
                     }
@@ -14419,6 +14423,7 @@
 
             adminAudioUnlocked = true;
         }
+        window.unlockAdminAudioContext = unlockAdminAudioContext;
 
         // Global persistent interaction listener across admin viewport to unlock browser audio context
         ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
@@ -14480,7 +14485,34 @@
             lastAdminChimeTimestamp = now;
 
             console.log('🔔 [Admin Alert] Playing isolated order alert chime once (single-play)...');
-            playAdminSynthesizedChime();
+
+            let playedHtml5 = false;
+            try {
+                const audio = initAdminAudio();
+                if (audio) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.loop = false;
+                    audio.muted = false;
+                    audio.volume = 1.0;
+                    const playPromise = audio.play();
+                    if (playPromise !== undefined && typeof playPromise.then === 'function') {
+                        playPromise.then(() => {
+                            console.log('🔊 [Admin Alert] HTML5 audio chime playing successfully (single-play).');
+                        }).catch((err) => {
+                            console.warn('HTML5 audio play blocked or failed, falling back to synthesized chime:', err.message);
+                            playAdminSynthesizedChime();
+                        });
+                        playedHtml5 = true;
+                    }
+                }
+            } catch (e) {
+                console.warn('HTML5 audio chime error, falling back:', e);
+            }
+
+            if (!playedHtml5) {
+                playAdminSynthesizedChime();
+            }
         }
         window.playAdminOrderChime = playAdminOrderChime;
 
@@ -14508,6 +14540,9 @@
         function showAdminOrderAlert(orderData = {}) {
             const banner = document.getElementById('admin-incoming-order-banner');
             if (!banner) return;
+
+            // Trigger single-play order chime (debounced so it never double plays)
+            playAdminOrderChime();
 
             const orderNumberEl = document.getElementById('admin-alert-order-number');
             const customerNameEl = document.getElementById('admin-alert-customer-name');
@@ -14567,10 +14602,9 @@
 
             // Immediately stop/pause HTML5 audio chime if playing and reset
             try {
-                const audio = initAdminAudio();
-                if (audio) {
-                    audio.pause();
-                    audio.currentTime = 0;
+                if (adminAlertAudio) {
+                    adminAlertAudio.pause();
+                    adminAlertAudio.currentTime = 0;
                 }
             } catch (e) { }
             console.log('🔇 [Admin Alert] Dismissed incoming order alert banner and stopped chime.');
