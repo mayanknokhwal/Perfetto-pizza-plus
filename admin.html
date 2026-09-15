@@ -1541,6 +1541,201 @@
             font-size: 1.25rem;
         }
 
+        /* LIGHTWEIGHT DISMISS-ONLY INCOMING ORDER ALERT BANNER (ADMIN VIEWPORT) */
+        .admin-order-alert-banner {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 2000015;
+            background: rgba(15, 23, 42, 0.94);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1.5px solid rgba(245, 158, 11, 0.6);
+            border-radius: 16px;
+            box-shadow: 0 20px 48px rgba(0, 0, 0, 0.65), 0 0 28px rgba(245, 158, 11, 0.25);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            max-width: 480px;
+            width: calc(100% - 48px);
+            animation: adminAlertSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            font-family: var(--font-body, system-ui, sans-serif);
+        }
+
+        @keyframes adminAlertSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-24px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .admin-order-alert-content {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .admin-order-alert-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .admin-order-alert-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #fbbf24;
+            letter-spacing: -0.01em;
+        }
+
+        .admin-order-alert-title i {
+            color: #f59e0b;
+            font-size: 1.05rem;
+            animation: adminBellTinkle 1.2s ease-in-out infinite;
+        }
+
+        @keyframes adminBellTinkle {
+            0%, 100% { transform: rotate(0); }
+            20% { transform: rotate(14deg); }
+            40% { transform: rotate(-14deg); }
+            60% { transform: rotate(8deg); }
+            80% { transform: rotate(-8deg); }
+        }
+
+        .admin-alert-pulsing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+            display: inline-block;
+            animation: adminPulseDot 1.5s infinite;
+        }
+
+        @keyframes adminPulseDot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .admin-order-alert-badge {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #fef08a;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 3px 9px;
+            border-radius: 20px;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+
+        .admin-order-alert-body {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .admin-order-alert-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.92rem;
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .admin-alert-customer-name {
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 170px;
+        }
+
+        .admin-alert-separator {
+            color: #64748b;
+            font-weight: 400;
+        }
+
+        .admin-alert-order-total {
+            color: #34d399;
+            font-weight: 800;
+        }
+
+        .admin-order-alert-subtext {
+            margin: 0;
+            font-size: 0.76rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .admin-order-alert-actions {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .btn-admin-alert-dismiss {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #ffffff;
+            font-size: 0.86rem;
+            font-weight: 700;
+            padding: 9px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            outline: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-admin-alert-dismiss:hover {
+            background: rgba(239, 68, 68, 0.2);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25);
+        }
+
+        .btn-admin-alert-dismiss:active {
+            transform: translateY(0);
+        }
+
+        @media (max-width: 640px) {
+            .admin-order-alert-banner {
+                top: 14px;
+                right: 14px;
+                left: 14px;
+                width: auto;
+                max-width: none;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 14px;
+            }
+            .admin-order-alert-actions {
+                justify-content: flex-end;
+            }
+            .btn-admin-alert-dismiss {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
         /* GLOBAL SEARCH STYLES */
         .search-section-label {
             font-family: var(--font-heading);
@@ -5420,6 +5615,34 @@
     <div class="toast-notification" id="toast-notification">
         <i class="fa-solid fa-circle-check"></i>
         <span id="toast-text">All menu changes saved to database!</span>
+    </div>
+
+    <!-- LIGHTWEIGHT DISMISS-ONLY INCOMING ORDER ALERT BANNER (ADMIN VIEWPORT) -->
+    <div id="admin-incoming-order-banner" class="admin-order-alert-banner" style="display: none;" role="alert" aria-live="assertive">
+        <div class="admin-order-alert-content">
+            <div class="admin-order-alert-header">
+                <div class="admin-order-alert-title">
+                    <span class="admin-alert-pulsing-dot"></span>
+                    <i class="fa-solid fa-bell"></i>
+                    <span>New Order Arrived on Staff Panel</span>
+                </div>
+                <span class="admin-order-alert-badge" id="admin-alert-order-number">Order #--</span>
+            </div>
+            <div class="admin-order-alert-body">
+                <div class="admin-order-alert-info">
+                    <span class="admin-alert-customer-name" id="admin-alert-customer-name">Customer</span>
+                    <span class="admin-alert-separator">•</span>
+                    <span class="admin-alert-order-total" id="admin-alert-order-total">₹0</span>
+                </div>
+                <p class="admin-order-alert-subtext">Order dispatched to Kitchen / Staff queue</p>
+            </div>
+        </div>
+        <div class="admin-order-alert-actions">
+            <!-- STRICTLY SINGLE ACTION BUTTON: "Dismiss" (No Accept or Reject controls) -->
+            <button type="button" class="btn-admin-alert-dismiss" id="btn-admin-order-dismiss" onclick="dismissAdminOrderAlert()" title="Dismiss this alert and silence chime">
+                <i class="fa-solid fa-xmark"></i> Dismiss
+            </button>
+        </div>
     </div>
 
     <!-- Firebase 10 SDKs (Compat Mode for universal window.firebase & Firestore real-time listeners) -->
@@ -14257,6 +14480,66 @@
             return Array.from(keys).filter(Boolean);
         }
 
+        let adminAlertAutoDismissTimeout = null;
+
+        /**
+         * Displays lightweight dismiss-only incoming order alert banner in admin viewport
+         */
+        function showAdminOrderAlert(orderData = {}) {
+            const banner = document.getElementById('admin-incoming-order-banner');
+            if (!banner) return;
+
+            const orderNumberEl = document.getElementById('admin-alert-order-number');
+            const customerNameEl = document.getElementById('admin-alert-customer-name');
+            const orderTotalEl = document.getElementById('admin-alert-order-total');
+
+            const orderId = String(orderData.orderId || orderData.id || 'New').replace(/^#/, '');
+            const customer = orderData.customerName || orderData.customer?.name || orderData.name || 'Customer';
+            const total = orderData.total !== undefined ? orderData.total : (orderData.finalPayable !== undefined ? orderData.finalPayable : (orderData.totalAmount !== undefined ? orderData.totalAmount : (orderData.costs?.total !== undefined ? orderData.costs.total : '')));
+
+            if (orderNumberEl) orderNumberEl.textContent = `Order #${orderId}`;
+            if (customerNameEl) customerNameEl.textContent = customer;
+            if (orderTotalEl) orderTotalEl.textContent = total !== '' ? `₹${total}` : '';
+
+            banner.style.display = 'flex';
+
+            if (adminAlertAutoDismissTimeout) {
+                clearTimeout(adminAlertAutoDismissTimeout);
+            }
+            adminAlertAutoDismissTimeout = setTimeout(() => {
+                adminAlertAutoDismissTimeout = null;
+                if (banner && banner.style.display !== 'none') {
+                    banner.style.display = 'none';
+                }
+            }, 30000);
+        }
+        window.showAdminOrderAlert = showAdminOrderAlert;
+
+        /**
+         * Dismisses the incoming order banner and immediately halts audio chime if playing
+         */
+        function dismissAdminOrderAlert() {
+            const banner = document.getElementById('admin-incoming-order-banner');
+            if (banner) {
+                banner.style.display = 'none';
+            }
+            if (adminAlertAutoDismissTimeout) {
+                clearTimeout(adminAlertAutoDismissTimeout);
+                adminAlertAutoDismissTimeout = null;
+            }
+
+            // Immediately stop/pause audio chime and reset playback position to 0
+            try {
+                const audio = initAdminAudio();
+                if (audio) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }
+            } catch (e) { }
+            console.log('🔇 [Admin Alert] Dismissed incoming order alert banner and stopped chime.');
+        }
+        window.dismissAdminOrderAlert = dismissAdminOrderAlert;
+
         function listenToAdminLiveOrders() {
             const db = adminFirestore || getAdminFirestore();
             if (!db) {
@@ -14275,6 +14558,7 @@
                     .onSnapshot((snapshot) => {
                         const liveOrders = [];
                         let hasNewIncomingOrder = false;
+                        let latestIncomingOrderData = null;
 
                         snapshot.forEach((doc) => {
                             const data = doc.data() || {};
@@ -14288,7 +14572,7 @@
                             });
                         });
 
-                        // Detect new incoming orders and trigger single chime
+                        // Detect new incoming orders and trigger single chime & alert banner
                         if (!adminInitialOrdersLoaded) {
                             snapshot.forEach(doc => {
                                 const d = doc.data() || {};
@@ -14309,6 +14593,12 @@
                                             const status = String(d.status || '').trim().toLowerCase();
                                             if (status === 'placed' || status === 'new' || status === 'pending') {
                                                 hasNewIncomingOrder = true;
+                                                latestIncomingOrderData = {
+                                                    orderId: d.orderId || d.id || docId,
+                                                    customerName: d.customerName || d.customer?.name || d.name || 'Customer',
+                                                    total: d.total !== undefined ? d.total : (d.finalPayable !== undefined ? d.finalPayable : (d.totalAmount !== undefined ? d.totalAmount : (d.costs?.total || 0))),
+                                                    ...d
+                                                };
                                             }
                                         }
                                     }
@@ -14317,6 +14607,9 @@
 
                             if (hasNewIncomingOrder) {
                                 playAdminOrderChime();
+                                if (latestIncomingOrderData) {
+                                    showAdminOrderAlert(latestIncomingOrderData);
+                                }
                                 showToast('🔔 New incoming customer order received!');
                             }
                         }
@@ -14345,6 +14638,7 @@
             // Check if any incoming orders were not yet seen (fallback in case docChanges didn't catch or REST sync)
             if (adminInitialOrdersLoaded) {
                 let foundNew = false;
+                let fallbackOrderData = null;
                 serverOrders.forEach(o => {
                     if (!o) return;
                     const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
@@ -14355,11 +14649,15 @@
                         keys.forEach(k => adminKnownOrderIds.add(k));
                         if (status === 'placed' || status === 'new' || status === 'pending') {
                             foundNew = true;
+                            fallbackOrderData = o;
                         }
                     }
                 });
                 if (foundNew) {
                     playAdminOrderChime();
+                    if (fallbackOrderData) {
+                        showAdminOrderAlert(fallbackOrderData);
+                    }
                     showToast('🔔 New incoming customer order received!');
                 }
             } else {
