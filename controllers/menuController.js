@@ -266,19 +266,43 @@ if (!global.__perfettoCategoryDiscounts) {
     global.__perfettoCategoryDiscounts = {};
 }
 
+function resolveItemAvailability(item) {
+    if (!item) return false;
+    if (item.isAvailable === false || item.available === false || item.is_available === false || item.out_of_stock === true) {
+        return false;
+    }
+    if (typeof item.status === 'string') {
+        const s = item.status.trim().toUpperCase();
+        if (s === 'UNAVAILABLE' || s === 'OUT_OF_STOCK' || s === 'DISABLED') {
+            return false;
+        }
+    }
+    if (item.isAvailable !== undefined) return Boolean(item.isAvailable);
+    if (item.is_available !== undefined) return Boolean(item.is_available);
+    if (item.available !== undefined) return Boolean(item.available);
+    if (item.out_of_stock !== undefined) return !item.out_of_stock;
+    if (typeof item.status === 'string') {
+        const s = item.status.trim().toUpperCase();
+        if (s === 'AVAILABLE' || s === 'IN_STOCK' || s === 'ACTIVE') {
+            return true;
+        }
+    }
+    return true;
+}
+
 async function getLiveMenuFromFirestore() {
     try {
         const doc = await getFirestoreDoc('settings', 'menu');
         if (doc && Array.isArray(doc.items) && doc.items.length > 0) {
             const normalized = doc.items.map(item => {
-                const isAvail = (item.is_available !== undefined)
-                    ? Boolean(item.is_available)
-                    : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+                const isAvail = resolveItemAvailability(item);
                 return {
                     ...item,
                     available: isAvail,
                     is_available: isAvail,
-                    out_of_stock: !isAvail
+                    isAvailable: isAvail,
+                    out_of_stock: !isAvail,
+                    status: isAvail ? 'AVAILABLE' : 'UNAVAILABLE'
                 };
             });
             global.__perfettoMenuState = normalized;
@@ -298,14 +322,14 @@ async function getLiveMenuFromFirestore() {
         console.warn('Firestore menu read note:', e.message);
     }
     const normalized = (global.__perfettoMenuState || []).map(item => {
-        const isAvail = (item.is_available !== undefined)
-            ? Boolean(item.is_available)
-            : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+        const isAvail = resolveItemAvailability(item);
         return {
             ...item,
             available: isAvail,
             is_available: isAvail,
-            out_of_stock: !isAvail
+            isAvailable: isAvail,
+            out_of_stock: !isAvail,
+            status: isAvail ? 'AVAILABLE' : 'UNAVAILABLE'
         };
     });
     return {
@@ -319,30 +343,23 @@ async function handleMenuRequest(req, res) {
     try {
         // 1. GET: Fetch Live Menu Items & Category Addons & Category Discounts
         if (req.method === 'GET') {
-            const { category } = req.query || {};
-
-            const { items: allItems, categoryAddons, categoryDiscounts } = await getLiveMenuFromFirestore();
-            let items = allItems;
-            if (category) {
-                items = items.filter(i => i.category === category);
-            }
-
+            const { items, categoryAddons, categoryDiscounts } = await getLiveMenuFromFirestore();
             return res.status(200).json({
                 success: true,
-                count: items.length,
-                items: items,
-                categoryAddons: cleanCategoryAddons(categoryAddons || DEFAULT_CATEGORY_ADDONS),
-                categoryDiscounts: categoryDiscounts || global.__perfettoCategoryDiscounts || {}
+                items,
+                categoryAddons,
+                categoryDiscounts,
+                count: items.length
             });
         }
 
-        // 2. PATCH: Instant Single-Item Update
+        // 2. PATCH: Update specific item price or availability in Firestore
         if (req.method === 'PATCH') {
             let body = req.body;
             if (typeof body === 'string') {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
             }
-            const { id, available, is_available, out_of_stock, price, prices, name, desc, img, isMultiSize, isDiscountActive, appliedDiscountPercent } = body || {};
+            const { id, available, is_available, isAvailable, status, out_of_stock, price, prices, name, desc, img, isMultiSize, isDiscountActive, hasDiscount, appliedDiscountPercent, discountPercent, discount } = body || {};
 
             if (!id) {
                 return res.status(400).json({ success: false, message: 'Missing required field: id' });
@@ -380,15 +397,16 @@ async function handleMenuRequest(req, res) {
             let items = [...allItems];
             let itemIndex = items.findIndex(i => i.id === targetId);
 
-            const resolvedAvailable = (is_available !== undefined)
-                ? Boolean(is_available)
-                : (available !== undefined ? Boolean(available) : (out_of_stock !== undefined ? !out_of_stock : undefined));
+            const hasAvailProp = isAvailable !== undefined || available !== undefined || is_available !== undefined || out_of_stock !== undefined || status !== undefined;
+            const resolvedAvailable = hasAvailProp ? resolveItemAvailability(body) : undefined;
 
             if (itemIndex >= 0) {
                 if (resolvedAvailable !== undefined) {
                     items[itemIndex].available = resolvedAvailable;
                     items[itemIndex].is_available = resolvedAvailable;
+                    items[itemIndex].isAvailable = resolvedAvailable;
                     items[itemIndex].out_of_stock = !resolvedAvailable;
+                    items[itemIndex].status = resolvedAvailable ? 'AVAILABLE' : 'UNAVAILABLE';
                 }
                 if (price !== undefined) items[itemIndex].price = Number(price);
                 if (prices !== undefined) items[itemIndex].prices = prices;
@@ -396,10 +414,21 @@ async function handleMenuRequest(req, res) {
                 if (desc !== undefined) items[itemIndex].desc = desc;
                 if (img !== undefined) items[itemIndex].img = img;
                 if (isMultiSize !== undefined) items[itemIndex].isMultiSize = Boolean(isMultiSize);
-                if (isDiscountActive !== undefined) items[itemIndex].isDiscountActive = Boolean(isDiscountActive);
-                if (appliedDiscountPercent !== undefined) items[itemIndex].appliedDiscountPercent = Number(appliedDiscountPercent);
+                const resolvedDiscountActive = isDiscountActive !== undefined ? Boolean(isDiscountActive) : (hasDiscount !== undefined ? Boolean(hasDiscount) : undefined);
+                if (resolvedDiscountActive !== undefined) {
+                    items[itemIndex].isDiscountActive = resolvedDiscountActive;
+                    items[itemIndex].hasDiscount = resolvedDiscountActive;
+                }
+                const resolvedDiscountPercent = appliedDiscountPercent !== undefined ? Number(appliedDiscountPercent) : (discountPercent !== undefined ? Number(discountPercent) : (discount !== undefined ? Number(discount) : undefined));
+                if (resolvedDiscountPercent !== undefined) {
+                    items[itemIndex].appliedDiscountPercent = resolvedDiscountPercent;
+                    items[itemIndex].discountPercent = resolvedDiscountPercent;
+                    items[itemIndex].discount = resolvedDiscountPercent;
+                }
             } else {
                 const initialAvail = resolvedAvailable !== undefined ? resolvedAvailable : true;
+                const initDiscountActive = Boolean(isDiscountActive || hasDiscount);
+                const initDiscountPercent = Number(appliedDiscountPercent || discountPercent || discount || 0);
                 items.push({
                     id: targetId,
                     name: name || 'Food Item',
@@ -409,9 +438,14 @@ async function handleMenuRequest(req, res) {
                     prices: prices || { S: 199, M: 299, L: 399 },
                     available: initialAvail,
                     is_available: initialAvail,
+                    isAvailable: initialAvail,
                     out_of_stock: !initialAvail,
-                    isDiscountActive: Boolean(isDiscountActive),
-                    appliedDiscountPercent: Number(appliedDiscountPercent || 0),
+                    status: initialAvail ? 'AVAILABLE' : 'UNAVAILABLE',
+                    isDiscountActive: initDiscountActive,
+                    hasDiscount: initDiscountActive,
+                    appliedDiscountPercent: initDiscountPercent,
+                    discountPercent: initDiscountPercent,
+                    discount: initDiscountPercent,
                     img: img || '',
                     desc: desc || '',
                     tag: '',
@@ -420,31 +454,28 @@ async function handleMenuRequest(req, res) {
             }
 
             global.__perfettoMenuState = items;
-            const updatedItem = items[itemIndex];
 
-            // Sync to Firestore
+            // Persist to Firestore asynchronously
             try {
                 await setFirestoreDoc('settings', 'menu', {
-                    items: items,
-                    categoryAddons: categoryAddons || global.__perfettoCategoryAddons || DEFAULT_CATEGORY_ADDONS,
-                    categoryDiscounts: categoryDiscounts || global.__perfettoCategoryDiscounts || {},
+                    items,
+                    categoryAddons,
+                    categoryDiscounts,
                     updatedAt: new Date().toISOString()
-                });
-                await setFirestoreDoc('menu', targetId, updatedItem);
-                await setFirestoreDoc('menu_items', targetId, updatedItem);
-            } catch (err) {
-                console.error('CRITICAL: Firestore menu sync error:', err.message);
+                }, true);
+            } catch (e) {
+                console.warn('Firestore menu PATCH sync note:', e.message);
             }
 
             return res.status(200).json({
                 success: true,
-                message: `Menu item '${id}' updated successfully in Firestore`,
-                item: updatedItem,
+                message: 'Menu item updated successfully',
+                item: items[itemIndex]
             });
         }
 
-        // 3. PUT / POST: Bulk Menu Sync & Reset
-        if (req.method === 'PUT' || req.method === 'POST') {
+        // 3. POST: Bulk Save entire menu catalog and/or category master addons/discounts
+        if (req.method === 'POST') {
             let body = req.body;
             if (typeof body === 'string') {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
@@ -460,14 +491,14 @@ async function handleMenuRequest(req, res) {
 
             // Normalize availability and enforce strict price validation
             const normalizedItems = rawItems.map(item => {
-                const isAvail = (item.is_available !== undefined)
-                    ? Boolean(item.is_available)
-                    : (item.available !== undefined ? Boolean(item.available) : (item.out_of_stock !== undefined ? !item.out_of_stock : true));
+                const isAvail = resolveItemAvailability(item);
                 return {
                     ...item,
                     available: isAvail,
                     is_available: isAvail,
-                    out_of_stock: !isAvail
+                    isAvailable: isAvail,
+                    out_of_stock: !isAvail,
+                    status: isAvail ? 'AVAILABLE' : 'UNAVAILABLE'
                 };
             });
 

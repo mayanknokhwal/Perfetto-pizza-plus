@@ -94,10 +94,10 @@ if (!global.__adminTeamStore) {
 // 6. Daily Banners Runtime Store (Fixed 4 Slots)
 const DEFAULT_FALLBACK_BANNER_LOGO = '';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: '', enabled: true },
-    { id: 'b2', url: '', enabled: true },
-    { id: 'b3', url: '', enabled: true },
-    { id: 'b4', url: '', enabled: true }
+    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: 'shk-strawberry', discountPercent: 55 },
+    { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
+    { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+    { id: 'b4', url: '', enabled: false }
 ];
 
 // 7. Wallet & Cashback Slabs Default Configuration

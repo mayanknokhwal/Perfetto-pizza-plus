@@ -17,7 +17,7 @@ const DEFAULT_FALLBACK_BANNER_LOGO = '';
 
 // Official 4 Valid Persistent Default Daily Banner Slots
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: '', discountPercent: 55 },
+    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: 'shk-strawberry', discountPercent: 55 },
     { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
     { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
     { id: 'b4', url: '', enabled: false }
@@ -48,20 +48,16 @@ function resolveBannerUrl(input) {
 }
 
 /**
- * Validates and normalizes banner items into strictly 4 persistent slots.
- * Ensures:
- * - Exactly 4 slots: [ { id: 'b1', url: '...', enabled: boolean }, ... ]
- * - At least 1 banner remains active (enabled: true)
- * - Fallback: Any invalid URL resolves to DEFAULT_FALLBACK_BANNER_LOGO
- * - Slot 1 preserves targetProductId and discountPercent
- * - Slot 2 preserves minSpend, rewardType, rewardCategory, rewardPizzaSize
- * - Slot 3 preserves buyCategory, buyQty, rewardCategory, freeQty
- * 
- * @param {Array} rawBanners - Raw input banners array
- * @returns {Array<{id: string, url: string, enabled: boolean, targetProductId?: string, discountPercent?: number, minSpend?: number, rewardType?: string, rewardCategory?: string, rewardPizzaSize?: string, buyCategory?: string, buyQty?: number, freeQty?: number}>} Validated 4 banners array
+ * Clean sanitization of incoming 4 daily banner items.
+ * Guaranteed to return an array of exactly 4 elements matching slot contracts.
+ * @param {Array} list - Incoming banners array
+ * @returns {Array} Exactly 4 clean banner objects
  */
-function validateAndNormalizeBanners(rawBanners) {
-    const list = Array.isArray(rawBanners) ? rawBanners : [];
+function sanitizeBannerList(list) {
+    if (!Array.isArray(list)) {
+        return JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
+    }
+
     let sanitized = [];
 
     for (let i = 0; i < TOTAL_BANNER_SLOTS; i++) {
@@ -72,9 +68,9 @@ function validateAndNormalizeBanners(rawBanners) {
         const enabled = item.enabled !== false;
         const bannerObj = { id, url, enabled };
         if (i === 0) {
-            bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || '';
+            bannerObj.targetProductId = (item.targetProductId && String(item.targetProductId).trim()) || 'shk-strawberry';
             const rawDisc = parseInt(item.discountPercent, 10);
-            bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 0;
+            bannerObj.discountPercent = (!isNaN(rawDisc) && rawDisc > 0) ? Math.min(90, Math.max(1, rawDisc)) : 55;
         }
         if (i === 1) {
             const rawSpend = parseInt(item.minSpend, 10);
@@ -117,13 +113,9 @@ async function fetchDailyBannersFromFirestore() {
         const doc = await getFirestoreDoc('settings', 'daily_banners');
         if (doc && Array.isArray(doc.banners) && doc.banners.length > 0) {
             const normalized = validateAndNormalizeBanners(doc.banners);
-            if (doc.slot1 && normalized[0]) {
-                if (!normalized[0].targetProductId && doc.slot1.targetProductId) {
-                    normalized[0].targetProductId = doc.slot1.targetProductId;
-                }
-                if (!normalized[0].discountPercent && doc.slot1.discountPercent) {
-                    normalized[0].discountPercent = doc.slot1.discountPercent;
-                }
+            if (normalized[0]) {
+                normalized[0].targetProductId = normalized[0].targetProductId || (doc.slot1 && doc.slot1.targetProductId) || 'shk-strawberry';
+                normalized[0].discountPercent = Number(normalized[0].discountPercent) || (doc.slot1 && Number(doc.slot1.discountPercent)) || 55;
             }
             if (doc.slot2 && normalized[1]) {
                 if (doc.slot2.minSpend !== undefined) {
@@ -191,8 +183,8 @@ async function saveDailyBannersToFirestore(bannersList, extraPayload = {}) {
     const slot1Data = {
         imageUrl: validated[0].url,
         url: validated[0].url,
-        targetProductId: validated[0].targetProductId || '',
-        discountPercent: validated[0].discountPercent || 0,
+        targetProductId: validated[0].targetProductId || 'shk-strawberry',
+        discountPercent: Number(validated[0].discountPercent) || 55,
         active: validated[0].enabled !== false,
         enabled: validated[0].enabled !== false
     };
@@ -284,8 +276,9 @@ module.exports = {
     DEFAULT_DAILY_BANNERS,
     TOTAL_BANNER_SLOTS,
     resolveBannerUrl,
-    validateAndNormalizeBanners,
-    normalizeDailyBanners: validateAndNormalizeBanners,
+    sanitizeBannerList,
+    validateAndNormalizeBanners: sanitizeBannerList,
+    normalizeDailyBanners: sanitizeBannerList,
     fetchDailyBannersFromFirestore,
     saveDailyBannersToFirestore
 };

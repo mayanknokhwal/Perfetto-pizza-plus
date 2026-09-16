@@ -488,9 +488,27 @@ window.isCategoryMatch = isCategoryMatch;
 
 function isProductAvailable(item) {
     if (!item) return false;
+    // Explicit unavailable flags
+    if (item.isAvailable === false || item.available === false || item.is_available === false || item.out_of_stock === true) {
+        return false;
+    }
+    if (typeof item.status === 'string') {
+        const s = item.status.trim().toUpperCase();
+        if (s === 'UNAVAILABLE' || s === 'OUT_OF_STOCK' || s === 'DISABLED') {
+            return false;
+        }
+    }
+    // Explicit available flags
+    if (item.isAvailable !== undefined) return Boolean(item.isAvailable);
     if (item.is_available !== undefined) return Boolean(item.is_available);
     if (item.available !== undefined) return Boolean(item.available);
     if (item.out_of_stock !== undefined) return !item.out_of_stock;
+    if (typeof item.status === 'string') {
+        const s = item.status.trim().toUpperCase();
+        if (s === 'AVAILABLE' || s === 'IN_STOCK' || s === 'ACTIVE') {
+            return true;
+        }
+    }
     return true;
 }
 window.isProductAvailable = isProductAvailable;
@@ -540,16 +558,30 @@ function getItemEffectiveDiscount(item) {
         ? Number(discounts[item.category])
         : 0;
 
-    // Check item-level toggle OR Category Master Discount
-    const hasActiveDiscount = Boolean(item.isDiscountActive) || (catDiscount > 0 && item.isDiscountActive !== false);
-    // Inherit active category discount percentage or item appliedDiscountPercent
-    const discountPercent = hasActiveDiscount
-        ? Math.min(90, Math.max(0, item.appliedDiscountPercent || catDiscount || 0))
-        : 0;
+    const rawDiscountPercent = Number(
+        item.appliedDiscountPercent !== undefined ? item.appliedDiscountPercent :
+        (item.discountPercent !== undefined ? item.discountPercent :
+        (item.discount !== undefined ? item.discount : 0))
+    );
+
+    // Item-level discount is active if:
+    // - item.isDiscountActive is explicitly true
+    // - item.hasDiscount is true
+    // - rawDiscountPercent > 0 and item.isDiscountActive !== false
+    // - OR catDiscount > 0 and item.isDiscountActive !== false
+    const hasActiveDiscount = Boolean(
+        item.isDiscountActive === true ||
+        item.hasDiscount === true ||
+        (rawDiscountPercent > 0 && item.isDiscountActive !== false) ||
+        (catDiscount > 0 && item.isDiscountActive !== false)
+    );
+
+    const effectivePercent = rawDiscountPercent > 0 ? rawDiscountPercent : (catDiscount > 0 ? catDiscount : 0);
+    const clampedPercent = hasActiveDiscount ? Math.min(90, Math.max(0, effectivePercent)) : 0;
 
     return {
-        isDiscountActive: hasActiveDiscount && discountPercent > 0,
-        discountPercent: discountPercent
+        isDiscountActive: hasActiveDiscount && clampedPercent > 0,
+        discountPercent: clampedPercent
     };
 }
 
@@ -579,29 +611,14 @@ function getCustomerMenuItemTier(item) {
     if (!item) return 3;
 
     // Check availability first: unavailable or out-of-stock items belong strictly to Tier 3 (Bottom Priority)
-    const isAvail = typeof isProductAvailable === 'function'
-        ? isProductAvailable(item)
-        : (item.available !== false && item.is_available !== false && !item.out_of_stock);
+    const isAvail = isProductAvailable(item);
     if (!isAvail) {
         return 3;
     }
 
     // Check if discount is actively enabled and valid (discountPercent > 0)
-    let hasValidActiveDiscount = false;
-    if (typeof getItemEffectiveDiscount === 'function') {
-        const disc = getItemEffectiveDiscount(item);
-        if (disc && disc.isDiscountActive && disc.discountPercent > 0) {
-            hasValidActiveDiscount = true;
-        }
-    }
-    if (!hasValidActiveDiscount) {
-        const itemDiscountPercent = Number(item.appliedDiscountPercent || item.discountPercent || item.discount || 0);
-        if (item.isDiscountActive && itemDiscountPercent > 0) {
-            hasValidActiveDiscount = true;
-        }
-    }
-
-    if (hasValidActiveDiscount) {
+    const disc = getItemEffectiveDiscount(item);
+    if (disc && disc.isDiscountActive && disc.discountPercent > 0) {
         return 1; // Tier 1: Discount actively enabled & valid
     }
 
@@ -1851,27 +1868,79 @@ function sanitizeStoredMenuItems(items) {
     let updated = [...items];
     let modified = false;
 
+    // Helper: Cleanly merge template items with existing items, preserving availability, prices, discounts & custom metadata
+    const mergeCategoryItemsWithExisting = (templates, existingList) => {
+        if (!Array.isArray(existingList) || existingList.length === 0) {
+            return templates.map(t => ({ ...t }));
+        }
+        const matchedExistingIds = new Set();
+        const mergedTemplates = templates.map(tmpl => {
+            const found = existingList.find(ex => ex && (
+                (ex.id && tmpl.id && String(ex.id).toLowerCase() === String(tmpl.id).toLowerCase()) ||
+                (ex.name && tmpl.name && String(ex.name).trim().toLowerCase() === String(tmpl.name).trim().toLowerCase())
+            ));
+            if (found) {
+                if (found.id) matchedExistingIds.add(String(found.id).toLowerCase());
+                const isAvail = isProductAvailable(found);
+                const disc = getItemEffectiveDiscount(found);
+                return {
+                    ...tmpl,
+                    ...found,
+                    available: isAvail,
+                    is_available: isAvail,
+                    isAvailable: isAvail,
+                    out_of_stock: !isAvail,
+                    status: isAvail ? 'AVAILABLE' : 'UNAVAILABLE',
+                    price: found.price !== undefined ? found.price : tmpl.price,
+                    prices: found.prices || tmpl.prices,
+                    img: found.img || tmpl.img,
+                    isDiscountActive: disc.isDiscountActive,
+                    hasDiscount: disc.isDiscountActive,
+                    appliedDiscountPercent: disc.discountPercent,
+                    discountPercent: disc.discountPercent,
+                    discount: disc.discountPercent
+                };
+            }
+            return { ...tmpl };
+        });
+
+        // Also preserve custom non-dummy items from existingList
+        const customItems = existingList.filter(ex => {
+            if (!ex || !ex.id) return false;
+            const idLower = String(ex.id).toLowerCase();
+            if (matchedExistingIds.has(idLower)) return false;
+            const isDummy = /^(bgr|wrp|brd|sdw|mom|cof|ndl|des|sld|sde|drk|moj|spr)-\d+$/.test(idLower) ||
+                            /Option\s+\d+/i.test(ex.name || '');
+            return !isDummy;
+        });
+
+        return [...mergedTemplates, ...customItems];
+    };
+
     // 1. Sanitize Burger items
     const hasOldBurgers = updated.some(i => i.category === 'Burger' && (i.name === 'Classic Crispy Burger' || i.name === 'Double Cheese Delite' || i.id === 'bgr-1' || i.id === 'bgr-2' || i.id === 'bgr-3' || i.id === 'bgr-4' || i.id === 'bgr-5' || i.id === 'bgr-6' || !NEW_BURGER_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
     if (hasOldBurgers) {
+        const existingBurgers = updated.filter(i => i.category === 'Burger');
         const nonBurgers = updated.filter(i => i.category !== 'Burger');
-        updated = [...nonBurgers, ...NEW_BURGER_MENU_ITEMS];
+        updated = [...nonBurgers, ...mergeCategoryItemsWithExisting(NEW_BURGER_MENU_ITEMS, existingBurgers)];
         modified = true;
     }
 
     // 2. Sanitize Wrap items
     const hasOldWraps = updated.some(i => i.category === 'Wrap' && (i.id === 'wrp-1' || i.id === 'wrp-2' || i.id === 'wrp-3' || i.id === 'wrp-4' || (i.name && i.name.startsWith('Wrap Option')) || !NEW_WRAP_MENU_ITEMS.some(nw => nw.id === i.id || nw.name === i.name)));
     if (hasOldWraps) {
+        const existingWraps = updated.filter(i => i.category === 'Wrap');
         const nonWraps = updated.filter(i => i.category !== 'Wrap');
-        updated = [...nonWraps, ...NEW_WRAP_MENU_ITEMS];
+        updated = [...nonWraps, ...mergeCategoryItemsWithExisting(NEW_WRAP_MENU_ITEMS, existingWraps)];
         modified = true;
     }
 
     // 3. Sanitize Bread items
     const hasOldBreads = updated.some(i => i.category === 'Bread' && (i.id === 'brd-1' || i.id === 'brd-2' || i.id === 'brd-3' || i.name === 'Garlic Butter Breadsticks' || i.name === 'Cheesy Garlic Bread' || i.name === 'Stuffed Cheese Pocket' || !NEW_BREAD_MENU_ITEMS.some(nb => nb.id === i.id || nb.name === i.name)));
     if (hasOldBreads) {
+        const existingBreads = updated.filter(i => i.category === 'Bread');
         const nonBreads = updated.filter(i => i.category !== 'Bread');
-        updated = [...nonBreads, ...NEW_BREAD_MENU_ITEMS];
+        updated = [...nonBreads, ...mergeCategoryItemsWithExisting(NEW_BREAD_MENU_ITEMS, existingBreads)];
         modified = true;
     }
 
@@ -1894,6 +1963,10 @@ function sanitizeStoredMenuItems(items) {
             isMultiSize: true,
             prices: { S: 199, M: 299, L: 399 },
             available: true,
+            is_available: true,
+            isAvailable: true,
+            out_of_stock: false,
+            status: "AVAILABLE",
             img: "https://i.ibb.co/NhHmXfZ/Dbl-Cheese-Margherita.webp",
             desc: "Loaded with extra gooey mozzarella cheese & classic Italian herb tomato sauce"
         });
@@ -1903,8 +1976,9 @@ function sanitizeStoredMenuItems(items) {
     // 5. Sanitize Sandwich items
     const hasOldSandwiches = updated.some(i => i.category === 'Sandwich' && (i.id === 'sdw-1' || i.id === 'sdw-2' || i.id === 'sdw-3' || i.id === 'sdw-4' || (i.name && i.name.startsWith('Sandwich Option')) || !NEW_SANDWICH_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
     if (hasOldSandwiches) {
+        const existingSandwiches = updated.filter(i => i.category === 'Sandwich');
         const nonSandwiches = updated.filter(i => i.category !== 'Sandwich');
-        updated = [...nonSandwiches, ...NEW_SANDWICH_MENU_ITEMS];
+        updated = [...nonSandwiches, ...mergeCategoryItemsWithExisting(NEW_SANDWICH_MENU_ITEMS, existingSandwiches)];
         modified = true;
     }
 
@@ -1979,8 +2053,9 @@ function sanitizeStoredMenuItems(items) {
     // 6. Sanitize Momos items
     const hasOldMomos = updated.some(i => i.category === 'Momos' && (i.id === 'mom-1' || i.id === 'mom-2' || i.id === 'mom-3' || i.id === 'mom-4' || (i.name && i.name.startsWith('Momos Option')) || !NEW_MOMOS_MENU_ITEMS.some(nm => nm.id === i.id || nm.name === i.name)));
     if (hasOldMomos) {
+        const existingMomos = updated.filter(i => i.category === 'Momos');
         const nonMomos = updated.filter(i => i.category !== 'Momos');
-        updated = [...nonMomos, ...NEW_MOMOS_MENU_ITEMS];
+        updated = [...nonMomos, ...mergeCategoryItemsWithExisting(NEW_MOMOS_MENU_ITEMS, existingMomos)];
         modified = true;
     }
 
@@ -2009,8 +2084,9 @@ function sanitizeStoredMenuItems(items) {
     // 7. Sanitize Hot & Cold Coffee items
     const hasOldCoffee = updated.some(i => (i.category === 'Hot Cold Coffee' || i.category === 'Coffee' || i.category === 'Hot & Cold Coffee') && (i.id === 'cof-1' || i.id === 'cof-2' || i.id === 'cof-3' || i.id === 'cof-4' || (i.name && i.name.startsWith('Hot Cold Coffee Option')) || !NEW_COFFEE_MENU_ITEMS.some(nc => nc.id === i.id || nc.name === i.name)));
     if (hasOldCoffee) {
+        const existingCoffee = updated.filter(i => i.category === 'Hot Cold Coffee' || i.category === 'Coffee' || i.category === 'Hot & Cold Coffee');
         const nonCoffee = updated.filter(i => i.category !== 'Hot Cold Coffee' && i.category !== 'Coffee' && i.category !== 'Hot & Cold Coffee');
-        updated = [...nonCoffee, ...NEW_COFFEE_MENU_ITEMS];
+        updated = [...nonCoffee, ...mergeCategoryItemsWithExisting(NEW_COFFEE_MENU_ITEMS, existingCoffee)];
         modified = true;
     }
 
@@ -2030,8 +2106,9 @@ function sanitizeStoredMenuItems(items) {
     // 8. Sanitize Noodles items
     const hasOldNoodles = updated.some(i => i.category === 'Noodles' && (i.id === 'ndl-1' || i.id === 'ndl-2' || i.id === 'ndl-3' || i.id === 'ndl-4' || (i.name && i.name.startsWith('Noodles Option')) || !NEW_NOODLES_MENU_ITEMS.some(nn => nn.id === i.id || nn.name === i.name)));
     if (hasOldNoodles) {
+        const existingNoodles = updated.filter(i => i.category === 'Noodles');
         const nonNoodles = updated.filter(i => i.category !== 'Noodles');
-        updated = [...nonNoodles, ...NEW_NOODLES_MENU_ITEMS];
+        updated = [...nonNoodles, ...mergeCategoryItemsWithExisting(NEW_NOODLES_MENU_ITEMS, existingNoodles)];
         modified = true;
     }
 
@@ -2055,8 +2132,9 @@ function sanitizeStoredMenuItems(items) {
     // 9. Sanitize Desserts items
     const hasOldDesserts = updated.some(i => i.category === 'Desserts' && (i.id === 'des-1' || i.id === 'des-2' || i.id === 'des-3' || i.id === 'des-4' || (i.name && i.name.startsWith('Desserts Option')) || !NEW_DESSERTS_MENU_ITEMS.some(nd => nd.id === i.id || nd.name === i.name)));
     if (hasOldDesserts) {
+        const existingDesserts = updated.filter(i => i.category === 'Desserts');
         const nonDesserts = updated.filter(i => i.category !== 'Desserts');
-        updated = [...nonDesserts, ...NEW_DESSERTS_MENU_ITEMS];
+        updated = [...nonDesserts, ...mergeCategoryItemsWithExisting(NEW_DESSERTS_MENU_ITEMS, existingDesserts)];
         modified = true;
     }
 
@@ -2077,8 +2155,9 @@ function sanitizeStoredMenuItems(items) {
     // 10. Sanitize Salad items
     const hasOldSalad = updated.some(i => i.category === 'Salad' && (i.id === 'sld-1' || i.id === 'sld-2' || i.id === 'sld-3' || i.id === 'sld-4' || (i.name && i.name.startsWith('Salad Option')) || !NEW_SALAD_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
     if (hasOldSalad) {
+        const existingSalad = updated.filter(i => i.category === 'Salad');
         const nonSalad = updated.filter(i => i.category !== 'Salad');
-        updated = [...nonSalad, ...NEW_SALAD_MENU_ITEMS];
+        updated = [...nonSalad, ...mergeCategoryItemsWithExisting(NEW_SALAD_MENU_ITEMS, existingSalad)];
         modified = true;
     }
 
@@ -2158,8 +2237,9 @@ function sanitizeStoredMenuItems(items) {
     // 11. Sanitize Side Orders items
     const hasOldSideOrders = updated.some(i => i.category === 'Side Orders' && (i.id === 'sde-1' || i.id === 'sde-2' || i.id === 'sde-3' || i.id === 'sde-4' || (i.name && i.name.startsWith('Side Orders Option')) || !NEW_SIDE_ORDERS_MENU_ITEMS.some(nso => nso.id === i.id || nso.name === i.name)));
     if (hasOldSideOrders) {
+        const existingSideOrders = updated.filter(i => i.category === 'Side Orders');
         const nonSideOrders = updated.filter(i => i.category !== 'Side Orders');
-        updated = [...nonSideOrders, ...NEW_SIDE_ORDERS_MENU_ITEMS];
+        updated = [...nonSideOrders, ...mergeCategoryItemsWithExisting(NEW_SIDE_ORDERS_MENU_ITEMS, existingSideOrders)];
         modified = true;
     }
 
@@ -2184,8 +2264,9 @@ function sanitizeStoredMenuItems(items) {
     // 12. Sanitize Cold Drinks items
     const hasOldColdDrinks = updated.some(i => (i.category === 'Colo Drinks' || i.category === 'Cold Drinks') && (i.id === 'drk-1' || i.id === 'drk-2' || i.id === 'drk-3' || (i.name && i.name.startsWith('Colo Drinks Option')) || !NEW_COLD_DRINKS_MENU_ITEMS.some(ncd => ncd.id === i.id || ncd.name === i.name)));
     if (hasOldColdDrinks) {
+        const existingColdDrinks = updated.filter(i => i.category === 'Colo Drinks' || i.category === 'Cold Drinks');
         const nonColdDrinks = updated.filter(i => i.category !== 'Colo Drinks' && i.category !== 'Cold Drinks');
-        updated = [...nonColdDrinks, ...NEW_COLD_DRINKS_MENU_ITEMS];
+        updated = [...nonColdDrinks, ...mergeCategoryItemsWithExisting(NEW_COLD_DRINKS_MENU_ITEMS, existingColdDrinks)];
         modified = true;
     }
 
@@ -2207,8 +2288,9 @@ function sanitizeStoredMenuItems(items) {
     // 13. Sanitize Mojito items
     const hasOldMojito = updated.some(i => i.category === 'Mojito' && (i.id === 'moj-1' || i.id === 'moj-2' || i.id === 'moj-3' || i.id === 'moj-4' || (i.name && i.name.startsWith('Mojito Option')) || !NEW_MOJITO_MENU_ITEMS.some(nm => nm.id === i.id || nm.name === i.name)));
     if (hasOldMojito) {
+        const existingMojito = updated.filter(i => i.category === 'Mojito');
         const nonMojito = updated.filter(i => i.category !== 'Mojito');
-        updated = [...nonMojito, ...NEW_MOJITO_MENU_ITEMS];
+        updated = [...nonMojito, ...mergeCategoryItemsWithExisting(NEW_MOJITO_MENU_ITEMS, existingMojito)];
         modified = true;
     }
 
@@ -2250,8 +2332,9 @@ function sanitizeStoredMenuItems(items) {
     // 14. Sanitize Spring Rolls items
     const hasOldSpringRolls = updated.some(i => i.category === 'Spring Rolls' && (i.id === 'spr-1' || i.id === 'spr-2' || i.id === 'spr-3' || i.id === 'spr-4' || (i.name && i.name.startsWith('Spring Rolls Option')) || !NEW_SPRING_ROLLS_MENU_ITEMS.some(ns => ns.id === i.id || ns.name === i.name)));
     if (hasOldSpringRolls) {
+        const existingSpringRolls = updated.filter(i => i.category === 'Spring Rolls');
         const nonSpringRolls = updated.filter(i => i.category !== 'Spring Rolls');
-        updated = [...nonSpringRolls, ...NEW_SPRING_ROLLS_MENU_ITEMS];
+        updated = [...nonSpringRolls, ...mergeCategoryItemsWithExisting(NEW_SPRING_ROLLS_MENU_ITEMS, existingSpringRolls)];
         modified = true;
     }
 
@@ -2271,13 +2354,31 @@ function sanitizeStoredMenuItems(items) {
         }
     });
 
+    // Normalize all items to ensure consistent availability & discount flags
+    updated = updated.map(item => {
+        const isAvail = isProductAvailable(item);
+        const disc = getItemEffectiveDiscount(item);
+        return {
+            ...item,
+            available: isAvail,
+            is_available: isAvail,
+            isAvailable: isAvail,
+            out_of_stock: !isAvail,
+            status: isAvail ? 'AVAILABLE' : 'UNAVAILABLE',
+            isDiscountActive: disc.isDiscountActive,
+            hasDiscount: disc.isDiscountActive,
+            appliedDiscountPercent: disc.discountPercent,
+            discountPercent: disc.discountPercent,
+            discount: disc.discountPercent
+        };
+    });
+
     if (modified) {
         try {
             localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(updated));
         } catch (e) {}
-        return updated;
     }
-    return items;
+    return updated;
 }
 
 function getStoredMenuItems() {
@@ -6618,11 +6719,13 @@ window.renderProfileWalletTxList = renderProfileWalletTxList;
 // --------------------------------------------------------------------------
 const DEFAULT_STORE_NOTICE = {
     key: 'store_notice',
-    active: true,
-    enabled: true,
+    active: false,
+    enabled: false,
     title: 'Store Notice',
     content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
+    characterCount: 202,
+    lineCount: 1,
     updatedAt: null
 };
 
@@ -6649,15 +6752,16 @@ function updateStoreNoticeUI() {
     const profileTopCard = document.getElementById('profile-store-notice-top');
     const profileNoticeRow = document.getElementById('profile-store-notice-row');
     const profileNoticeInactiveRow = document.getElementById('profile-store-notice-inactive-row');
+    const orderHistoryRow = document.getElementById('menu-order-history');
 
     const notice = customerStoreNotice || DEFAULT_STORE_NOTICE;
     const isActive = Boolean(notice && (notice.active !== undefined ? notice.active : notice.enabled !== false));
     const content = (notice && (notice.content !== undefined ? notice.content : notice.text)) || '';
     const hasNoticeContent = content.trim().length > 0;
 
-    // 1. Homepage Shimmer Badge:
+    // 1. Homepage Shimmer Badge / Notice Chip:
     // When active: true -> Show shimmer notice badge beside "DAILY OFFER" with static label "Notice"
-    // When active: false -> Hide badge from homepage completely
+    // When active: false -> Completely remove/hide the notice card and the top "Notice" chip from Home Screen
     if (homeBadgeWrapper) {
         if (isActive && hasNoticeContent) {
             homeBadgeWrapper.style.display = 'inline-flex';
@@ -6675,12 +6779,17 @@ function updateStoreNoticeUI() {
     }
 
     // 2. Profile Screen Conditional Notice Placement:
-    // When active: true -> Show notice card inside "ACCOUNT SETTINGS" directly above Order History (#profile-store-notice-row).
+    // When active: true -> Prominently show notice card inside "ACCOUNT SETTINGS" at top directly above Order History (#profile-store-notice-row).
     //                     Hide the bottom inactive row (#profile-store-notice-inactive-row).
-    // When active: false -> Hide row above Order History.
-    //                      Display default store policy/notice entry at the bottom, strictly beneath "Info & Legal Policies" (#profile-store-notice-inactive-row).
+    // When active: false -> Hide active row above Order History and ensure it drops to the bottom.
+    //                      Display store notice entry at the bottom, strictly beneath "Info & Legal Policies" (#profile-store-notice-inactive-row).
     if (isActive && hasNoticeContent) {
         if (profileNoticeRow) {
+            if (orderHistoryRow && orderHistoryRow.parentNode && profileNoticeRow.nextElementSibling !== orderHistoryRow) {
+                try {
+                    orderHistoryRow.parentNode.insertBefore(profileNoticeRow, orderHistoryRow);
+                } catch (e) {}
+            }
             profileNoticeRow.style.display = 'flex';
             const previewEl = document.getElementById('profile-notice-preview-text');
             if (previewEl && content) {
@@ -6699,6 +6808,11 @@ function updateStoreNoticeUI() {
     } else {
         if (profileNoticeRow) {
             profileNoticeRow.style.display = 'none';
+            if (orderHistoryRow && orderHistoryRow.parentNode) {
+                try {
+                    orderHistoryRow.parentNode.appendChild(profileNoticeRow);
+                } catch (e) {}
+            }
         }
         if (profileNoticeInactiveRow) {
             profileNoticeInactiveRow.style.display = 'flex';
@@ -6743,9 +6857,9 @@ function setupStoreNoticeRealtimeListener() {
     }
 
     try {
-        // Spark Free Tier Optimization: Direct get() instead of persistent onSnapshot listener
-        db.collection('settings').doc('store_notice').get().then((doc) => {
-            if (doc.exists && doc.data()) {
+        // Real-time onSnapshot listener ensures live admin toggle changes propagate immediately to customer screen
+        storeNoticeRealtimeUnsubscribe = db.collection('settings').doc('store_notice').onSnapshot((doc) => {
+            if (doc && doc.exists && doc.data()) {
                 const rawData = doc.data();
                 const active = rawData.active !== undefined ? Boolean(rawData.active) : (rawData.enabled !== false);
                 const content = rawData.content !== undefined ? rawData.content : (rawData.text || '');
@@ -6761,24 +6875,36 @@ function setupStoreNoticeRealtimeListener() {
                     localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
                 } catch (e) {}
                 updateStoreNoticeUI();
+            } else if (doc && !doc.exists) {
+                customerStoreNotice = JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
+                try {
+                    localStorage.setItem('perfetto_store_notice', JSON.stringify(customerStoreNotice));
+                } catch (e) {}
+                updateStoreNoticeUI();
             }
-        }).catch((err) => {
-            console.warn('Firestore store_notice direct fetch notice:', err.message);
+        }, (err) => {
+            console.warn('Firestore store_notice realtime snapshot warning:', err.message);
+            if (typeof fetchLiveNoticeFromBackend === 'function') {
+                fetchLiveNoticeFromBackend();
+            }
         });
     } catch (e) {
-        console.warn('Error fetching store_notice:', e);
+        console.warn('Error setting up store_notice realtime listener:', e);
+        if (typeof fetchLiveNoticeFromBackend === 'function') {
+            fetchLiveNoticeFromBackend();
+        }
     }
 }
 window.setupStoreNoticeRealtimeListener = setupStoreNoticeRealtimeListener;
 
-async function fetchLiveNoticeFromBackend() {
-    if (storeNoticeRealtimeUnsubscribe) return;
+async function fetchLiveNoticeFromBackend(force = false) {
+    if (storeNoticeRealtimeUnsubscribe && !force) return;
     try {
         const apiUrl = typeof resolveApiUrl === 'function' ? resolveApiUrl('/api/settings/notice') : '/api/settings/notice';
         const res = await fetch(apiUrl);
         if (res.ok) {
             const data = await res.json();
-            if (data && data.success && data.notice && !storeNoticeRealtimeUnsubscribe) {
+            if (data && data.success && data.notice) {
                 const rawNotice = data.notice;
                 const active = rawNotice.active !== undefined ? Boolean(rawNotice.active) : (rawNotice.enabled !== false);
                 const content = rawNotice.content !== undefined ? rawNotice.content : (rawNotice.text || '');
@@ -13004,7 +13130,7 @@ function showToast(msg, duration = 3500) {
 // --------------------------------------------------------------------------
 const DEFAULT_FALLBACK_BANNER_LOGO = '';
 const DEFAULT_DAILY_BANNERS = [
-    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: '', discountPercent: 55 },
+    { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: 'shk-strawberry', discountPercent: 55 },
     { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
     { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
     { id: 'b4', url: '', enabled: false }
@@ -13055,8 +13181,10 @@ function createBannerSlideHTML(banner, originalIdx, isClone = false) {
         ? (banner.url || banner.imageUrl || banner.image || banner.bannerUrl || banner.src || '')
         : (typeof banner === 'string' ? banner : '');
     const safeUrl = resolveBannerUrl(rawUrl);
-    const isSlot1 = (banner.id === 'b1');
-    const hasSpotlight = isSlot1 && Boolean(banner.targetProductId && String(banner.targetProductId).trim()) && Number(banner.discountPercent) >= 2;
+    const isSlot1 = (banner.id === 'b1' || originalIdx === 0);
+    const targetProduct = isSlot1 ? ((banner.targetProductId && String(banner.targetProductId).trim()) || 'shk-strawberry') : (banner.targetProductId || '');
+    const discountPct = isSlot1 ? (Number(banner.discountPercent) >= 2 ? Number(banner.discountPercent) : 55) : Number(banner.discountPercent || 0);
+    const hasSpotlight = isSlot1 && Boolean(targetProduct) && discountPct >= 2;
     const isSlot2 = (banner.id === 'b2');
     const hasSpendOffer = isSlot2 && Number(banner.minSpend) > 0;
     const isSlot3 = (banner.id === 'b3');
@@ -13069,13 +13197,13 @@ function createBannerSlideHTML(banner, originalIdx, isClone = false) {
              data-banner-id="${banner.id || ('b' + (originalIdx + 1))}" 
              data-slide-index="${originalIdx}"
              ${isClone ? 'data-is-clone="true"' : ''}
-             ${hasSpotlight ? `data-target-product-id="${escapeHtml(banner.targetProductId)}" data-discount-percent="${Number(banner.discountPercent)}"` : ''}
+             ${hasSpotlight ? `data-target-product-id="${escapeHtml(targetProduct)}" data-discount-percent="${discountPct}"` : ''}
              ${hasSpendOffer ? `data-min-spend="${Number(banner.minSpend)}"` : ''}
              onclick="handleBannerSlideClick(${originalIdx}, '${escapeHtml(banner.id || ('b' + (originalIdx + 1)))}')">
             ${safeUrl ? `<img src="${safeUrl}" alt="Daily Offer ${originalIdx + 1}" class="offer-img" loading="eager" decoding="async" referrerpolicy="no-referrer" onerror="handleBannerImgError(this)">` : `<div class="banner-skeleton-shimmer"></div>`}
             ${hasSpotlight ? `
                 <div class="banner-spotlight-tap-hint">
-                    <i class="fa-solid fa-fire"></i> Tap to Claim ${Number(banner.discountPercent)}% OFF
+                    <i class="fa-solid fa-fire"></i> Tap to Claim ${discountPct}% OFF
                 </div>
             ` : ''}
             ${hasSpendOffer ? `
@@ -13114,6 +13242,22 @@ function renderDynamicOfferSlider(customBanners = null) {
     if (activeBanners.length === 0) {
         activeBanners = [rawBanners[0] || DEFAULT_DAILY_BANNERS[0]];
     }
+
+    // Ensure Slot 1 always maintains its spotlight target product and discount percent
+    activeBanners = activeBanners.map((b, idx) => {
+        if (!b) return b;
+        if (b.id === 'b1' || idx === 0) {
+            const item = { ...b };
+            if (!item.targetProductId || !String(item.targetProductId).trim()) {
+                item.targetProductId = 'shk-strawberry';
+            }
+            if (!item.discountPercent || Number(item.discountPercent) < 2) {
+                item.discountPercent = 55;
+            }
+            return item;
+        }
+        return b;
+    });
 
     window.__currentActiveBanners = activeBanners;
 
@@ -13394,7 +13538,7 @@ function initOfferSlider(activeBannerCount) {
         if (!isDragging) return;
         currentX = clientX;
         const diffX = currentX - startX;
-        if (Math.abs(diffX) > 10) {
+        if (Math.abs(diffX) > 25) {
             offerSliderWasSwipeGesture = true;
         }
     }
@@ -13411,11 +13555,13 @@ function initOfferSlider(activeBannerCount) {
             } else {
                 prevSlide();
             }
+        } else {
+            offerSliderWasSwipeGesture = false;
         }
         handleUserInteractionEnd();
         setTimeout(() => {
             offerSliderWasSwipeGesture = false;
-        }, 150);
+        }, 80);
     }
 
     wrapper.ontouchstart = (e) => {
@@ -13437,6 +13583,7 @@ function initOfferSlider(activeBannerCount) {
     wrapper.ontouchcancel = () => {
         if (isDragging) {
             isDragging = false;
+            offerSliderWasSwipeGesture = false;
             wrapper.style.cursor = 'grab';
             handleUserInteractionEnd();
         }
@@ -13457,6 +13604,7 @@ function initOfferSlider(activeBannerCount) {
     wrapper.onmouseleave = () => {
         if (isDragging) {
             isDragging = false;
+            offerSliderWasSwipeGesture = false;
             wrapper.style.cursor = 'grab';
             handleUserInteractionEnd();
         }
@@ -13466,15 +13614,25 @@ function initOfferSlider(activeBannerCount) {
     startAutoScroll();
 }
 
+let lastBannerClickTime = 0;
 function handleBannerSlideClick(slideIndex, bannerId) {
     if (offerSliderWasSwipeGesture) return;
+    const now = Date.now();
+    if (now - lastBannerClickTime < 300) return;
+    lastBannerClickTime = now;
+
     const activeBanners = window.__currentActiveBanners || [];
-    const banner = activeBanners[slideIndex] || activeBanners.find(b => b.id === bannerId);
+    let banner = activeBanners[slideIndex] || activeBanners.find(b => b && b.id === bannerId);
+    if (!banner && (bannerId === 'b1' || slideIndex === 0)) {
+        banner = { id: 'b1', targetProductId: 'shk-strawberry', discountPercent: 55, enabled: true };
+    }
     if (!banner) return;
-    const isSlot1 = (banner.id === 'b1');
+    const isSlot1 = (banner.id === 'b1' || slideIndex === 0);
     const isSlot2 = (banner.id === 'b2');
 
-    if (isSlot1 && banner.targetProductId && String(banner.targetProductId).trim() && Number(banner.discountPercent) >= 2) {
+    if (isSlot1) {
+        const targetId = (banner.targetProductId && String(banner.targetProductId).trim()) || 'shk-strawberry';
+        const discountPct = Number(banner.discountPercent) >= 2 ? Number(banner.discountPercent) : 55;
         if (!canClaimBannerOffer('spotlight')) {
             showOfferLimitToast();
             return;
@@ -13482,7 +13640,7 @@ function handleBannerSlideClick(slideIndex, bannerId) {
         try {
             sessionStorage.setItem('banner1OfferActive', 'true');
         } catch (e) { }
-        openSpotlightBannerModal(banner.targetProductId, Number(banner.discountPercent));
+        openSpotlightBannerModal(targetId, discountPct);
         return;
     }
 
@@ -13555,6 +13713,19 @@ function handleBannerSlideClick(slideIndex, bannerId) {
 }
 window.handleBannerSlideClick = handleBannerSlideClick;
 
+// Delegated capture listener to ensure clicks on banner slides are NEVER lost on dynamic re-renders
+if (typeof window !== 'undefined' && !window.__offerSlideDelegatedListenerBound) {
+    window.__offerSlideDelegatedListenerBound = true;
+    document.addEventListener('click', (e) => {
+        const slide = e.target.closest('.offer-slide');
+        if (!slide) return;
+        if (offerSliderWasSwipeGesture) return;
+        const slideIdx = parseInt(slide.dataset.slideIndex, 10);
+        const bannerId = slide.dataset.bannerId || (slideIdx === 0 ? 'b1' : '');
+        handleBannerSlideClick(isNaN(slideIdx) ? 0 : slideIdx, bannerId);
+    }, true);
+}
+
 // --------------------------------------------------------------------------
 // BANNER SLOT 1 TAP-TO-ACTIVATE SPOTLIGHT PRODUCT DEAL ENGINE
 // --------------------------------------------------------------------------
@@ -13575,13 +13746,20 @@ function openSpotlightBannerModal(targetProductId, discountPercent) {
     } catch (e) { }
 
     const allItems = getAllCustomerMenuItems();
-    const cleanTargetId = String(targetProductId || '').trim().toLowerCase();
-    const product = allItems.find(i => {
+    const cleanTargetId = String(targetProductId || 'shk-strawberry').trim().toLowerCase();
+    let product = allItems.find(i => {
         const idMatch = String(i.id || '').toLowerCase() === cleanTargetId;
         const nameMatch = String(i.name || '').toLowerCase() === cleanTargetId;
         const slugMatch = String(i.name || '').toLowerCase().replace(/\s+/g, '-') === cleanTargetId;
         return idMatch || nameMatch || slugMatch;
     });
+
+    if (!product && (cleanTargetId === 'shk-strawberry' || cleanTargetId.includes('strawberry'))) {
+        product = allItems.find(i => {
+            const n = String(i.name || '').toLowerCase();
+            return n.includes('strawberry') && (n.includes('shake') || String(i.category || '').toLowerCase().includes('shake'));
+        }) || allItems.find(i => String(i.name || '').toLowerCase().includes('strawberry'));
+    }
 
     if (!product) {
         showToast('Special banner offer item is currently unavailable.');
@@ -17128,7 +17306,12 @@ async function checkAndSyncSettingsVersion(options = {}) {
             try {
                 await Promise.allSettled([
                     fetchLiveMenuFromBackend(),
-                    fetchLiveSettingsFromBackend(),
+                    fetchLiveNoticeFromBackend(true),
+                    (async () => {
+                        if (typeof fetchSettingsFromFirestoreDirect === 'function') {
+                            await fetchSettingsFromFirestoreDirect();
+                        }
+                    })(),
                     (async () => {
                         try {
                             const res = await fetch(resolveApiUrl('/api/banners'));
@@ -17449,12 +17632,15 @@ function applyIncomingDailyBannersData(docData) {
                                     slotData.url || slotData.imageUrl || slotData.image || slotData.bannerUrl || slotData.src || '';
             const resolvedUrl = typeof resolveBannerUrl === 'function' ? resolveBannerUrl(rawCandidateUrl) : (rawCandidateUrl || '');
 
+            const slot1Target = i === 0 ? ((bannerObj.targetProductId || slot1Data.targetProductId || 'shk-strawberry').trim() || 'shk-strawberry') : '';
+            const slot1Discount = i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 55) : 0;
+
             return {
                 id: bannerObj.id || `b${i + 1}`,
                 url: resolvedUrl,
                 enabled: bannerObj.enabled !== false,
-                targetProductId: i === 0 ? (bannerObj.targetProductId || slot1Data.targetProductId || '') : '',
-                discountPercent: i === 0 ? (Number(bannerObj.discountPercent) || Number(slot1Data.discountPercent) || 0) : 0,
+                targetProductId: i === 0 ? slot1Target : '',
+                discountPercent: i === 0 ? (slot1Discount >= 2 ? slot1Discount : 55) : 0,
                 minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
                 rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
                 rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
@@ -17495,6 +17681,15 @@ function applyIncomingDailyBannersData(docData) {
             }
             return b;
         });
+    }
+
+    if (banners[0]) {
+        if (!banners[0].targetProductId || !String(banners[0].targetProductId).trim()) {
+            banners[0].targetProductId = 'shk-strawberry';
+        }
+        if (!banners[0].discountPercent || Number(banners[0].discountPercent) < 2) {
+            banners[0].discountPercent = 55;
+        }
     }
 
     localStorage.setItem('perfetto_daily_banners', JSON.stringify(banners));

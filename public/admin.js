@@ -151,8 +151,8 @@ export function getCashbackTierBoundaries(orderAmount, walletConfig = DEFAULT_WA
 // --------------------------------------------------------------------------
 export const DEFAULT_STORE_NOTICE = {
     key: 'store_notice',
-    active: true,
-    enabled: true,
+    active: false,
+    enabled: false,
     title: 'Store Notice',
     content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
@@ -191,7 +191,7 @@ export function normalizeStoreNotice(raw) {
         return JSON.parse(JSON.stringify(DEFAULT_STORE_NOTICE));
     }
 
-    const active = raw.active !== undefined ? Boolean(raw.active) : (raw.enabled !== false);
+    const active = raw.active !== undefined ? Boolean(raw.active) : (raw.enabled !== undefined ? Boolean(raw.enabled) : false);
     const title = (raw.title && typeof raw.title === 'string' && raw.title.trim())
         ? raw.title.trim().slice(0, 100)
         : DEFAULT_STORE_NOTICE.title;

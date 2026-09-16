@@ -3948,19 +3948,37 @@ html[lang="hi"] .nav-label {
 .pizza-card.out-of-stock,
 .sub-item-card.out-of-stock,
 .burger-card.out-of-stock,
+.wrap-card.out-of-stock,
+.bread-card.out-of-stock,
+.sandwich-card.out-of-stock,
+.momos-card.out-of-stock,
+.coffee-card.out-of-stock,
+.noodles-card.out-of-stock,
+.desserts-card.out-of-stock,
+.salad-card.out-of-stock,
+.side-orders-card.out-of-stock,
+.cold-drinks-card.out-of-stock,
+.mojito-card.out-of-stock,
+.spring-rolls-card.out-of-stock,
 .product-card.out-of-stock,
 div[class*="-card"].out-of-stock {
     position: relative;
     overflow: hidden;
+    filter: grayscale(100%);
+    opacity: 0.7;
 }
 
 .pizza-card.out-of-stock .pizza-card-img,
 .sub-item-card.out-of-stock .sub-item-img,
 .burger-card.out-of-stock img,
+.wrap-card.out-of-stock img,
 .product-card.out-of-stock img,
-div[class*="-card"].out-of-stock img {
+div[class*="-card"].out-of-stock img,
+.pizza-card.out-of-stock .pizza-card-image-wrapper,
+.sub-item-card.out-of-stock .sub-item-card-image-wrapper,
+div[class*="-card"].out-of-stock div[class*="-image-wrapper"] {
     filter: grayscale(100%);
-    opacity: 0.55;
+    opacity: 0.7;
     transition: filter 0.3s ease, opacity 0.3s ease;
 }
 

@@ -362,8 +362,8 @@ async function handleBannersRequest(req, res) {
             const slot1 = (banners && banners[0]) ? {
                 imageUrl: banners[0].url,
                 url: banners[0].url,
-                targetProductId: banners[0].targetProductId || '',
-                discountPercent: banners[0].discountPercent || 0,
+                targetProductId: banners[0].targetProductId || 'shk-strawberry',
+                discountPercent: Number(banners[0].discountPercent) || 55,
                 active: banners[0].enabled !== false,
                 enabled: banners[0].enabled !== false
             } : null;
@@ -582,8 +582,8 @@ async function handleWalletConfigRequest(req, res) {
  */
 const DEFAULT_STORE_NOTICE = {
     key: 'store_notice',
-    active: true,
-    enabled: true,
+    active: false,
+    enabled: false,
     title: 'Store Notice',
     content: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
     text: 'Welcome to Perfetto Pizza Plus! We take pride in serving freshly baked pizzas, delicious burgers, wraps, and fast food delights. For any special catering or bulk party orders, contact customer support.',
@@ -628,7 +628,7 @@ async function handleStoreNoticeRequest(req, res) {
 
             const isActive = body.active !== undefined
                 ? Boolean(body.active)
-                : (body.enabled !== undefined ? Boolean(body.enabled) : true);
+                : (body.enabled !== undefined ? Boolean(body.enabled) : false);
             const title = (body.title && typeof body.title === 'string' && body.title.trim())
                 ? body.title.trim().slice(0, 100)
                 : 'Store Notice';
