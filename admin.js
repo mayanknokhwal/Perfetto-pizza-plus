@@ -771,4 +771,113 @@ if (typeof window !== 'undefined') {
     window.toggleAutoScheduleModule = toggleAutoSchedule;
 }
 
+// --------------------------------------------------------------------------
+// 100-MINUTE AUTO-EXPIRATION & 24-HOUR FAIR GRACE RECOVERY CONTROLLER
+// --------------------------------------------------------------------------
+export const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 minutes = 6,000,000 ms
+export const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
+export const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+export function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
+    if (!originalExpiresAt) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    const parseTs = (typeof parseTimestampMs === 'function')
+        ? parseTimestampMs
+        : (v) => {
+            if (typeof v === 'number') return v;
+            const p = new Date(v).getTime();
+            return isNaN(p) ? NaN : p;
+        };
+    const expMs = parseTs(originalExpiresAt);
+    if (isNaN(expMs) || expMs <= nowMs || (expMs - nowMs) < TWENTY_FOUR_HOURS_MS) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    return new Date(expMs).toISOString();
+}
+
+export function isOrder100MinsExpired(order, nowMs = Date.now()) {
+    if (!order) return false;
+    const status = String(order.status || '').toLowerCase().trim();
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    if (terminalStatuses.includes(status)) return false;
+    if (order.autoExpired === true || order.isAutoExpired === true) return false;
+
+    let createdMs = 0;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    if (raw) {
+        if (typeof raw === 'number') createdMs = raw < 1e11 ? raw * 1000 : raw;
+        else if (typeof raw === 'object') {
+            if (typeof raw.toMillis === 'function') createdMs = raw.toMillis();
+            else if (typeof raw.toDate === 'function') createdMs = raw.toDate().getTime();
+            else if (raw.seconds) createdMs = raw.seconds * 1000;
+        } else {
+            const parsed = new Date(raw).getTime();
+            if (!isNaN(parsed) && parsed > 0) createdMs = parsed;
+        }
+    }
+    if (!createdMs) {
+        const idStr = String(order.orderId || order.id || '');
+        const match = idStr.match(/(\d{10,13})/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > 1500000000 && num < 2500000000000) createdMs = num < 1e11 ? num * 1000 : num;
+        }
+    }
+    if (!createdMs) return false;
+    return (nowMs - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
+}
+export const isOrderThreeHoursExpired = isOrder100MinsExpired;
+
+export function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
+    if (!order) return '';
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const st = String(order.status || '').toLowerCase().trim();
+    if (terminalStatuses.includes(st)) return '';
+
+    let createdMs = 0;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    if (raw) {
+        if (typeof raw === 'number') createdMs = raw < 1e11 ? raw * 1000 : raw;
+        else if (typeof raw === 'object') {
+            if (typeof raw.toMillis === 'function') createdMs = raw.toMillis();
+            else if (typeof raw.toDate === 'function') createdMs = raw.toDate().getTime();
+            else if (raw.seconds) createdMs = raw.seconds * 1000;
+        } else {
+            const parsed = new Date(raw).getTime();
+            if (!isNaN(parsed) && parsed > 0) createdMs = parsed;
+        }
+    }
+    if (!createdMs) {
+        const idStr = String(order.orderId || order.id || '');
+        const match = idStr.match(/(\d{10,13})/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > 1500000000 && num < 2500000000000) createdMs = num < 1e11 ? num * 1000 : num;
+        }
+    }
+    if (!createdMs) createdMs = nowMs;
+
+    const elapsedMs = nowMs - createdMs;
+    const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+    const remMins = Math.max(0, Math.ceil(remMs / 60000));
+    const hrs = Math.floor(remMins / 60);
+    const mins = remMins % 60;
+    const countdownText = remMs <= 0 ? 'Expired' : (hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
+    const pillClass = remMs <= 0 ? 'pill-expired' : (remMins <= 20 ? 'pill-urgent' : 'pill-active');
+
+    return `<span class="order-countdown-pill ${pillClass}" title="100-Minute Auto-Expiry Window">⏱ ${countdownText}</span>`;
+}
+
+if (typeof window !== 'undefined') {
+    window.ONE_HUNDRED_MINS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS;
+    window.THREE_HOURS_EXPIRATION_MS = THREE_HOURS_EXPIRATION_MS;
+    window.TWENTY_FOUR_HOURS_MS = TWENTY_FOUR_HOURS_MS;
+    window.calculateRecoveredExpiry = calculateRecoveredExpiry;
+    window.isOrder100MinsExpired = isOrder100MinsExpired;
+    window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
+    window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
+}
+
+
 

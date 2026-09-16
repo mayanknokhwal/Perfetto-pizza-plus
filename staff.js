@@ -571,13 +571,28 @@ function listenToFirestoreStaffOrders() {
 const listenToStaffLiveOrders = listenToFirestoreStaffOrders;
 
 // --------------------------------------------------------------------------
-// 3-HOUR TIMEOUT EXPIRATION SWEEPER & ATOMIC WALLET REFUND ENGINE
+// 100-MINUTE TIMEOUT EXPIRATION SWEEPER & ATOMIC WALLET REFUND ENGINE
 // --------------------------------------------------------------------------
-const THREE_HOURS_EXPIRATION_MS = 3 * 60 * 60 * 1000; // 180 mins / 10,800,000 ms
+const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 mins / 6,000,000 ms
+const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 const autoRejectInFlightOrderIds = new Set();
 let staffAutoExpireInterval = null;
 
-function isOrderThreeHoursExpired(order) {
+function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
+    if (!originalExpiresAt) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => new Date(v).getTime();
+    const expMs = parseTs(originalExpiresAt);
+    if (isNaN(expMs) || expMs <= nowMs || (expMs - nowMs) < TWENTY_FOUR_HOURS_MS) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    return new Date(expMs).toISOString();
+}
+window.calculateRecoveredExpiry = calculateRecoveredExpiry;
+
+function isOrder100MinsExpired(order) {
     if (!order) return false;
     const status = String(order.status || '').toLowerCase().trim();
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
@@ -586,8 +601,30 @@ function isOrderThreeHoursExpired(order) {
 
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
-    return (Date.now() - createdMs) >= THREE_HOURS_EXPIRATION_MS;
+    return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
+const isOrderThreeHoursExpired = isOrder100MinsExpired;
+window.isOrder100MinsExpired = isOrder100MinsExpired;
+window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
+
+function getOrderCountdownPillHTML(order) {
+    if (!order) return '';
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const st = String(order.status || '').toLowerCase().trim();
+    if (terminalStatuses.includes(st)) return '';
+
+    const createdMs = getOrderCreationTimeMs(order) || (order.createdAt ? new Date(order.createdAt).getTime() : Date.now());
+    const elapsedMs = Date.now() - createdMs;
+    const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+    const remMins = Math.max(0, Math.ceil(remMs / 60000));
+    const hrs = Math.floor(remMins / 60);
+    const mins = remMins % 60;
+    const countdownText = remMs <= 0 ? 'Expired' : (hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
+    const pillClass = remMs <= 0 ? 'pill-expired' : (remMins <= 20 ? 'pill-urgent' : 'pill-active');
+
+    return `<span class="order-countdown-pill ${pillClass}" title="100-Minute Auto-Expiry Countdown">⏱ ${countdownText}</span>`;
+}
+window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 
 async function autoRejectExpiredOrder(order) {
     if (!order) return;
@@ -595,7 +632,7 @@ async function autoRejectExpiredOrder(order) {
     if (!orderId || autoRejectInFlightOrderIds.has(orderId)) return;
     autoRejectInFlightOrderIds.add(orderId);
 
-    console.log(`[STAFF SWEEPER] Auto-rejecting 3-hour expired order #${orderId}...`);
+    console.log(`[STAFF SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
 
     const customerPhone = String(order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '').replace(/[^0-9]/g, '').slice(-10);
 
@@ -611,7 +648,7 @@ async function autoRejectExpiredOrder(order) {
 
     const nowIso = new Date().toISOString();
     order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
     order.autoExpired = true;
     order.rejectedAt = nowIso;
     order.rewardStatus = 'voided';
@@ -625,6 +662,11 @@ async function autoRejectExpiredOrder(order) {
         order.scratchCard.amount = 0;
     }
     const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+    const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
+    const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
+        ? calculateRecoveredExpiry(originalExpiresAt)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     if (refundAmount > 0 && !isAlreadyRefunded) {
         order.walletRefundProcessed = true;
         order.walletRefunded = true;
@@ -647,7 +689,7 @@ async function autoRejectExpiredOrder(order) {
 
             const orderUpdate = {
                 status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
                 autoExpired: true,
                 rejectedAt: serverTs,
                 rewardStatus: 'voided',
@@ -684,6 +726,9 @@ async function autoRejectExpiredOrder(order) {
                     title: `+₹${refundAmount} Refund`,
                     description: `+₹${refundAmount} Refund for Order #${orderId}`,
                     status: 'completed',
+                    expiresAt: recoveredExpiresAt,
+                    originalExpiresAt: originalExpiresAt || null,
+                    graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                     timestamp: serverTs,
                     createdAt: serverTs
                 };
@@ -693,6 +738,8 @@ async function autoRejectExpiredOrder(order) {
                 batch.set(userPrefixedRef, {
                     balance: incrementFn,
                     walletBalance: incrementFn,
+                    expiresAt: recoveredExpiresAt,
+                    expired: false,
                     updatedAt: serverTs
                 }, { merge: true });
                 batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
@@ -703,6 +750,8 @@ async function autoRejectExpiredOrder(order) {
                 batch.set(userRawRef, {
                     balance: incrementFn,
                     walletBalance: incrementFn,
+                    expiresAt: recoveredExpiresAt,
+                    expired: false,
                     updatedAt: serverTs
                 }, { merge: true });
                 batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
@@ -713,6 +762,7 @@ async function autoRejectExpiredOrder(order) {
                 batch.set(walletRef, {
                     phone: customerPhone,
                     balance: incrementFn,
+                    expiresAt: recoveredExpiresAt,
                     updatedAt: serverTs
                 }, { merge: true });
                 batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
@@ -734,7 +784,7 @@ async function autoRejectExpiredOrder(order) {
             body: JSON.stringify({
                 orderId: orderId,
                 status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
                 autoExpired: true,
                 walletRefundProcessed: refundAmount > 0,
                 walletRefunded: refundAmount > 0,
@@ -3827,6 +3877,7 @@ function buildOrderCardHTML(order) {
             <div class="card-head">
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                    ${getOrderCountdownPillHTML(order)}
                 </div>
                 <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
                     <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
@@ -4840,6 +4891,10 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
                 const isAlreadyRefunded = Boolean(order?.walletRefundProcessed || order?.walletRefunded);
+                const originalExpiresAt = order?.walletHoldExpiresAt || order?.walletOriginalExpiresAt || null;
+                const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
+                    ? calculateRecoveredExpiry(originalExpiresAt)
+                    : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
                 if (refundAmount > 0 && cleanPhone && FieldValue && !isAlreadyRefunded) {
                     fsUpdate.walletRefundProcessed = true;
@@ -4861,6 +4916,9 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         title: `+₹${refundAmount} Refund`,
                         description: `+₹${refundAmount} Refund for Order #${rawId}`,
                         status: 'completed',
+                        expiresAt: recoveredExpiresAt,
+                        originalExpiresAt: originalExpiresAt || null,
+                        graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                         timestamp: serverTs,
                         createdAt: serverTs
                     };
@@ -4872,8 +4930,11 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         orderId: String(rawId),
                         title: `+₹${refundAmount} Refund`,
                         description: `+₹${refundAmount} Refund for Order #${rawId}`,
-                        createdAt: new Date().toISOString(),
-                        status: 'completed'
+                        status: 'completed',
+                        expiresAt: recoveredExpiresAt,
+                        originalExpiresAt: originalExpiresAt || null,
+                        graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
+                        createdAt: new Date().toISOString()
                     };
 
                     // 1. Wallets collection
@@ -4881,6 +4942,7 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     batch.set(walletRef, {
                         phone: cleanPhone,
                         balance: FieldValue.increment(refundAmount),
+                        expiresAt: recoveredExpiresAt,
                         transactions: FieldValue.arrayUnion(inDocTxEntry),
                         updatedAt: serverTs
                     }, { merge: true });
@@ -4892,6 +4954,8 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         phone: cleanPhone,
                         walletBalance: FieldValue.increment(refundAmount),
                         balance: FieldValue.increment(refundAmount),
+                        expiresAt: recoveredExpiresAt,
+                        expired: false,
                         walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
                         updatedAt: serverTs
                     }, { merge: true });
@@ -4903,6 +4967,8 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         phone: cleanPhone,
                         walletBalance: FieldValue.increment(refundAmount),
                         balance: FieldValue.increment(refundAmount),
+                        expiresAt: recoveredExpiresAt,
+                        expired: false,
                         walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
                         updatedAt: serverTs
                     }, { merge: true });

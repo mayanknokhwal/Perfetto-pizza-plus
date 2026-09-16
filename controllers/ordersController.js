@@ -22,7 +22,27 @@ function isValidOrder(order) {
     return true;
 }
 
-const THREE_HOURS_EXPIRATION_MS = 3 * 60 * 60 * 1000; // 3 hours = 10,800,000 ms
+const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 minutes = 6,000,000 ms
+const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
+    if (!originalExpiresAt) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    const parseTs = (typeof parseTimestampMs === 'function')
+        ? parseTimestampMs
+        : (v) => {
+            if (typeof v === 'number') return v;
+            const p = new Date(v).getTime();
+            return isNaN(p) ? NaN : p;
+        };
+    const expMs = parseTs(originalExpiresAt);
+    if (isNaN(expMs) || expMs <= nowMs || (expMs - nowMs) < TWENTY_FOUR_HOURS_MS) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    return new Date(expMs).toISOString();
+}
 
 function getOrderCreationTimeMs(order) {
     if (!order) return 0;
@@ -51,7 +71,7 @@ function getOrderCreationTimeMs(order) {
     return 0;
 }
 
-function isOrderThreeHoursExpired(order) {
+function isOrder100MinsExpired(order) {
     if (!order) return false;
     const st = String(order.status || '').toLowerCase().trim();
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
@@ -59,8 +79,9 @@ function isOrderThreeHoursExpired(order) {
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
-    return (Date.now() - createdMs) >= THREE_HOURS_EXPIRATION_MS;
+    return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
+const isOrderThreeHoursExpired = isOrder100MinsExpired;
 
 async function autoRejectExpiredOrderBackend(order) {
     if (!order) return;
@@ -68,7 +89,7 @@ async function autoRejectExpiredOrderBackend(order) {
     if (!orderId) return;
 
     order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
     order.autoExpired = true;
     order.rejectedAt = new Date().toISOString();
     order.rewardStatus = 'voided';
@@ -118,6 +139,11 @@ async function autoRejectExpiredOrderBackend(order) {
             const newBal = curBal + refundAmount;
             userDoc.walletBalance = newBal;
             userDoc.balance = newBal;
+
+            const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || userDoc.expiresAt || null;
+            const recoveredExpiresAt = calculateRecoveredExpiry(originalExpiresAt);
+            userDoc.expiresAt = recoveredExpiresAt;
+            userDoc.expired = false;
             userDoc.updatedAt = new Date().toISOString();
 
             const refundTx = {
@@ -127,6 +153,9 @@ async function autoRejectExpiredOrderBackend(order) {
                 type: 'REFUND',
                 title: `Refund for Auto-Expired Order #${orderId}`,
                 description: `Auto-refund ₹${refundAmount} for expired order #${orderId}`,
+                expiresAt: recoveredExpiresAt,
+                originalExpiresAt: originalExpiresAt || null,
+                graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                 timestamp: new Date().toISOString(),
                 createdAt: new Date().toISOString()
             };
@@ -142,9 +171,10 @@ async function autoRejectExpiredOrderBackend(order) {
             await setFirestoreDoc('wallets', cleanPhone, {
                 phone: cleanPhone,
                 balance: newBal,
+                expiresAt: recoveredExpiresAt,
                 updatedAt: new Date().toISOString()
             });
-            console.log(`✅ [BACKEND SWEEP REFUND] Refunded ₹${refundAmount} to user ${cleanPhone} for expired Order #${orderId}`);
+            console.log(`✅ [BACKEND SWEEP REFUND] Refunded ₹${refundAmount} to user ${cleanPhone} with 24h grace recovered expiry for expired Order #${orderId}`);
         } catch (refErr) {
             console.warn('Notice processing sweeper backend wallet refund:', refErr.message);
         }
@@ -508,6 +538,8 @@ async function handleOrdersRequest(req, res) {
                 walletDiscount: usedWallet,
                 usedWalletCash: usedWallet,
                 usedWallet: usedWallet,
+                walletHoldExpiresAt: body.walletHoldExpiresAt || body.walletOriginalExpiresAt || null,
+                walletOriginalExpiresAt: body.walletOriginalExpiresAt || body.walletHoldExpiresAt || null,
                 total: total,
                 customerName: body.customerName || body.customer?.name || 'Customer',
                 customerPhone: body.customerPhone || body.phone || body.customer?.phone || '',
@@ -966,6 +998,11 @@ async function handleOrdersRequest(req, res) {
                         const newBal = curBal + refundAmount;
                         userDoc.walletBalance = newBal;
                         userDoc.balance = newBal;
+
+                        const originalExpiresAt = targetOrder.walletHoldExpiresAt || targetOrder.walletOriginalExpiresAt || userDoc.expiresAt || null;
+                        const recoveredExpiresAt = calculateRecoveredExpiry(originalExpiresAt);
+                        userDoc.expiresAt = recoveredExpiresAt;
+                        userDoc.expired = false;
                         userDoc.updatedAt = new Date().toISOString();
 
                         // Release hold if present
@@ -984,6 +1021,9 @@ async function handleOrdersRequest(req, res) {
                             title: `+₹${refundAmount} Refund`,
                             description: `+₹${refundAmount} Refund for Order #${targetId}`,
                             status: 'completed',
+                            expiresAt: recoveredExpiresAt,
+                            originalExpiresAt: originalExpiresAt || null,
+                            graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                             timestamp: new Date().toISOString(),
                             createdAt: new Date().toISOString()
                         };
@@ -999,9 +1039,10 @@ async function handleOrdersRequest(req, res) {
                         await setFirestoreDoc('wallets', cleanPhone, {
                             phone: cleanPhone,
                             balance: newBal,
+                            expiresAt: recoveredExpiresAt,
                             updatedAt: new Date().toISOString()
                         });
-                        console.log(`✅ [BACKEND REFUND] Successfully refunded ₹${refundAmount} to user ${cleanPhone} for Order #${targetId}`);
+                        console.log(`✅ [BACKEND REFUND] Successfully refunded ₹${refundAmount} to user ${cleanPhone} with 24h grace recovered expiry for Order #${targetId}`);
                     } catch (refErr) {
                         console.warn('Notice processing backend wallet refund:', refErr.message);
                     }
@@ -1235,4 +1276,10 @@ module.exports = {
     cleanupCompletedOrdersMidnight,
     scheduleMidnightCleanup,
     sendOrderNotificationToStaff,
+    isOrder100MinsExpired,
+    isOrderThreeHoursExpired,
+    calculateRecoveredExpiry,
+    autoRejectExpiredOrderBackend,
+    ONE_HUNDRED_MINS_EXPIRATION_MS,
+    THREE_HOURS_EXPIRATION_MS
 };

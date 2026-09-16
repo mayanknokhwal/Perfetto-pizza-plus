@@ -1304,6 +1304,12 @@ function setupNavigation() {
 }
 
 function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHomeScroll = false) {
+    if (tabName === 'cart' || tabName === 'profile') {
+        if (typeof reconcileCustomerActiveOrdersLazySync === 'function') {
+            reconcileCustomerActiveOrdersLazySync();
+        }
+    }
+
     // If accessing Cart, check if profile is complete. If new/incomplete, redirect to Profile completion
     if (tabName === 'cart') {
         const savedProfile = getSavedDeliveryProfile();
@@ -4910,10 +4916,13 @@ function reconcileWalletTranches(wallet) {
                 processedRefundOrderIds.add(txOrderId);
                 if (cleanOrderId) processedRefundOrderIds.add(cleanOrderId);
 
-                // If this order's escrow hold was already released/cancelled, the original credit tranches
-                // were never deducted (unfrozen). Adding this refund as a new credit tranche would double the balance!
+                // If this order's escrow hold was already released/cancelled, unfreezing the hold
+                // already restored the active credit tranche. Unless this refund is a designated grace credit
+                // (tx.isGraceCredit === true) replacing an expired tranche, skip adding it as a credit tranche:
                 if (releasedOrderHolds.has(txOrderId) || releasedOrderHolds.has(cleanOrderId)) {
-                    return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
+                    if (tx.isGraceCredit !== true) {
+                        return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
+                    }
                 }
             }
 
@@ -5679,7 +5688,7 @@ function getActiveLockedWalletInfo() {
     try {
         let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
         if (Array.isArray(orders)) {
-            const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+            const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined', 'auto_expired'];
             const seenOrderIds = new Set();
 
             orders.forEach(o => {
@@ -5688,24 +5697,52 @@ function getActiveLockedWalletInfo() {
                 const idClean = rawId.replace(/^#/, '').trim();
                 if (!idClean || seenOrderIds.has(idClean)) return;
 
+                const idCandidates = [
+                    o.orderId,
+                    o.id,
+                    o.firestoreDocId,
+                    o.docId
+                ].filter(Boolean).map(v => String(v).trim());
+
+                const allKeys = new Set();
+                idCandidates.forEach(k => {
+                    allKeys.add(k);
+                    allKeys.add(k.replace(/^#/, '').trim());
+                });
+
+                // If any identifier was already seen, skip duplicate entry to protect single-order hold integrity
+                if (Array.from(allKeys).some(k => seenOrderIds.has(k))) return;
+
                 const st = String(o.status || '').toLowerCase().trim();
                 const isRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
 
                 if (!terminalStatuses.includes(st) && !isRefunded) {
+                    allKeys.forEach(k => seenOrderIds.add(k));
                     seenOrderIds.add(idClean);
+
                     const held = Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0);
                     if (held > 0) {
                         // Verify that the wallet transaction ledger hasn't marked this order's hold released
                         const isReleasedInWallet = currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) &&
-                            currentCustomerWallet.transactions.some(tx => tx && String(tx.orderId || '').replace(/^#/, '') === idClean && (tx.status === 'released' || tx.type === 'REFUND'));
+                            currentCustomerWallet.transactions.some(tx => {
+                                if (!tx) return false;
+                                const txOrd = String(tx.orderId || '').replace(/^#/, '').trim();
+                                const txType = String(tx.type || '').toLowerCase().trim();
+                                const txStatus = String(tx.status || '').toLowerCase().trim();
+                                return (allKeys.has(txOrd) || txOrd === idClean) && (txStatus === 'released' || txStatus === 'cancelled' || txType === 'refund');
+                            });
 
                         if (!isReleasedInWallet) {
                             lockedAmount += held;
-                            if (!lockedOrderIds.includes(idClean)) {
-                                lockedOrderIds.push(idClean);
+                            const displayId = String(o.orderId || o.id || idClean).replace(/^#/, '').trim();
+                            if (displayId && !lockedOrderIds.includes(displayId)) {
+                                lockedOrderIds.push(displayId);
                             }
                         }
                     }
+                } else {
+                    allKeys.forEach(k => seenOrderIds.add(k));
+                    seenOrderIds.add(idClean);
                 }
             });
         }
@@ -6057,7 +6094,7 @@ function commitWalletHold(orderId) {
 }
 window.commitWalletHold = commitWalletHold;
 
-function releaseWalletHold(orderId, refundAmount) {
+function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
 
@@ -6065,13 +6102,33 @@ function releaseWalletHold(orderId, refundAmount) {
     const cleanOrderId = effectiveOrderId.replace(/^#/, '');
     const refundAmt = Math.round(Number(refundAmount) || 0);
 
-    const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId));
+    const holdTx = currentCustomerWallet.transactions.find(tx => 
+        tx && (tx.type === 'hold' || tx.type === 'debit') && 
+        (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId)
+    );
+
+    const nowMs = Date.now();
+    const origExpiry = customExpiresAt || holdTx?.expiresAt || holdTx?.originalExpiresAt || currentCustomerWallet.expiresAt || null;
+    const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
+        ? calculateRecoveredExpiry(origExpiry, nowMs)
+        : new Date(nowMs + 24 * 60 * 60 * 1000).toISOString();
+
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => new Date(v).getTime();
+    const origExpMs = origExpiry ? parseTs(origExpiry) : NaN;
+    const isOrigExpired = isNaN(origExpMs) || origExpMs <= nowMs;
+    const hasGraceApplied = isOrigExpired || (origExpMs - nowMs) < (24 * 60 * 60 * 1000);
+
     if (holdTx) {
         holdTx.status = 'released';
+        holdTx.recoveredExpiresAt = recoveredExpiresAt;
+        holdTx.graceApplied = hasGraceApplied;
     }
 
     const txId = `tx_refund_${effectiveOrderId}`;
-    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId))));
+    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => 
+        tx && (tx.id === txId || (tx.type === 'REFUND' && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId)))
+    );
+
     if (!alreadyRefunded && refundAmt > 0) {
         const refundTx = {
             id: txId,
@@ -6081,9 +6138,20 @@ function releaseWalletHold(orderId, refundAmount) {
             title: `+₹${refundAmt} Refund`,
             description: `+₹${refundAmt} Refund for Order #${effectiveOrderId}`,
             status: 'completed',
-            createdAt: new Date().toISOString()
+            expiresAt: recoveredExpiresAt,
+            originalExpiresAt: origExpiry || null,
+            graceApplied: hasGraceApplied,
+            isGraceCredit: isOrigExpired,
+            createdAt: new Date(nowMs).toISOString()
         };
         currentCustomerWallet.transactions.unshift(refundTx);
+    }
+
+    // Update wallet top-level expiration if recovered expiry is newer
+    const currExpMs = currentCustomerWallet.expiresAt ? parseTs(currentCustomerWallet.expiresAt) : NaN;
+    if (isNaN(currExpMs) || currExpMs <= nowMs || (hasGraceApplied && new Date(recoveredExpiresAt).getTime() > currExpMs)) {
+        currentCustomerWallet.expiresAt = recoveredExpiresAt;
+        currentCustomerWallet.expired = false;
     }
 
     reconcileWalletTranches(currentCustomerWallet);
@@ -8112,6 +8180,10 @@ function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
+    if (typeof reconcileCustomerActiveOrdersLazySync === 'function') {
+        reconcileCustomerActiveOrdersLazySync();
+    }
+
     // Reset checkout redemption selection fresh to prevent carrying over state
     isWalletRedemptionSelected = false;
     appliedWalletDiscountAmount = 0;
@@ -8618,6 +8690,8 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         deliveryFee: deliveryFee,
         walletDiscount: Math.round(walletDiscountToApply),
         usedWalletCash: Math.round(walletDiscountToApply),
+        walletHoldExpiresAt: (walletDiscountToApply > 0 && currentCustomerWallet) ? (currentCustomerWallet.expiresAt || null) : null,
+        walletOriginalExpiresAt: (walletDiscountToApply > 0 && currentCustomerWallet) ? (currentCustomerWallet.expiresAt || null) : null,
         earnedCashback: Math.round(earnedCashback),
         wonCashback: Math.round(wonCashback),
         rewardTitle: rewardTitle,
@@ -12216,11 +12290,33 @@ function escapeHtml(str) {
 }
 
 // --------------------------------------------------------------------------
-// CUSTOMER-SIDE 3-HOUR AUTO-EXPIRATION & WALLET REFUND EVALUATION
+// CUSTOMER-SIDE 100-MINUTE AUTO-EXPIRATION & 24-HOUR GRACE RECOVERY
 // --------------------------------------------------------------------------
+const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 mins / 6,000,000 ms
+const THREE_HOURS_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 const customerAutoRejectInFlightIds = new Set();
 
-function isOrderThreeHoursExpired(order) {
+function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
+    if (!originalExpiresAt) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    const parseTs = (typeof parseTimestampMs === 'function')
+        ? parseTimestampMs
+        : (v) => {
+            if (typeof v === 'number') return v;
+            const p = new Date(v).getTime();
+            return isNaN(p) ? NaN : p;
+        };
+    const expMs = parseTs(originalExpiresAt);
+    if (isNaN(expMs) || expMs <= nowMs || (expMs - nowMs) < TWENTY_FOUR_HOURS_MS) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    return new Date(expMs).toISOString();
+}
+window.calculateRecoveredExpiry = calculateRecoveredExpiry;
+
+function isOrder100MinsExpired(order, nowMs = Date.now()) {
     if (!order) return false;
     const status = String(order.status || '').toLowerCase().trim();
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
@@ -12253,9 +12349,52 @@ function isOrderThreeHoursExpired(order) {
         }
     }
     if (!createdMs) return false;
-    const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 10,800,000 ms
-    return (Date.now() - createdMs) >= THREE_HOURS_MS;
+    return (nowMs - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
+const isOrderThreeHoursExpired = isOrder100MinsExpired;
+window.isOrder100MinsExpired = isOrder100MinsExpired;
+window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
+
+function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
+    if (!order) return '';
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const st = String(order.status || '').toLowerCase().trim();
+    if (terminalStatuses.includes(st)) return '';
+
+    let createdMs = 0;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    if (raw) {
+        if (typeof raw === 'number') createdMs = raw < 1e11 ? raw * 1000 : raw;
+        else if (typeof raw === 'object') {
+            if (typeof raw.toMillis === 'function') createdMs = raw.toMillis();
+            else if (typeof raw.toDate === 'function') createdMs = raw.toDate().getTime();
+            else if (raw.seconds) createdMs = raw.seconds * 1000;
+        } else {
+            const parsed = new Date(raw).getTime();
+            if (!isNaN(parsed) && parsed > 0) createdMs = parsed;
+        }
+    }
+    if (!createdMs) {
+        const idStr = String(order.id || order.orderId || '');
+        const match = idStr.match(/(\d{10,13})/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > 1500000000 && num < 2500000000000) createdMs = num < 1e11 ? num * 1000 : num;
+        }
+    }
+    if (!createdMs) createdMs = nowMs;
+
+    const elapsedMs = nowMs - createdMs;
+    const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+    const remMins = Math.max(0, Math.ceil(remMs / 60000));
+    const hrs = Math.floor(remMins / 60);
+    const mins = remMins % 60;
+    const countdownText = remMs <= 0 ? 'Expired' : (hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
+    const pillClass = remMs <= 0 ? 'pill-expired' : (remMins <= 20 ? 'pill-urgent' : 'pill-active');
+
+    return `<span class="order-countdown-pill ${pillClass}" title="100-Minute Kitchen Window">⏱ ${countdownText}</span>`;
+}
+window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 
 async function autoRejectExpiredCustomerOrder(order) {
     if (!order) return;
@@ -12263,7 +12402,7 @@ async function autoRejectExpiredCustomerOrder(order) {
     if (!orderId || customerAutoRejectInFlightIds.has(orderId)) return;
     customerAutoRejectInFlightIds.add(orderId);
 
-    console.log(`[CUSTOMER EVAL] Auto-rejecting 3-hour expired order #${orderId}...`);
+    console.log(`[CUSTOMER EVAL] Auto-rejecting 100-minute expired order #${orderId}...`);
 
     const customerPhone = String(order.customerPhone || order.phone || (order.customer && order.customer.phone) || (currentUserProfile && currentUserProfile.phone) || '').replace(/[^0-9]/g, '').slice(-10);
 
@@ -12279,7 +12418,7 @@ async function autoRejectExpiredCustomerOrder(order) {
 
     const nowIso = new Date().toISOString();
     order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
     order.autoExpired = true;
     order.rejectedAt = nowIso;
     order.rewardStatus = 'voided';
@@ -12295,6 +12434,9 @@ async function autoRejectExpiredCustomerOrder(order) {
 
     // If wallet money was used, immediately refund the exact deducted amount
     const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+    const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
+    const recoveredExpiresAt = calculateRecoveredExpiry(originalExpiresAt);
+
     if (refundAmount > 0 && !isAlreadyRefunded) {
         order.walletRefundProcessed = true;
         order.walletRefunded = true;
@@ -12303,10 +12445,12 @@ async function autoRejectExpiredCustomerOrder(order) {
         order.walletRefundedAt = nowIso;
 
         if (typeof releaseWalletHold === 'function') {
-            releaseWalletHold(orderId, refundAmount);
+            releaseWalletHold(orderId, refundAmount, originalExpiresAt);
         } else if (currentCustomerWallet) {
             const currentBal = Number(currentCustomerWallet.balance || 0);
             currentCustomerWallet.balance = currentBal + refundAmount;
+            currentCustomerWallet.expiresAt = recoveredExpiresAt;
+            currentCustomerWallet.expired = false;
             if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
             const txId = `tx_refund_${orderId}`;
             const alreadyLogged = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && String(tx.orderId) === String(orderId))));
@@ -12318,6 +12462,9 @@ async function autoRejectExpiredCustomerOrder(order) {
                     orderId: orderId,
                     title: `+₹${refundAmount} Refund`,
                     description: `+₹${refundAmount} Refund for Order #${orderId}`,
+                    expiresAt: recoveredExpiresAt,
+                    originalExpiresAt: originalExpiresAt || null,
+                    graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                     createdAt: nowIso
                 });
             }
@@ -12348,7 +12495,7 @@ async function autoRejectExpiredCustomerOrder(order) {
 
             const updatePayload = {
                 status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
                 autoExpired: true,
                 rejectedAt: serverTs,
                 rewardStatus: 'voided',
@@ -12384,22 +12531,25 @@ async function autoRejectExpiredCustomerOrder(order) {
                     type: 'REFUND',
                     title: `+₹${refundAmount} Refund`,
                     description: `+₹${refundAmount} Refund for Order #${orderId}`,
+                    expiresAt: recoveredExpiresAt,
+                    originalExpiresAt: originalExpiresAt || null,
+                    graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                     timestamp: serverTs,
                     createdAt: serverTs
                 };
 
                 const userPrefixedRef = customerFirestore.collection('users').doc(`phone_${customerPhone}`);
-                batch.set(userPrefixedRef, { balance: incrementFn, walletBalance: incrementFn, updatedAt: serverTs }, { merge: true });
+                batch.set(userPrefixedRef, { balance: incrementFn, walletBalance: incrementFn, expiresAt: recoveredExpiresAt, expired: false, updatedAt: serverTs }, { merge: true });
                 batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                 batch.set(userPrefixedRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
 
                 const userRawRef = customerFirestore.collection('users').doc(customerPhone);
-                batch.set(userRawRef, { balance: incrementFn, walletBalance: incrementFn, updatedAt: serverTs }, { merge: true });
+                batch.set(userRawRef, { balance: incrementFn, walletBalance: incrementFn, expiresAt: recoveredExpiresAt, expired: false, updatedAt: serverTs }, { merge: true });
                 batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                 batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
 
                 const walletRef = customerFirestore.collection('wallets').doc(customerPhone);
-                batch.set(walletRef, { phone: customerPhone, balance: incrementFn, updatedAt: serverTs }, { merge: true });
+                batch.set(walletRef, { phone: customerPhone, balance: incrementFn, expiresAt: recoveredExpiresAt, updatedAt: serverTs }, { merge: true });
                 batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                 batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
             }
@@ -12420,7 +12570,7 @@ async function autoRejectExpiredCustomerOrder(order) {
                 body: JSON.stringify({
                     orderId: orderId,
                     status: 'rejected',
-                    rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                    rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
                     autoExpired: true,
                     walletRefundProcessed: refundAmount > 0,
                     walletRefunded: refundAmount > 0,
@@ -12441,6 +12591,28 @@ async function autoRejectExpiredCustomerOrder(order) {
         }
     } catch (e) { }
 }
+
+async function reconcileCustomerActiveOrdersLazySync() {
+    try {
+        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (!Array.isArray(orders) || orders.length === 0) return;
+        let modified = false;
+        for (const o of orders) {
+            if (isOrder100MinsExpired(o)) {
+                await autoRejectExpiredCustomerOrder(o);
+                modified = true;
+            }
+        }
+        if (modified) {
+            renderOrderHistoryDetails();
+            updateProfileTotalsUI();
+            updateProfileWalletUI();
+        }
+    } catch (e) {
+        console.warn('[LAZY SYNC] Customer orders reconciliation note:', e);
+    }
+}
+window.reconcileCustomerActiveOrdersLazySync = reconcileCustomerActiveOrdersLazySync;
 
 function renderOrderHistoryDetails() {
     const listEl = document.getElementById('order-history-list');
@@ -12576,7 +12748,10 @@ function renderOrderHistoryDetails() {
                     <div style="background: var(--bg-surface); padding: 14px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border-color);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                             <strong style="color: var(--primary-orange); font-size: 0.95rem;">#${escapeHtml(o.id || o.orderId)}</strong>
-                            <span style="font-size: 0.78rem; color: var(--text-muted);">${escapeHtml(o.timeAgo || '')}</span>
+                            <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                ${getOrderCountdownPillHTML(o)}
+                                <span style="font-size: 0.78rem; color: var(--text-muted);">${escapeHtml(o.timeAgo || '')}</span>
+                            </div>
                         </div>
                         <div style="font-size: 0.84rem; color: var(--text-light); margin-bottom: 8px;">
                             ${itemsText}
@@ -17518,22 +17693,42 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
         const clearedSet = new Set(getClearedOrderIds());
 
         const map = new Map();
+        const aliasMap = new Map();
+
         remoteOrders.forEach(o => {
             const id = String(o.id || o.orderId);
             const st = String(o.status || '').trim().toLowerCase();
             if (clearedSet.has(id) && terminalStatuses.has(st)) return;
             map.set(id, o);
+            [o.id, o.orderId, o.firestoreDocId, o.docId].filter(Boolean).forEach(k => {
+                const s = String(k).trim();
+                aliasMap.set(s, id);
+                aliasMap.set(s.replace(/^#/, ''), id);
+            });
         });
 
         storedOrders.forEach(o => {
             const id = String(o.id || o.orderId);
             const st = String(o.status || '').trim().toLowerCase();
             if (clearedSet.has(id) && terminalStatuses.has(st)) return;
-            if (!map.has(id)) {
+
+            const candKeys = [o.id, o.orderId, o.firestoreDocId, o.docId].filter(Boolean).map(k => String(k).trim());
+            let matchedKey = null;
+            for (const k of candKeys) {
+                if (aliasMap.has(k)) { matchedKey = aliasMap.get(k); break; }
+                const cl = k.replace(/^#/, '');
+                if (aliasMap.has(cl)) { matchedKey = aliasMap.get(cl); break; }
+            }
+
+            if (!matchedKey) {
                 map.set(id, o);
+                candKeys.forEach(k => {
+                    aliasMap.set(k, id);
+                    aliasMap.set(k.replace(/^#/, ''), id);
+                });
             } else {
-                const remote = map.get(id);
-                map.set(id, {
+                const remote = map.get(matchedKey);
+                map.set(matchedKey, {
                     ...remote,
                     scratchRevealed: o.scratchRevealed || remote.scratchRevealed,
                     scratchClaimed: o.scratchClaimed || remote.scratchClaimed,
@@ -17564,6 +17759,9 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
 }
 
 function listenToCustomerActiveOrders() {
+    if (typeof reconcileCustomerActiveOrdersLazySync === 'function') {
+        reconcileCustomerActiveOrdersLazySync();
+    }
     if (!customerFirestore) return;
 
     const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
