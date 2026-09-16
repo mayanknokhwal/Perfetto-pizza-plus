@@ -8719,16 +8719,27 @@
             // Sync to Firestore & backend if status or manual close expired automatically
             if (hasChanged && shouldSyncFirestore) {
                 console.log(`[Auto-Schedule Engine] Auto-synced shopStatus to ${targetStatus.toUpperCase()}`);
+                const isOpenBool = targetStatus === 'open';
+                const autoStatusPayload = {
+                    isOpen: isOpenBool,
+                    isStoreOpen: isOpenBool,
+                    shopStatus: targetStatus,
+                    manualCloseDate: nextManualCloseDate,
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                        ? firebase.firestore.FieldValue.serverTimestamp()
+                        : new Date().toISOString()
+                };
                 if (adminFirestore) {
                     try {
-                        adminFirestore.collection('settings').doc('storeSettings').set({
-                            shopStatus: targetStatus,
-                            manualCloseDate: nextManualCloseDate,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }, { merge: true }).catch(() => {});
+                        Promise.all([
+                            adminFirestore.collection('settings').doc('storeSettings').set(autoStatusPayload, { merge: true }),
+                            adminFirestore.collection('settings').doc('store_config').set(autoStatusPayload, { merge: true })
+                        ]).catch(() => {});
                     } catch (e) {}
                 }
                 syncStoreSettingsToBackend({
+                    isOpen: isOpenBool,
+                    isStoreOpen: isOpenBool,
                     shopStatus: targetStatus,
                     manualCloseDate: nextManualCloseDate
                 });
@@ -8761,22 +8772,40 @@
 
             updateShopStatusUI(nextStatus);
 
-            // 1. Instantly sync shop status to Firebase Firestore in real-time
+            const isOpenBool = nextStatus === 'open';
+            const statusPayload = {
+                isOpen: isOpenBool,
+                isStoreOpen: isOpenBool,
+                shopStatus: nextStatus,
+                manualCloseDate: manualCloseDate,
+                updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : new Date().toISOString()
+            };
+
+            // 1. Instantly sync shop status to Firebase Firestore in real-time across both docs with { merge: true }
             if (adminFirestore) {
                 try {
-                    adminFirestore.collection('settings').doc('storeSettings').set({
-                        shopStatus: nextStatus,
-                        manualCloseDate: manualCloseDate,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true }).catch((e) => console.warn('Firestore shopStatus sync notice:', e));
+                    Promise.all([
+                        adminFirestore.collection('settings').doc('storeSettings').set(statusPayload, { merge: true }),
+                        adminFirestore.collection('settings').doc('store_config').set(statusPayload, { merge: true })
+                    ]).catch((e) => console.warn('Firestore shopStatus sync notice:', e));
                 } catch (e) { }
             }
 
-            // 2. Sync shop status to Firebase Firestore backend
+            // 2. Sync ONLY atomic shop status fields to backend API
             syncStoreSettingsToBackend({
+                isOpen: isOpenBool,
+                isStoreOpen: isOpenBool,
                 shopStatus: nextStatus,
                 manualCloseDate: manualCloseDate
             });
+
+            if (typeof updateShopStatus === 'function') {
+                try {
+                    updateShopStatus(isOpenBool, { manualCloseDate });
+                } catch (e) {}
+            }
 
             if (nextStatus === 'closed') {
                 if (isAutoOn) {
@@ -8961,9 +8990,42 @@
             const closeTimeInput = document.getElementById('input-closing-time');
 
             if (toggle) {
-                isAutoScheduleDirty = true;
+                isAutoScheduleDirty = false;
                 updateAutoScheduleToggleLabel(toggle.checked);
                 localStorage.setItem(AUTO_SCHEDULE_KEY, toggle.checked.toString());
+
+                const isAutoOn = Boolean(toggle.checked);
+                const schedulePayload = {
+                    autoSchedule: isAutoOn,
+                    autoScheduleMode: isAutoOn,
+                    autoScheduleEnabled: isAutoOn,
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                        ? firebase.firestore.FieldValue.serverTimestamp()
+                        : new Date().toISOString()
+                };
+
+                // 1. Instantly sync autoSchedule to Firebase Firestore in real-time across both docs with { merge: true }
+                if (adminFirestore) {
+                    try {
+                        Promise.all([
+                            adminFirestore.collection('settings').doc('storeSettings').set(schedulePayload, { merge: true }),
+                            adminFirestore.collection('settings').doc('store_config').set(schedulePayload, { merge: true })
+                        ]).catch((err) => console.warn('Firestore autoSchedule sync notice:', err));
+                    } catch (e) {}
+                }
+
+                // 2. Sync ONLY atomic autoSchedule fields to backend API
+                syncStoreSettingsToBackend({
+                    autoSchedule: isAutoOn,
+                    autoScheduleMode: isAutoOn,
+                    autoScheduleEnabled: isAutoOn
+                });
+
+                if (typeof updateAutoScheduleMode === 'function') {
+                    try {
+                        updateAutoScheduleMode(isAutoOn);
+                    } catch (e) {}
+                }
             }
 
             const validation = validateOperatingHours(false);
@@ -9724,7 +9786,8 @@
             validateOperatingHours(false);
 
             // 9. Auto-Schedule Mode
-            const rawAuto = data.autoScheduleMode !== undefined ? data.autoScheduleMode : data.autoScheduleEnabled;
+            const rawAuto = data.autoSchedule !== undefined ? data.autoSchedule
+                : (data.autoScheduleMode !== undefined ? data.autoScheduleMode : data.autoScheduleEnabled);
             if (rawAuto !== undefined && rawAuto !== null) {
                 const isAuto = Boolean(rawAuto === true || rawAuto === 'true');
                 localStorage.setItem(AUTO_SCHEDULE_KEY, String(isAuto));
@@ -9775,9 +9838,12 @@
                 }
             }
 
-            if (data.shopStatus !== undefined) {
-                localStorage.setItem(SHOP_STATUS_KEY, String(data.shopStatus));
-                updateShopStatusUI(data.shopStatus);
+            if (data.isOpen !== undefined || data.isStoreOpen !== undefined || data.shopStatus !== undefined) {
+                const openStatus = (data.isOpen !== undefined ? Boolean(data.isOpen)
+                    : (data.isStoreOpen !== undefined ? Boolean(data.isStoreOpen)
+                        : data.shopStatus === 'open')) ? 'open' : 'closed';
+                localStorage.setItem(SHOP_STATUS_KEY, openStatus);
+                updateShopStatusUI(openStatus);
             }
             if (data.manualOverride !== undefined) localStorage.setItem(MANUAL_OVERRIDE_KEY, String(data.manualOverride));
             if (data.manualCloseDate !== undefined) {

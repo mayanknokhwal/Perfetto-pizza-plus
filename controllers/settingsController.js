@@ -148,6 +148,7 @@ async function handleSettingsRequest(req, res) {
 
         // 2. PUT / PATCH: Update Store Settings in Firestore
         if (req.method === 'PUT' || req.method === 'PATCH') {
+            await fetchLiveSettingsFromFirestore();
             let body = req.body;
             if (typeof body === 'string') {
                 try { body = JSON.parse(body); } catch (e) { body = {}; }
@@ -254,7 +255,28 @@ async function handleSettingsRequest(req, res) {
                 updateFields.flexibleZonesList = zonesArr;
             }
 
-            if (body.shopStatus !== undefined) updateFields.shopStatus = body.shopStatus === 'closed' ? 'closed' : 'open';
+            if (body.isOpen !== undefined) {
+                const openBool = Boolean(body.isOpen);
+                updateFields.isOpen = openBool;
+                updateFields.isStoreOpen = openBool;
+                if (body.shopStatus === undefined) {
+                    updateFields.shopStatus = openBool ? 'open' : 'closed';
+                }
+            }
+            if (body.isStoreOpen !== undefined) {
+                const openBool = Boolean(body.isStoreOpen);
+                updateFields.isOpen = openBool;
+                updateFields.isStoreOpen = openBool;
+                if (body.shopStatus === undefined) {
+                    updateFields.shopStatus = openBool ? 'open' : 'closed';
+                }
+            }
+            if (body.shopStatus !== undefined) {
+                const cleanStatus = body.shopStatus === 'closed' ? 'closed' : 'open';
+                updateFields.shopStatus = cleanStatus;
+                updateFields.isOpen = cleanStatus === 'open';
+                updateFields.isStoreOpen = cleanStatus === 'open';
+            }
 
             let openTime = undefined;
             let closeTime = undefined;
@@ -283,10 +305,14 @@ async function handleSettingsRequest(req, res) {
                 };
             }
 
-            const autoSchedule = body.autoScheduleMode !== undefined ? body.autoScheduleMode : body.autoScheduleEnabled;
+            const autoSchedule = body.autoSchedule !== undefined
+                ? body.autoSchedule
+                : (body.autoScheduleMode !== undefined ? body.autoScheduleMode : body.autoScheduleEnabled);
             if (autoSchedule !== undefined) {
-                updateFields.autoScheduleMode = Boolean(autoSchedule);
-                updateFields.autoScheduleEnabled = Boolean(autoSchedule);
+                const autoBool = Boolean(autoSchedule);
+                updateFields.autoSchedule = autoBool;
+                updateFields.autoScheduleMode = autoBool;
+                updateFields.autoScheduleEnabled = autoBool;
             }
 
             if (body.manualOverride !== undefined) updateFields.manualOverride = String(body.manualOverride).trim();
@@ -300,12 +326,12 @@ async function handleSettingsRequest(req, res) {
                 updateFields.emergency_master_otp = cleanOtp;
             }
 
+            updateFields.updatedAt = new Date().toISOString();
             Object.assign(global.__perfettoStoreSettings, updateFields);
-            global.__perfettoStoreSettings.updatedAt = new Date().toISOString();
 
-            // Persist to Firestore under both storeSettings and store_config
-            await setFirestoreDoc('settings', 'storeSettings', global.__perfettoStoreSettings);
-            await setFirestoreDoc('settings', 'store_config', global.__perfettoStoreSettings);
+            // Persist ONLY updateFields to Firestore under both storeSettings and store_config using atomic merge
+            await setFirestoreDoc('settings', 'storeSettings', updateFields, true);
+            await setFirestoreDoc('settings', 'store_config', updateFields, true);
             await bumpSettingsVersion();
 
             return res.status(200).json({

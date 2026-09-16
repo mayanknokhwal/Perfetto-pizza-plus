@@ -481,3 +481,294 @@ export function validateAllMenuPrices(items) {
     };
 }
 
+// --------------------------------------------------------------------------
+// ADMIN STORE SETTINGS & ATOMIC TOGGLE CONTROLLER
+// --------------------------------------------------------------------------
+
+export const DEFAULT_STORE_SETTINGS = {
+    minOrderValue: 80,
+    freeDeliveryThreshold: 500,
+    freeDeliveryLimit: 500,
+    customerCarePhone: '9414503886',
+    customerCareEnabled: true,
+    customerCareButtonEnabled: true,
+    masterDeliveryOtp: '9999',
+    emergencyMasterOtp: '9999',
+    deliveryRadius: 10,
+    deliveryRadiusKm: 10,
+    inStoreThreshold: 0.05,
+    in_store_threshold: 0.05,
+    operatingHours: {
+        openingTime: '11:00',
+        closingTime: '23:00'
+    },
+    openingTime: '11:00',
+    closingTime: '23:00',
+    storeCoordinates: {
+        latitude: 29.533736,
+        longitude: 73.447895,
+        lat: 29.533736,
+        lng: 73.447895
+    },
+    latitude: 29.533736,
+    longitude: 73.447895,
+    flexibleZones: {
+        zone1: 0, zone2: 0, zone3: 0, zone4: 0, zone5: 0,
+        zone6: 0, zone7: 0, zone8: 0, zone9: 0, zone10: 0
+    },
+    zoneCharges: {
+        zone1: 0, zone2: 0, zone3: 0, zone4: 0, zone5: 0,
+        zone6: 0, zone7: 0, zone8: 0, zone9: 0, zone10: 0
+    },
+    isOpen: true,
+    isStoreOpen: true,
+    shopStatus: 'open',
+    autoSchedule: false,
+    autoScheduleMode: false,
+    autoScheduleEnabled: false,
+    manualCloseDate: null,
+    manualOverride: 'none'
+};
+
+// In-memory persistent state of loaded store settings
+export let adminStoreSettingsState = { ...DEFAULT_STORE_SETTINGS };
+
+/**
+ * Returns a cloned copy of the current in-memory admin store settings.
+ */
+export function getAdminStoreSettings() {
+    return JSON.parse(JSON.stringify(adminStoreSettingsState));
+}
+
+/**
+ * Updates the in-memory admin store settings without overwriting missing keys with defaults.
+ * @param {Object} newSettings 
+ * @param {boolean} [merge=true] 
+ */
+export function setAdminStoreSettings(newSettings, merge = true) {
+    if (!newSettings || typeof newSettings !== 'object') return getAdminStoreSettings();
+    if (merge) {
+        adminStoreSettingsState = { ...adminStoreSettingsState, ...newSettings };
+    } else {
+        adminStoreSettingsState = { ...newSettings };
+    }
+    return getAdminStoreSettings();
+}
+
+/**
+ * Non-destructive ingestion of Firestore snapshot or backend settings data.
+ * Crucially preserves existing loaded values if incoming payload is a partial update.
+ * @param {Object} data 
+ * @param {Object} [options={}]
+ */
+export function applyAdminStoreSettings(data, options = {}) {
+    if (!data || typeof data !== 'object') return getAdminStoreSettings();
+    
+    // Only update fields that are explicitly provided in data
+    const partial = {};
+    for (const [k, v] of Object.entries(data)) {
+        if (v !== undefined && v !== null) {
+            partial[k] = v;
+        }
+    }
+    
+    // Normalize aliases
+    if (partial.isOpen !== undefined || partial.isStoreOpen !== undefined || partial.shopStatus !== undefined) {
+        const open = partial.isOpen !== undefined ? Boolean(partial.isOpen)
+            : (partial.isStoreOpen !== undefined ? Boolean(partial.isStoreOpen)
+                : partial.shopStatus === 'open');
+        partial.isOpen = open;
+        partial.isStoreOpen = open;
+        partial.shopStatus = open ? 'open' : 'closed';
+    }
+    if (partial.autoSchedule !== undefined || partial.autoScheduleMode !== undefined || partial.autoScheduleEnabled !== undefined) {
+        const auto = partial.autoSchedule !== undefined ? Boolean(partial.autoSchedule)
+            : (partial.autoScheduleMode !== undefined ? Boolean(partial.autoScheduleMode)
+                : Boolean(partial.autoScheduleEnabled));
+        partial.autoSchedule = auto;
+        partial.autoScheduleMode = auto;
+        partial.autoScheduleEnabled = auto;
+    }
+    if (partial.freeDeliveryThreshold !== undefined && partial.freeDeliveryLimit === undefined) {
+        partial.freeDeliveryLimit = partial.freeDeliveryThreshold;
+    }
+    if (partial.freeDeliveryLimit !== undefined && partial.freeDeliveryThreshold === undefined) {
+        partial.freeDeliveryThreshold = partial.freeDeliveryLimit;
+    }
+    if (partial.min_order_value !== undefined && partial.minOrderValue === undefined) {
+        partial.minOrderValue = partial.min_order_value;
+    }
+
+    setAdminStoreSettings(partial, true);
+    return getAdminStoreSettings();
+}
+
+/**
+ * Atomically updates store open/closed status in-memory and in Firestore.
+ * Strictly updates ONLY 'isOpen', 'isStoreOpen', 'shopStatus', 'manualCloseDate', 'updatedAt'.
+ * NEVER overwrites the store settings document with hardcoded fallback objects.
+ * 
+ * @param {boolean|string} isOpenOrStatus - boolean true/false or 'open'/'closed'
+ * @param {Object} [options={}] - { db, firestore, syncToBackend, manualCloseDate }
+ * @returns {Promise<{ success: boolean, updatedFields: Object, state: Object }>}
+ */
+export async function updateShopStatus(isOpenOrStatus, options = {}) {
+    const isOpen = typeof isOpenOrStatus === 'boolean'
+        ? isOpenOrStatus
+        : String(isOpenOrStatus).trim().toLowerCase() === 'open';
+
+    const currentAutoSchedule = Boolean(adminStoreSettingsState.autoSchedule || adminStoreSettingsState.autoScheduleMode);
+    let manualCloseDate = options.manualCloseDate !== undefined ? options.manualCloseDate : adminStoreSettingsState.manualCloseDate;
+    
+    if (!isOpen) {
+        if (currentAutoSchedule && !manualCloseDate) {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            manualCloseDate = `${y}-${m}-${d}`;
+        }
+    } else {
+        manualCloseDate = null;
+    }
+
+    // Strictly atomic payload containing ONLY the shop status fields
+    const updatedFields = {
+        isOpen,
+        isStoreOpen: isOpen,
+        shopStatus: isOpen ? 'open' : 'closed',
+        manualCloseDate: manualCloseDate,
+        updatedAt: (typeof options.timestamp !== 'undefined') ? options.timestamp : new Date().toISOString()
+    };
+
+    // 1. Update in-memory state non-destructively: all other settings remain 100% intact
+    adminStoreSettingsState.isOpen = isOpen;
+    adminStoreSettingsState.isStoreOpen = isOpen;
+    adminStoreSettingsState.shopStatus = isOpen ? 'open' : 'closed';
+    adminStoreSettingsState.manualCloseDate = manualCloseDate;
+    adminStoreSettingsState.updatedAt = updatedFields.updatedAt;
+
+    // 2. Synchronize to Firestore with { merge: true } if db or firestore is passed
+    const db = options.db || options.firestore || (typeof window !== 'undefined' && (window.adminFirestore || window.db));
+    if (db && typeof db.collection === 'function') {
+        try {
+            const fsTimestamp = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : updatedFields.updatedAt;
+            const fsPayload = { ...updatedFields, updatedAt: fsTimestamp };
+            await Promise.all([
+                db.collection('settings').doc('storeSettings').set(fsPayload, { merge: true }),
+                db.collection('settings').doc('store_config').set(fsPayload, { merge: true })
+            ]);
+        } catch (err) {
+            console.warn('[admin.js] Firestore atomic shop status update notice:', err.message);
+        }
+    }
+
+    // 3. Sync to backend API if requested
+    if (typeof options.syncToBackend === 'function') {
+        try {
+            await options.syncToBackend(updatedFields);
+        } catch (err) {
+            console.warn('[admin.js] Backend atomic shop status sync notice:', err.message);
+        }
+    }
+
+    return {
+        success: true,
+        updatedFields,
+        state: getAdminStoreSettings()
+    };
+}
+
+/**
+ * Toggles current Shop Status between Open and Closed atomically.
+ * @param {Object} [options={}]
+ * @returns {Promise<{ success: boolean, updatedFields: Object, state: Object }>}
+ */
+export async function toggleShopStatus(options = {}) {
+    const currentOpen = Boolean(adminStoreSettingsState.isOpen !== undefined ? adminStoreSettingsState.isOpen : (adminStoreSettingsState.shopStatus === 'open'));
+    return await updateShopStatus(!currentOpen, options);
+}
+
+/**
+ * Atomically updates Auto-Schedule Mode in-memory and in Firestore.
+ * Strictly updates ONLY 'autoSchedule', 'autoScheduleMode', 'autoScheduleEnabled', 'updatedAt'.
+ * NEVER overwrites the store settings document with hardcoded fallback objects.
+ * 
+ * @param {boolean} isEnabled 
+ * @param {Object} [options={}]
+ * @returns {Promise<{ success: boolean, updatedFields: Object, state: Object }>}
+ */
+export async function updateAutoScheduleMode(isEnabled, options = {}) {
+    const autoSchedule = Boolean(isEnabled);
+
+    // Strictly atomic payload containing ONLY the auto-schedule fields
+    const updatedFields = {
+        autoSchedule,
+        autoScheduleMode: autoSchedule,
+        autoScheduleEnabled: autoSchedule,
+        updatedAt: (typeof options.timestamp !== 'undefined') ? options.timestamp : new Date().toISOString()
+    };
+
+    // 1. Update in-memory state non-destructively: all other settings remain 100% intact
+    adminStoreSettingsState.autoSchedule = autoSchedule;
+    adminStoreSettingsState.autoScheduleMode = autoSchedule;
+    adminStoreSettingsState.autoScheduleEnabled = autoSchedule;
+    adminStoreSettingsState.updatedAt = updatedFields.updatedAt;
+
+    // 2. Synchronize to Firestore with { merge: true } if db or firestore is passed
+    const db = options.db || options.firestore || (typeof window !== 'undefined' && (window.adminFirestore || window.db));
+    if (db && typeof db.collection === 'function') {
+        try {
+            const fsTimestamp = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : updatedFields.updatedAt;
+            const fsPayload = { ...updatedFields, updatedAt: fsTimestamp };
+            await Promise.all([
+                db.collection('settings').doc('storeSettings').set(fsPayload, { merge: true }),
+                db.collection('settings').doc('store_config').set(fsPayload, { merge: true })
+            ]);
+        } catch (err) {
+            console.warn('[admin.js] Firestore atomic auto-schedule update notice:', err.message);
+        }
+    }
+
+    // 3. Sync to backend API if requested
+    if (typeof options.syncToBackend === 'function') {
+        try {
+            await options.syncToBackend(updatedFields);
+        } catch (err) {
+            console.warn('[admin.js] Backend atomic auto-schedule sync notice:', err.message);
+        }
+    }
+
+    return {
+        success: true,
+        updatedFields,
+        state: getAdminStoreSettings()
+    };
+}
+
+/**
+ * Toggles current Auto-Schedule Mode between Enabled and Disabled atomically.
+ * @param {Object} [options={}]
+ * @returns {Promise<{ success: boolean, updatedFields: Object, state: Object }>}
+ */
+export async function toggleAutoSchedule(options = {}) {
+    const currentAuto = Boolean(adminStoreSettingsState.autoSchedule || adminStoreSettingsState.autoScheduleMode || adminStoreSettingsState.autoScheduleEnabled);
+    return await updateAutoScheduleMode(!currentAuto, options);
+}
+
+// Global browser window bindings
+if (typeof window !== 'undefined') {
+    window.adminStoreSettingsState = adminStoreSettingsState;
+    window.getAdminStoreSettings = getAdminStoreSettings;
+    window.setAdminStoreSettings = setAdminStoreSettings;
+    window.updateShopStatus = updateShopStatus;
+    window.toggleShopStatusModule = toggleShopStatus;
+    window.updateAutoScheduleMode = updateAutoScheduleMode;
+    window.toggleAutoScheduleModule = toggleAutoSchedule;
+}
+
+
