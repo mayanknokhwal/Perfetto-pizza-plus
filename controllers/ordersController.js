@@ -95,10 +95,19 @@ async function autoRejectExpiredOrderBackend(order) {
     const rawPhone = order.customerPhone || order.phone || order.customer?.phone || '';
     const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
-    if (refundAmount > 0 && cleanPhone && !order.walletRefunded) {
+    const liveDoc = await getFirestoreDoc('orders', orderId);
+    const isAlreadyRefunded = Boolean(
+        order.walletRefundProcessed ||
+        order.walletRefunded ||
+        (liveDoc && (liveDoc.walletRefundProcessed || liveDoc.walletRefunded))
+    );
+
+    if (refundAmount > 0 && cleanPhone && !isAlreadyRefunded) {
+        order.walletRefundProcessed = true;
         order.walletRefunded = true;
         order.walletRefundAmount = refundAmount;
-        order.walletRefundedAt = new Date().toISOString();
+        order.refundTimestamp = new Date().toISOString();
+        order.walletRefundedAt = order.refundTimestamp;
 
         try {
             let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`) || await getFirestoreDoc('users', cleanPhone);
@@ -139,6 +148,13 @@ async function autoRejectExpiredOrderBackend(order) {
         } catch (refErr) {
             console.warn('Notice processing sweeper backend wallet refund:', refErr.message);
         }
+    } else if (refundAmount > 0 && isAlreadyRefunded) {
+        order.walletRefundProcessed = true;
+        order.walletRefunded = true;
+        order.walletRefundAmount = refundAmount;
+        order.refundTimestamp = order.refundTimestamp || liveDoc?.refundTimestamp || new Date().toISOString();
+        order.walletRefundedAt = order.refundTimestamp;
+        console.log(`ℹ️ [BACKEND SWEEP REFUND] Order #${orderId} already marked walletRefundProcessed=true. Skipping redundant balance increment.`);
     }
 
     order.updatedAt = new Date().toISOString();
@@ -688,9 +704,12 @@ async function handleOrdersRequest(req, res) {
 
             const targetId = String(effectiveId);
             let targetOrder = global.__perfettoOrdersList.find(o => String(o.orderId || o.id) === targetId);
+            const liveDoc = await getFirestoreDoc('orders', targetId);
 
             if (!targetOrder) {
-                targetOrder = await getFirestoreDoc('orders', targetId) || { id: targetId, orderId: targetId };
+                targetOrder = liveDoc || { id: targetId, orderId: targetId };
+            } else if (liveDoc) {
+                targetOrder = { ...liveDoc, ...targetOrder };
             }
 
             if (status === 'rejected' || status === 'cancelled') {
@@ -923,10 +942,20 @@ async function handleOrdersRequest(req, res) {
                 const rawPhone = targetOrder.customerPhone || targetOrder.phone || targetOrder.customer?.phone || '';
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
-                if (refundAmount > 0 && cleanPhone && !targetOrder.walletRefunded) {
+                const isAlreadyRefunded = Boolean(
+                    targetOrder.walletRefundProcessed ||
+                    targetOrder.walletRefunded ||
+                    body?.walletRefundProcessed ||
+                    body?.walletRefunded ||
+                    (liveDoc && (liveDoc.walletRefundProcessed || liveDoc.walletRefunded))
+                );
+
+                if (refundAmount > 0 && cleanPhone && !isAlreadyRefunded) {
+                    targetOrder.walletRefundProcessed = true;
                     targetOrder.walletRefunded = true;
                     targetOrder.walletRefundAmount = refundAmount;
-                    targetOrder.walletRefundedAt = new Date().toISOString();
+                    targetOrder.refundTimestamp = new Date().toISOString();
+                    targetOrder.walletRefundedAt = targetOrder.refundTimestamp;
 
                     try {
                         let userDoc = await getFirestoreDoc('users', `phone_${cleanPhone}`) || await getFirestoreDoc('users', cleanPhone);
@@ -941,7 +970,7 @@ async function handleOrdersRequest(req, res) {
 
                         // Release hold if present
                         if (Array.isArray(userDoc.walletTransactions)) {
-                            const holdTx = userDoc.walletTransactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === String(targetId) && tx.status === 'LOCKED_HOLD');
+                            const holdTx = userDoc.walletTransactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === String(targetId) && (tx.status === 'LOCKED_HOLD' || tx.status === 'hold'));
                             if (holdTx) {
                                 holdTx.status = 'released';
                             }
@@ -976,6 +1005,13 @@ async function handleOrdersRequest(req, res) {
                     } catch (refErr) {
                         console.warn('Notice processing backend wallet refund:', refErr.message);
                     }
+                } else if (refundAmount > 0) {
+                    targetOrder.walletRefundProcessed = true;
+                    targetOrder.walletRefunded = true;
+                    targetOrder.walletRefundAmount = refundAmount;
+                    targetOrder.refundTimestamp = targetOrder.refundTimestamp || liveDoc?.refundTimestamp || new Date().toISOString();
+                    targetOrder.walletRefundedAt = targetOrder.refundTimestamp;
+                    console.log(`ℹ️ [BACKEND REFUND] Order #${targetId} already marked walletRefundProcessed=true. Skipping redundant balance increment.`);
                 }
 
                 // Also atomically sync voided status to customer profile in users/{phone}

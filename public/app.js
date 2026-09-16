@@ -4867,14 +4867,32 @@ function reconcileWalletTranches(wallet) {
     // 1. Collect credits and debits
     const credits = [];
     const debits = [];
+    const releasedOrderHolds = new Set();
+    const processedRefundOrderIds = new Set();
+
+    // First pass: identify order IDs with released or cancelled holds
+    wallet.transactions.forEach(tx => {
+        if (!tx) return;
+        const txType = String(tx.type || '').toLowerCase().trim();
+        const txStatus = String(tx.status || '').toLowerCase().trim();
+        const orderId = String(tx.orderId || '').trim();
+        if ((txType === 'hold' || txType === 'debit') && (txStatus === 'released' || txStatus === 'cancelled')) {
+            if (orderId) {
+                releasedOrderHolds.add(orderId);
+                releasedOrderHolds.add(orderId.replace(/^#/, ''));
+            }
+        }
+    });
 
     wallet.transactions.forEach(tx => {
         if (!tx) return;
         const txType = String(tx.type || '').toLowerCase().trim();
         const txStatus = String(tx.status || '').toLowerCase().trim();
+        const txOrderId = String(tx.orderId || '').trim();
+        const cleanOrderId = txOrderId.replace(/^#/, '');
 
-        if (txType === 'debit' || (txType === 'hold' && (txStatus === 'locked_hold' || txStatus === 'hold' || txStatus === 'completed'))) {
-            if (txStatus !== 'released' && txStatus !== 'cancelled') {
+        if (txType === 'debit' || (tx.type === 'hold' && tx.status === 'LOCKED_HOLD') || (txType === 'hold' && (txStatus === 'locked_hold' || txStatus === 'hold' || txStatus === 'completed'))) {
+            if (tx.status !== 'released' && txStatus !== 'released' && txStatus !== 'cancelled') {
                 const amt = Math.max(0, Math.abs(Number(tx.amount) || 0));
                 if (amt > 0) {
                     const parsedDebitTime = parseTs(tx.createdAt || tx.timestamp);
@@ -4883,6 +4901,22 @@ function reconcileWalletTranches(wallet) {
                 }
             }
         } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback') {
+            // Strict 1-to-1 Order Idempotency:
+            if (txType === 'refund' && txOrderId) {
+                // Deduplicate redundant refund entries for the same orderId
+                if (processedRefundOrderIds.has(txOrderId) || processedRefundOrderIds.has(cleanOrderId)) {
+                    return;
+                }
+                processedRefundOrderIds.add(txOrderId);
+                if (cleanOrderId) processedRefundOrderIds.add(cleanOrderId);
+
+                // If this order's escrow hold was already released/cancelled, the original credit tranches
+                // were never deducted (unfrozen). Adding this refund as a new credit tranche would double the balance!
+                if (releasedOrderHolds.has(txOrderId) || releasedOrderHolds.has(cleanOrderId)) {
+                    return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
+                }
+            }
+
             if (tx.initialAmount === undefined) {
                 tx.initialAmount = (tx.originalAmount !== undefined)
                     ? Number(tx.originalAmount)
@@ -5616,6 +5650,29 @@ function updateCartCashbackIncentiveBar(subtotal) {
 }
 window.updateCartCashbackIncentiveBar = updateCartCashbackIncentiveBar;
 
+function getTotalFundedWalletCredit(wallet = currentCustomerWallet) {
+    if (!wallet) return 0;
+    let totalCredit = 0;
+    if (Array.isArray(wallet.transactions)) {
+        const seenTx = new Set();
+        wallet.transactions.forEach(tx => {
+            if (!tx) return;
+            const type = String(tx.type || '').toLowerCase().trim();
+            const txId = String(tx.id || '').trim();
+            if (txId && seenTx.has(txId)) return;
+            if (txId) seenTx.add(txId);
+
+            if (type === 'credit' || type === 'cashback') {
+                const amt = Number(tx.initialAmount !== undefined ? tx.initialAmount : (tx.originalAmount !== undefined ? tx.originalAmount : tx.amount)) || 0;
+                totalCredit += Math.max(0, amt);
+            }
+        });
+    }
+    const directBal = Number(wallet.balance) || 0;
+    return Math.max(totalCredit, directBal);
+}
+window.getTotalFundedWalletCredit = getTotalFundedWalletCredit;
+
 function getActiveLockedWalletInfo() {
     let lockedAmount = 0;
     const lockedOrderIds = [];
@@ -5623,22 +5680,46 @@ function getActiveLockedWalletInfo() {
         let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
         if (Array.isArray(orders)) {
             const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+            const seenOrderIds = new Set();
+
             orders.forEach(o => {
                 if (!o) return;
+                const rawId = String(o.id || o.orderId || '').trim();
+                const idClean = rawId.replace(/^#/, '').trim();
+                if (!idClean || seenOrderIds.has(idClean)) return;
+
                 const st = String(o.status || '').toLowerCase().trim();
-                if (!terminalStatuses.includes(st)) {
+                const isRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
+
+                if (!terminalStatuses.includes(st) && !isRefunded) {
+                    seenOrderIds.add(idClean);
                     const held = Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0);
                     if (held > 0) {
-                        lockedAmount += held;
-                        const idClean = String(o.id || o.orderId || '').replace(/^#/, '');
-                        if (idClean && !lockedOrderIds.includes(idClean)) {
-                            lockedOrderIds.push(idClean);
+                        // Verify that the wallet transaction ledger hasn't marked this order's hold released
+                        const isReleasedInWallet = currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) &&
+                            currentCustomerWallet.transactions.some(tx => tx && String(tx.orderId || '').replace(/^#/, '') === idClean && (tx.status === 'released' || tx.type === 'REFUND'));
+
+                        if (!isReleasedInWallet) {
+                            lockedAmount += held;
+                            if (!lockedOrderIds.includes(idClean)) {
+                                lockedOrderIds.push(idClean);
+                            }
                         }
                     }
                 }
             });
         }
     } catch (e) {}
+
+    // Cap total held funds at the user's actual lifetime available / funded wallet credit
+    const totalFunded = (typeof getTotalFundedWalletCredit === 'function')
+        ? getTotalFundedWalletCredit(currentCustomerWallet)
+        : (currentCustomerWallet ? (Number(currentCustomerWallet.balance) || 0) : 0);
+
+    if (totalFunded > 0) {
+        lockedAmount = Math.min(lockedAmount, totalFunded);
+    }
+
     return { lockedAmount, lockedOrderIds };
 }
 window.getActiveLockedWalletInfo = getActiveLockedWalletInfo;
@@ -5661,7 +5742,7 @@ function updateCheckoutWalletUI() {
     const availableBalance = getEffectiveWalletBalance();
     const { lockedAmount, lockedOrderIds } = getActiveLockedWalletInfo();
 
-    // System Toggle Behavior: When disabled, existing wallet balance remains 100% redeemable until exhausted
+    // System Toggle Behavior: When disabled or balance depleted without active locks, hide card
     if ((availableBalance <= 0 && lockedAmount <= 0) || cart.length === 0) {
         walletCard.style.display = 'none';
         isWalletRedemptionSelected = false;
@@ -5708,18 +5789,45 @@ function updateCheckoutWalletUI() {
     // 100% Unrestricted Redemption: Allow customers to redeem up to 100% of available wallet balance on any order value
     const maxRedeemable = Math.min(availableBalance, baseTotal);
 
-    if (checkbox) {
-        checkbox.disabled = false;
-        checkbox.checked = isWalletRedemptionSelected;
+    // Zero-Balance Guard: If available balance <= 0 or maxRedeemable <= 0, strictly disable/hide checkbox toggle
+    if (availableBalance <= 0 || maxRedeemable <= 0) {
+        isWalletRedemptionSelected = false;
+        appliedWalletDiscountAmount = 0;
+        if (checkbox) {
+            checkbox.checked = false;
+            checkbox.disabled = true;
+        }
+        if (checkLabelWrap) {
+            checkLabelWrap.style.display = 'none';
+            checkLabelWrap.classList.add('is-disabled');
+            checkLabelWrap.style.opacity = '0.35';
+            checkLabelWrap.style.pointerEvents = 'none';
+            checkLabelWrap.style.cursor = 'not-allowed';
+        }
+        if (labelEl) {
+            labelEl.textContent = typeof t === 'function' 
+                ? t('wallet_use_cash', { amount: formatPrice(0) }) 
+                : 'Use ₹0 Cash';
+        }
+    } else {
+        if (checkLabelWrap) {
+            checkLabelWrap.style.display = 'flex';
+            checkLabelWrap.classList.remove('is-disabled');
+            checkLabelWrap.style.opacity = '1';
+            checkLabelWrap.style.pointerEvents = 'auto';
+            checkLabelWrap.style.cursor = 'pointer';
+        }
+        if (checkbox) {
+            checkbox.disabled = false;
+            checkbox.checked = isWalletRedemptionSelected;
+        }
+        if (labelEl) {
+            labelEl.textContent = typeof t === 'function' 
+                ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
+                : `Use ${formatPrice(maxRedeemable)} Cash`;
+        }
     }
-    if (checkLabelWrap) {
-        checkLabelWrap.classList.remove('is-disabled');
-    }
-    if (labelEl) {
-        labelEl.textContent = typeof t === 'function' 
-            ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
-            : `Use ${formatPrice(maxRedeemable)} Cash`;
-    }
+
     // Display gentle notice if system is disabled and customer is utilizing legacy balance
     if (!isSystemEnabled) {
         if (hintEl) {
@@ -5739,7 +5847,7 @@ function updateCheckoutWalletUI() {
         }
     }
 
-    if (isWalletRedemptionSelected) {
+    if (isWalletRedemptionSelected && maxRedeemable > 0) {
         appliedWalletDiscountAmount = maxRedeemable;
         const finalTotal = Math.max(0, baseTotal - appliedWalletDiscountAmount);
         if (discountRow) discountRow.style.display = 'flex';
@@ -5823,12 +5931,17 @@ function handleToggleUseWallet(isChecked) {
     const { lockedAmount, lockedOrderIds } = (typeof getActiveLockedWalletInfo === 'function') ? getActiveLockedWalletInfo() : { lockedAmount: 0, lockedOrderIds: [] };
     const avail = (typeof getEffectiveWalletBalance === 'function') ? getEffectiveWalletBalance() : 0;
 
-    if (isChecked && avail <= 0 && lockedAmount > 0) {
-        const orderLabel = lockedOrderIds.length > 0 ? `active Order #${lockedOrderIds.join(', #')}` : 'an active order';
-        showToast(`Your previous wallet balance of ₹${lockedAmount} is currently locked in ${orderLabel}.`);
+    if (avail <= 0) {
         isWalletRedemptionSelected = false;
         const cb = document.getElementById('checkbox-use-wallet');
-        if (cb) cb.checked = false;
+        if (cb) {
+            cb.checked = false;
+            cb.disabled = true;
+        }
+        if (isChecked && lockedAmount > 0) {
+            const orderLabel = lockedOrderIds.length > 0 ? `active Order #${lockedOrderIds.join(', #')}` : 'an active order';
+            showToast(`Your previous wallet balance of ₹${lockedAmount} is currently locked in ${orderLabel}.`);
+        }
         updateCheckoutWalletUI();
         return;
     }
@@ -5856,13 +5969,28 @@ async function debitCustomerWallet(phone, amount, orderId) {
         }
     }
 
+    // Cap total held funds at the user's actual lifetime available balance—never allow aggregate holds to exceed total funded wallet credit
+    const totalFunded = (typeof getTotalFundedWalletCredit === 'function')
+        ? getTotalFundedWalletCredit(currentCustomerWallet)
+        : (Number(currentCustomerWallet.balance) || 0);
+
+    const activeLocked = (typeof getActiveLockedWalletInfo === 'function') ? getActiveLockedWalletInfo().lockedAmount : 0;
+    const maxPermissibleHold = Math.max(0, totalFunded - activeLocked);
+    const currentAvail = (typeof getEffectiveWalletBalance === 'function') ? getEffectiveWalletBalance() : 0;
+    const finalHoldAmt = Math.min(debitAmt, maxPermissibleHold, currentAvail);
+
+    if (finalHoldAmt <= 0) {
+        console.warn(`[WALLET] Refusing hold for Order #${effectiveOrderId}: available balance is zero or aggregate holds would exceed total funded credit.`);
+        return;
+    }
+
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
 
     // Prepend escrow hold transaction record (funds locked in escrow until delivery or rejection)
     const holdTxData = {
         id: `tx_hold_${effectiveOrderId}`,
         type: 'hold',
-        amount: debitAmt,
+        amount: finalHoldAmt,
         orderId: effectiveOrderId,
         description: `Wallet hold for Order #${effectiveOrderId}`,
         createdAt: new Date().toISOString(),
@@ -5934,15 +6062,16 @@ function releaseWalletHold(orderId, refundAmount) {
     if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
 
     const effectiveOrderId = String(orderId || '');
+    const cleanOrderId = effectiveOrderId.replace(/^#/, '');
     const refundAmt = Math.round(Number(refundAmount) || 0);
 
-    const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === effectiveOrderId);
+    const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId));
     if (holdTx) {
         holdTx.status = 'released';
     }
 
     const txId = `tx_refund_${effectiveOrderId}`;
-    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && String(tx.orderId) === effectiveOrderId)));
+    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId))));
     if (!alreadyRefunded && refundAmt > 0) {
         const refundTx = {
             id: txId,
@@ -7983,12 +8112,24 @@ function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
-    // Fetch latest wallet balance & attach real-time listener for current customer phone
-    if (profile && profile.phone) {
-        fetchCustomerWallet(profile.phone).then(() => {
+    // Reset checkout redemption selection fresh to prevent carrying over state
+    isWalletRedemptionSelected = false;
+    appliedWalletDiscountAmount = 0;
+
+    const phone = (profile && profile.phone) 
+        || (currentUserProfile && currentUserProfile.phone) 
+        || (typeof getSavedDeliveryProfile === 'function' && getSavedDeliveryProfile()?.phone)
+        || (safeStorage.getJSON('perfettoSavedProfile', null)?.phone) 
+        || '';
+
+    // Recompute spendable balance fresh from Firestore, clearing all lingering or dangling state references
+    if (phone) {
+        fetchCustomerWallet(phone).then(() => {
             updateCheckoutWalletUI();
         });
-        listenToCustomerWalletRealtime(profile.phone);
+        listenToCustomerWalletRealtime(phone);
+    } else if (currentCustomerWallet) {
+        reconcileWalletTranches(currentCustomerWallet);
     }
 
     const itemCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
@@ -8337,7 +8478,8 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
     const deliveryFee = deliveryInfo.finalDeliveryFee;
     const baseGrandTotal = subtotal + deliveryFee;
-    const walletDiscountToApply = isWalletRedemptionSelected ? Math.min(appliedWalletDiscountAmount, baseGrandTotal) : 0;
+    const currentAvailableFunds = (typeof getEffectiveWalletBalance === 'function') ? getEffectiveWalletBalance() : 0;
+    const walletDiscountToApply = isWalletRedemptionSelected ? Math.min(appliedWalletDiscountAmount, currentAvailableFunds, baseGrandTotal) : 0;
     const grandTotal = Math.max(0, baseGrandTotal - walletDiscountToApply);
     // Hybrid Reward System & Minimum Milestone Qualification Engine:
     // Minimum Qualification Check:
@@ -12152,9 +12294,12 @@ async function autoRejectExpiredCustomerOrder(order) {
     }
 
     // If wallet money was used, immediately refund the exact deducted amount
-    if (refundAmount > 0 && !order.walletRefunded) {
+    const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+    if (refundAmount > 0 && !isAlreadyRefunded) {
+        order.walletRefundProcessed = true;
         order.walletRefunded = true;
         order.walletRefundAmount = refundAmount;
+        order.refundTimestamp = nowIso;
         order.walletRefundedAt = nowIso;
 
         if (typeof releaseWalletHold === 'function') {
@@ -12220,9 +12365,11 @@ async function autoRejectExpiredCustomerOrder(order) {
                 updatePayload['scratchCard.amount'] = 0;
             }
 
-            if (refundAmount > 0 && customerPhone) {
+            if (refundAmount > 0 && customerPhone && !isAlreadyRefunded) {
+                updatePayload.walletRefundProcessed = true;
                 updatePayload.walletRefunded = true;
                 updatePayload.walletRefundAmount = refundAmount;
+                updatePayload.refundTimestamp = serverTs;
                 updatePayload.walletRefundedAt = serverTs;
 
                 const incrementFn = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
@@ -12275,8 +12422,10 @@ async function autoRejectExpiredCustomerOrder(order) {
                     status: 'rejected',
                     rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
                     autoExpired: true,
+                    walletRefundProcessed: refundAmount > 0,
                     walletRefunded: refundAmount > 0,
                     walletRefundAmount: refundAmount,
+                    refundTimestamp: nowIso,
                     customerPhone: customerPhone
                 })
             });
@@ -12399,9 +12548,12 @@ function renderOrderHistoryDetails() {
                     }
                 } else if (isCancelled) {
                     const heldAmount = Math.round(Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0));
-                    if (heldAmount > 0 && !o.walletRefunded) {
+                    const isAlreadyRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
+                    if (heldAmount > 0 && !isAlreadyRefunded) {
+                        o.walletRefundProcessed = true;
                         o.walletRefunded = true;
                         o.walletRefundAmount = heldAmount;
+                        o.refundTimestamp = new Date().toISOString();
                         if (typeof releaseWalletHold === 'function') {
                             releaseWalletHold(targetOrderId, heldAmount);
                         }
@@ -17564,6 +17716,10 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 target.rejectionReason = freshOrderData.rejectionReason;
                 updated = true;
             }
+            if (freshOrderData.walletRefundProcessed !== undefined) {
+                target.walletRefundProcessed = freshOrderData.walletRefundProcessed;
+                updated = true;
+            }
             if (freshOrderData.walletRefunded !== undefined) {
                 target.walletRefunded = freshOrderData.walletRefunded;
                 updated = true;
@@ -17571,6 +17727,19 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
             if (freshOrderData.walletRefundAmount !== undefined) {
                 target.walletRefundAmount = freshOrderData.walletRefundAmount;
                 updated = true;
+            }
+            if (freshOrderData.refundTimestamp) {
+                target.refundTimestamp = freshOrderData.refundTimestamp;
+                updated = true;
+            }
+
+            // If order transitioned to rejected or cancelled and had held funds, release hold
+            const isNowRejected = (freshOrderData.status === 'rejected' || freshOrderData.status === 'cancelled');
+            if (isNowRejected) {
+                const heldAmount = Math.round(Number(target.walletDiscount || target.usedWalletCash || target.usedWallet || target.walletRefundAmount || 0));
+                if (typeof releaseWalletHold === 'function' && heldAmount > 0) {
+                    releaseWalletHold(orderId, heldAmount);
+                }
             }
             if (isOrderThreeHoursExpired(target)) {
                 autoRejectExpiredCustomerOrder(target);

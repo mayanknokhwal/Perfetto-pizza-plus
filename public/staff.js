@@ -456,14 +456,18 @@ function listenToFirestoreStaffOrders() {
                 const isIncoming = (status === 'placed' || status === 'pending' || status === 'new');
 
                 if (change.type === 'added' || change.type === 'modified') {
+                    const isDismissed = staffDismissedAlertOrderIds.has(orderId) || 
+                                        (matchingKey && staffDismissedAlertOrderIds.has(matchingKey));
                     const isAlreadyAlerted = staffIncomingAlertedIds.has(docId) ||
                                              staffIncomingAlertedIds.has(orderId) ||
                                              (matchingKey && staffIncomingAlertedIds.has(matchingKey));
 
-                    if (isIncoming && !isAlreadyAlerted) {
+                    if (isIncoming && !isAlreadyAlerted && !isDismissed) {
                         staffIncomingAlertedIds.add(docId);
                         staffIncomingAlertedIds.add(orderId);
                         if (matchingKey) staffIncomingAlertedIds.add(matchingKey);
+                        staffProcessedAudioOrderIds.add(orderId);
+                        if (matchingKey) staffProcessedAudioOrderIds.add(matchingKey);
                         processedOrderDocIds.add(docId);
                         processedOrderDocIds.add(orderId);
                         if (matchingKey) processedOrderDocIds.add(matchingKey);
@@ -620,9 +624,12 @@ async function autoRejectExpiredOrder(order) {
         order.scratchCard.wonAmount = 0;
         order.scratchCard.amount = 0;
     }
-    if (refundAmount > 0) {
+    const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+    if (refundAmount > 0 && !isAlreadyRefunded) {
+        order.walletRefundProcessed = true;
         order.walletRefunded = true;
         order.walletRefundAmount = refundAmount;
+        order.refundTimestamp = nowIso;
         order.walletRefundedAt = nowIso;
     }
 
@@ -657,9 +664,11 @@ async function autoRejectExpiredOrder(order) {
                 orderUpdate['scratchCard.amount'] = 0;
             }
 
-            if (refundAmount > 0 && customerPhone) {
+            if (refundAmount > 0 && customerPhone && !isAlreadyRefunded) {
+                orderUpdate.walletRefundProcessed = true;
                 orderUpdate.walletRefunded = true;
                 orderUpdate.walletRefundAmount = refundAmount;
+                orderUpdate.refundTimestamp = serverTs;
                 orderUpdate.walletRefundedAt = serverTs;
 
                 const incrementFn = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
@@ -727,8 +736,10 @@ async function autoRejectExpiredOrder(order) {
                 status: 'rejected',
                 rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
                 autoExpired: true,
+                walletRefundProcessed: refundAmount > 0,
                 walletRefunded: refundAmount > 0,
                 walletRefundAmount: refundAmount,
+                refundTimestamp: nowIso,
                 customerPhone: customerPhone
             })
         });
@@ -2184,10 +2195,10 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     // Check for newly arrived incoming orders (status === 'placed', 'new', or 'pending') while app is active
     if (isInitialOrdersSyncDone) {
         const newIncomingOrders = staffOrders.filter(o => {
-            const id = getOrderMatchingKey(o);
-            const s = String(o.status || '').toLowerCase().trim();
+            const s = String(o.status || '').trim().toLowerCase();
             const isIncoming = (s === 'placed' || s === 'pending' || s === 'new');
-            return isIncoming && !staffSeenOrderIds.has(id);
+            const id = getOrderMatchingKey(o);
+            return isIncoming && !staffSeenOrderIds.has(id) && !staffDismissedAlertOrderIds.has(id);
         });
 
         if (newIncomingOrders.length > 0) {
@@ -4605,8 +4616,10 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
             0
         ));
         if (refundAmount > 0) {
+            patchPayload.walletRefundProcessed = true;
             patchPayload.walletRefunded = true;
             patchPayload.walletRefundAmount = refundAmount;
+            patchPayload.refundTimestamp = new Date().toISOString();
         }
     }
 
@@ -4826,9 +4839,13 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 const rawPhone = order?.customerPhone || order?.phone || order?.customer?.phone || extraPayload?.customerPhone || '';
                 const cleanPhone = String(rawPhone).replace(/[^0-9]/g, '').slice(-10);
 
-                if (refundAmount > 0 && cleanPhone && FieldValue) {
+                const isAlreadyRefunded = Boolean(order?.walletRefundProcessed || order?.walletRefunded);
+
+                if (refundAmount > 0 && cleanPhone && FieldValue && !isAlreadyRefunded) {
+                    fsUpdate.walletRefundProcessed = true;
                     fsUpdate.walletRefunded = true;
                     fsUpdate.walletRefundAmount = refundAmount;
+                    fsUpdate.refundTimestamp = serverTs;
                     fsUpdate.walletRefundedAt = serverTs;
 
                     const batch = db.batch();
@@ -4894,6 +4911,13 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     await batch.commit();
                     firestoreSucceeded = true;
                     console.log(`✅ [STAFF REJECT] Atomic wallet refund committed for Order #${exactDocId}`);
+                } else if (refundAmount > 0 && isAlreadyRefunded) {
+                    fsUpdate.walletRefundProcessed = true;
+                    fsUpdate.walletRefunded = true;
+                    fsUpdate.walletRefundAmount = refundAmount;
+                    console.log(`[STAFF REJECT] Order #${exactDocId} already marked walletRefundProcessed=true. Skipping redundant wallet credit.`);
+                    await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
+                    firestoreSucceeded = true;
                 } else {
                     console.log(`Writing order ${exactDocId} status "${effectiveStatus}" to Firestore...`);
                     await db.collection('orders').doc(exactDocId).set(fsUpdate, { merge: true });
@@ -5215,6 +5239,8 @@ let isOrderAlertAudioPlaying = false;
 let currentAlertingOrderId = null;
 let staffAudioContext = null;
 let staffVibrationInterval = null;
+const staffDismissedAlertOrderIds = new Set();
+const staffProcessedAudioOrderIds = new Set();
 
 /**
  * Triggers hardware vibration alert pattern: 300ms on, 150ms off, 300ms on, 150ms off, 500ms on
@@ -5323,23 +5349,30 @@ function playSynthesizedAlertBeep() {
     try {
         const ctx = getStaffAudioContext();
         if (!ctx) return;
-        if (ctx.state === 'suspended') {
-            ctx.resume().catch(() => {});
+        const scheduleChime = () => {
+            try {
+                const now = ctx.currentTime;
+                const notes = [587.33, 739.99, 880.00, 1174.66]; // D5, F#5, A5, D6 cheerful harmonic chime
+                notes.forEach((freq, index) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + index * 0.12);
+                    gain.gain.setValueAtTime(0.3, now + index * 0.12);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.12 + 0.35);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now + index * 0.12);
+                    osc.stop(now + index * 0.12 + 0.36);
+                });
+            } catch (e) { }
+        };
+
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+            ctx.resume().then(scheduleChime).catch(() => {});
+        } else {
+            scheduleChime();
         }
-        const now = ctx.currentTime;
-        const notes = [587.33, 739.99, 880.00, 1174.66]; // D5, F#5, A5, D6 cheerful harmonic chime
-        notes.forEach((freq, index) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, now + index * 0.12);
-            gain.gain.setValueAtTime(0.3, now + index * 0.12);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.12 + 0.35);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now + index * 0.12);
-            osc.stop(now + index * 0.12 + 0.36);
-        });
     } catch (e) {
         console.warn('Synthesized audio chime notice:', e.message);
     }
@@ -5412,12 +5445,14 @@ function startSynthesizedBeepLoop() {
 }
 
 function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
-    if (isOrderAlertAudioPlaying && currentAlertingOrderId === String(orderId)) {
+    const cleanId = String(orderId || 'New').replace(/^#/, '').trim();
+    if (isOrderAlertAudioPlaying && currentAlertingOrderId === cleanId) {
         return; // Already playing for this order
     }
 
-    currentAlertingOrderId = String(orderId || 'New');
+    currentAlertingOrderId = cleanId;
     isOrderAlertAudioPlaying = true;
+    staffProcessedAudioOrderIds.add(cleanId);
     console.log(`🔊 [Order Alert Loop] Triggering continuous looping order alert for Order #${currentAlertingOrderId}...`);
 
     // Show persistent visual pulsing alert strip
@@ -5457,7 +5492,10 @@ function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
     try {
         const audio = getOrderAlertAudio();
         if (audio) {
-            audio.currentTime = 0;
+            try {
+                audio.pause();
+                audio.currentTime = 0;
+            } catch (e) { }
             audio.loop = true;
             audio.muted = false;
             audio.volume = 1.0;
@@ -5469,6 +5507,10 @@ function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
                     isAudioAutoplayBlocked = false;
                     dismissStaffAudioBanner();
                 }).catch((err) => {
+                    if (err.name === 'AbortError') {
+                        // User dismissed or stopped audio while play() was resolving. Normal behavior!
+                        return;
+                    }
                     console.warn('HTML5 Audio autoplay restricted note:', err.message);
                     isAudioAutoplayBlocked = true;
                     pendingOrderAlertData = { orderId, details };
@@ -5488,6 +5530,23 @@ function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
 }
 window.startOrderAlertAudio = startOrderAlertAudio;
 window.triggerIncomingOrderAlert = startOrderAlertAudio;
+try {
+    Object.defineProperty(window, 'isOrderAlertAudioPlaying', {
+        get: () => isOrderAlertAudioPlaying,
+        set: (v) => { isOrderAlertAudioPlaying = v; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'currentAlertingOrderId', {
+        get: () => currentAlertingOrderId,
+        set: (v) => { currentAlertingOrderId = v; },
+        configurable: true
+    });
+    Object.defineProperty(window, 'isAudioAutoplayBlocked', {
+        get: () => isAudioAutoplayBlocked,
+        set: (v) => { isAudioAutoplayBlocked = v; },
+        configurable: true
+    });
+} catch (e) { }
 
 /**
  * Stops and resets the order alert audio immediately (audio.pause(), audio.currentTime = 0)
@@ -5519,6 +5578,8 @@ function stopOrderAlertAudio() {
             staffOrderAlertAudio.pause();
             staffOrderAlertAudio.currentTime = 0;
             staffOrderAlertAudio.loop = true;
+            staffOrderAlertAudio.muted = false;
+            staffOrderAlertAudio.volume = 1.0;
         }
     } catch (e) { }
 
@@ -5600,8 +5661,27 @@ window.hideIncomingOrderModal = hideIncomingOrderModal;
  */
 function dismissIncomingOrderAlert() {
     const alertingId = currentAlertingOrderId;
+    if (alertingId) {
+        const cleanId = String(alertingId).replace(/^#/, '').trim();
+        staffDismissedAlertOrderIds.add(cleanId);
+        staffDismissedAlertOrderIds.add(String(alertingId));
+        staffProcessedAudioOrderIds.add(cleanId);
+        staffProcessedAudioOrderIds.add(String(alertingId));
+    }
     stopOrderAlertAudio();
     hideIncomingOrderModal();
+
+    // Reset autoplay suppression: user actively clicked "Dismiss" gesture
+    isAudioAutoplayBlocked = false;
+    isStaffAudioUnlocked = true;
+
+    // Warm and maintain the Web Audio context on this genuine click gesture
+    try {
+        const ctx = getStaffAudioContext();
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            ctx.resume().catch(() => {});
+        }
+    } catch (e) { }
 
     // Ensure the pending orders tab is active and re-render the pending feed
     if (currentStaffTab !== 'pending') {
