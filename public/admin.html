@@ -14975,6 +14975,19 @@
             return 0;
         }
 
+        const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+        function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
+            if (!originalExpiresAt) {
+                return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+            }
+            const expMs = new Date(originalExpiresAt).getTime();
+            if (isNaN(expMs) || expMs <= nowMs || (expMs - nowMs) < TWENTY_FOUR_HOURS_MS) {
+                return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+            }
+            return new Date(expMs).toISOString();
+        }
+        window.calculateRecoveredExpiry = calculateRecoveredExpiry;
+
         function isOrder100MinsExpired(order) {
             if (!order) return false;
             const status = String(order.status || '').toLowerCase().trim();
@@ -15030,6 +15043,9 @@
             }
 
             const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+            const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
+            const recoveredExpiresAt = calculateRecoveredExpiry(originalExpiresAt);
+
             if (refundAmount > 0 && !isAlreadyRefunded) {
                 order.walletRefundProcessed = true;
                 order.walletRefunded = true;
@@ -15089,22 +15105,42 @@
                             title: `+₹${refundAmount} Refund`,
                             description: `+₹${refundAmount} Refund for Order #${orderId}`,
                             status: 'completed',
+                            expiresAt: recoveredExpiresAt,
+                            originalExpiresAt: originalExpiresAt || null,
+                            graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                             timestamp: serverTs,
                             createdAt: serverTs
                         };
 
                         const userPrefixedRef = db.collection('users').doc(`phone_${customerPhone}`);
-                        batch.set(userPrefixedRef, { balance: incrementFn, walletBalance: incrementFn, updatedAt: serverTs }, { merge: true });
+                        batch.set(userPrefixedRef, {
+                            balance: incrementFn,
+                            walletBalance: incrementFn,
+                            expiresAt: recoveredExpiresAt,
+                            expired: false,
+                            updatedAt: serverTs
+                        }, { merge: true });
                         batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                         batch.set(userPrefixedRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
 
                         const userRawRef = db.collection('users').doc(customerPhone);
-                        batch.set(userRawRef, { balance: incrementFn, walletBalance: incrementFn, updatedAt: serverTs }, { merge: true });
+                        batch.set(userRawRef, {
+                            balance: incrementFn,
+                            walletBalance: incrementFn,
+                            expiresAt: recoveredExpiresAt,
+                            expired: false,
+                            updatedAt: serverTs
+                        }, { merge: true });
                         batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                         batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
 
                         const walletRef = db.collection('wallets').doc(customerPhone);
-                        batch.set(walletRef, { phone: customerPhone, balance: incrementFn, updatedAt: serverTs }, { merge: true });
+                        batch.set(walletRef, {
+                            phone: customerPhone,
+                            balance: incrementFn,
+                            expiresAt: recoveredExpiresAt,
+                            updatedAt: serverTs
+                        }, { merge: true });
                         batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                         batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
                     }

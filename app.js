@@ -4840,6 +4840,29 @@ function parseTimestampMs(val) {
 }
 window.parseTimestampMs = parseTimestampMs;
 
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Calculates dynamic expiry recovery window for refunded or unheld wallet balances.
+ * If original expiresAt is lapsed or within < 24 hours of lapsing, grants a strict 24-hour grace window.
+ * If original expiresAt is still valid with > 24 hours remaining, retains the immutable original timestamp.
+ * @param {string|number|Date} originalExpiresAt
+ * @param {number} [nowMs=Date.now()]
+ * @returns {string} ISO date string
+ */
+function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
+    if (!originalExpiresAt) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => new Date(v).getTime();
+    const expMs = parseTs(originalExpiresAt);
+    if (isNaN(expMs) || expMs <= nowMs || (expMs - nowMs) < TWENTY_FOUR_HOURS_MS) {
+        return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
+    }
+    return new Date(expMs).toISOString();
+}
+window.calculateRecoveredExpiry = calculateRecoveredExpiry;
+
 function reconcileWalletTranches(wallet) {
     if (!wallet) return 0;
     const nowMs = Date.now();
@@ -4919,7 +4942,24 @@ function reconcileWalletTranches(wallet) {
                 // If this order's escrow hold was already released/cancelled, the original credit tranches
                 // were never deducted (unfrozen). Adding this refund as a new credit tranche would double the balance!
                 if (releasedOrderHolds.has(txOrderId) || releasedOrderHolds.has(cleanOrderId)) {
-                    return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
+                    const hasExistingCreditTranche = wallet.transactions.some(t => t && (t.type === 'credit' || t.type === 'cashback'));
+                    if (hasExistingCreditTranche) {
+                        // Ensure unfrozen credit tranche receives the recovered expiry window from this refund
+                        if (tx.expiresAt) {
+                            wallet.transactions.forEach(t => {
+                                if (t && (t.type === 'credit' || t.type === 'cashback')) {
+                                    const cExp = parseTs(t.expiresAt);
+                                    if (isNaN(cExp) || cExp <= nowMs || (cExp - nowMs) < TWENTY_FOUR_HOURS_MS) {
+                                        t.expiresAt = tx.expiresAt;
+                                        t.expired = false;
+                                        t.status = 'active';
+                                    }
+                                }
+                            });
+                        }
+                        return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
+                    }
+                    // If no existing credit tranche is present in the ledger, this refund tx ITSELF provides the credit tranche!
                 }
             }
 
@@ -5049,6 +5089,7 @@ function reconcileWalletTranches(wallet) {
 
     if (earliestExpiryMs < Infinity) {
         wallet.expiresAt = new Date(earliestExpiryMs).toISOString();
+        wallet.expired = false;
     } else if (wallet.expiresAt) {
         const expMs = parseTs(wallet.expiresAt);
         if (!isNaN(expMs) && expMs <= nowMs) {
@@ -5992,6 +6033,22 @@ async function debitCustomerWallet(phone, amount, orderId) {
 
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
 
+    // Identify earliest expiresAt of active credit tranches to bind to this hold
+    let holdOriginalExpiresAt = null;
+    if (Array.isArray(currentCustomerWallet.transactions)) {
+        const activeTranches = currentCustomerWallet.transactions.filter(t => 
+            t && (t.type === 'credit' || t.type === 'cashback' || t.type === 'REFUND') &&
+            t.expiresAt && t.status !== 'expired'
+        );
+        if (activeTranches.length > 0) {
+            activeTranches.sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+            holdOriginalExpiresAt = activeTranches[0].expiresAt;
+        }
+    }
+    if (!holdOriginalExpiresAt && currentCustomerWallet.expiresAt) {
+        holdOriginalExpiresAt = currentCustomerWallet.expiresAt;
+    }
+
     // Prepend escrow hold transaction record (funds locked in escrow until delivery or rejection)
     const holdTxData = {
         id: `tx_hold_${effectiveOrderId}`,
@@ -6000,7 +6057,8 @@ async function debitCustomerWallet(phone, amount, orderId) {
         orderId: effectiveOrderId,
         description: `Wallet hold for Order #${effectiveOrderId}`,
         createdAt: new Date().toISOString(),
-        status: 'LOCKED_HOLD'
+        status: 'LOCKED_HOLD',
+        originalExpiresAt: holdOriginalExpiresAt
     };
     existingTx.unshift(holdTxData);
     currentCustomerWallet.transactions = existingTx.slice(0, 30);
@@ -6043,6 +6101,7 @@ async function debitCustomerWallet(phone, amount, orderId) {
     } catch (err) {
         console.warn('Error recording wallet hold in Firestore:', err);
     }
+    return holdOriginalExpiresAt;
 }
 window.debitCustomerWallet = debitCustomerWallet;
 
@@ -6063,7 +6122,7 @@ function commitWalletHold(orderId) {
 }
 window.commitWalletHold = commitWalletHold;
 
-function releaseWalletHold(orderId, refundAmount) {
+function releaseWalletHold(orderId, refundAmount, originalExpiresAt = null) {
     if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
 
@@ -6074,7 +6133,30 @@ function releaseWalletHold(orderId, refundAmount) {
     const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId));
     if (holdTx) {
         holdTx.status = 'released';
+        if (!originalExpiresAt && holdTx.originalExpiresAt) {
+            originalExpiresAt = holdTx.originalExpiresAt;
+        }
     }
+
+    if (!originalExpiresAt) {
+        try {
+            const storedOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+            const orderDoc = storedOrders.find(o => o && (String(o.id || o.orderId) === effectiveOrderId || String(o.id || o.orderId) === cleanOrderId));
+            if (orderDoc && (orderDoc.walletHoldExpiresAt || orderDoc.walletOriginalExpiresAt)) {
+                originalExpiresAt = orderDoc.walletHoldExpiresAt || orderDoc.walletOriginalExpiresAt;
+            }
+        } catch (e) {}
+    }
+
+    if (!originalExpiresAt && currentCustomerWallet.expiresAt) {
+        originalExpiresAt = currentCustomerWallet.expiresAt;
+    }
+
+    const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
+        ? calculateRecoveredExpiry(originalExpiresAt)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const isGraceApplied = new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime();
 
     const txId = `tx_refund_${effectiveOrderId}`;
     const alreadyRefunded = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId))));
@@ -6087,9 +6169,27 @@ function releaseWalletHold(orderId, refundAmount) {
             title: `+₹${refundAmt} Refund`,
             description: `+₹${refundAmt} Refund for Order #${effectiveOrderId}`,
             status: 'completed',
+            expiresAt: recoveredExpiresAt,
+            originalExpiresAt: originalExpiresAt || null,
+            graceApplied: isGraceApplied,
             createdAt: new Date().toISOString()
         };
         currentCustomerWallet.transactions.unshift(refundTx);
+    }
+
+    // Propagate recovered expiry window to credit tranches that were unfrozen
+    if (Array.isArray(currentCustomerWallet.transactions)) {
+        currentCustomerWallet.transactions.forEach(t => {
+            if (t && (t.type === 'credit' || t.type === 'cashback') && t.status !== 'redeemed') {
+                const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => new Date(v).getTime();
+                const cExp = parseTs(t.expiresAt);
+                if (isNaN(cExp) || cExp <= Date.now() || (cExp - Date.now()) < 24 * 60 * 60 * 1000) {
+                    t.expiresAt = recoveredExpiresAt;
+                    t.expired = false;
+                    t.status = 'active';
+                }
+            }
+        });
     }
 
     reconcileWalletTranches(currentCustomerWallet);
@@ -8652,7 +8752,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
 
     // If wallet cash was used, debit customer's wallet in Firestore & local state
     if (walletDiscountToApply > 0) {
-        debitCustomerWallet(customerPhone, walletDiscountToApply, orderId);
+        const holdExpiresAt = debitCustomerWallet(customerPhone, walletDiscountToApply, orderId);
+        newOrder.walletHoldExpiresAt = holdExpiresAt || null;
+        newOrder.walletOriginalExpiresAt = holdExpiresAt || null;
         isWalletRedemptionSelected = false;
         appliedWalletDiscountAmount = 0;
     }
@@ -12361,6 +12463,11 @@ async function autoRejectExpiredCustomerOrder(order) {
 
     // If wallet money was used, immediately refund the exact deducted amount
     const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+    const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
+    const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
+        ? calculateRecoveredExpiry(originalExpiresAt)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     if (refundAmount > 0 && !isAlreadyRefunded) {
         order.walletRefundProcessed = true;
         order.walletRefunded = true;
@@ -12369,10 +12476,12 @@ async function autoRejectExpiredCustomerOrder(order) {
         order.walletRefundedAt = nowIso;
 
         if (typeof releaseWalletHold === 'function') {
-            releaseWalletHold(orderId, refundAmount);
+            releaseWalletHold(orderId, refundAmount, originalExpiresAt);
         } else if (currentCustomerWallet) {
             const currentBal = Number(currentCustomerWallet.balance || 0);
             currentCustomerWallet.balance = currentBal + refundAmount;
+            currentCustomerWallet.expiresAt = recoveredExpiresAt;
+            currentCustomerWallet.expired = false;
             if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
             const txId = `tx_refund_${orderId}`;
             const alreadyLogged = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && String(tx.orderId) === String(orderId))));
@@ -12384,6 +12493,10 @@ async function autoRejectExpiredCustomerOrder(order) {
                     orderId: orderId,
                     title: `+₹${refundAmount} Refund`,
                     description: `+₹${refundAmount} Refund for Order #${orderId}`,
+                    status: 'completed',
+                    expiresAt: recoveredExpiresAt,
+                    originalExpiresAt: originalExpiresAt || null,
+                    graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                     createdAt: nowIso
                 });
             }
@@ -12451,22 +12564,43 @@ async function autoRejectExpiredCustomerOrder(order) {
                     type: 'REFUND',
                     title: `+₹${refundAmount} Refund`,
                     description: `+₹${refundAmount} Refund for Order #${orderId}`,
+                    status: 'completed',
+                    expiresAt: recoveredExpiresAt,
+                    originalExpiresAt: originalExpiresAt || null,
+                    graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                     timestamp: serverTs,
                     createdAt: serverTs
                 };
 
                 const userPrefixedRef = customerFirestore.collection('users').doc(`phone_${customerPhone}`);
-                batch.set(userPrefixedRef, { balance: incrementFn, walletBalance: incrementFn, updatedAt: serverTs }, { merge: true });
+                batch.set(userPrefixedRef, {
+                    balance: incrementFn,
+                    walletBalance: incrementFn,
+                    expiresAt: recoveredExpiresAt,
+                    expired: false,
+                    updatedAt: serverTs
+                }, { merge: true });
                 batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                 batch.set(userPrefixedRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
 
                 const userRawRef = customerFirestore.collection('users').doc(customerPhone);
-                batch.set(userRawRef, { balance: incrementFn, walletBalance: incrementFn, updatedAt: serverTs }, { merge: true });
+                batch.set(userRawRef, {
+                    balance: incrementFn,
+                    walletBalance: incrementFn,
+                    expiresAt: recoveredExpiresAt,
+                    expired: false,
+                    updatedAt: serverTs
+                }, { merge: true });
                 batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                 batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
 
                 const walletRef = customerFirestore.collection('wallets').doc(customerPhone);
-                batch.set(walletRef, { phone: customerPhone, balance: incrementFn, updatedAt: serverTs }, { merge: true });
+                batch.set(walletRef, {
+                    phone: customerPhone,
+                    balance: incrementFn,
+                    expiresAt: recoveredExpiresAt,
+                    updatedAt: serverTs
+                }, { merge: true });
                 batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
                 batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
             }
@@ -12540,7 +12674,7 @@ async function reconcileCustomerActiveOrdersLazySync(forceRemote = false) {
                     o.walletRefundAmount = heldAmt;
                     o.refundTimestamp = new Date().toISOString();
                     if (typeof releaseWalletHold === 'function') {
-                        releaseWalletHold(o.id || o.orderId, heldAmt);
+                        releaseWalletHold(o.id || o.orderId, heldAmt, o.walletHoldExpiresAt || o.walletOriginalExpiresAt);
                     }
                     localModified = true;
                 }
@@ -12597,7 +12731,7 @@ async function reconcileCustomerActiveOrdersLazySync(forceRemote = false) {
 
                         if (!alreadyInTx && !isRefunded) {
                             if (typeof releaseWalletHold === 'function') {
-                                releaseWalletHold(orderId, heldAmt);
+                                releaseWalletHold(orderId, heldAmt, data.walletHoldExpiresAt || data.walletOriginalExpiresAt);
                             }
                             remoteModified = true;
                         }
