@@ -529,7 +529,6 @@ function listenToFirestoreStaffOrders() {
         });
         // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
         mergeLiveOrdersIntoStaff(liveOrders);
-        sweepAutoExpiredOrders();
         startStaffAutoExpireInterval();
     }
 
@@ -577,6 +576,8 @@ const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 mins / 6,000,000 
 const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 const autoRejectInFlightOrderIds = new Set();
+const processedExpirations = new Set();
+window.processedExpirations = processedExpirations;
 let staffAutoExpireInterval = null;
 
 function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
@@ -595,10 +596,11 @@ window.calculateRecoveredExpiry = calculateRecoveredExpiry;
 function isOrder100MinsExpired(order) {
     if (!order) return false;
     const status = String(order.status || '').toLowerCase().trim();
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'archived', 'declined'];
     if (terminalStatuses.includes(status)) return false;
-    if (order.autoExpired === true || order.isAutoExpired === true) return true;
-    if (status === 'expired' || status === 'auto_expired') return true;
+    if (order.autoExpired === true || order.isAutoExpired === true) return false;
+    const orderId = String(order.id || order.orderId || order.firestoreDocId || '').trim();
+    if (orderId && processedExpirations.has(orderId)) return false;
 
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
@@ -610,24 +612,18 @@ window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
 
 function getOrderCountdownPillHTML(order) {
     if (!order) return '';
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'archived', 'declined'];
     const st = String(order.status || '').toLowerCase().trim();
     if (terminalStatuses.includes(st) || isRejectedStaffOrder(order)) return '';
 
     const createdMs = getOrderCreationTimeMs(order) || (order.createdAt ? new Date(order.createdAt).getTime() : Date.now());
     const elapsedMs = Date.now() - createdMs;
-    if (elapsedMs >= ONE_HUNDRED_MINS_EXPIRATION_MS || isOrder100MinsExpired(order)) {
-        // Enforce hard Firestore state transition immediately; do NOT merely swap text badge to Expired
-        autoRejectExpiredOrder(order);
-        return '';
-    }
-
     const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
     const remMins = Math.max(0, Math.ceil(remMs / 60000));
     const hrs = Math.floor(remMins / 60);
     const mins = remMins % 60;
-    const countdownText = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-    const pillClass = remMins <= 20 ? 'pill-urgent' : 'pill-active';
+    const countdownText = remMs <= 0 ? 'Expired' : (hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
+    const pillClass = remMs <= 0 ? 'pill-expired' : (remMins <= 20 ? 'pill-urgent' : 'pill-active');
 
     return `<span class="order-countdown-pill ${pillClass}" title="100-Minute Auto-Expiry Countdown">⏱ ${countdownText}</span>`;
 }
@@ -636,7 +632,18 @@ window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 async function autoRejectExpiredOrder(order) {
     if (!order) return;
     const orderId = String(order.id || order.orderId || order.firestoreDocId || '').trim();
-    if (!orderId || autoRejectInFlightOrderIds.has(orderId)) return;
+    if (!orderId || processedExpirations.has(orderId) || autoRejectInFlightOrderIds.has(orderId)) return;
+
+    // Guard Auto-Expiry with Atomic Status Checks:
+    // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
+    if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
+        processedExpirations.add(orderId);
+        return;
+    }
+
+    processedExpirations.add(orderId);
     autoRejectInFlightOrderIds.add(orderId);
 
     try {
@@ -872,23 +879,33 @@ async function autoExpireOrder(orderId) {
 }
 window.autoExpireOrder = autoExpireOrder;
 
+let isSweeperRunning = false;
 async function sweepAutoExpiredOrders() {
+    if (isSweeperRunning) return;
     if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
-    const expiredOrders = staffOrders.filter(isOrder100MinsExpired);
+    const expiredOrders = staffOrders.filter(o => {
+        const id = String(o.id || o.orderId || o.firestoreDocId || '').trim();
+        return isOrder100MinsExpired(o) && !processedExpirations.has(id);
+    });
     if (expiredOrders.length === 0) return;
 
-    console.log(`[STAFF SWEEPER] Sweeper running: found ${expiredOrders.length} expired unfulfilled order(s). Processing rejections...`);
-    for (const order of expiredOrders) {
-        try {
-            await autoRejectExpiredOrder(order);
-        } catch (err) {
-            console.error(`[STAFF SWEEPER] Error rejecting expired order #${order.id}:`, err);
-        }
-    }
+    isSweeperRunning = true;
     try {
-        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
-    } catch (e) { }
-    renderOrders();
+        console.log(`[STAFF SWEEPER] Sweeper running: found ${expiredOrders.length} expired unfulfilled order(s). Processing rejections...`);
+        for (const order of expiredOrders) {
+            try {
+                await autoRejectExpiredOrder(order);
+            } catch (err) {
+                console.error(`[STAFF SWEEPER] Error rejecting expired order #${order.id}:`, err);
+            }
+        }
+        try {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
+        } catch (e) { }
+        renderOrders();
+    } finally {
+        isSweeperRunning = false;
+    }
 }
 window.sweepAutoExpiredOrders = sweepAutoExpiredOrders;
 
@@ -2347,9 +2364,6 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     // Auto-accept any online payment orders
     processAutoAcceptanceForOnlineOrders();
 
-    // Auto-expire unfulfilled orders older than 3 hours
-    sweepAutoExpiredOrders();
-
     try {
         localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
     } catch (e) { }
@@ -3145,12 +3159,6 @@ function updateLiveTimers() {
     staffOrders.forEach(order => {
         // Skip updating active elapsed time if already completed/frozen
         if (isFinishedStaffOrder(order)) {
-            return;
-        }
-
-        // Hard Firestore auto-expiry state transition: do NOT merely swap a UI text badge to "Expired"
-        if (isOrder100MinsExpired(order) || (Date.now() - getOrderCreationTimeMs(order) >= ONE_HUNDRED_MINS_EXPIRATION_MS)) {
-            autoRejectExpiredOrder(order);
             return;
         }
 

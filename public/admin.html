@@ -14947,7 +14947,6 @@
             } catch (e) { }
 
             updateRevenueStats(mergedList);
-            sweepAdminExpiredOrders(mergedList);
         }
 
         // --------------------------------------------------------------------------
@@ -14957,6 +14956,8 @@
         const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS;
         const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
         const autoRejectInFlightAdminOrderIds = new Set();
+        const processedAdminExpirations = new Set();
+        window.processedAdminExpirations = processedAdminExpirations;
         let adminAutoExpireInterval = null;
 
         function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
@@ -14981,9 +14982,11 @@
         function isOrder100MinsExpired(order, nowMs = Date.now()) {
             if (!order) return false;
             const status = String(order.status || '').toLowerCase().trim();
-            const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+            const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'archived', 'declined'];
             if (terminalStatuses.includes(status)) return false;
             if (order.autoExpired === true || order.isAutoExpired === true) return false;
+            const orderId = String(order.orderId || order.id || order.firestoreDocId || '').trim();
+            if (orderId && processedAdminExpirations.has(orderId)) return false;
 
             let createdMs = 0;
             const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
@@ -15015,7 +15018,18 @@
         async function autoRejectExpiredAdminOrder(order) {
             if (!order) return;
             const orderId = String(order.orderId || order.id || order.firestoreDocId || '').trim();
-            if (!orderId || autoRejectInFlightAdminOrderIds.has(orderId)) return;
+            if (!orderId || processedAdminExpirations.has(orderId) || autoRejectInFlightAdminOrderIds.has(orderId)) return;
+
+            // Guard Auto-Expiry with Atomic Status Checks:
+            // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
+            const rawStatus = String(order.status || '').toUpperCase().trim();
+            const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
+            if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
+                processedAdminExpirations.add(orderId);
+                return;
+            }
+
+            processedAdminExpirations.add(orderId);
             autoRejectInFlightAdminOrderIds.add(orderId);
 
             console.log(`[ADMIN SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
@@ -15165,7 +15179,9 @@
             }
         }
 
+        let isAdminSweeperRunning = false;
         async function sweepAdminExpiredOrders(ordersList) {
+            if (isAdminSweeperRunning) return;
             let list = ordersList;
             if (!Array.isArray(list)) {
                 try {
@@ -15175,16 +15191,24 @@
             }
             if (!Array.isArray(list) || list.length === 0) return;
 
-            const expiredOrders = list.filter(o => isOrder100MinsExpired(o));
+            const expiredOrders = list.filter(o => {
+                const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                return isOrder100MinsExpired(o) && !processedAdminExpirations.has(id);
+            });
             if (expiredOrders.length === 0) return;
 
-            console.log(`[ADMIN SWEEPER] Found ${expiredOrders.length} expired unfulfilled order(s). Processing rejections...`);
-            for (const order of expiredOrders) {
-                try {
-                    await autoRejectExpiredAdminOrder(order);
-                } catch (err) {
-                    console.error(`[ADMIN SWEEPER] Error rejecting expired order #${order.id || order.orderId}:`, err);
+            isAdminSweeperRunning = true;
+            try {
+                console.log(`[ADMIN SWEEPER] Found ${expiredOrders.length} expired unfulfilled order(s). Processing rejections...`);
+                for (const order of expiredOrders) {
+                    try {
+                        await autoRejectExpiredAdminOrder(order);
+                    } catch (err) {
+                        console.error(`[ADMIN SWEEPER] Error rejecting expired order #${order.id || order.orderId}:`, err);
+                    }
                 }
+            } finally {
+                isAdminSweeperRunning = false;
             }
         }
         window.sweepAdminExpiredOrders = sweepAdminExpiredOrders;

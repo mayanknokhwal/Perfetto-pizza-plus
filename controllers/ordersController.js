@@ -82,11 +82,21 @@ function isOrder100MinsExpired(order) {
     return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
 const isOrderThreeHoursExpired = isOrder100MinsExpired;
+const processedBackendExpirations = new Set();
+let isBackendSweeperRunning = false;
 
 async function autoRejectExpiredOrderBackend(order) {
     if (!order) return;
     const orderId = String(order.orderId || order.id || '').trim();
-    if (!orderId) return;
+    if (!orderId || processedBackendExpirations.has(orderId)) return;
+
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
+    if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
+        processedBackendExpirations.add(orderId);
+        return;
+    }
+    processedBackendExpirations.add(orderId);
 
     order.status = 'rejected';
     order.cancellationReason = 'Order timed out (>100 minutes) - automatically cancelled by system';
@@ -208,23 +218,32 @@ async function autoRejectExpiredOrderBackend(order) {
 }
 
 async function sweepExpiredOrdersBackend(ordersList) {
+    if (isBackendSweeperRunning) return;
     if (!Array.isArray(ordersList) || ordersList.length === 0) return;
-    const expired = ordersList.filter(isOrderThreeHoursExpired);
+    const expired = ordersList.filter(o => {
+        const id = String(o.orderId || o.id || '').trim();
+        return isOrder100MinsExpired(o) && !processedBackendExpirations.has(id);
+    });
     if (expired.length === 0) return;
-    console.log(`[BACKEND SWEEPER] Found ${expired.length} auto-expired unfulfilled order(s). Processing rejections...`);
-    for (const order of expired) {
-        try {
-            await autoRejectExpiredOrderBackend(order);
-        } catch (e) {
-            console.error(`[BACKEND SWEEPER] Error auto-rejecting order #${order.id || order.orderId}:`, e.message);
+
+    isBackendSweeperRunning = true;
+    try {
+        console.log(`[BACKEND SWEEPER] Found ${expired.length} auto-expired unfulfilled order(s). Processing rejections...`);
+        for (const order of expired) {
+            try {
+                await autoRejectExpiredOrderBackend(order);
+            } catch (e) {
+                console.error(`[BACKEND SWEEPER] Error auto-rejecting order #${order.id || order.orderId}:`, e.message);
+            }
         }
+    } finally {
+        isBackendSweeperRunning = false;
     }
 }
 
 async function fetchOrdersFromFirestore(forceFresh = false) {
     const now = Date.now();
     if (!forceFresh && global.__perfettoOrdersList && global.__perfettoOrdersList.length > 0 && (now - (global.__lastOrdersFetchTime || 0) < 60000)) {
-        await sweepExpiredOrdersBackend(global.__perfettoOrdersList);
         return global.__perfettoOrdersList.filter(isValidOrder);
     }
 
@@ -265,9 +284,6 @@ async function fetchOrdersFromFirestore(forceFresh = false) {
                 return tb - ta;
             });
             global.__lastOrdersFetchTime = Date.now();
-
-            // Run backend sweep for unfulfilled orders exceeding 3 hours
-            await sweepExpiredOrdersBackend(global.__perfettoOrdersList);
         }
     } catch (e) {
         console.warn('Firestore orders read note:', e.message);
