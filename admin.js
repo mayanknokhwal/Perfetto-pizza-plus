@@ -798,9 +798,10 @@ export function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) 
 
 export function isOrder100MinsExpired(order, nowMs = Date.now()) {
     if (!order) return false;
-    const status = String(order.status || '').toLowerCase().trim();
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
-    if (terminalStatuses.includes(status)) return false;
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    if (rawStatus !== 'PENDING' && rawStatus !== 'NEW' && rawStatus !== 'PLACED' && rawStatus !== 'PREPARING') return false;
+    const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
+    if (terminalStatuses.includes(rawStatus)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
 
     let createdMs = 0;
@@ -828,6 +829,65 @@ export function isOrder100MinsExpired(order, nowMs = Date.now()) {
     return (nowMs - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
 export const isOrderThreeHoursExpired = isOrder100MinsExpired;
+
+/**
+ * Calculates dashboard order KPIs statically without side effects or mutations.
+ * @param {Array} list
+ * @returns {{ totalRevenue: number, pendingCount: number, todayDeliveredCount: number, todayRejectedCount: number }}
+ */
+export function calculateDashboardKPIs(list = []) {
+    const PENDING = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready", "new", "delivery", "dispatched"]);
+    const DELIVERED = new Set(["delivered", "completed"]);
+    const REJECTED = new Set(["rejected", "cancelled", "canceled", "declined"]);
+    const startOfDay = new Date().setHours(0, 0, 0, 0);
+
+    if (!Array.isArray(list) || list.length === 0) {
+        return { totalRevenue: 0, pendingCount: 0, todayDeliveredCount: 0, todayRejectedCount: 0 };
+    }
+
+    const deliveredOrders = list.filter(o => o && DELIVERED.has(String(o.status || '').trim().toLowerCase()));
+    const pendingOrders = list.filter(o => o && PENDING.has(String(o.status || '').trim().toLowerCase()));
+    const rejectedOrders = list.filter(o => o && REJECTED.has(String(o.status || '').trim().toLowerCase()));
+
+    const totalRevenue = deliveredOrders.reduce((sum, o) => {
+        let amount = 0;
+        if (o.totalAmount !== undefined && o.totalAmount !== null && !isNaN(Number(o.totalAmount))) amount = Number(o.totalAmount);
+        else if (o.finalPayable !== undefined && o.finalPayable !== null && !isNaN(Number(o.finalPayable))) amount = Number(o.finalPayable);
+        else if (o.costs && o.costs.finalPayable !== undefined && !isNaN(Number(o.costs.finalPayable))) amount = Number(o.costs.finalPayable);
+        else if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) amount = Number(o.total);
+        else if (o.costs && o.costs.total !== undefined && !isNaN(Number(o.costs.total))) amount = Number(o.costs.total);
+        return sum + (amount > 0 ? amount : 0);
+    }, 0);
+
+    const getTs = (o, field) => {
+        if (!o) return 0;
+        const v = field ? o[field] : (o.createdAt || o.timestamp || o.date || o.orderTime);
+        if (!v) return 0;
+        if (typeof v.toMillis === 'function') return v.toMillis();
+        if (typeof v.toDate === 'function') return v.toDate().getTime();
+        const p = new Date(v).getTime();
+        return isNaN(p) ? 0 : p;
+    };
+
+    const todayDeliveredCount = deliveredOrders.filter(o => {
+        const c = getTs(o, 'createdAt') || getTs(o, 'timestamp') || getTs(o, 'date');
+        const d = getTs(o, 'deliveredAt') || getTs(o, 'completedAt') || getTs(o, 'updatedAt');
+        return c >= startOfDay || d >= startOfDay;
+    }).length;
+
+    const todayRejectedCount = rejectedOrders.filter(o => {
+        const c = getTs(o, 'createdAt') || getTs(o, 'timestamp') || getTs(o, 'date');
+        const r = getTs(o, 'rejectedAt') || getTs(o, 'cancelledAt') || getTs(o, 'updatedAt');
+        return c >= startOfDay || r >= startOfDay;
+    }).length;
+
+    return {
+        totalRevenue: Math.round(totalRevenue),
+        pendingCount: pendingOrders.length,
+        todayDeliveredCount,
+        todayRejectedCount
+    };
+}
 
 export function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
     if (!order) return '';
@@ -877,6 +937,7 @@ if (typeof window !== 'undefined') {
     window.isOrder100MinsExpired = isOrder100MinsExpired;
     window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
     window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
+    window.calculateDashboardKPIs = calculateDashboardKPIs;
 }
 
 

@@ -8437,56 +8437,40 @@
             let todayDeliveredCount = 0;
 
             if (Array.isArray(list) && list.length > 0) {
-                list.forEach((o) => {
-                    if (!o) return;
-                    const status = String(o.status || '').trim().toLowerCase();
+                // Strictly calculate by summing static filtered arrays from the snapshot once without running mutations
+                const deliveredOrders = list.filter(o => o && DELIVERED_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
+                const pendingOrders = list.filter(o => o && PENDING_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
+                const rejectedOrders = list.filter(o => o && REJECTED_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
 
-                    // Metric "TOTAL REVENUE":
-                    // Sum total bill amounts strictly of orders with status "delivered" or "completed".
-                    // Exclude pending, placed, preparing, cancelled, or rejected orders.
-                    if (DELIVERED_ADMIN_STATUSES.has(status)) {
-                        let amount = 0;
-                        if (o.totalAmount !== undefined && o.totalAmount !== null && !isNaN(Number(o.totalAmount))) {
-                            amount = Number(o.totalAmount);
-                        } else if (o.finalPayable !== undefined && o.finalPayable !== null && !isNaN(Number(o.finalPayable))) {
-                            amount = Number(o.finalPayable);
-                        } else if (o.costs && o.costs.finalPayable !== undefined && !isNaN(Number(o.costs.finalPayable))) {
-                            amount = Number(o.costs.finalPayable);
-                        } else if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) {
-                            amount = Number(o.total);
-                        } else if (o.costs && o.costs.total !== undefined && !isNaN(Number(o.costs.total))) {
-                            amount = Number(o.costs.total);
-                        }
-                        if (amount > 0) totalRev += amount;
+                totalRev = deliveredOrders.reduce((sum, o) => {
+                    let amount = 0;
+                    if (o.totalAmount !== undefined && o.totalAmount !== null && !isNaN(Number(o.totalAmount))) {
+                        amount = Number(o.totalAmount);
+                    } else if (o.finalPayable !== undefined && o.finalPayable !== null && !isNaN(Number(o.finalPayable))) {
+                        amount = Number(o.finalPayable);
+                    } else if (o.costs && o.costs.finalPayable !== undefined && !isNaN(Number(o.costs.finalPayable))) {
+                        amount = Number(o.costs.finalPayable);
+                    } else if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) {
+                        amount = Number(o.total);
+                    } else if (o.costs && o.costs.total !== undefined && !isNaN(Number(o.costs.total))) {
+                        amount = Number(o.costs.total);
                     }
+                    return sum + (amount > 0 ? amount : 0);
+                }, 0);
 
-                    // Metric "PENDING ORDERS":
-                    // Live count matching Kitchen Portal: ["placed", "pending", "preparing", "out_for_delivery", "ready", "new", "delivery", "dispatched"]
-                    // Do NOT apply date cutoff (active pending orders must show immediately)
-                    if (PENDING_ADMIN_STATUSES.has(status)) {
-                        pendingCount++;
-                    }
+                pendingCount = pendingOrders.length;
 
-                    // Metric "TODAY'S DELIVERED":
-                    // Status in ["delivered", "completed"] AND (createdAt >= startOfDay || deliveredAt >= startOfDay || completedAt >= startOfDay)
-                    if (DELIVERED_ADMIN_STATUSES.has(status)) {
-                        const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
-                        const deliveredTime = getOrderTimestamp(o, 'deliveredAt') || getOrderTimestamp(o, 'completedAt') || getOrderTimestamp(o, 'updatedAt');
-                        if (createdTime >= startOfDay || deliveredTime >= startOfDay) {
-                            todayDeliveredCount++;
-                        }
-                    }
+                todayDeliveredCount = deliveredOrders.filter(o => {
+                    const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
+                    const deliveredTime = getOrderTimestamp(o, 'deliveredAt') || getOrderTimestamp(o, 'completedAt') || getOrderTimestamp(o, 'updatedAt');
+                    return createdTime >= startOfDay || deliveredTime >= startOfDay;
+                }).length;
 
-                    // Metric "TODAY'S REJECTED":
-                    // Status in ["rejected", "cancelled", "canceled", "declined"] AND (createdAt >= startOfDay || rejectedAt >= startOfDay || cancelledAt >= startOfDay)
-                    if (REJECTED_ADMIN_STATUSES.has(status)) {
-                        const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
-                        const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt') || getOrderTimestamp(o, 'updatedAt');
-                        if (createdTime >= startOfDay || rejectedTime >= startOfDay) {
-                            todayRejectedCount++;
-                        }
-                    }
-                });
+                todayRejectedCount = rejectedOrders.filter(o => {
+                    const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
+                    const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt') || getOrderTimestamp(o, 'updatedAt');
+                    return createdTime >= startOfDay || rejectedTime >= startOfDay;
+                }).length;
             }
 
             if (revEl) revEl.textContent = `₹${Math.round(totalRev).toLocaleString('en-IN')}`;
@@ -8510,7 +8494,7 @@
         window.navigateToStaffPortalTab = navigateToStaffPortalTab;
 
         // 7B. LIVE ORDER & REVENUE STATS ENGINE (DEDUPLICATED & UNIFIED)
-        async function updateRevenueStats(ordersData) {
+        function updateRevenueStats(ordersData) {
             let ordersList = [];
             if (Array.isArray(ordersData)) {
                 ordersList = ordersData;
@@ -8524,19 +8508,6 @@
             }
 
             applyOrderKPIsUI(ordersList);
-
-            // If called without arguments or local list is empty, fetch fresh orders from API
-            if (!ordersData && (!ordersList || ordersList.length === 0)) {
-                try {
-                    const res = await fetch(resolveApiUrl('/api/orders'));
-                    const data = await res.json();
-                    if (data && data.success && Array.isArray(data.orders)) {
-                        mergeLiveOrdersIntoAdmin(data.orders);
-                    }
-                } catch (err) {
-                    console.warn('Admin revenue Firestore sync notice (local resilience active):', err.message);
-                }
-            }
         }
         window.updateRevenueStats = updateRevenueStats;
         window.updateDashboardOrderStats = updateRevenueStats;
@@ -14981,9 +14952,10 @@
 
         function isOrder100MinsExpired(order, nowMs = Date.now()) {
             if (!order) return false;
-            const status = String(order.status || '').toLowerCase().trim();
-            const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'archived', 'declined'];
-            if (terminalStatuses.includes(status)) return false;
+            const rawStatus = String(order.status || '').toUpperCase().trim();
+            if (rawStatus !== 'PENDING' && rawStatus !== 'NEW' && rawStatus !== 'PLACED' && rawStatus !== 'PREPARING') return false;
+            const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
+            if (terminalStatuses.includes(rawStatus)) return false;
             if (order.autoExpired === true || order.isAutoExpired === true) return false;
             const orderId = String(order.orderId || order.id || order.firestoreDocId || '').trim();
             if (orderId && processedAdminExpirations.has(orderId)) return false;
@@ -15193,7 +15165,9 @@
 
             const expiredOrders = list.filter(o => {
                 const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
-                return isOrder100MinsExpired(o) && !processedAdminExpirations.has(id);
+                const rawStatus = String(o.status || '').toUpperCase().trim();
+                const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING');
+                return isPending && isOrder100MinsExpired(o) && !processedAdminExpirations.has(id);
             });
             if (expiredOrders.length === 0) return;
 

@@ -595,9 +595,10 @@ window.calculateRecoveredExpiry = calculateRecoveredExpiry;
 
 function isOrder100MinsExpired(order) {
     if (!order) return false;
-    const status = String(order.status || '').toLowerCase().trim();
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'archived', 'declined'];
-    if (terminalStatuses.includes(status)) return false;
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    if (rawStatus !== 'PENDING' && rawStatus !== 'NEW' && rawStatus !== 'PLACED' && rawStatus !== 'PREPARING') return false;
+    const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
+    if (terminalStatuses.includes(rawStatus)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
     const orderId = String(order.id || order.orderId || order.firestoreDocId || '').trim();
     if (orderId && processedExpirations.has(orderId)) return false;
@@ -734,6 +735,7 @@ async function autoRejectExpiredOrder(order) {
                 }
 
                 if (refundAmount > 0 && customerPhone && !isAlreadyRefunded) {
+                    orderUpdate.walletRefundProcessed = true;
                     orderUpdate.walletRefunded = true;
                     orderUpdate.walletRefundAmount = refundAmount;
                     orderUpdate.refundTimestamp = serverTs;
@@ -885,7 +887,9 @@ async function sweepAutoExpiredOrders() {
     if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
     const expiredOrders = staffOrders.filter(o => {
         const id = String(o.id || o.orderId || o.firestoreDocId || '').trim();
-        return isOrder100MinsExpired(o) && !processedExpirations.has(id);
+        const rawStatus = String(o.status || '').toUpperCase().trim();
+        const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING');
+        return isPending && isOrder100MinsExpired(o) && !processedExpirations.has(id);
     });
     if (expiredOrders.length === 0) return;
 

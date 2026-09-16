@@ -8175,20 +8175,32 @@ function updateFloatingCartBar() {
 
 function getSavedDeliveryProfile() {
     try {
-        const profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
+        let profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
+        if (!profile && typeof currentUserProfile !== 'undefined' && currentUserProfile) {
+            profile = currentUserProfile;
+        }
+        if (!profile) {
+            profile = safeStorage.getJSON('perfettoSavedProfile', null);
+        }
         if (profile && typeof profile === 'object') {
-            const fullName = (profile.fullName || '').trim();
+            const fullName = (profile.fullName || profile.name || '').trim();
             const email = (profile.email || '').trim();
-            const phone = (profile.phone || '').replace(/[^0-9]/g, '').slice(0, 10);
-            const colonyName = (profile.colonyName || '').trim();
-            const nearBy = (profile.nearBy || '').trim();
-            const streetName = (profile.streetName || '').trim();
-            const wardNo = (profile.wardNo || '').trim();
-            const isVerified = profile.isVerified === true;
-            const gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
-            const gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
+            const phone = (profile.phone || '').replace(/[^0-9]/g, '').slice(-10);
+            const colonyName = (profile.colonyName || (profile.address && profile.address.colonyName) || '').trim();
+            const nearBy = (profile.nearBy || (profile.address && profile.address.nearBy) || '').trim();
+            const streetName = (profile.streetName || (profile.address && profile.address.streetName) || '').trim();
+            const wardNo = (profile.wardNo || (profile.address && profile.address.wardNo) || '').trim();
+            const isVerified = profile.isVerified === true || profile.isPhoneVerified === true;
+            let gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
+            let gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
+            if ((gpsLat === null || isNaN(gpsLat)) && profile.gps && profile.gps.lat !== undefined && profile.gps.lat !== null) {
+                gpsLat = parseFloat(profile.gps.lat);
+            }
+            if ((gpsLng === null || isNaN(gpsLng)) && profile.gps && profile.gps.lng !== undefined && profile.gps.lng !== null) {
+                gpsLng = parseFloat(profile.gps.lng);
+            }
 
-            if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null) {
+            if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null && !isNaN(gpsLat) && !isNaN(gpsLng)) {
                 return { fullName, email, phone, colonyName, nearBy, streetName, wardNo, isVerified, gpsLat, gpsLng };
             }
         }
@@ -8305,10 +8317,6 @@ window.handleAdjustLocationFromCheckout = handleAdjustLocationFromCheckout;
 function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
-
-    if (typeof reconcileCustomerActiveOrdersLazySync === 'function') {
-        reconcileCustomerActiveOrdersLazySync();
-    }
 
     // Reset checkout redemption selection fresh to prevent carrying over state
     isWalletRedemptionSelected = false;
@@ -8832,7 +8840,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         total: Math.round(grandTotal),
         paymentMethod: resolvedPaymentMethod,
         paymentStatus: resolvedPaymentStatus,
-        status: 'new',
+        status: 'PENDING',
         createdAt: now.toISOString()
     };
 
@@ -8882,6 +8890,11 @@ async function saveOrderToBackendAPI(order) {
     const finalOrderId = String(order.orderId || order.id || Date.now());
     const cleanCustomerPhone = String(order.customerPhone || (order.customer && order.customer.phone) || order.phone || '').replace(/[^0-9]/g, '').slice(-10);
 
+    // Guard newly placed order in session memory so eager client rejection never intercepts it
+    if (typeof processedExpirations !== 'undefined' && processedExpirations) {
+        processedExpirations.add(finalOrderId);
+    }
+
     const hasScratchReward = Boolean(order.scratchCard && (Number(order.earnedCashback || order.wonCashback || 0) > 0));
     const activeOrderDays = hasScratchReward
         ? (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)) || getClampedCashbackExpiryDays(customerWalletConfig))
@@ -8896,7 +8909,7 @@ async function saveOrderToBackendAPI(order) {
         orderId: finalOrderId,
         customerPhone: cleanCustomerPhone,
         phone: cleanCustomerPhone,
-        status: order.status || 'pending',
+        status: 'PENDING',
         createdAt: order.createdAt || new Date().toISOString(),
         rewardStatus: hasScratchReward ? (order.rewardStatus || 'unscratched') : 'none',
         earnedCashback: hasScratchReward ? Math.round(Number(order.earnedCashback || 0)) : 0,
@@ -12442,12 +12455,18 @@ function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
 }
 window.calculateRecoveredExpiry = calculateRecoveredExpiry;
 
+const processedExpirations = new Set();
+window.processedExpirations = processedExpirations;
+
 function isOrder100MinsExpired(order, nowMs = Date.now()) {
     if (!order) return false;
-    const status = String(order.status || '').toLowerCase().trim();
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
-    if (terminalStatuses.includes(status)) return false;
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    if (rawStatus !== 'PENDING' && rawStatus !== 'NEW' && rawStatus !== 'PLACED' && rawStatus !== 'PREPARING') return false;
+    const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
+    if (terminalStatuses.includes(rawStatus)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
+    const orderId = String(order.id || order.orderId || '').trim();
+    if (orderId && processedExpirations.has(orderId)) return false;
 
     let createdMs = 0;
     const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
@@ -12525,7 +12544,18 @@ window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 async function autoRejectExpiredCustomerOrder(order) {
     if (!order) return;
     const orderId = String(order.id || order.orderId || '').trim();
-    if (!orderId || customerAutoRejectInFlightIds.has(orderId)) return;
+    if (!orderId || processedExpirations.has(orderId) || customerAutoRejectInFlightIds.has(orderId)) return;
+
+    // Guard Auto-Expiry with Atomic Status Checks:
+    // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
+    if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
+        processedExpirations.add(orderId);
+        return;
+    }
+
+    processedExpirations.add(orderId);
     customerAutoRejectInFlightIds.add(orderId);
 
     console.log(`[CUSTOMER EVAL] Auto-rejecting 100-minute expired order #${orderId}...`);
@@ -12709,9 +12739,6 @@ async function autoRejectExpiredCustomerOrder(order) {
     } catch (e) { }
 
     try {
-        if (typeof renderOrderHistoryDetails === 'function') {
-            renderOrderHistoryDetails();
-        }
         if (typeof updateProfileTotalsUI === 'function') {
             updateProfileTotalsUI();
         }
@@ -12719,24 +12746,8 @@ async function autoRejectExpiredCustomerOrder(order) {
 }
 
 async function reconcileCustomerActiveOrdersLazySync() {
-    try {
-        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
-        if (!Array.isArray(orders) || orders.length === 0) return;
-        let modified = false;
-        for (const o of orders) {
-            if (isOrder100MinsExpired(o)) {
-                await autoRejectExpiredCustomerOrder(o);
-                modified = true;
-            }
-        }
-        if (modified) {
-            renderOrderHistoryDetails();
-            updateProfileTotalsUI();
-            updateProfileWalletUI();
-        }
-    } catch (e) {
-        console.warn('[LAZY SYNC] Customer orders reconciliation note:', e);
-    }
+    // Pure no-op on customer devices to prevent recursive background mutation loops
+    return;
 }
 window.reconcileCustomerActiveOrdersLazySync = reconcileCustomerActiveOrdersLazySync;
 
@@ -12777,13 +12788,6 @@ function renderOrderHistoryDetails() {
         }
 
         if (Array.isArray(orders) && orders.length > 0) {
-            // Evaluate and auto-reject any unfulfilled orders older than 3 hours
-            orders.forEach(o => {
-                if (isOrderThreeHoursExpired(o)) {
-                    autoRejectExpiredCustomerOrder(o);
-                }
-            });
-
             listEl.innerHTML = orders.map(o => {
                 const otpCode = o.deliveryOtp || o.otp || '';
                 const isDelivered = o.status === 'completed' || o.status === 'delivered';
@@ -17938,13 +17942,6 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
             return timeB - timeA;
         });
 
-        // Evaluate unfulfilled orders older than 3 hours
-        merged.forEach(o => {
-            if (isOrderThreeHoursExpired(o)) {
-                autoRejectExpiredCustomerOrder(o);
-            }
-        });
-
         safeStorage.setJSON('perfettoCustomerOrders', merged);
         renderOrderHistoryDetails();
         updateProfileTotalsUI();
@@ -17954,9 +17951,6 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
 }
 
 function listenToCustomerActiveOrders() {
-    if (typeof reconcileCustomerActiveOrdersLazySync === 'function') {
-        reconcileCustomerActiveOrdersLazySync();
-    }
     if (!customerFirestore) return;
 
     const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
@@ -18133,9 +18127,6 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 if (typeof releaseWalletHold === 'function' && heldAmount > 0) {
                     releaseWalletHold(orderId, heldAmount);
                 }
-            }
-            if (isOrderThreeHoursExpired(target)) {
-                autoRejectExpiredCustomerOrder(target);
             }
 
             // Auto-credit pending delivery cashback if order transitioned to completed/delivered
@@ -18485,6 +18476,14 @@ function scheduleAppSplashDismissal() {
     appSplashDismissTimer = setTimeout(() => {
         dismissAppSplashScreen();
     }, remainingTime);
+}
+
+// Guaranteed splash screen dismissal safety net to prevent black screen lockup
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', () => {
+        setTimeout(dismissAppSplashScreen, 300);
+    });
+    setTimeout(dismissAppSplashScreen, 2500);
 }
 
 // --------------------------------------------------------------------------
