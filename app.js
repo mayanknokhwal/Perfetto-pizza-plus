@@ -4820,16 +4820,40 @@ let currentCustomerWallet = (function() {
     return { balance: directBal, nonExpiredBalance: directBal, transactions: [] };
 })();
 
+function parseTimestampMs(val) {
+    if (!val) return NaN;
+    if (typeof val === 'number') return val;
+    if (typeof val.toDate === 'function') {
+        try { return val.toDate().getTime(); } catch (e) {}
+    }
+    if (val.seconds !== undefined) {
+        return val.seconds * 1000 + (val.nanoseconds ? Math.round(val.nanoseconds / 1e6) : 0);
+    }
+    const parsed = new Date(val).getTime();
+    return isNaN(parsed) ? NaN : parsed;
+}
+window.parseTimestampMs = parseTimestampMs;
+
 function reconcileWalletTranches(wallet) {
     if (!wallet) return 0;
     const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
 
     if (!Array.isArray(wallet.transactions) || wallet.transactions.length === 0) {
         let rawBal = Number(wallet.balance) || 0;
         if (wallet.expiresAt) {
-            const expMs = typeof wallet.expiresAt === 'number'
-                ? wallet.expiresAt
-                : new Date(wallet.expiresAt).getTime();
+            const expMs = parseTs(wallet.expiresAt);
             if (!isNaN(expMs) && expMs <= nowMs) {
                 rawBal = 0;
                 wallet.expired = true;
@@ -4846,15 +4870,19 @@ function reconcileWalletTranches(wallet) {
 
     wallet.transactions.forEach(tx => {
         if (!tx) return;
-        if (tx.type === 'debit' || (tx.type === 'hold' && tx.status === 'LOCKED_HOLD')) {
-            if (tx.status !== 'released' && tx.status !== 'cancelled') {
+        const txType = String(tx.type || '').toLowerCase().trim();
+        const txStatus = String(tx.status || '').toLowerCase().trim();
+
+        if (txType === 'debit' || (txType === 'hold' && (txStatus === 'locked_hold' || txStatus === 'hold' || txStatus === 'completed'))) {
+            if (txStatus !== 'released' && txStatus !== 'cancelled') {
                 const amt = Math.max(0, Math.abs(Number(tx.amount) || 0));
                 if (amt > 0) {
-                    const debitTime = tx.createdAt ? new Date(tx.createdAt).getTime() : nowMs;
-                    debits.push({ tx, amount: amt, time: isNaN(debitTime) ? nowMs : debitTime });
+                    const parsedDebitTime = parseTs(tx.createdAt || tx.timestamp);
+                    const debitTime = isNaN(parsedDebitTime) ? nowMs : parsedDebitTime;
+                    debits.push({ tx, amount: amt, time: debitTime });
                 }
             }
-        } else if (tx.type === 'credit') {
+        } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback') {
             if (tx.initialAmount === undefined) {
                 tx.initialAmount = (tx.originalAmount !== undefined)
                     ? Number(tx.originalAmount)
@@ -4866,13 +4894,15 @@ function reconcileWalletTranches(wallet) {
             tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
             tx.status = 'active';
 
-            const createdTime = tx.createdAt ? new Date(tx.createdAt).getTime() : 0;
-            const expMs = tx.expiresAt ? new Date(tx.expiresAt).getTime() : Infinity;
+            const parsedCreated = parseTs(tx.createdAt || tx.timestamp || tx.creditedAt);
+            const createdTime = isNaN(parsedCreated) ? 0 : parsedCreated;
+            const parsedExp = parseTs(tx.expiresAt);
+            const expMs = isNaN(parsedExp) ? Infinity : parsedExp;
 
             credits.push({
                 tx,
-                createdTime: isNaN(createdTime) ? 0 : createdTime,
-                expiresAtMs: isNaN(expMs) ? Infinity : expMs
+                createdTime,
+                expiresAtMs: expMs
             });
         }
     });
@@ -4935,10 +4965,12 @@ function reconcileWalletTranches(wallet) {
 
     // 4. Invalidate expired credits at current time and calculate net active unexpired balance
     let activeSum = 0;
+    let expiredSum = 0;
     let earliestExpiryMs = Infinity;
 
     credits.forEach(c => {
         if (c.expiresAtMs <= nowMs) {
+            expiredSum += (c.tx.remainingAmount || 0);
             c.tx.remainingAmount = 0;
             c.tx.status = 'expired';
         } else if (c.tx.remainingAmount > 0) {
@@ -4956,11 +4988,33 @@ function reconcileWalletTranches(wallet) {
         }
     });
 
-    const reconciledBalance = Math.max(0, activeSum);
+    let reconciledBalance = 0;
+    if (credits.length > 0) {
+        reconciledBalance = Math.max(0, activeSum);
+    } else {
+        // When no credit tranches exist in this transaction slice, retain authoritative wallet.balance unless expired
+        let rawBal = Number(wallet.balance) || 0;
+        if (wallet.expiresAt) {
+            const expMs = parseTs(wallet.expiresAt);
+            if (!isNaN(expMs) && expMs <= nowMs) {
+                rawBal = 0;
+                wallet.expired = true;
+            }
+        }
+        reconciledBalance = Math.max(0, rawBal);
+    }
+
     wallet.balance = reconciledBalance;
     wallet.nonExpiredBalance = reconciledBalance;
+
     if (earliestExpiryMs < Infinity) {
         wallet.expiresAt = new Date(earliestExpiryMs).toISOString();
+    } else if (wallet.expiresAt) {
+        const expMs = parseTs(wallet.expiresAt);
+        if (!isNaN(expMs) && expMs <= nowMs) {
+            wallet.expiresAt = null;
+            wallet.expired = true;
+        }
     } else {
         wallet.expiresAt = null;
     }
@@ -4984,21 +5038,35 @@ function getActiveCreditTranches() {
         reconcileWalletTranches(currentCustomerWallet);
     }
     const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
     const txList = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
         ? currentCustomerWallet.transactions
         : [];
     return txList.filter(tx => {
-        if (!tx || tx.type !== 'credit') return false;
+        if (!tx) return false;
+        const txType = String(tx.type || '').toLowerCase().trim();
+        if (txType !== 'credit' && txType !== 'refund' && txType !== 'cashback') return false;
         const remaining = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
         if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired') return false;
         if (tx.expiresAt) {
-            const expMs = typeof tx.expiresAt === 'number' ? tx.expiresAt : new Date(tx.expiresAt).getTime();
+            const expMs = parseTs(tx.expiresAt);
             if (!isNaN(expMs) && expMs <= nowMs) return false;
         }
         return true;
     }).sort((a, b) => {
-        const timeA = a.expiresAt ? (typeof a.expiresAt === 'number' ? a.expiresAt : new Date(a.expiresAt).getTime()) : Infinity;
-        const timeB = b.expiresAt ? (typeof b.expiresAt === 'number' ? b.expiresAt : new Date(b.expiresAt).getTime()) : Infinity;
+        const timeA = a.expiresAt ? (parseTs(a.expiresAt) || Infinity) : Infinity;
+        const timeB = b.expiresAt ? (parseTs(b.expiresAt) || Infinity) : Infinity;
         return timeA - timeB;
     });
 }
@@ -5016,6 +5084,18 @@ function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
         reconcileWalletTranches(wallet);
     }
     const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
     const activeTranches = (typeof getActiveCreditTranches === 'function') ? getActiveCreditTranches() : [];
 
     let earliestExpMs = Infinity;
@@ -5025,7 +5105,7 @@ function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
     for (const tranche of activeTranches) {
         const rem = Number(tranche.remainingAmount !== undefined ? tranche.remainingAmount : (tranche.initialAmount !== undefined ? tranche.initialAmount : tranche.amount)) || 0;
         if (rem > 0 && tranche.expiresAt) {
-            const expMs = typeof tranche.expiresAt === 'number' ? tranche.expiresAt : new Date(tranche.expiresAt).getTime();
+            const expMs = parseTs(tranche.expiresAt);
             if (!isNaN(expMs) && expMs > nowMs) {
                 if (expMs < earliestExpMs) {
                     earliestExpMs = expMs;
@@ -5039,7 +5119,7 @@ function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
 
     // Fallback if wallet has top-level expiresAt and single balance
     if (earliestExpMs === Infinity && wallet.expiresAt) {
-        const expMs = typeof wallet.expiresAt === 'number' ? wallet.expiresAt : new Date(wallet.expiresAt).getTime();
+        const expMs = parseTs(wallet.expiresAt);
         if (!isNaN(expMs) && expMs > nowMs) {
             earliestExpMs = expMs;
             expiringAmount = Number(wallet.balance) || 0;
@@ -5244,12 +5324,23 @@ async function fetchCustomerWallet(phone) {
 window.fetchCustomerWallet = fetchCustomerWallet;
 
 let customerUserRealtimeUnsubscribe = null;
+let activeWalletListeningPhone = null;
 
-function applyLiveWalletData(data) {
+function applyLiveWalletData(data, source = 'wallets') {
     if (!data) return;
-    const rawBalance = (data.walletBalance !== undefined && data.walletBalance !== null)
-        ? Number(data.walletBalance)
-        : ((data.balance !== undefined && data.balance !== null) ? Number(data.balance) : 0);
+
+    let rawBalance;
+    if (data.walletBalance !== undefined && data.walletBalance !== null && !isNaN(Number(data.walletBalance))) {
+        rawBalance = Math.max(0, Number(data.walletBalance));
+    } else if (data.balance !== undefined && data.balance !== null && !isNaN(Number(data.balance))) {
+        rawBalance = Math.max(0, Number(data.balance));
+    } else {
+        // When document has neither walletBalance nor balance, preserve existing active in-memory balance
+        rawBalance = (currentCustomerWallet && !isNaN(Number(currentCustomerWallet.balance)))
+            ? Math.max(0, Number(currentCustomerWallet.balance))
+            : (Number(localStorage.getItem('perfetto_wallet_balance')) || 0);
+    }
+
     const valid = calculateValidWalletBalance({ ...data, balance: rawBalance });
     const incomingTx = Array.isArray(data.walletTransactions) && data.walletTransactions.length > 0
         ? data.walletTransactions
@@ -5282,6 +5373,13 @@ function listenToCustomerWalletRealtime(phone) {
     const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
     if (!cleanPhone) return;
 
+    // Persistent reactive listener guard: do not detach or re-subscribe if already actively listening to this phone
+    if (activeWalletListeningPhone === cleanPhone && customerWalletRealtimeUnsubscribe) {
+        return;
+    }
+
+    activeWalletListeningPhone = cleanPhone;
+
     if (customerWalletRealtimeUnsubscribe) {
         try { customerWalletRealtimeUnsubscribe(); } catch (e) {}
         customerWalletRealtimeUnsubscribe = null;
@@ -5292,19 +5390,22 @@ function listenToCustomerWalletRealtime(phone) {
     }
 
     try {
-        // 1. Listen to dedicated wallets/{cleanPhone}
+        // 1. Listen to dedicated wallets/{cleanPhone} as authoritative source
         customerWalletRealtimeUnsubscribe = fs.collection('wallets').doc(cleanPhone).onSnapshot((doc) => {
             if (doc.exists && doc.data()) {
-                applyLiveWalletData(doc.data());
+                applyLiveWalletData(doc.data(), 'wallets');
             }
         }, (err) => {
             console.warn('Real-time wallet listener notice:', err.message);
         });
 
-        // 2. Also listen to users/phone_{cleanPhone}
+        // 2. Also listen to users/phone_{cleanPhone} strictly for explicit wallet updates
         customerUserRealtimeUnsubscribe = fs.collection('users').doc(`phone_${cleanPhone}`).onSnapshot((doc) => {
             if (doc.exists && doc.data()) {
-                applyLiveWalletData(doc.data());
+                const uData = doc.data();
+                if (uData && (uData.walletBalance !== undefined || uData.balance !== undefined || uData.walletTransactions)) {
+                    applyLiveWalletData(uData, 'users');
+                }
             }
         }, (err) => {
             console.warn('Real-time user wallet listener notice:', err.message);
@@ -6057,8 +6158,7 @@ window.creditCustomerWallet = creditCustomerWallet;
 let walletCountdownInterval = null;
 function startWalletCountdownTimer() {
     if (walletCountdownInterval) {
-        clearInterval(walletCountdownInterval);
-        walletCountdownInterval = null;
+        return;
     }
     // Update every 30 seconds to tick minutes/hours and auto-expire
     walletCountdownInterval = setInterval(() => {
@@ -10956,6 +11056,16 @@ function handleChangePhoneNumber() {
     const phoneInput = document.getElementById('customer-phone');
     isPhoneVerified = false;
     currentTargetPhone = null;
+    activeWalletListeningPhone = null;
+
+    if (typeof customerWalletRealtimeUnsubscribe === 'function') {
+        try { customerWalletRealtimeUnsubscribe(); } catch (e) {}
+        customerWalletRealtimeUnsubscribe = null;
+    }
+    if (typeof customerUserRealtimeUnsubscribe === 'function') {
+        try { customerUserRealtimeUnsubscribe(); } catch (e) {}
+        customerUserRealtimeUnsubscribe = null;
+    }
 
     if (otpResendTimerId) {
         clearInterval(otpResendTimerId);
@@ -18033,6 +18143,7 @@ function cleanupAllCustomerListeners() {
             customerUserRealtimeUnsubscribe();
             customerUserRealtimeUnsubscribe = null;
         }
+        activeWalletListeningPhone = null;
         if (typeof customerPhoneOrdersUnsubscribe === 'function') {
             customerPhoneOrdersUnsubscribe();
             customerPhoneOrdersUnsubscribe = null;
