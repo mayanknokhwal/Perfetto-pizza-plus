@@ -3118,3 +3118,31 @@ body {
     transform: none !important;
     box-shadow: none !important;
 }
+
+/* Order 100-Minute Inactivity Expiration Countdown Pill (Staff Portal) */
+.order-countdown-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    background: rgba(234, 88, 12, 0.15);
+    color: #f97316;
+    border: 1px solid rgba(234, 88, 12, 0.35);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    transition: all 0.2s ease;
+}
+
+.order-countdown-pill i {
+    font-size: 0.70rem;
+}
+
+.order-countdown-pill.pill-expired {
+    background: rgba(239, 68, 68, 0.18);
+    color: #f87171;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+

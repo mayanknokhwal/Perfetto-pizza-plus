@@ -571,23 +571,53 @@ function listenToFirestoreStaffOrders() {
 const listenToStaffLiveOrders = listenToFirestoreStaffOrders;
 
 // --------------------------------------------------------------------------
-// 3-HOUR TIMEOUT EXPIRATION SWEEPER & ATOMIC WALLET REFUND ENGINE
+// 100-MINUTE TIMEOUT EXPIRATION SWEEPER & ATOMIC WALLET REFUND ENGINE
 // --------------------------------------------------------------------------
-const THREE_HOURS_EXPIRATION_MS = 3 * 60 * 60 * 1000; // 180 mins / 10,800,000 ms
+const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 mins / 6,000,000 ms
+const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
 const autoRejectInFlightOrderIds = new Set();
 let staffAutoExpireInterval = null;
 
-function isOrderThreeHoursExpired(order) {
+function isOrder100MinsExpired(order) {
     if (!order) return false;
     const status = String(order.status || '').toLowerCase().trim();
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined', 'auto_expired'];
     if (terminalStatuses.includes(status)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
 
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
-    return (Date.now() - createdMs) >= THREE_HOURS_EXPIRATION_MS;
+    return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
+const isOrderThreeHoursExpired = isOrder100MinsExpired; // Backward-compatible alias
+window.isOrder100MinsExpired = isOrder100MinsExpired;
+window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
+window.ONE_HUNDRED_MINS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS;
+window.THREE_HOURS_EXPIRATION_MS = THREE_HOURS_EXPIRATION_MS;
+
+function getStaffOrderCountdownText(order) {
+    if (!order) return '';
+    const status = String(order.status || '').toLowerCase().trim();
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined', 'auto_expired'];
+    if (terminalStatuses.includes(status)) return '';
+    if (order.autoExpired === true || order.isAutoExpired === true) return 'Expired';
+
+    const createdMs = getOrderCreationTimeMs(order);
+    if (!createdMs) return '';
+    const elapsedMs = Math.max(0, Date.now() - createdMs);
+    const remainingMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+    if (remainingMs <= 0) return 'Expired';
+
+    const totalRemainingMins = Math.ceil(remainingMs / (60 * 1000));
+    if (totalRemainingMins >= 60) {
+        const hrs = Math.floor(totalRemainingMins / 60);
+        const mins = totalRemainingMins % 60;
+        return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+    }
+    return `${totalRemainingMins}m`;
+}
+window.getStaffOrderCountdownText = getStaffOrderCountdownText;
+window.getOrderExpirationCountdownText = getStaffOrderCountdownText;
 
 async function autoRejectExpiredOrder(order) {
     if (!order) return;
@@ -595,7 +625,7 @@ async function autoRejectExpiredOrder(order) {
     if (!orderId || autoRejectInFlightOrderIds.has(orderId)) return;
     autoRejectInFlightOrderIds.add(orderId);
 
-    console.log(`[STAFF SWEEPER] Auto-rejecting 3-hour expired order #${orderId}...`);
+    console.log(`[STAFF SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
 
     const customerPhone = String(order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '').replace(/[^0-9]/g, '').slice(-10);
 
@@ -611,8 +641,9 @@ async function autoRejectExpiredOrder(order) {
 
     const nowIso = new Date().toISOString();
     order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
     order.autoExpired = true;
+    order.isAutoExpired = true;
     order.rejectedAt = nowIso;
     order.rewardStatus = 'voided';
     order.cashbackStatus = 'VOID';
@@ -647,8 +678,9 @@ async function autoRejectExpiredOrder(order) {
 
             const orderUpdate = {
                 status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
                 autoExpired: true,
+                isAutoExpired: true,
                 rejectedAt: serverTs,
                 rewardStatus: 'voided',
                 cashbackStatus: 'VOID',
@@ -734,8 +766,9 @@ async function autoRejectExpiredOrder(order) {
             body: JSON.stringify({
                 orderId: orderId,
                 status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 3-hour fulfillment timeout',
+                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
                 autoExpired: true,
+                isAutoExpired: true,
                 walletRefundProcessed: refundAmount > 0,
                 walletRefunded: refundAmount > 0,
                 walletRefundAmount: refundAmount,
@@ -2845,6 +2878,8 @@ function getOrderElapsedData(order) {
         stageTitle = `On Time: ${formatted} (0-7 mins)`;
     }
 
+    const countdownText = getStaffOrderCountdownText(order);
+
     return {
         elapsedSec,
         elapsedMins,
@@ -2853,6 +2888,7 @@ function getOrderElapsedData(order) {
         isCompleted,
         isRejected,
         stageTitle,
+        countdownText,
         styleAttr: `color: ${color.textColor}; border-color: ${color.borderColor}; background-color: ${color.bgColor}; box-shadow: 0 2px 12px ${color.shadowColor};`
     };
 }
@@ -3049,9 +3085,22 @@ function updateLiveTimers() {
 
         const badgeEl = document.getElementById(`timer-badge-${order.id}`);
         const valEl = document.getElementById(`timer-val-${order.id}`);
+        const pillEl = document.getElementById(`countdown-pill-${order.id}`);
         if (badgeEl && valEl) {
             const timerData = getOrderElapsedData(order);
             valEl.textContent = timerData.formatted;
+
+            if (pillEl) {
+                const cdText = timerData.countdownText;
+                if (cdText) {
+                    pillEl.style.display = 'inline-flex';
+                    pillEl.innerHTML = `<i class="fa-solid fa-hourglass-half"></i> ${cdText === 'Expired' ? 'Expired' : `${cdText} left`}`;
+                    if (cdText === 'Expired') pillEl.classList.add('pill-expired');
+                    else pillEl.classList.remove('pill-expired');
+                } else {
+                    pillEl.style.display = 'none';
+                }
+            }
 
             // Apply continuous smooth color transition
             badgeEl.style.color = timerData.color.textColor;
@@ -3828,9 +3877,16 @@ function buildOrderCardHTML(order) {
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                 </div>
-                <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
-                    <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
-                    <span class="timer-value" id="timer-val-${order.id}">${timerData.formatted}</span>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                    ${timerData.countdownText ? `
+                        <span class="order-countdown-pill ${timerData.countdownText === 'Expired' ? 'pill-expired' : ''}" id="countdown-pill-${order.id}" title="Auto-expires in ${timerData.countdownText}">
+                            <i class="fa-solid fa-hourglass-half"></i> ${timerData.countdownText === 'Expired' ? 'Expired' : `${timerData.countdownText} left`}
+                        </span>
+                    ` : ''}
+                    <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
+                        <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
+                        <span class="timer-value" id="timer-val-${order.id}">${timerData.formatted}</span>
+                    </div>
                 </div>
             </div>
 

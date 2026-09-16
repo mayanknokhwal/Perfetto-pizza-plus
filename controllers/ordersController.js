@@ -22,7 +22,8 @@ function isValidOrder(order) {
     return true;
 }
 
-const THREE_HOURS_EXPIRATION_MS = 3 * 60 * 60 * 1000; // 3 hours = 10,800,000 ms
+const ONE_HUNDRED_MINS_EXPIRATION_MS = 100 * 60 * 1000; // 100 mins = 6,000,000 ms
+const THREE_HOURS_EXPIRATION_MS = ONE_HUNDRED_MINS_EXPIRATION_MS; // Backward-compatible alias
 
 function getOrderCreationTimeMs(order) {
     if (!order) return 0;
@@ -51,16 +52,17 @@ function getOrderCreationTimeMs(order) {
     return 0;
 }
 
-function isOrderThreeHoursExpired(order) {
+function isOrder100MinsExpired(order) {
     if (!order) return false;
     const st = String(order.status || '').toLowerCase().trim();
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined', 'auto_expired'];
     if (terminalStatuses.includes(st)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
-    return (Date.now() - createdMs) >= THREE_HOURS_EXPIRATION_MS;
+    return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
+const isOrderThreeHoursExpired = isOrder100MinsExpired;
 
 async function autoRejectExpiredOrderBackend(order) {
     if (!order) return;
@@ -68,8 +70,9 @@ async function autoRejectExpiredOrderBackend(order) {
     if (!orderId) return;
 
     order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 3-hour fulfillment timeout';
+    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
     order.autoExpired = true;
+    order.isAutoExpired = true;
     order.rejectedAt = new Date().toISOString();
     order.rewardStatus = 'voided';
     order.cashbackStatus = 'VOID';
