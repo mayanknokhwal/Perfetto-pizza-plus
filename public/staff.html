@@ -317,10 +317,10 @@
             </header>
 
             <!-- AUDIO AUTOPLAY RESTRICTION / LIVE CHIME UNLOCK BANNER -->
-            <div id="staff-audio-banner" class="staff-audio-banner" style="display: none;" onclick="toggleStaffSoundState()" role="alert" aria-live="assertive">
+            <div id="staff-audio-banner" class="staff-audio-banner" style="display: none;" onclick="unlockAudio()" role="alert" aria-live="assertive">
                 <div class="audio-banner-content">
-                    <i class="fa-solid fa-volume-xmark audio-banner-icon"></i>
-                    <span id="staff-audio-banner-text">Audio alerts restricted by browser. <strong>Tap here to enable sound chimes!</strong></span>
+                    <i class="fa-solid fa-volume-high audio-banner-icon"></i>
+                    <span id="staff-audio-banner-text">🔊 Click anywhere to activate live audio alerts</span>
                 </div>
                 <button type="button" class="btn-dismiss-audio-banner" onclick="event.stopPropagation(); dismissStaffAudioBanner();" title="Dismiss Banner" aria-label="Dismiss audio warning">
                     <i class="fa-solid fa-xmark"></i>

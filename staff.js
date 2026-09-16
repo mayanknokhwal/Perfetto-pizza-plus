@@ -612,16 +612,22 @@ function getOrderCountdownPillHTML(order) {
     if (!order) return '';
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
     const st = String(order.status || '').toLowerCase().trim();
-    if (terminalStatuses.includes(st)) return '';
+    if (terminalStatuses.includes(st) || isRejectedStaffOrder(order)) return '';
 
     const createdMs = getOrderCreationTimeMs(order) || (order.createdAt ? new Date(order.createdAt).getTime() : Date.now());
     const elapsedMs = Date.now() - createdMs;
+    if (elapsedMs >= ONE_HUNDRED_MINS_EXPIRATION_MS || isOrder100MinsExpired(order)) {
+        // Enforce hard Firestore state transition immediately; do NOT merely swap text badge to Expired
+        autoRejectExpiredOrder(order);
+        return '';
+    }
+
     const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
     const remMins = Math.max(0, Math.ceil(remMs / 60000));
     const hrs = Math.floor(remMins / 60);
     const mins = remMins % 60;
-    const countdownText = remMs <= 0 ? 'Expired' : (hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
-    const pillClass = remMs <= 0 ? 'pill-expired' : (remMins <= 20 ? 'pill-urgent' : 'pill-active');
+    const countdownText = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+    const pillClass = remMins <= 20 ? 'pill-urgent' : 'pill-active';
 
     return `<span class="order-countdown-pill ${pillClass}" title="100-Minute Auto-Expiry Countdown">⏱ ${countdownText}</span>`;
 }
@@ -649,14 +655,16 @@ async function autoRejectExpiredOrder(order) {
         ));
 
         const nowIso = new Date().toISOString();
-        const autoExpiryReason = 'Order timed out (>100 minutes) - automatically cancelled by system'; // Order auto-rejected due to 100-minute fulfillment timeout
+        const autoExpiryReason = 'Order timed out (>100 mins) - auto expired'; // 100-minute fulfillment timeout
+        const autoExpiryDetailed = 'Order timed out (>100 minutes) - automatically cancelled by system';
 
-        order.status = 'rejected';
-        order.cancellationReason = autoExpiryReason;
+        order.status = 'REJECTED';
+        order.cancellationReason = autoExpiryDetailed;
         order.rejectionReason = autoExpiryReason;
         order.rejectedBy = 'SYSTEM_AUTO_EXPIRE';
         order.autoExpired = true;
         order.isAutoExpired = true;
+        order.walletRefundProcessed = true;
         order.rejectedAt = nowIso;
         order.cancelledAt = nowIso;
         order.rewardStatus = 'voided';
@@ -669,14 +677,13 @@ async function autoRejectExpiredOrder(order) {
             order.scratchCard.wonAmount = 0;
             order.scratchCard.amount = 0;
         }
-        const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+        const isAlreadyRefunded = Boolean(order.walletRefunded);
         const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
         const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
             ? calculateRecoveredExpiry(originalExpiresAt)
             : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
         if (refundAmount > 0 && !isAlreadyRefunded) {
-            order.walletRefundProcessed = true;
             order.walletRefunded = true;
             order.walletRefundAmount = refundAmount;
             order.refundTimestamp = nowIso;
@@ -688,18 +695,19 @@ async function autoRejectExpiredOrder(order) {
         if (db) {
             try {
                 const batch = db.batch();
-                const exactDocId = order.firestoreDocId || order.docId || orderId;
-                const orderRef = db.collection('orders').doc(exactDocId);
+                const exactDocId = order.firestoreDocId || order.docId || order.id || order.orderId || orderId;
+                const orderRef = db.collection('orders').doc(String(exactDocId));
 
                 const serverTs = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
                     ? firebase.firestore.FieldValue.serverTimestamp()
                     : nowIso;
 
                 const orderUpdate = {
-                    status: 'rejected',
-                    cancellationReason: autoExpiryReason,
+                    status: 'REJECTED',
                     rejectionReason: autoExpiryReason,
+                    cancellationReason: autoExpiryDetailed,
                     rejectedBy: 'SYSTEM_AUTO_EXPIRE',
+                    walletRefundProcessed: true,
                     autoExpired: true,
                     isAutoExpired: true,
                     rejectedAt: serverTs,
@@ -719,7 +727,6 @@ async function autoRejectExpiredOrder(order) {
                 }
 
                 if (refundAmount > 0 && customerPhone && !isAlreadyRefunded) {
-                    orderUpdate.walletRefundProcessed = true;
                     orderUpdate.walletRefunded = true;
                     orderUpdate.walletRefundAmount = refundAmount;
                     orderUpdate.refundTimestamp = serverTs;
@@ -783,6 +790,16 @@ async function autoRejectExpiredOrder(order) {
 
                 batch.set(orderRef, orderUpdate, { merge: true });
                 await batch.commit();
+
+                // Direct update fallback
+                try {
+                    if (typeof updateDoc === 'function') {
+                        await updateDoc(orderRef, orderUpdate);
+                    } else if (orderRef && typeof orderRef.update === 'function') {
+                        await orderRef.update(orderUpdate);
+                    }
+                } catch (uErr) { }
+
                 console.log(`✅ [STAFF SWEEPER] Firestore atomic batch committed for expired Order #${orderId}`);
             } catch (fsErr) {
                 console.warn(`[STAFF SWEEPER] Firestore write error for expired Order #${orderId}:`, fsErr);
@@ -2595,82 +2612,52 @@ let hasUniversalAudioUnlocked = false;
  * - Switches header audio indicator from "Audio Muted" to green "Sound Active"
  * - Keeps header button functional for direct manual toggling
  */
-function setupUniversalAudioUnlock() {
-    const handleFirstInteraction = (event) => {
-        // 1. Request Web Notification permission on genuine user gesture & register FCM token
-        if (typeof Notification !== 'undefined') {
-            if (Notification.permission === 'default') {
-                try {
-                    Notification.requestPermission().then((perm) => {
-                        if (perm === 'granted') {
-                            requestAndRegisterStaffFcmToken();
-                        }
-                    }).catch(() => {});
-                } catch (e) { }
-            } else if (Notification.permission === 'granted') {
-                requestAndRegisterStaffFcmToken();
-            }
-        }
+function unlockAudio(event) {
+    if (isStaffAudioUnlocked) return;
+    console.log('Audio unlocked');
 
-        // 2. Unlock Web AudioContext if suspended
-        const ctx = getStaffAudioContext();
-        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+    // 1. Resume AudioContext
+    const ctx = getStaffAudioContext();
+    if (ctx) {
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
             ctx.resume().catch(() => {});
         }
-
-        // 3. Explicitly prime persistent HTML5 Audio element
-        // Android Chrome / iOS WebKit requires genuine user gesture with unmuted near-zero volume play
+        // Play and instantly pause a muted 1ms silent buffer to permanently unlock playback authorization for the session
         try {
-            const audio = getOrderAlertAudio();
-            if (audio) {
-                audio.muted = false;
-                audio.volume = 0.001;
-                const p = audio.play();
-                if (p !== undefined && typeof p.then === 'function') {
-                    p.then(() => {
-                        if (!isOrderAlertAudioPlaying) {
-                            audio.pause();
-                            audio.currentTime = 0;
-                        }
-                        audio.volume = 1.0;
-                        isStaffAudioUnlocked = true;
-                        isAudioAutoplayBlocked = false;
-                        dismissStaffAudioBanner();
-                        console.log('📱 [Mobile Audio Engine] Primed persistent HTMLAudioElement successfully on genuine user gesture.');
-                        if (pendingOrderAlertData && isStaffSoundEnabled) {
-                            const { orderId, details, orderData } = pendingOrderAlertData;
-                            pendingOrderAlertData = null;
-                            startOrderAlertAudio(orderId, details, orderData);
-                        }
-                    }).catch((err) => {
-                        console.warn('Audio prime notice:', err.message);
-                        audio.volume = 1.0;
-                    });
-                }
-            }
+            const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.001)), ctx.sampleRate);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
         } catch (e) { }
+    }
 
-        // 4. Enable staff sound state and reflect active UI
-        enableStaffSound({ playChime: false, showToast: false });
-
-        if (isStaffSoundEnabled) {
-            hasUniversalAudioUnlocked = true;
-            ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
-                document.removeEventListener(evt, handleFirstInteraction, true);
-                window.removeEventListener(evt, handleFirstInteraction, true);
-            });
+    // 2. Play and instantly pause HTML5 audio element
+    try {
+        const audio = getOrderAlertAudio();
+        if (audio) {
+            audio.muted = true;
+            const p = audio.play();
+            if (p !== undefined && typeof p.then === 'function') {
+                p.then(() => {
+                    if (!isOrderAlertAudioPlaying) {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }
+                    audio.muted = false;
+                    audio.volume = 1.0;
+                }).catch(() => {
+                    audio.muted = false;
+                    audio.volume = 1.0;
+                });
+            } else {
+                audio.muted = false;
+                audio.volume = 1.0;
+            }
         }
-    };
+    } catch (e) { }
 
-    ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'].forEach(evt => {
-        document.addEventListener(evt, handleFirstInteraction, { capture: true, passive: true });
-        window.addEventListener(evt, handleFirstInteraction, { capture: true, passive: true });
-    });
-}
-window.setupUniversalAudioUnlock = setupUniversalAudioUnlock;
-
-function unlockStaffAudioAlerts(silent = true) {
-    // 1. Request Web Notification permission if still default & acquire FCM token
+    // 3. Request Web Notification permission on genuine user gesture & register FCM token
     if (typeof Notification !== 'undefined') {
         if (Notification.permission === 'default') {
             try {
@@ -2685,48 +2672,43 @@ function unlockStaffAudioAlerts(silent = true) {
         }
     }
 
-    // 2. Resume Web Audio Context if suspended
-    const ctx = getStaffAudioContext();
-    if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-        ctx.resume().then(() => {
-            checkAndShowStaffAudioBanner();
-        }).catch(() => {});
-    }
-
-    // 3. Prime HTML5 Audio element to bypass Android Chrome and WebView autoplay restrictions
-    try {
-        const audio = getOrderAlertAudio();
-        if (audio) {
-            audio.loop = true;
-            audio.muted = false;
-            audio.volume = 0.001;
-            const playPromise = audio.play();
-            if (playPromise !== undefined && typeof playPromise.then === 'function') {
-                playPromise.then(() => {
-                    if (!isOrderAlertAudioPlaying) {
-                        audio.pause();
-                        audio.currentTime = 0;
-                    }
-                    audio.volume = 1.0;
-                    isStaffAudioUnlocked = true;
-                    isAudioAutoplayBlocked = false;
-                    dismissStaffAudioBanner();
-                    console.log('🔓 [Staff Audio] Audio element primed for notifications.');
-                    if (pendingOrderAlertData && isStaffSoundEnabled) {
-                        const { orderId, details, orderData } = pendingOrderAlertData;
-                        pendingOrderAlertData = null;
-                        startOrderAlertAudio(orderId, details, orderData);
-                    }
-                }).catch((err) => {
-                    audio.volume = 1.0;
-                    console.warn('Audio prime note:', err.message);
-                });
-            }
-        }
-    } catch (e) { }
-
     isStaffAudioUnlocked = true;
+    isAudioAutoplayBlocked = false;
+    hasUniversalAudioUnlocked = true;
+    enableStaffSound({ playChime: false, showToast: false });
     dismissStaffAudioBanner();
+
+    // 4. Once clicked, immediately replay pending sirens
+    if (pendingOrderAlertData && isStaffSoundEnabled) {
+        const { orderId, details, orderData } = pendingOrderAlertData;
+        pendingOrderAlertData = null;
+        startOrderAlertAudio(orderId, details, orderData);
+    }
+}
+window.unlockAudio = unlockAudio;
+
+/**
+ * Attaches a global, persistent interaction listener to window/document for click, touchstart, touchend, pointerdown, keydown.
+ */
+function setupUniversalAudioUnlock() {
+    ['click', 'touchstart'].forEach(evt => {
+        document.addEventListener(evt, unlockAudio, { once: true, capture: true, passive: true });
+        window.addEventListener(evt, unlockAudio, { once: true, capture: true, passive: true });
+    });
+    ['pointerdown', 'keydown'].forEach(evt => {
+        document.addEventListener(evt, unlockAudio, { capture: true, passive: true });
+        window.addEventListener(evt, unlockAudio, { capture: true, passive: true });
+    });
+}
+window.setupUniversalAudioUnlock = setupUniversalAudioUnlock;
+
+if (typeof document !== 'undefined') {
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
+}
+
+function unlockStaffAudioAlerts(silent = true) {
+    unlockAudio();
 }
 window.unlockStaffAudioAlerts = unlockStaffAudioAlerts;
 
@@ -2740,15 +2722,16 @@ window.dismissStaffAudioBanner = dismissStaffAudioBanner;
 
 function checkAndShowStaffAudioBanner() {
     const banner = document.getElementById('staff-audio-banner');
+    const bannerText = document.getElementById('staff-audio-banner-text');
     if (!banner) return;
-    if (isStaffSoundEnabled) {
-        banner.style.display = 'none';
-        return;
-    }
     const ctx = getStaffAudioContext();
     const needsUnlock = !isStaffAudioUnlocked || isAudioAutoplayBlocked || (ctx && ctx.state === 'suspended');
     if (needsUnlock) {
+        if (bannerText) {
+            bannerText.innerHTML = '🔊 Click anywhere to activate live audio alerts';
+        }
         banner.style.display = 'block';
+        showStaffToast('🔊 Click anywhere to activate live audio alerts');
     } else {
         banner.style.display = 'none';
     }
@@ -3162,6 +3145,12 @@ function updateLiveTimers() {
     staffOrders.forEach(order => {
         // Skip updating active elapsed time if already completed/frozen
         if (isFinishedStaffOrder(order)) {
+            return;
+        }
+
+        // Hard Firestore auto-expiry state transition: do NOT merely swap a UI text badge to "Expired"
+        if (isOrder100MinsExpired(order) || (Date.now() - getOrderCreationTimeMs(order) >= ONE_HUNDRED_MINS_EXPIRATION_MS)) {
+            autoRejectExpiredOrder(order);
             return;
         }
 

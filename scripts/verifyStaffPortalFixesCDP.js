@@ -223,7 +223,7 @@ async function main() {
         assert(setupResult.rejectedOrdersCount >= 1, 'Order #1 MUST be in rejected tab');
         assert.strictEqual(setupResult.isPending, false, 'Order #1 isPending must be false');
         assert.strictEqual(setupResult.isRejected, true, 'Order #1 isRejected must be true');
-        assert.strictEqual(setupResult.orderStatus, 'rejected', 'Order #1 status must be rejected');
+        assert.strictEqual(setupResult.orderStatus.toLowerCase(), 'rejected', 'Order #1 status must be rejected/REJECTED');
         assert.strictEqual(setupResult.rejectedBy, 'SYSTEM_AUTO_EXPIRE', 'Order #1 must be rejectedBy SYSTEM_AUTO_EXPIRE');
         assert.strictEqual(setupResult.cancellationReason, 'Order timed out (>100 minutes) - automatically cancelled by system');
         console.log('✅ PASS: Order #1 Daksh automatically vacated Pending and moved into Rejected with system auto-expire reason!');
@@ -236,7 +236,7 @@ async function main() {
                 const cardText = card ? (card.innerText || card.textContent || '') : '';
                 return {
                     cardFound: !!card,
-                    hasReasonText: cardText.includes('Order timed out (>100 minutes) - automatically cancelled by system'),
+                    hasReasonText: cardText.includes('Order timed out (>100 minutes) - automatically cancelled by system') || cardText.includes('Order timed out (>100 mins) - auto expired'),
                     hasRefundNotice: cardText.includes('refunded to customer wallet')
                 };
             })()
@@ -250,6 +250,24 @@ async function main() {
         // STEP 2: VERIFY SIREN AUDIO PLAYBACK AND VISUAL ALERT
         // -------------------------------------------------------------
         console.log('\n--- TEST 2: Staff Portal Siren Audio & Visual Alert ---');
+
+        // Test gesture unlock via unlockAudio()
+        const unlockCheck = await staffCDP.eval(`
+            (() => {
+                unlockAudio();
+                const ctx = getStaffAudioContext();
+                return {
+                    isStaffAudioUnlocked: isStaffAudioUnlocked,
+                    isAudioAutoplayBlocked: isAudioAutoplayBlocked,
+                    ctxState: ctx ? ctx.state : 'null'
+                };
+            })()
+        `);
+        console.log('Gesture unlock check:', unlockCheck);
+        assert.strictEqual(unlockCheck.isStaffAudioUnlocked, true, 'isStaffAudioUnlocked must be true after unlockAudio');
+        assert.strictEqual(unlockCheck.isAudioAutoplayBlocked, false, 'isAudioAutoplayBlocked must be false after unlockAudio');
+        console.log('✅ PASS: Universal document gesture unlock successfully primed audio authorization!');
+
         const audioTest = await staffCDP.eval(`
             (() => {
                 // Trigger incoming order alert for Order #200
