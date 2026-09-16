@@ -76,7 +76,7 @@ function isOrder100MinsExpired(order) {
     const st = String(order.status || '').toLowerCase().trim();
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
     if (terminalStatuses.includes(st)) return false;
-    if (order.autoExpired === true || order.isAutoExpired === true) return false;
+    if (order.autoExpired === true || order.isAutoExpired === true || st === 'expired' || st === 'auto_expired') return true;
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
     return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
@@ -89,8 +89,11 @@ async function autoRejectExpiredOrderBackend(order) {
     if (!orderId) return;
 
     order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
+    order.cancellationReason = 'Order timed out (>100 minutes) - automatically cancelled by system';
+    order.rejectionReason = 'Order timed out (>100 minutes) - automatically cancelled by system'; // Order auto-rejected due to 100-minute fulfillment timeout
+    order.rejectedBy = 'SYSTEM_AUTO_EXPIRE';
     order.autoExpired = true;
+    order.isAutoExpired = true;
     order.rejectedAt = new Date().toISOString();
     order.rewardStatus = 'voided';
     order.cashbackStatus = 'VOID';
@@ -745,7 +748,13 @@ async function handleOrdersRequest(req, res) {
             }
 
             if (status === 'rejected' || status === 'cancelled') {
-                const isAutoExpired = Boolean(body?.autoExpired || isOrderThreeHoursExpired(targetOrder));
+                const isAutoExpired = Boolean(
+                    body?.autoExpired || 
+                    body?.isAutoExpired || 
+                    body?.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || 
+                    targetOrder?.rejectedBy === 'SYSTEM_AUTO_EXPIRE' ||
+                    isOrderThreeHoursExpired(targetOrder)
+                );
                 if (!isAutoExpired) {
                     const liveSettings = await getFirestoreDoc('settings', 'storeSettings') || await getFirestoreDoc('settings', 'store_config');
                     const validMasterOtp = String(liveSettings?.masterDeliveryOtp || global.__perfettoStoreSettings?.masterDeliveryOtp || '9999').replace(/[^0-9]/g, '').slice(0, 4);
@@ -761,8 +770,12 @@ async function handleOrdersRequest(req, res) {
                 }
             }
 
-            if (status) targetOrder.status = status;
+            if (status) targetOrder.status = String(status).toLowerCase() === 'rejected' ? 'rejected' : status;
+            if (body?.cancellationReason !== undefined) targetOrder.cancellationReason = String(body.cancellationReason).trim();
             if (rejectionReason !== undefined) targetOrder.rejectionReason = String(rejectionReason).trim();
+            if (body?.rejectedBy !== undefined) targetOrder.rejectedBy = String(body.rejectedBy).trim();
+            if (body?.autoExpired !== undefined) targetOrder.autoExpired = Boolean(body.autoExpired);
+            if (body?.isAutoExpired !== undefined) targetOrder.isAutoExpired = Boolean(body.isAutoExpired);
             if (paymentStatus) targetOrder.paymentStatus = paymentStatus;
             if (paymentDetails) targetOrder.paymentDetails = paymentDetails;
             if (deliveryOtp) targetOrder.deliveryOtp = deliveryOtp;

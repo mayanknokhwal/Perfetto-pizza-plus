@@ -597,7 +597,8 @@ function isOrder100MinsExpired(order) {
     const status = String(order.status || '').toLowerCase().trim();
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
     if (terminalStatuses.includes(status)) return false;
-    if (order.autoExpired === true || order.isAutoExpired === true) return false;
+    if (order.autoExpired === true || order.isAutoExpired === true) return true;
+    if (status === 'expired' || status === 'auto_expired') return true;
 
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
@@ -632,175 +633,231 @@ async function autoRejectExpiredOrder(order) {
     if (!orderId || autoRejectInFlightOrderIds.has(orderId)) return;
     autoRejectInFlightOrderIds.add(orderId);
 
-    console.log(`[STAFF SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
+    try {
+        console.log(`[STAFF SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
 
-    const customerPhone = String(order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+        const customerPhone = String(order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '').replace(/[^0-9]/g, '').slice(-10);
 
-    const refundAmount = Math.round(Number(
-        order.walletDeductedAmount ||
-        order.walletUsed ||
-        order.walletDiscount ||
-        order.usedWalletCash ||
-        order.appliedWalletDiscount ||
-        order.usedWallet ||
-        0
-    ));
+        const refundAmount = Math.round(Number(
+            order.walletDeductedAmount ||
+            order.walletUsed ||
+            order.walletDiscount ||
+            order.usedWalletCash ||
+            order.appliedWalletDiscount ||
+            order.usedWallet ||
+            0
+        ));
 
-    const nowIso = new Date().toISOString();
-    order.status = 'rejected';
-    order.rejectionReason = 'Order auto-rejected due to 100-minute fulfillment timeout';
-    order.autoExpired = true;
-    order.rejectedAt = nowIso;
-    order.rewardStatus = 'voided';
-    order.cashbackStatus = 'VOID';
-    order.wonCashback = 0;
-    order.earnedCashback = 0;
-    if (order.scratchCard) {
-        order.scratchCard.status = 'CANCELLED';
-        order.scratchCard.voided = true;
-        order.scratchCard.wonAmount = 0;
-        order.scratchCard.amount = 0;
-    }
-    const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
-    const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
-    const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
-        ? calculateRecoveredExpiry(originalExpiresAt)
-        : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const nowIso = new Date().toISOString();
+        const autoExpiryReason = 'Order timed out (>100 minutes) - automatically cancelled by system'; // Order auto-rejected due to 100-minute fulfillment timeout
 
-    if (refundAmount > 0 && !isAlreadyRefunded) {
-        order.walletRefundProcessed = true;
-        order.walletRefunded = true;
-        order.walletRefundAmount = refundAmount;
-        order.refundTimestamp = nowIso;
-        order.walletRefundedAt = nowIso;
-    }
+        order.status = 'rejected';
+        order.cancellationReason = autoExpiryReason;
+        order.rejectionReason = autoExpiryReason;
+        order.rejectedBy = 'SYSTEM_AUTO_EXPIRE';
+        order.autoExpired = true;
+        order.isAutoExpired = true;
+        order.rejectedAt = nowIso;
+        order.cancelledAt = nowIso;
+        order.rewardStatus = 'voided';
+        order.cashbackStatus = 'VOID';
+        order.wonCashback = 0;
+        order.earnedCashback = 0;
+        if (order.scratchCard) {
+            order.scratchCard.status = 'CANCELLED';
+            order.scratchCard.voided = true;
+            order.scratchCard.wonAmount = 0;
+            order.scratchCard.amount = 0;
+        }
+        const isAlreadyRefunded = Boolean(order.walletRefundProcessed || order.walletRefunded);
+        const originalExpiresAt = order.walletHoldExpiresAt || order.walletOriginalExpiresAt || null;
+        const recoveredExpiresAt = (typeof calculateRecoveredExpiry === 'function')
+            ? calculateRecoveredExpiry(originalExpiresAt)
+            : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    // 1. Direct atomic Firestore update
-    const db = getStaffFirestore();
-    if (db) {
-        try {
-            const batch = db.batch();
-            const exactDocId = order.firestoreDocId || order.docId || orderId;
-            const orderRef = db.collection('orders').doc(exactDocId);
+        if (refundAmount > 0 && !isAlreadyRefunded) {
+            order.walletRefundProcessed = true;
+            order.walletRefunded = true;
+            order.walletRefundAmount = refundAmount;
+            order.refundTimestamp = nowIso;
+            order.walletRefundedAt = nowIso;
+        }
 
-            const serverTs = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                ? firebase.firestore.FieldValue.serverTimestamp()
-                : nowIso;
+        // 1. Direct atomic Firestore update
+        const db = getStaffFirestore();
+        if (db) {
+            try {
+                const batch = db.batch();
+                const exactDocId = order.firestoreDocId || order.docId || orderId;
+                const orderRef = db.collection('orders').doc(exactDocId);
 
-            const orderUpdate = {
-                status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
-                autoExpired: true,
-                rejectedAt: serverTs,
-                rewardStatus: 'voided',
-                cashbackStatus: 'VOID',
-                wonCashback: 0,
-                earnedCashback: 0,
-                updatedAt: serverTs
-            };
+                const serverTs = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                    ? firebase.firestore.FieldValue.serverTimestamp()
+                    : nowIso;
 
-            if (order.scratchCard) {
-                orderUpdate['scratchCard.status'] = 'CANCELLED';
-                orderUpdate['scratchCard.voided'] = true;
-                orderUpdate['scratchCard.wonAmount'] = 0;
-                orderUpdate['scratchCard.amount'] = 0;
-            }
-
-            if (refundAmount > 0 && customerPhone && !isAlreadyRefunded) {
-                orderUpdate.walletRefundProcessed = true;
-                orderUpdate.walletRefunded = true;
-                orderUpdate.walletRefundAmount = refundAmount;
-                orderUpdate.refundTimestamp = serverTs;
-                orderUpdate.walletRefundedAt = serverTs;
-
-                const incrementFn = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                    ? firebase.firestore.FieldValue.increment(refundAmount)
-                    : refundAmount;
-
-                const txId = `tx_refund_${orderId}`;
-                const refundTxLog = {
-                    id: txId,
-                    orderId: orderId,
-                    amount: refundAmount,
-                    type: 'REFUND',
-                    title: `+₹${refundAmount} Refund`,
-                    description: `+₹${refundAmount} Refund for Order #${orderId}`,
-                    status: 'completed',
-                    expiresAt: recoveredExpiresAt,
-                    originalExpiresAt: originalExpiresAt || null,
-                    graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
-                    timestamp: serverTs,
-                    createdAt: serverTs
+                const orderUpdate = {
+                    status: 'rejected',
+                    cancellationReason: autoExpiryReason,
+                    rejectionReason: autoExpiryReason,
+                    rejectedBy: 'SYSTEM_AUTO_EXPIRE',
+                    autoExpired: true,
+                    isAutoExpired: true,
+                    rejectedAt: serverTs,
+                    cancelledAt: serverTs,
+                    rewardStatus: 'voided',
+                    cashbackStatus: 'VOID',
+                    wonCashback: 0,
+                    earnedCashback: 0,
+                    updatedAt: serverTs
                 };
 
-                // 1. Increment users/phone_{customerPhone}
-                const userPrefixedRef = db.collection('users').doc(`phone_${customerPhone}`);
-                batch.set(userPrefixedRef, {
-                    balance: incrementFn,
-                    walletBalance: incrementFn,
-                    expiresAt: recoveredExpiresAt,
-                    expired: false,
-                    updatedAt: serverTs
-                }, { merge: true });
-                batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
-                batch.set(userPrefixedRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+                if (order.scratchCard) {
+                    orderUpdate['scratchCard.status'] = 'CANCELLED';
+                    orderUpdate['scratchCard.voided'] = true;
+                    orderUpdate['scratchCard.wonAmount'] = 0;
+                    orderUpdate['scratchCard.amount'] = 0;
+                }
 
-                // 2. Increment users/{customerPhone}
-                const userRawRef = db.collection('users').doc(customerPhone);
-                batch.set(userRawRef, {
-                    balance: incrementFn,
-                    walletBalance: incrementFn,
-                    expiresAt: recoveredExpiresAt,
-                    expired: false,
-                    updatedAt: serverTs
-                }, { merge: true });
-                batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
-                batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+                if (refundAmount > 0 && customerPhone && !isAlreadyRefunded) {
+                    orderUpdate.walletRefundProcessed = true;
+                    orderUpdate.walletRefunded = true;
+                    orderUpdate.walletRefundAmount = refundAmount;
+                    orderUpdate.refundTimestamp = serverTs;
+                    orderUpdate.walletRefundedAt = serverTs;
 
-                // 3. Increment wallets/{customerPhone}
-                const walletRef = db.collection('wallets').doc(customerPhone);
-                batch.set(walletRef, {
-                    phone: customerPhone,
-                    balance: incrementFn,
-                    expiresAt: recoveredExpiresAt,
-                    updatedAt: serverTs
-                }, { merge: true });
-                batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
-                batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+                    const incrementFn = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                        ? firebase.firestore.FieldValue.increment(refundAmount)
+                        : refundAmount;
+
+                    const txId = `tx_refund_${orderId}`;
+                    const refundTxLog = {
+                        id: txId,
+                        orderId: orderId,
+                        amount: refundAmount,
+                        type: 'REFUND',
+                        title: `+₹${refundAmount} Refund`,
+                        description: `+₹${refundAmount} Refund for Order #${orderId}`,
+                        status: 'completed',
+                        expiresAt: recoveredExpiresAt,
+                        originalExpiresAt: originalExpiresAt || null,
+                        graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
+                        timestamp: serverTs,
+                        createdAt: serverTs
+                    };
+
+                    // 1. Increment users/phone_{customerPhone}
+                    const userPrefixedRef = db.collection('users').doc(`phone_${customerPhone}`);
+                    batch.set(userPrefixedRef, {
+                        balance: incrementFn,
+                        walletBalance: incrementFn,
+                        expiresAt: recoveredExpiresAt,
+                        expired: false,
+                        updatedAt: serverTs
+                    }, { merge: true });
+                    batch.set(userPrefixedRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
+                    batch.set(userPrefixedRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                    // 2. Increment users/{customerPhone}
+                    const userRawRef = db.collection('users').doc(customerPhone);
+                    batch.set(userRawRef, {
+                        balance: incrementFn,
+                        walletBalance: incrementFn,
+                        expiresAt: recoveredExpiresAt,
+                        expired: false,
+                        updatedAt: serverTs
+                    }, { merge: true });
+                    batch.set(userRawRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
+                    batch.set(userRawRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+
+                    // 3. Increment wallets/{customerPhone}
+                    const walletRef = db.collection('wallets').doc(customerPhone);
+                    batch.set(walletRef, {
+                        phone: customerPhone,
+                        balance: incrementFn,
+                        expiresAt: recoveredExpiresAt,
+                        updatedAt: serverTs
+                    }, { merge: true });
+                    batch.set(walletRef.collection('wallet_transactions').doc(txId), refundTxLog, { merge: true });
+                    batch.set(walletRef.collection('transactions').doc(txId), refundTxLog, { merge: true });
+                }
+
+                batch.set(orderRef, orderUpdate, { merge: true });
+                await batch.commit();
+                console.log(`✅ [STAFF SWEEPER] Firestore atomic batch committed for expired Order #${orderId}`);
+            } catch (fsErr) {
+                console.warn(`[STAFF SWEEPER] Firestore write error for expired Order #${orderId}:`, fsErr);
             }
-
-            batch.set(orderRef, orderUpdate, { merge: true });
-            await batch.commit();
-            console.log(`✅ [STAFF SWEEPER] Firestore atomic batch committed for expired Order #${orderId}`);
-        } catch (fsErr) {
-            console.warn(`[STAFF SWEEPER] Firestore write error for expired Order #${orderId}:`, fsErr);
         }
-    }
 
-    // 2. Sync to Backend API
-    try {
-        await apiCall('/orders', {
-            method: 'PATCH',
-            body: JSON.stringify({
-                orderId: orderId,
-                status: 'rejected',
-                rejectionReason: 'Order auto-rejected due to 100-minute fulfillment timeout',
-                autoExpired: true,
-                walletRefundProcessed: refundAmount > 0,
-                walletRefunded: refundAmount > 0,
-                walletRefundAmount: refundAmount,
-                refundTimestamp: nowIso,
-                customerPhone: customerPhone
-            })
-        });
-    } catch (apiErr) {
-        console.warn(`[STAFF SWEEPER] Backend API sync note for Order #${orderId}:`, apiErr.message);
+        // 2. Sync to Backend API
+        try {
+            await apiCall('/orders', {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    orderId: orderId,
+                    status: 'rejected',
+                    cancellationReason: autoExpiryReason,
+                    rejectionReason: autoExpiryReason,
+                    rejectedBy: 'SYSTEM_AUTO_EXPIRE',
+                    autoExpired: true,
+                    isAutoExpired: true,
+                    walletRefundProcessed: refundAmount > 0,
+                    walletRefunded: refundAmount > 0,
+                    walletRefundAmount: refundAmount,
+                    refundTimestamp: nowIso,
+                    customerPhone: customerPhone
+                })
+            });
+        } catch (apiErr) {
+            console.warn(`[STAFF SWEEPER] Backend API sync note for Order #${orderId}:`, apiErr.message);
+        }
+
+        try {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
+        } catch (e) { }
+        renderOrders();
+    } finally {
+        autoRejectInFlightOrderIds.delete(orderId);
     }
 }
+window.autoRejectExpiredOrder = autoRejectExpiredOrder;
+
+async function autoExpireOrder(orderId) {
+    if (!orderId) return;
+    const cleanId = String(orderId).replace(/^#/, '').trim();
+    const order = staffOrders.find(o => 
+        String(o.id) === cleanId || 
+        String(o.orderId) === cleanId || 
+        String(o.id) === String(orderId) || 
+        String(o.orderId) === String(orderId) ||
+        String(o.firestoreDocId) === cleanId ||
+        String(o.docId) === cleanId
+    );
+    if (!order) {
+        console.warn(`[STAFF AUTO-EXPIRE] Order #${orderId} not found in staffOrders in memory. Directing to backend API...`);
+        try {
+            await apiCall('/orders', {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    orderId: cleanId,
+                    status: 'rejected',
+                    cancellationReason: 'Order timed out (>100 minutes) - automatically cancelled by system',
+                    rejectionReason: 'Order timed out (>100 minutes) - automatically cancelled by system',
+                    rejectedBy: 'SYSTEM_AUTO_EXPIRE',
+                    autoExpired: true,
+                    isAutoExpired: true
+                })
+            });
+        } catch (e) { }
+        return;
+    }
+    return await autoRejectExpiredOrder(order);
+}
+window.autoExpireOrder = autoExpireOrder;
 
 async function sweepAutoExpiredOrders() {
     if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
-    const expiredOrders = staffOrders.filter(isOrderThreeHoursExpired);
+    const expiredOrders = staffOrders.filter(isOrder100MinsExpired);
     if (expiredOrders.length === 0) return;
 
     console.log(`[STAFF SWEEPER] Sweeper running: found ${expiredOrders.length} expired unfulfilled order(s). Processing rejections...`);
@@ -816,6 +873,7 @@ async function sweepAutoExpiredOrders() {
     } catch (e) { }
     renderOrders();
 }
+window.sweepAutoExpiredOrders = sweepAutoExpiredOrders;
 
 function startStaffAutoExpireInterval() {
     if (!staffAutoExpireInterval) {
@@ -2570,8 +2628,10 @@ function setupUniversalAudioUnlock() {
                 const p = audio.play();
                 if (p !== undefined && typeof p.then === 'function') {
                     p.then(() => {
-                        audio.pause();
-                        audio.currentTime = 0;
+                        if (!isOrderAlertAudioPlaying) {
+                            audio.pause();
+                            audio.currentTime = 0;
+                        }
                         audio.volume = 1.0;
                         isStaffAudioUnlocked = true;
                         isAudioAutoplayBlocked = false;
@@ -2643,8 +2703,10 @@ function unlockStaffAudioAlerts(silent = true) {
             const playPromise = audio.play();
             if (playPromise !== undefined && typeof playPromise.then === 'function') {
                 playPromise.then(() => {
-                    audio.pause();
-                    audio.currentTime = 0;
+                    if (!isOrderAlertAudioPlaying) {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }
                     audio.volume = 1.0;
                     isStaffAudioUnlocked = true;
                     isAudioAutoplayBlocked = false;
@@ -2804,6 +2866,9 @@ function isPendingStaffOrder(order) {
     const s = String(order.status || '').trim().toLowerCase();
     // Strictly exclude completed and rejected/cancelled orders
     if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
+    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || s === 'expired' || s === 'auto_expired' || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order))) {
+        return false;
+    }
     // Any other order status is considered pending/active in kitchen
     return PENDING_STAFF_STATUSES.has(s) || true;
 }
@@ -2817,6 +2882,9 @@ function isCompletedStaffOrder(order) {
 function isRejectedStaffOrder(order) {
     if (!order) return false;
     const s = String(order.status || '').trim().toLowerCase();
+    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || s === 'expired' || s === 'auto_expired' || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order))) {
+        return true;
+    }
     return REJECTED_STAFF_STATUSES.has(s);
 }
 
@@ -3673,7 +3741,8 @@ function buildRejectedOrderCardHTML(order) {
 
     const totalVal = order.total || order.costs?.total || 0;
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
-    const reason = order.rejectionReason || order.cancelReason || order.reason || 'Not specified by kitchen';
+    const isAutoExp = order.autoExpired || order.isAutoExpired || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order));
+    const reason = order.cancellationReason || order.rejectionReason || (isAutoExp ? 'Order timed out (>100 minutes) - automatically cancelled by system' : (order.cancelReason || order.reason || 'Not specified by kitchen'));
     const statusText = (order.status === 'cancelled' || order.status === 'canceled') ? 'Cancelled' : 'Rejected';
     const rejectedTimeStr = formatStaffTimestamp(order.rejectedAt || order.cancelledAt || order.updatedAt || order.createdAt);
 
@@ -4378,6 +4447,17 @@ let pendingRejectOrderId = null;
 function handleRejectOrder(orderId) {
     const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
     if (!order) return;
+
+    if (order.autoExpired || order.isAutoExpired || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order))) {
+        console.log(`[STAFF] Order #${order.id} is auto-expired (>100 mins). Bypassing modal, OTP, and reason inputs; auto-expiring now...`);
+        showStaffToast(`⏱ Order #${order.id} timed out (>100 mins). Automatically rejecting...`);
+        if (typeof autoExpireOrder === 'function') {
+            autoExpireOrder(order.id);
+        } else if (typeof autoRejectExpiredOrder === 'function') {
+            autoRejectExpiredOrder(order);
+        }
+        return;
+    }
 
     pendingRejectOrderId = order.id;
 
@@ -5458,6 +5538,12 @@ function getStaffAudioSrc() {
  * Initializes persistent HTML5 Audio element configured for continuous looping order alert audio
  */
 function getOrderAlertAudio() {
+    if (!staffOrderAlertAudio && typeof document !== 'undefined') {
+        const domEl = document.getElementById('staff-order-alert-audio');
+        if (domEl) {
+            staffOrderAlertAudio = domEl;
+        }
+    }
     if (!staffOrderAlertAudio && typeof Audio !== 'undefined') {
         try {
             staffOrderAlertAudio = new Audio(getStaffAudioSrc());
@@ -5489,6 +5575,9 @@ function getOrderAlertAudio() {
     }
     if (staffOrderAlertAudio) {
         staffOrderAlertAudio.loop = true;
+        staffOrderAlertAudio.preload = 'auto';
+        staffOrderAlertAudio.muted = false;
+        staffOrderAlertAudio.volume = 1.0;
     }
     return staffOrderAlertAudio;
 }
@@ -5541,7 +5630,7 @@ function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
     // Fail-safe check: Is sound toggle currently ON?
     if (!isStaffSoundEnabled) {
         console.log('🔕 [Staff Audio] Sound toggle is currently OFF. Audio queued for Order #' + currentAlertingOrderId);
-        pendingOrderAlertData = { orderId, details };
+        pendingOrderAlertData = { orderId, details, orderData };
         checkAndShowStaffAudioBanner();
         return;
     }
@@ -5558,13 +5647,12 @@ function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
     try {
         const audio = getOrderAlertAudio();
         if (audio) {
-            try {
-                audio.pause();
-                audio.currentTime = 0;
-            } catch (e) { }
             audio.loop = true;
             audio.muted = false;
             audio.volume = 1.0;
+            try {
+                audio.currentTime = 0;
+            } catch (e) { }
             const playPromise = audio.play();
             if (playPromise !== undefined && typeof playPromise.then === 'function') {
                 playPromise.then(() => {
@@ -5574,14 +5662,18 @@ function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
                     dismissStaffAudioBanner();
                 }).catch((err) => {
                     if (err.name === 'AbortError') {
-                        // User dismissed or stopped audio while play() was resolving. Normal behavior!
-                        return;
+                        if (!isOrderAlertAudioPlaying) {
+                            // User dismissed or stopped audio while play() was resolving. Normal behavior!
+                            return;
+                        }
                     }
-                    console.warn('HTML5 Audio autoplay restricted note:', err.message);
-                    isAudioAutoplayBlocked = true;
-                    pendingOrderAlertData = { orderId, details };
-                    checkAndShowStaffAudioBanner();
-                    startSynthesizedBeepLoop();
+                    console.warn('HTML5 Audio playback note:', err.message);
+                    if (isOrderAlertAudioPlaying) {
+                        isAudioAutoplayBlocked = true;
+                        pendingOrderAlertData = { orderId, details, orderData };
+                        checkAndShowStaffAudioBanner();
+                        startSynthesizedBeepLoop();
+                    }
                 });
                 playedHtml5 = true;
             }
