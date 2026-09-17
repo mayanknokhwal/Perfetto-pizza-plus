@@ -871,14 +871,14 @@ export function calculateDashboardKPIs(list = []) {
 
     const todayDeliveredCount = deliveredOrders.filter(o => {
         const c = getTs(o, 'createdAt') || getTs(o, 'timestamp') || getTs(o, 'date');
-        const d = getTs(o, 'deliveredAt') || getTs(o, 'completedAt') || getTs(o, 'updatedAt');
-        return c >= startOfDay || d >= startOfDay;
+        const d = getTs(o, 'deliveredAt') || getTs(o, 'completedAt');
+        return (d >= startOfDay) || (!d && c >= startOfDay);
     }).length;
 
     const todayRejectedCount = rejectedOrders.filter(o => {
         const c = getTs(o, 'createdAt') || getTs(o, 'timestamp') || getTs(o, 'date');
-        const r = getTs(o, 'rejectedAt') || getTs(o, 'cancelledAt') || getTs(o, 'updatedAt');
-        return c >= startOfDay || r >= startOfDay;
+        const r = getTs(o, 'rejectedAt') || getTs(o, 'cancelledAt');
+        return (r >= startOfDay) || (!r && c >= startOfDay);
     }).length;
 
     return {

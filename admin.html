@@ -8462,21 +8462,22 @@
 
                 todayDeliveredCount = deliveredOrders.filter(o => {
                     const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
-                    const deliveredTime = getOrderTimestamp(o, 'deliveredAt') || getOrderTimestamp(o, 'completedAt') || getOrderTimestamp(o, 'updatedAt');
-                    return createdTime >= startOfDay || deliveredTime >= startOfDay;
+                    const deliveredTime = getOrderTimestamp(o, 'deliveredAt') || getOrderTimestamp(o, 'completedAt');
+                    return (deliveredTime >= startOfDay) || (!deliveredTime && createdTime >= startOfDay);
                 }).length;
 
                 todayRejectedCount = rejectedOrders.filter(o => {
                     const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
-                    const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt') || getOrderTimestamp(o, 'updatedAt');
-                    return createdTime >= startOfDay || rejectedTime >= startOfDay;
+                    const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt');
+                    return (rejectedTime >= startOfDay) || (!rejectedTime && createdTime >= startOfDay);
                 }).length;
             }
 
-            if (revEl) revEl.textContent = `₹${Math.round(totalRev).toLocaleString('en-IN')}`;
-            if (pendingEl) pendingEl.textContent = pendingCount;
-            if (rejectedEl) rejectedEl.textContent = todayRejectedCount;
-            if (deliveredEl) deliveredEl.textContent = todayDeliveredCount;
+            const formattedRev = `₹${Math.round(totalRev).toLocaleString('en-IN')}`;
+            if (revEl && revEl.textContent !== formattedRev) revEl.textContent = formattedRev;
+            if (pendingEl && pendingEl.textContent !== String(pendingCount)) pendingEl.textContent = String(pendingCount);
+            if (rejectedEl && rejectedEl.textContent !== String(todayRejectedCount)) rejectedEl.textContent = String(todayRejectedCount);
+            if (deliveredEl && deliveredEl.textContent !== String(todayDeliveredCount)) deliveredEl.textContent = String(todayDeliveredCount);
         }
 
         // Deep-link navigation shortcut to Staff Portal tabs
@@ -14931,6 +14932,49 @@
         window.processedAdminExpirations = processedAdminExpirations;
         let adminAutoExpireInterval = null;
 
+        function getAdminOrderAllIdKeys(orderOrId) {
+            if (!orderOrId) return [];
+            const keys = new Set();
+            if (typeof orderOrId === 'object') {
+                [orderOrId.orderId, orderOrId.id, orderOrId.firestoreDocId, orderOrId.docId].forEach(val => {
+                    if (val !== undefined && val !== null && String(val).trim()) {
+                        const s = String(val).trim();
+                        keys.add(s);
+                        const clean = s.replace(/^#/, '').trim();
+                        if (clean) {
+                            keys.add(clean);
+                            keys.add(`#${clean}`);
+                        }
+                    }
+                });
+            } else {
+                const s = String(orderOrId).trim();
+                if (s) {
+                    keys.add(s);
+                    const clean = s.replace(/^#/, '').trim();
+                    if (clean) {
+                        keys.add(clean);
+                        keys.add(`#${clean}`);
+                    }
+                }
+            }
+            return Array.from(keys);
+        }
+
+        function markAdminOrderEvaluated(orderOrId) {
+            getAdminOrderAllIdKeys(orderOrId).forEach(k => {
+                processedAdminExpirations.add(k);
+                if (window.processedExpirations) window.processedExpirations.add(k);
+            });
+        }
+
+        function isAdminOrderEvaluated(orderOrId) {
+            const keys = getAdminOrderAllIdKeys(orderOrId);
+            return keys.some(k => processedAdminExpirations.has(k) || (window.processedExpirations && window.processedExpirations.has(k)));
+        }
+        window.markAdminOrderEvaluated = markAdminOrderEvaluated;
+        window.isAdminOrderEvaluated = isAdminOrderEvaluated;
+
         function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
             if (!originalExpiresAt) {
                 return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
@@ -14957,8 +15001,7 @@
             const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
             if (terminalStatuses.includes(rawStatus)) return false;
             if (order.autoExpired === true || order.isAutoExpired === true) return false;
-            const orderId = String(order.orderId || order.id || order.firestoreDocId || '').trim();
-            if (orderId && processedAdminExpirations.has(orderId)) return false;
+            if (isAdminOrderEvaluated(order)) return false;
 
             let createdMs = 0;
             const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
@@ -14990,18 +15033,18 @@
         async function autoRejectExpiredAdminOrder(order) {
             if (!order) return;
             const orderId = String(order.orderId || order.id || order.firestoreDocId || '').trim();
-            if (!orderId || processedAdminExpirations.has(orderId) || autoRejectInFlightAdminOrderIds.has(orderId)) return;
+            if (!orderId || isAdminOrderEvaluated(order) || autoRejectInFlightAdminOrderIds.has(orderId)) return;
 
             // Guard Auto-Expiry with Atomic Status Checks:
             // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
             const rawStatus = String(order.status || '').toUpperCase().trim();
             const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
             if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
-                processedAdminExpirations.add(orderId);
+                markAdminOrderEvaluated(order);
                 return;
             }
 
-            processedAdminExpirations.add(orderId);
+            markAdminOrderEvaluated(order);
             autoRejectInFlightAdminOrderIds.add(orderId);
 
             console.log(`[ADMIN SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
@@ -15146,8 +15189,9 @@
                         customerPhone: customerPhone
                     })
                 });
-            } catch (apiErr) {
-                console.warn(`[ADMIN SWEEPER] Backend API sync note for Order #${orderId}:`, apiErr.message);
+            } finally {
+                markAdminOrderEvaluated(order);
+                autoRejectInFlightAdminOrderIds.delete(orderId);
             }
         }
 
@@ -15164,10 +15208,9 @@
             if (!Array.isArray(list) || list.length === 0) return;
 
             const expiredOrders = list.filter(o => {
-                const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
                 const rawStatus = String(o.status || '').toUpperCase().trim();
                 const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING');
-                return isPending && isOrder100MinsExpired(o) && !processedAdminExpirations.has(id);
+                return isPending && isOrder100MinsExpired(o) && !isAdminOrderEvaluated(o);
             });
             if (expiredOrders.length === 0) return;
 
@@ -15188,11 +15231,10 @@
         window.sweepAdminExpiredOrders = sweepAdminExpiredOrders;
 
         function startAdminAutoExpireInterval() {
-            if (!adminAutoExpireInterval) {
-                adminAutoExpireInterval = setInterval(() => {
-                    sweepAdminExpiredOrders();
-                }, 60000);
-            }
+            if (adminAutoExpireInterval) clearInterval(adminAutoExpireInterval);
+            adminAutoExpireInterval = setInterval(() => {
+                sweepAdminExpiredOrders();
+            }, 60000);
         }
         startAdminAutoExpireInterval();
 

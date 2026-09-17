@@ -529,7 +529,6 @@ function listenToFirestoreStaffOrders() {
         });
         // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
         mergeLiveOrdersIntoStaff(liveOrders);
-        startStaffAutoExpireInterval();
     }
 
     try {
@@ -580,6 +579,46 @@ const processedExpirations = new Set();
 window.processedExpirations = processedExpirations;
 let staffAutoExpireInterval = null;
 
+function getOrderAllIdKeys(orderOrId) {
+    if (!orderOrId) return [];
+    const keys = new Set();
+    if (typeof orderOrId === 'object') {
+        [orderOrId.id, orderOrId.orderId, orderOrId.firestoreDocId, orderOrId.docId].forEach(val => {
+            if (val !== undefined && val !== null && String(val).trim()) {
+                const s = String(val).trim();
+                keys.add(s);
+                const clean = s.replace(/^#/, '').trim();
+                if (clean) {
+                    keys.add(clean);
+                    keys.add(`#${clean}`);
+                }
+            }
+        });
+    } else {
+        const s = String(orderOrId).trim();
+        if (s) {
+            keys.add(s);
+            const clean = s.replace(/^#/, '').trim();
+            if (clean) {
+                keys.add(clean);
+                keys.add(`#${clean}`);
+            }
+        }
+    }
+    return Array.from(keys);
+}
+
+function markOrderEvaluatedForExpiry(orderOrId) {
+    getOrderAllIdKeys(orderOrId).forEach(k => processedExpirations.add(k));
+}
+
+function isOrderAlreadyEvaluatedForExpiry(orderOrId) {
+    const keys = getOrderAllIdKeys(orderOrId);
+    return keys.some(k => processedExpirations.has(k));
+}
+window.markOrderEvaluatedForExpiry = markOrderEvaluatedForExpiry;
+window.isOrderAlreadyEvaluatedForExpiry = isOrderAlreadyEvaluatedForExpiry;
+
 function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
     if (!originalExpiresAt) {
         return new Date(nowMs + TWENTY_FOUR_HOURS_MS).toISOString();
@@ -600,8 +639,7 @@ function isOrder100MinsExpired(order) {
     const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
     if (terminalStatuses.includes(rawStatus)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
-    const orderId = String(order.id || order.orderId || order.firestoreDocId || '').trim();
-    if (orderId && processedExpirations.has(orderId)) return false;
+    if (isOrderAlreadyEvaluatedForExpiry(order)) return false;
 
     const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs) return false;
@@ -632,20 +670,19 @@ window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 
 async function autoRejectExpiredOrder(order) {
     if (!order) return;
-    const orderId = String(order.id || order.orderId || order.firestoreDocId || '').trim();
-    if (!orderId || processedExpirations.has(orderId) || autoRejectInFlightOrderIds.has(orderId)) return;
+    if (isOrderAlreadyEvaluatedForExpiry(order) || isOrderActionInFlight(order)) return;
 
     // Guard Auto-Expiry with Atomic Status Checks:
     // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
     const rawStatus = String(order.status || '').toUpperCase().trim();
     const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
     if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
-        processedExpirations.add(orderId);
+        markOrderEvaluatedForExpiry(order);
         return;
     }
 
-    processedExpirations.add(orderId);
-    autoRejectInFlightOrderIds.add(orderId);
+    markOrderEvaluatedForExpiry(order);
+    setOrderActionInFlight(order, true);
 
     try {
         console.log(`[STAFF SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
@@ -843,6 +880,8 @@ async function autoRejectExpiredOrder(order) {
         } catch (e) { }
         renderOrders();
     } finally {
+        markOrderEvaluatedForExpiry(order);
+        setOrderActionInFlight(order, false);
         autoRejectInFlightOrderIds.delete(orderId);
     }
 }
@@ -886,10 +925,9 @@ async function sweepAutoExpiredOrders() {
     if (isSweeperRunning) return;
     if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
     const expiredOrders = staffOrders.filter(o => {
-        const id = String(o.id || o.orderId || o.firestoreDocId || '').trim();
         const rawStatus = String(o.status || '').toUpperCase().trim();
         const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING');
-        return isPending && isOrder100MinsExpired(o) && !processedExpirations.has(id);
+        return isPending && isOrder100MinsExpired(o) && !isOrderAlreadyEvaluatedForExpiry(o);
     });
     if (expiredOrders.length === 0) return;
 
@@ -914,11 +952,10 @@ async function sweepAutoExpiredOrders() {
 window.sweepAutoExpiredOrders = sweepAutoExpiredOrders;
 
 function startStaffAutoExpireInterval() {
-    if (!staffAutoExpireInterval) {
-        staffAutoExpireInterval = setInterval(() => {
-            sweepAutoExpiredOrders();
-        }, 60000);
-    }
+    if (staffAutoExpireInterval) clearInterval(staffAutoExpireInterval);
+    staffAutoExpireInterval = setInterval(() => {
+        sweepAutoExpiredOrders();
+    }, 60000);
 }
 
 // --------------------------------------------------------------------------
@@ -2272,8 +2309,6 @@ async function fetchOrdersFromBackend(force = false) {
         const data = await response.json();
         if (data && data.success && Array.isArray(data.orders)) {
             mergeLiveOrdersIntoStaff(data.orders);
-            sweepAutoExpiredOrders();
-            startStaffAutoExpireInterval();
         }
     } catch (err) {
         console.error('Staff orders sync error:', err);
@@ -3145,7 +3180,6 @@ if (document.readyState === 'loading') {
 // Re-acquire Screen Wake Lock, auto-resume audio context, and re-verify orders listener on visibility
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-        sweepAutoExpiredOrders();
         if (isStaffSoundEnabled) {
             requestStaffWakeLock();
             const ctx = getStaffAudioContext();

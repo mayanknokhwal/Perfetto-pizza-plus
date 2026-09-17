@@ -85,18 +85,56 @@ const isOrderThreeHoursExpired = isOrder100MinsExpired;
 const processedBackendExpirations = new Set();
 let isBackendSweeperRunning = false;
 
+function getBackendOrderAllIdKeys(orderOrId) {
+    if (!orderOrId) return [];
+    const keys = new Set();
+    if (typeof orderOrId === 'object') {
+        [orderOrId.orderId, orderOrId.id, orderOrId.firestoreDocId, orderOrId.docId].forEach(val => {
+            if (val !== undefined && val !== null && String(val).trim()) {
+                const s = String(val).trim();
+                keys.add(s);
+                const clean = s.replace(/^#/, '').trim();
+                if (clean) {
+                    keys.add(clean);
+                    keys.add(`#${clean}`);
+                }
+            }
+        });
+    } else {
+        const s = String(orderOrId).trim();
+        if (s) {
+            keys.add(s);
+            const clean = s.replace(/^#/, '').trim();
+            if (clean) {
+                keys.add(clean);
+                keys.add(`#${clean}`);
+            }
+        }
+    }
+    return Array.from(keys);
+}
+
+function markBackendOrderEvaluated(orderOrId) {
+    getBackendOrderAllIdKeys(orderOrId).forEach(k => processedBackendExpirations.add(k));
+}
+
+function isBackendOrderEvaluated(orderOrId) {
+    const keys = getBackendOrderAllIdKeys(orderOrId);
+    return keys.some(k => processedBackendExpirations.has(k));
+}
+
 async function autoRejectExpiredOrderBackend(order) {
     if (!order) return;
     const orderId = String(order.orderId || order.id || '').trim();
-    if (!orderId || processedBackendExpirations.has(orderId)) return;
+    if (!orderId || isBackendOrderEvaluated(order)) return;
 
     const rawStatus = String(order.status || '').toUpperCase().trim();
     const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
     if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
-        processedBackendExpirations.add(orderId);
+        markBackendOrderEvaluated(order);
         return;
     }
-    processedBackendExpirations.add(orderId);
+    markBackendOrderEvaluated(order);
 
     order.status = 'rejected';
     order.cancellationReason = 'Order timed out (>100 minutes) - automatically cancelled by system';

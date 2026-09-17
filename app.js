@@ -8891,8 +8891,17 @@ async function saveOrderToBackendAPI(order) {
     const cleanCustomerPhone = String(order.customerPhone || (order.customer && order.customer.phone) || order.phone || '').replace(/[^0-9]/g, '').slice(-10);
 
     // Guard newly placed order in session memory so eager client rejection never intercepts it
+    if (typeof markCustomerOrderEvaluated === 'function') {
+        markCustomerOrderEvaluated(finalOrderId);
+        markCustomerOrderEvaluated(order);
+    }
     if (typeof processedExpirations !== 'undefined' && processedExpirations) {
         processedExpirations.add(finalOrderId);
+        const cleanOid = String(finalOrderId).replace(/^#/, '').trim();
+        if (cleanOid) {
+            processedExpirations.add(cleanOid);
+            processedExpirations.add(`#${cleanOid}`);
+        }
     }
 
     const hasScratchReward = Boolean(order.scratchCard && (Number(order.earnedCashback || order.wonCashback || 0) > 0));
@@ -11931,21 +11940,21 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             const lat = (u.gps && u.gps.lat !== undefined && u.gps.lat !== null) ? parseFloat(u.gps.lat) : ((u.gpsLat !== undefined && u.gpsLat !== null) ? parseFloat(u.gpsLat) : null);
             const lng = (u.gps && u.gps.lng !== undefined && u.gps.lng !== null) ? parseFloat(u.gps.lng) : ((u.gpsLng !== undefined && u.gpsLng !== null) ? parseFloat(u.gpsLng) : null);
 
-            // Check if user currently has local custom coordinates saved in this session
-            const currentLocalProfile = getSavedDeliveryProfile();
-            const hasLocalGps = currentLocalProfile && currentLocalProfile.gpsLat !== null && currentLocalProfile.gpsLng !== null;
+            // Check if user currently has local custom coordinates or saved profile in this session
+            const currentLocalProfile = (typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null) || safeStorage.getJSON(DELIVERY_PROFILE_KEY, null) || safeStorage.getJSON('perfettoSavedProfile', null) || {};
+            const hasLocalGps = currentLocalProfile && currentLocalProfile.gpsLat !== null && currentLocalProfile.gpsLng !== null && !isNaN(currentLocalProfile.gpsLat) && !isNaN(currentLocalProfile.gpsLng);
 
             const restoredProfile = {
-                fullName: u.fullName || '',
-                email: u.email || '',
-                phone: u.phone || cleanPhone,
-                colonyName: u.address?.colonyName || '',
-                nearBy: u.address?.nearBy || '',
-                streetName: u.address?.streetName || '',
-                wardNo: u.address?.wardNo || '',
-                isVerified: isVerified,
-                gpsLat: hasLocalGps ? currentLocalProfile.gpsLat : lat,
-                gpsLng: hasLocalGps ? currentLocalProfile.gpsLng : lng,
+                fullName: u.fullName || currentLocalProfile.fullName || currentLocalProfile.name || '',
+                email: u.email || currentLocalProfile.email || '',
+                phone: u.phone || cleanPhone || currentLocalProfile.phone || '',
+                colonyName: u.address?.colonyName || u.colonyName || currentLocalProfile.colonyName || '',
+                nearBy: u.address?.nearBy || u.nearBy || currentLocalProfile.nearBy || '',
+                streetName: u.address?.streetName || u.streetName || currentLocalProfile.streetName || '',
+                wardNo: u.address?.wardNo || u.wardNo || currentLocalProfile.wardNo || '',
+                isVerified: isVerified || Boolean(currentLocalProfile.isVerified || currentLocalProfile.isPhoneVerified),
+                gpsLat: hasLocalGps ? currentLocalProfile.gpsLat : (lat !== null && !isNaN(lat) ? lat : currentLocalProfile.gpsLat || null),
+                gpsLng: hasLocalGps ? currentLocalProfile.gpsLng : (lng !== null && !isNaN(lng) ? lng : currentLocalProfile.gpsLng || null),
             };
 
             try {
@@ -12458,6 +12467,46 @@ window.calculateRecoveredExpiry = calculateRecoveredExpiry;
 const processedExpirations = new Set();
 window.processedExpirations = processedExpirations;
 
+function getCustomerOrderAllIdKeys(orderOrId) {
+    if (!orderOrId) return [];
+    const keys = new Set();
+    if (typeof orderOrId === 'object') {
+        [orderOrId.id, orderOrId.orderId, orderOrId.firestoreDocId, orderOrId.docId].forEach(val => {
+            if (val !== undefined && val !== null && String(val).trim()) {
+                const s = String(val).trim();
+                keys.add(s);
+                const clean = s.replace(/^#/, '').trim();
+                if (clean) {
+                    keys.add(clean);
+                    keys.add(`#${clean}`);
+                }
+            }
+        });
+    } else {
+        const s = String(orderOrId).trim();
+        if (s) {
+            keys.add(s);
+            const clean = s.replace(/^#/, '').trim();
+            if (clean) {
+                keys.add(clean);
+                keys.add(`#${clean}`);
+            }
+        }
+    }
+    return Array.from(keys);
+}
+
+function markCustomerOrderEvaluated(orderOrId) {
+    getCustomerOrderAllIdKeys(orderOrId).forEach(k => processedExpirations.add(k));
+}
+
+function isCustomerOrderEvaluated(orderOrId) {
+    const keys = getCustomerOrderAllIdKeys(orderOrId);
+    return keys.some(k => processedExpirations.has(k));
+}
+window.markCustomerOrderEvaluated = markCustomerOrderEvaluated;
+window.isCustomerOrderEvaluated = isCustomerOrderEvaluated;
+
 function isOrder100MinsExpired(order, nowMs = Date.now()) {
     if (!order) return false;
     const rawStatus = String(order.status || '').toUpperCase().trim();
@@ -12465,8 +12514,7 @@ function isOrder100MinsExpired(order, nowMs = Date.now()) {
     const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
     if (terminalStatuses.includes(rawStatus)) return false;
     if (order.autoExpired === true || order.isAutoExpired === true) return false;
-    const orderId = String(order.id || order.orderId || '').trim();
-    if (orderId && processedExpirations.has(orderId)) return false;
+    if (isCustomerOrderEvaluated(order)) return false;
 
     let createdMs = 0;
     const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
@@ -12544,18 +12592,18 @@ window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 async function autoRejectExpiredCustomerOrder(order) {
     if (!order) return;
     const orderId = String(order.id || order.orderId || '').trim();
-    if (!orderId || processedExpirations.has(orderId) || customerAutoRejectInFlightIds.has(orderId)) return;
+    if (!orderId || isCustomerOrderEvaluated(order) || customerAutoRejectInFlightIds.has(orderId)) return;
 
     // Guard Auto-Expiry with Atomic Status Checks:
     // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
     const rawStatus = String(order.status || '').toUpperCase().trim();
     const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
     if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
-        processedExpirations.add(orderId);
+        markCustomerOrderEvaluated(order);
         return;
     }
 
-    processedExpirations.add(orderId);
+    markCustomerOrderEvaluated(order);
     customerAutoRejectInFlightIds.add(orderId);
 
     console.log(`[CUSTOMER EVAL] Auto-rejecting 100-minute expired order #${orderId}...`);
@@ -12743,6 +12791,10 @@ async function autoRejectExpiredCustomerOrder(order) {
             updateProfileTotalsUI();
         }
     } catch (e) { }
+    finally {
+        markCustomerOrderEvaluated(order);
+        customerAutoRejectInFlightIds.delete(orderId);
+    }
 }
 
 async function reconcileCustomerActiveOrdersLazySync() {
@@ -18481,9 +18533,9 @@ function scheduleAppSplashDismissal() {
 // Guaranteed splash screen dismissal safety net to prevent black screen lockup
 if (typeof window !== 'undefined') {
     window.addEventListener('load', () => {
-        setTimeout(dismissAppSplashScreen, 300);
+        setTimeout(dismissAppSplashScreen, 200);
     });
-    setTimeout(dismissAppSplashScreen, 2500);
+    setTimeout(dismissAppSplashScreen, 1200);
 }
 
 // --------------------------------------------------------------------------
