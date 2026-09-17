@@ -382,22 +382,77 @@ async function fetchStaffSettingsFromBackend() {
 
 function applyStaffStoreSettings(settings) {
     if (!settings) return;
-    if (settings.masterDeliveryOtp !== undefined) {
+    const otp = settings.emergencyMasterDeliveryOtp !== undefined ? settings.emergencyMasterDeliveryOtp : (settings.masterDeliveryOtp !== undefined ? settings.masterDeliveryOtp : settings.emergency_master_otp);
+    if (otp !== undefined && otp !== null) {
         try {
-            localStorage.setItem('masterDeliveryOtp', String(settings.masterDeliveryOtp).replace(/[^0-9]/g, '').slice(0, 4));
+            const cleanOtp = String(otp).replace(/[^0-9]/g, '').slice(0, 4);
+            if (cleanOtp) {
+                localStorage.setItem('masterDeliveryOtp', cleanOtp);
+                localStorage.setItem('emergencyMasterDeliveryOtp', cleanOtp);
+            }
         } catch (e) { }
     }
 }
 
 function getMasterDeliveryOtp() {
     try {
-        const stored = localStorage.getItem('masterDeliveryOtp');
+        const stored = localStorage.getItem('emergencyMasterDeliveryOtp') || localStorage.getItem('masterDeliveryOtp');
         if (stored && stored.trim() !== '') {
             return stored.trim();
         }
     } catch (e) { }
     return '9999';
 }
+
+async function getOrFetchEmergencyMasterOtp() {
+    // 1. Check local cache first
+    const cached = getMasterDeliveryOtp();
+    if (cached && cached !== '9999') {
+        return cached;
+    }
+
+    // 2. Fetch fresh from Cloud Firestore
+    try {
+        const db = getStaffFirestore();
+        if (db) {
+            // Check settings/store_config
+            const configDoc = await db.collection('settings').doc('store_config').get();
+            if (configDoc && configDoc.exists) {
+                const data = configDoc.data() || {};
+                const otp = data.emergencyMasterDeliveryOtp || data.masterDeliveryOtp || data.emergency_master_otp;
+                if (otp) {
+                    const cleanOtp = String(otp).replace(/[^0-9]/g, '').slice(0, 4);
+                    if (cleanOtp) {
+                        localStorage.setItem('emergencyMasterDeliveryOtp', cleanOtp);
+                        localStorage.setItem('masterDeliveryOtp', cleanOtp);
+                        return cleanOtp;
+                    }
+                }
+            }
+            // Check settings/storeSettings
+            const settingsDoc = await db.collection('settings').doc('storeSettings').get();
+            if (settingsDoc && settingsDoc.exists) {
+                const data = settingsDoc.data() || {};
+                const otp = data.emergencyMasterDeliveryOtp || data.masterDeliveryOtp || data.emergency_master_otp;
+                if (otp) {
+                    const cleanOtp = String(otp).replace(/[^0-9]/g, '').slice(0, 4);
+                    if (cleanOtp) {
+                        localStorage.setItem('emergencyMasterDeliveryOtp', cleanOtp);
+                        localStorage.setItem('masterDeliveryOtp', cleanOtp);
+                        return cleanOtp;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Firestore settings fetch error for Master OTP:', err.message);
+    }
+
+    // 3. Fallback to cached value or default
+    return cached || '9999';
+}
+window.getMasterDeliveryOtp = getMasterDeliveryOtp;
+window.getOrFetchEmergencyMasterOtp = getOrFetchEmergencyMasterOtp;
 
 let staffOrdersReconnectTimeout = null;
 let isFirestoreInitialHydrationDone = false;
@@ -2142,6 +2197,162 @@ function handleStaffConfirmResolve(result) {
     }
 }
 
+// --------------------------------------------------------------------------
+// EMERGENCY MASTER DELIVERY OTP VERIFICATION MODAL CONTROLLER
+// --------------------------------------------------------------------------
+let staffMasterOtpResolver = null;
+
+function requestStaffMasterOtpAuthorization(actionDescription = 'Permanently delete order record(s)') {
+    return new Promise((resolve) => {
+        if (typeof staffMasterOtpResolver === 'function') {
+            try { staffMasterOtpResolver(false); } catch (e) { }
+        }
+        staffMasterOtpResolver = resolve;
+
+        const modal = document.getElementById('staff-master-otp-modal');
+        const input = document.getElementById('staff-master-otp-input');
+        const errorEl = document.getElementById('staff-master-otp-error');
+        const descEl = document.getElementById('staff-master-otp-desc');
+        const card = document.getElementById('staff-master-otp-card');
+        const confirmBtn = document.getElementById('staff-master-otp-confirm-btn');
+
+        if (descEl) descEl.textContent = actionDescription;
+        if (errorEl) {
+            errorEl.style.display = 'none';
+            errorEl.textContent = 'Invalid Master OTP. Unauthorized action.';
+        }
+        if (input) {
+            input.value = '';
+            input.classList.remove('otp-error-shake');
+            input.style.borderColor = 'rgba(148, 163, 184, 0.3)';
+        }
+        if (card) {
+            card.classList.remove('otp-error-shake');
+        }
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Authorize &amp; Delete';
+        }
+
+        if (modal) {
+            modal.style.display = 'flex';
+            requestAnimationFrame(() => {
+                modal.style.opacity = '1';
+                if (input) {
+                    input.focus();
+                }
+            });
+        }
+    });
+}
+window.requestStaffMasterOtpAuthorization = requestStaffMasterOtpAuthorization;
+
+async function handleStaffMasterOtpSubmit() {
+    const input = document.getElementById('staff-master-otp-input');
+    const card = document.getElementById('staff-master-otp-card');
+    const errorEl = document.getElementById('staff-master-otp-error');
+    const confirmBtn = document.getElementById('staff-master-otp-confirm-btn');
+
+    const enteredOtp = input ? String(input.value || '').trim().replace(/[^0-9]/g, '') : '';
+    if (!enteredOtp || enteredOtp.length !== 4) {
+        if (input) {
+            input.classList.remove('otp-error-shake');
+            void input.offsetWidth;
+            input.classList.add('otp-error-shake');
+            input.style.borderColor = '#ef4444';
+            input.focus();
+        }
+        if (card) {
+            card.classList.remove('otp-error-shake');
+            void card.offsetWidth;
+            card.classList.add('otp-error-shake');
+        }
+        if (errorEl) {
+            errorEl.textContent = 'Please enter the 4-digit Emergency Master Delivery OTP.';
+            errorEl.style.display = 'block';
+        }
+        showStaffToast('⚠️ Please enter the 4-digit Emergency Master Delivery OTP.');
+        return;
+    }
+
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+    }
+
+    try {
+        const expectedMasterOtp = await getOrFetchEmergencyMasterOtp();
+        const isMatch = Boolean(expectedMasterOtp && enteredOtp === expectedMasterOtp);
+
+        if (!isMatch) {
+            if (input) {
+                input.classList.remove('otp-error-shake');
+                void input.offsetWidth;
+                input.classList.add('otp-error-shake');
+                input.style.borderColor = '#ef4444';
+                input.select();
+            }
+            if (card) {
+                card.classList.remove('otp-error-shake');
+                void card.offsetWidth;
+                card.classList.add('otp-error-shake');
+            }
+            if (errorEl) {
+                errorEl.textContent = 'Invalid Master OTP. Unauthorized action.';
+                errorEl.style.display = 'block';
+            }
+            showStaffToast('❌ Invalid Master OTP. Unauthorized action.');
+            return;
+        }
+
+        // OTP Verified successfully!
+        const modal = document.getElementById('staff-master-otp-modal');
+        if (modal) {
+            modal.style.opacity = '0';
+            setTimeout(() => { modal.style.display = 'none'; }, 250);
+        }
+        if (typeof staffMasterOtpResolver === 'function') {
+            staffMasterOtpResolver(true);
+            staffMasterOtpResolver = null;
+        }
+    } catch (err) {
+        console.error('Error verifying Master OTP:', err);
+        showStaffToast('⚠️ Verification error: ' + err.message);
+    } finally {
+        if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Authorize &amp; Delete';
+        }
+    }
+}
+window.handleStaffMasterOtpSubmit = handleStaffMasterOtpSubmit;
+
+function handleStaffMasterOtpCancel() {
+    const modal = document.getElementById('staff-master-otp-modal');
+    if (modal) {
+        modal.style.opacity = '0';
+        setTimeout(() => { modal.style.display = 'none'; }, 250);
+    }
+    if (typeof staffMasterOtpResolver === 'function') {
+        staffMasterOtpResolver(false);
+        staffMasterOtpResolver = null;
+    }
+}
+window.handleStaffMasterOtpCancel = handleStaffMasterOtpCancel;
+
+document.addEventListener('keydown', (e) => {
+    const modal = document.getElementById('staff-master-otp-modal');
+    if (modal && modal.style.display === 'flex') {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleStaffMasterOtpSubmit();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            handleStaffMasterOtpCancel();
+        }
+    }
+});
+
 async function handleStaffLogout() {
     stopOrderAlertAudio();
     const confirmed = await showStaffConfirmDialog({
@@ -3431,10 +3642,17 @@ function switchStaffTab(tab) {
 
     const isAdmin = isStaffAdminUser(currentStaffUser);
     if (deleteCompletedBtn) {
-        deleteCompletedBtn.style.display = ((tab === 'completed' || tab === 'rejected') && isAdmin) ? 'inline-flex' : 'none';
-        const spanText = deleteCompletedBtn.querySelector('span');
-        if (spanText) {
-            spanText.textContent = tab === 'rejected' ? 'Clear All Rejected' : 'Clear All Completed';
+        if (tab === 'pending' || !isAdmin) {
+            deleteCompletedBtn.style.display = 'none';
+            deleteCompletedBtn.disabled = true;
+            deleteCompletedBtn.classList.add('is-disabled');
+            deleteCompletedBtn.setAttribute('aria-disabled', 'true');
+        } else {
+            deleteCompletedBtn.style.display = 'inline-flex';
+            const spanText = deleteCompletedBtn.querySelector('span');
+            if (spanText) {
+                spanText.textContent = tab === 'rejected' ? 'Clear All Rejected' : 'Clear All Completed';
+            }
         }
     }
 
@@ -4764,17 +4982,15 @@ window.confirmRejectOrder = confirmRejectOrder;
 async function handleAdminDeleteOrder(orderId) {
     if (!orderId) return;
 
-    const confirmed = await showStaffConfirmDialog({
-        title: 'Delete Order Record',
-        message: `Permanently delete Order #${orderId} from records?\n\nThis will purge it from the device and Cloud Firestore.`,
-        icon: '<i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>',
-        iconBg: 'rgba(239, 68, 68, 0.15)',
-        iconBorder: 'rgba(239, 68, 68, 0.4)',
-        confirmText: 'Delete Order',
-        confirmType: 'danger'
-    });
+    // Security Guard: Verify active session role
+    if (!isStaffAdminUser(currentStaffUser)) {
+        showStaffToast('⛔ Access Denied: Only Admins can delete order records.');
+        return;
+    }
 
-    if (!confirmed) return;
+    // Security Verification: Require Emergency Master Delivery OTP
+    const authorized = await requestStaffMasterOtpAuthorization(`Permanently delete Order #${orderId} from records?\n\nThis will purge it from the device and Cloud Firestore.`);
+    if (!authorized) return;
 
     // 1. Instantly remove from local state and UI
     staffOrders = staffOrders.filter(o => String(o.id || o.orderId) !== String(orderId));
@@ -5331,9 +5547,10 @@ async function recordStaffActivityLog(actionText, details = {}) {
 window.recordStaffActivityLog = recordStaffActivityLog;
 
 /**
- * Clears all completed, declined, and archived orders from Firestore and local cache.
- * Keeps all pending and active kitchen orders completely safe.
- * Role-Based Guard: Accessible ONLY to Admins (Master Admin Tiers 1/2/3 or Normal Admin).
+ * Clears all completed or rejected orders from Firestore and local cache, strictly scoped to the active tab.
+ * Keeps pending and opposite-tab orders completely untouched and safe.
+ * Role-Based Guard: Accessible ONLY to Admins.
+ * Security Verification: Requires Emergency Master Delivery OTP before executing.
  */
 async function handleDeleteAllCompletedOrders() {
     // 0. Security Guard: Verify active session role
@@ -5342,37 +5559,31 @@ async function handleDeleteAllCompletedOrders() {
         return;
     }
 
+    // Pending Orders tab must NEVER be bulk cleared
+    if (currentStaffTab === 'pending') {
+        showStaffToast('⛔ Pending orders cannot be cleared.');
+        return;
+    }
+
     const isClearingRejected = currentStaffTab === 'rejected';
-    const completedStatuses = isClearingRejected
+    const targetStatuses = isClearingRejected
         ? ['rejected', 'cancelled', 'canceled', 'declined']
         : ['completed', 'delivered'];
     const targetLabel = isClearingRejected ? 'rejected' : 'completed';
-    const localCompleted = staffOrders.filter(o => completedStatuses.includes(String(o.status || '').toLowerCase()));
+    const btnLabel = isClearingRejected ? 'Clear All Rejected' : 'Clear All Completed';
 
-    if (localCompleted.length === 0) {
+    // 1. Check if there are any orders to clear in this specific tab
+    const localOrdersToClear = staffOrders.filter(o => targetStatuses.includes(String(o.status || '').toLowerCase()));
+
+    if (localOrdersToClear.length === 0) {
         showStaffToast(`ℹ️ No ${targetLabel} orders to clear.`);
         return;
     }
 
-    // 1. Confirmation Modal Dialog
-    const confirmMessage = `Are you sure you want to delete all ${targetLabel} orders? This action is irreversible.`;
-    let confirmed = false;
-    if (typeof showStaffConfirmDialog === 'function') {
-        confirmed = await showStaffConfirmDialog({
-            title: isClearingRejected ? 'Clear All Rejected Orders?' : 'Clear All Completed Orders?',
-            message: confirmMessage,
-            icon: '<i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>',
-            iconBg: 'rgba(239, 68, 68, 0.12)',
-            iconBorder: 'rgba(239, 68, 68, 0.3)',
-            confirmText: isClearingRejected ? 'Yes, Delete All Rejected' : 'Yes, Delete All Completed',
-            cancelText: 'Cancel',
-            confirmType: 'danger'
-        });
-    } else {
-        confirmed = window.confirm(confirmMessage);
-    }
-
-    if (!confirmed) return;
+    // 2. Enforce Emergency Master Delivery OTP Verification Modal
+    const confirmMessage = `Permanently delete all ${targetLabel} orders (${localOrdersToClear.length} order${localOrdersToClear.length === 1 ? '' : 's'})?\n\nThis will purge only ${targetLabel} orders and cannot be undone.`;
+    const authorized = await requestStaffMasterOtpAuthorization(confirmMessage);
+    if (!authorized) return;
 
     const btn = document.getElementById('btn-delete-all-completed');
     if (btn) {
@@ -5384,14 +5595,14 @@ async function handleDeleteAllCompletedOrders() {
         const db = getStaffFirestore();
         const ordersToDelete = new Set();
 
-        // 2. Query and Batch Delete from Firestore collection 'orders'
+        // 3. Query and Batch Delete strictly matching orders from Firestore collection 'orders'
         if (db) {
             try {
                 const snap = await db.collection('orders').get();
                 snap.forEach(doc => {
                     const data = doc.data() || {};
                     const st = String(data.status || '').toLowerCase();
-                    if (completedStatuses.includes(st)) {
+                    if (targetStatuses.includes(st)) {
                         ordersToDelete.add(doc.id);
                     }
                 });
@@ -5400,8 +5611,8 @@ async function handleDeleteAllCompletedOrders() {
             }
         }
 
-        // Add any known completed IDs from local state
-        localCompleted.forEach(o => {
+        // Add any known target status IDs from local state
+        localOrdersToClear.forEach(o => {
             const id = String(o.orderId || o.id || '').trim();
             if (id) ordersToDelete.add(id);
         });
@@ -5420,52 +5631,60 @@ async function handleDeleteAllCompletedOrders() {
             console.log(`🗑️ [Clear All ${targetLabel}] Batch deleted ${ordersToDelete.size} order(s) from Firestore.`);
         }
 
-        // 3. Clear completed orders array in local state & localStorage
-        staffOrders = staffOrders.filter(o => !completedStatuses.includes(String(o.status || '').toLowerCase()));
+        // 4. Clear ONLY the target tab orders in local state & localStorage (opposite tab remains untouched!)
+        staffOrders = staffOrders.filter(o => !targetStatuses.includes(String(o.status || '').toLowerCase()));
         try {
             localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
         } catch (e) { }
 
-        // 4. Trigger backend server cleanup for synchronized memory caches
-        try {
-            const rawPhone = String(currentStaffUser?.phone || '').replace(/[^0-9]/g, '').slice(-10);
-            await apiCall('/orders?action=midnight_cleanup', {
-                method: 'DELETE',
-                headers: {
-                    'x-staff-phone': rawPhone,
-                    'x-staff-role': currentStaffUser?.role || 'Admin'
-                }
-            });
-        } catch (apiErr) {
-            console.warn('Backend cleanup notice:', apiErr.message);
+        // 5. Trigger scoped backend server cleanup strictly for these specific IDs (NEVER midnight_cleanup!)
+        if (ordersToDelete.size > 0) {
+            try {
+                const rawPhone = String(currentStaffUser?.phone || '').replace(/[^0-9]/g, '').slice(-10);
+                await apiCall('/orders', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-staff-phone': rawPhone,
+                        'x-staff-role': currentStaffUser?.role || 'Admin'
+                    },
+                    body: JSON.stringify({
+                        deleteAllCompleted: true,
+                        completedIds: Array.from(ordersToDelete)
+                    })
+                });
+            } catch (apiErr) {
+                console.warn('Backend scoped cleanup notice:', apiErr.message);
+            }
         }
 
-        // 5. Audit Log: Record entry in 'activity_logs'
+        // 6. Audit Log: Record entry in 'activity_logs'
         let adminRole = 'Admin';
         let adminPhone = '••••••••••';
         if (currentStaffUser) {
             const rawPhone = String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10);
-            const isMaster = (currentStaffUser.role === 'Master Admin' || rawPhone === MASTER_ADMIN_PHONE_NUM || currentStaffUser.isMasterAdmin);
+            const masterPhone = (typeof MASTER_ADMIN_PHONE_NUM !== 'undefined') ? MASTER_ADMIN_PHONE_NUM : '9414503886';
+            const isMaster = (currentStaffUser.role === 'Master Admin' || rawPhone === masterPhone || currentStaffUser.isMasterAdmin);
             adminRole = isMaster ? 'Master Admin' : (currentStaffUser.role || 'Admin');
-            adminPhone = rawPhone ? `+91 ${rawPhone}` : (isMaster ? `+91 ${MASTER_ADMIN_PHONE_NUM}` : '—');
+            adminPhone = rawPhone ? `+91 ${rawPhone}` : (isMaster ? `+91 ${masterPhone}` : '—');
         }
-        const auditLogAction = `Cleared all ${targetLabel} orders via Staff Portal by ${adminRole}/${adminPhone}`;
+        const auditLogAction = `Cleared all ${targetLabel} orders via Staff Portal with Emergency Master OTP by ${adminRole}/${adminPhone}`;
         await recordStaffActivityLog(auditLogAction, {
-            deletedCount: ordersToDelete.size || localCompleted.length
+            deletedCount: ordersToDelete.size || localOrdersToClear.length,
+            targetCategory: targetLabel
         });
 
-        // 6. Update UI list in real time without page reload
+        // 7. Update UI list in real time without page reload
         renderOrders();
 
-        // 7. Success toast notification
-        showStaffToast(`All ${targetLabel} orders cleared successfully.`);
+        // 8. Success toast notification
+        showStaffToast(`Orders cleared successfully.`);
     } catch (err) {
         console.error('Error clearing orders:', err);
         showStaffToast('⚠️ Failed to clear orders: ' + err.message);
     } finally {
         if (btn) {
             btn.disabled = false;
-            const btnLabel = currentStaffTab === 'rejected' ? 'Clear All Rejected' : 'Clear All Completed';
             btn.innerHTML = `<i class="fa-solid fa-trash-can"></i> <span>${btnLabel}</span>`;
             // Re-run renderOrders to ensure empty state guard applies dynamically
             renderOrders();
