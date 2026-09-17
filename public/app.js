@@ -4976,6 +4976,7 @@ function reconcileWalletTranches(wallet) {
     const debits = [];
     const releasedOrderHolds = new Set();
     const processedRefundOrderIds = new Set();
+    const processedCreditOrderIds = new Set();
 
     // First pass: identify order IDs with released or cancelled holds
     wallet.transactions.forEach(tx => {
@@ -5007,7 +5008,7 @@ function reconcileWalletTranches(wallet) {
                     debits.push({ tx, amount: amt, time: debitTime });
                 }
             }
-        } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback') {
+        } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || (txType.includes('credit') && !txType.includes('debit'))) {
             // Strict 1-to-1 Order Idempotency:
             if (txType === 'refund' && txOrderId) {
                 // Deduplicate redundant refund entries for the same orderId
@@ -5025,6 +5026,14 @@ function reconcileWalletTranches(wallet) {
                         return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
                     }
                 }
+            } else if (cleanOrderId && cleanOrderId !== '--' && cleanOrderId !== 'order') {
+                // Strict 1-to-1 Order Idempotency for Earned Cashback & Rewards:
+                // Deduplicate redundant credit tranches for the same orderId so duplicate in-memory or optimistic credits never inflate balance
+                if (processedCreditOrderIds.has(cleanOrderId) || processedCreditOrderIds.has(txOrderId)) {
+                    return;
+                }
+                processedCreditOrderIds.add(cleanOrderId);
+                if (txOrderId) processedCreditOrderIds.add(txOrderId);
             }
 
             if (tx.initialAmount === undefined) {
@@ -5197,10 +5206,17 @@ function getActiveCreditTranches() {
     const txList = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
         ? currentCustomerWallet.transactions
         : [];
+    const processedOrderIds = new Set();
     return txList.filter(tx => {
         if (!tx) return false;
         const txType = String(tx.type || '').toLowerCase().trim();
-        if (txType !== 'credit' && txType !== 'refund' && txType !== 'cashback') return false;
+        const isCredit = txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || (txType.includes('credit') && !txType.includes('debit'));
+        if (!isCredit) return false;
+        const cleanOid = String(tx.orderId || '').trim().replace(/^#/, '');
+        if (txType !== 'refund' && cleanOid && cleanOid !== '--' && cleanOid !== 'order') {
+            if (processedOrderIds.has(cleanOid)) return false;
+            processedOrderIds.add(cleanOid);
+        }
         const remaining = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
         if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired') return false;
         if (tx.expiresAt) {
@@ -6372,6 +6388,119 @@ function calculateOrderCashback(subtotal, walletConfig = customerWalletConfig) {
 }
 window.calculateOrderCashback = calculateOrderCashback;
 
+/**
+ * Single source of truth for order cashback idempotency.
+ * Checks whether an order's cashback reward has already been credited or committed
+ * in memory, in customer wallet transactions, or on the order document itself.
+ * Prevents optimistic re-crediting and transient double-count flickers (e.g. ₹71 to ₹43).
+ * @param {string|number} orderId 
+ * @param {Object} [order]
+ * @returns {boolean}
+ */
+function isOrderRewardAlreadyCredited(orderId, order) {
+    const rawOid = String(orderId || (order && (order.id || order.orderId)) || '').trim();
+    const cleanOid = rawOid.replace(/^#/, '');
+
+    // 1. Check order document / object flags if available
+    if (order && typeof order === 'object') {
+        if (order.scratchClaimed === true) return true;
+        const rStat = String(order.rewardStatus || '').toLowerCase().trim();
+        if (rStat === 'credited' || rStat === 'active_credited') return true;
+        if (order.scratchCard) {
+            if (order.scratchCard.claimed === true) return true;
+            const scStat = String(order.scratchCard.status || '').toLowerCase().trim();
+            if (scStat === 'credited' || scStat === 'active_credited') return true;
+        }
+    }
+
+    // If orderId is invalid or a generic placeholder, rely only on object flags above
+    if (!cleanOid || cleanOid === 'ORDER' || cleanOid === '--' || cleanOid === 'null' || cleanOid === 'undefined') {
+        return false;
+    }
+
+    // Helper to test if a transaction list already accounts for this order credit
+    const checkTxList = (txList) => {
+        if (!Array.isArray(txList) || txList.length === 0) return false;
+        return txList.some(tx => {
+            if (!tx) return false;
+            const txType = String(tx.type || '').toLowerCase().trim();
+            const isCredit = txType === 'credit' || txType === 'cashback_earned' || txType === 'cashback' || txType === 'reward' || txType.includes('cashback') || (txType.includes('credit') && !txType.includes('debit'));
+            if (!isCredit) return false;
+
+            // Match by orderId
+            const txOid = String(tx.orderId || '').trim();
+            const cleanTxOid = txOid.replace(/^#/, '');
+            if (cleanTxOid && (cleanTxOid === cleanOid || txOid === rawOid)) {
+                return true;
+            }
+
+            // Match by tx id (e.g. tx_credit_order_2, tx_order_2, order_2)
+            const txId = String(tx.id || '').trim();
+            if (txId) {
+                const cleanTxId = txId.replace(/^#/, '');
+                if (cleanTxId === cleanOid || txId === `order_${cleanOid}` || txId === `tx_order_${cleanOid}` || txId === `tx_credit_${cleanOid}`) {
+                    return true;
+                }
+            }
+
+            // Match by description / title containing Order #ID
+            const desc = String(tx.description || tx.title || '');
+            if (desc) {
+                const orderRegex = new RegExp('(?:order\\s*#?\\s*)' + cleanOid + '(?:\\b|[^0-9])', 'i');
+                if (orderRegex.test(desc)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    };
+
+    // 2. Check active in-memory currentCustomerWallet transactions
+    if (currentCustomerWallet && checkTxList(currentCustomerWallet.transactions)) {
+        return true;
+    }
+
+    // 3. Fallback check in localStorage wallet transactions
+    try {
+        const storedWallet = localStorage.getItem('perfetto_customer_wallet');
+        if (storedWallet) {
+            const parsedWallet = JSON.parse(storedWallet);
+            if (parsedWallet && checkTxList(parsedWallet.transactions)) {
+                return true;
+            }
+        }
+    } catch (e) {}
+
+    // 4. Fallback check in stored orders list
+    try {
+        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+        if (storedOrders) {
+            const parsedOrders = JSON.parse(storedOrders);
+            if (Array.isArray(parsedOrders)) {
+                const matchingOrder = parsedOrders.find(o => {
+                    if (!o) return false;
+                    const oId = String(o.id || o.orderId || '').trim().replace(/^#/, '');
+                    return oId === cleanOid;
+                });
+                if (matchingOrder) {
+                    if (matchingOrder.scratchClaimed === true) return true;
+                    const rStat = String(matchingOrder.rewardStatus || '').toLowerCase().trim();
+                    if (rStat === 'credited' || rStat === 'active_credited') return true;
+                    if (matchingOrder.scratchCard) {
+                        if (matchingOrder.scratchCard.claimed === true) return true;
+                        const scStat = String(matchingOrder.scratchCard.status || '').toLowerCase().trim();
+                        if (scStat === 'credited' || scStat === 'active_credited') return true;
+                    }
+                }
+            }
+        }
+    } catch (e) {}
+
+    return false;
+}
+window.isOrderRewardAlreadyCredited = isOrderRewardAlreadyCredited;
+
 async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions = null) {
     const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
     const earnedCashback = Number(amount) || 0;
@@ -6381,21 +6510,9 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     const existingTx = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
 
-    // Idempotency check: prevent duplicate credit for the exact same order
-    if (effectiveOrderId && effectiveOrderId !== 'ORDER' && effectiveOrderId !== '--') {
-        const alreadyCredited = existingTx.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === effectiveOrderId);
-        if (alreadyCredited) {
-            console.log(`[WALLET] Order #${effectiveOrderId} cashback already credited. Skipping duplicate credit.`);
-            return;
-        }
-    }
-
-    let activeDays = null;
-    let expiresAt = null;
-
     // 1. Honor per-order immutable validity window if crediting from an existing order
     let targetOrder = null;
-    if (activeScratchOrder && (String(activeScratchOrder.id || activeScratchOrder.orderId) === effectiveOrderId)) {
+    if (typeof activeScratchOrder !== 'undefined' && activeScratchOrder && (String(activeScratchOrder.id || activeScratchOrder.orderId) === effectiveOrderId)) {
         targetOrder = activeScratchOrder;
     } else {
         try {
@@ -6408,6 +6525,28 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
             }
         } catch (e) { }
     }
+
+    // Strict idempotency check: prevent duplicate credit for the exact same order reward
+    if (effectiveOrderId && effectiveOrderId !== 'ORDER' && effectiveOrderId !== '--') {
+        const alreadyCredited = (typeof isOrderRewardAlreadyCredited === 'function')
+            ? isOrderRewardAlreadyCredited(effectiveOrderId, targetOrder)
+            : existingTx.some(tx => tx && String(tx.type || '').toLowerCase().includes('credit') && String(tx.orderId || '').replace(/^#/, '') === effectiveOrderId.replace(/^#/, ''));
+        if (alreadyCredited) {
+            console.log(`[WALLET] Order #${effectiveOrderId} cashback already credited. Skipping duplicate credit.`);
+            if (targetOrder) {
+                targetOrder.scratchClaimed = true;
+                targetOrder.rewardStatus = 'credited';
+                if (targetOrder.scratchCard) {
+                    targetOrder.scratchCard.claimed = true;
+                    targetOrder.scratchCard.status = 'credited';
+                }
+            }
+            return;
+        }
+    }
+
+    let activeDays = null;
+    let expiresAt = null;
 
     if (targetOrder) {
         const orderDays = targetOrder.scratchExpiryDays || targetOrder.cashbackExpiryDays || (targetOrder.scratchCard && (targetOrder.scratchCard.expiryDays || targetOrder.scratchCard.cashbackExpiryDays));
@@ -10154,7 +10293,13 @@ function revealScratchCardReward() {
             || ((currentUserProfile && currentUserProfile.phone) || '');
         const orderId = activeScratchOrder.id || activeScratchOrder.orderId || 'ORDER';
 
-        creditCustomerWallet(customerPhone, activeScratchRewardAmount, orderId);
+        const isAlreadyCredited = typeof isOrderRewardAlreadyCredited === 'function'
+            ? isOrderRewardAlreadyCredited(orderId, activeScratchOrder)
+            : (activeScratchOrder.scratchClaimed || activeScratchOrder.rewardStatus === 'active_credited' || activeScratchOrder.rewardStatus === 'credited');
+
+        if (!isAlreadyCredited) {
+            creditCustomerWallet(customerPhone, activeScratchRewardAmount, orderId);
+        }
 
         activeScratchOrder.scratchRevealed = true;
         activeScratchOrder.scratchClaimed = true;
@@ -10302,12 +10447,14 @@ async function handleClaimScratchReward() {
     const isDelivered = activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered';
     const effectiveOrderId = String(activeScratchOrder.id || activeScratchOrder.orderId || '');
 
-    const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
-        ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === effectiveOrderId)
-        : false;
+    const alreadyCreditedInWallet = typeof isOrderRewardAlreadyCredited === 'function'
+        ? isOrderRewardAlreadyCredited(effectiveOrderId, activeScratchOrder)
+        : ((currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
+            ? currentCustomerWallet.transactions.some(tx => tx && String(tx.type || '').toLowerCase().includes('credit') && String(tx.orderId || '').replace(/^#/, '') === effectiveOrderId.replace(/^#/, ''))
+            : false);
 
     // Anti-Abuse Double Claim Prevention Check:
-    if (activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed) || activeScratchOrder.rewardStatus === 'active_credited' || alreadyCreditedInWallet) {
+    if (activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed) || activeScratchOrder.rewardStatus === 'active_credited' || activeScratchOrder.rewardStatus === 'credited' || alreadyCreditedInWallet) {
         showToast(isHindi ? `🎉 ₹${amount} कैशबैक आपके वॉलेट में जुड़ चुका है!` : `🎉 ₹${amount} Cashback credited to your wallet!`);
         closeScratchCardModal();
         return;
@@ -13081,10 +13228,12 @@ function renderOrderHistoryDetails() {
 
                 // Auto-credit pending delivery cashback only if order was delivered AND card was already revealed
                 const targetOrderId = String(o.id || o.orderId || '');
-                const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
-                    ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
-                    : false;
-                const isAlreadyCredited = (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited');
+                const alreadyCreditedInWallet = typeof isOrderRewardAlreadyCredited === 'function'
+                    ? isOrderRewardAlreadyCredited(targetOrderId, o)
+                    : ((currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
+                        ? currentCustomerWallet.transactions.some(tx => tx && String(tx.type || '').toLowerCase().includes('credit') && String(tx.orderId || '').replace(/^#/, '') === targetOrderId.replace(/^#/, ''))
+                        : false);
+                const isAlreadyCredited = alreadyCreditedInWallet || (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited');
 
                 if (isDelivered) {
                     if (typeof commitWalletHold === 'function') {
@@ -18439,11 +18588,13 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 const isPendingDelivery = (target.rewardStatus === 'pending_delivery' || (target.scratchCard && target.scratchCard.status === 'pending_delivery') || target.scratchRevealed);
 
                 const targetOrderId = String(target.id || target.orderId || '');
-                const alreadyCreditedInWallet = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
-                    ? currentCustomerWallet.transactions.some(tx => tx && tx.type === 'credit' && String(tx.orderId) === targetOrderId)
-                    : false;
+                const alreadyCreditedInWallet = typeof isOrderRewardAlreadyCredited === 'function'
+                    ? (isOrderRewardAlreadyCredited(targetOrderId, target) || isOrderRewardAlreadyCredited(targetOrderId, freshOrderData))
+                    : ((currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions))
+                        ? currentCustomerWallet.transactions.some(tx => tx && String(tx.type || '').toLowerCase().includes('credit') && String(tx.orderId || '').replace(/^#/, '') === targetOrderId.replace(/^#/, ''))
+                        : false);
 
-                const isAlreadyCredited = (target.rewardStatus === 'active_credited' || target.rewardStatus === 'credited' || freshOrderData.rewardStatus === 'active_credited' || freshOrderData.rewardStatus === 'credited');
+                const isAlreadyCredited = alreadyCreditedInWallet || (target.rewardStatus === 'active_credited' || target.rewardStatus === 'credited' || freshOrderData.rewardStatus === 'active_credited' || freshOrderData.rewardStatus === 'credited');
 
                 if (!isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet && orderCashback > 0) {
                     target.scratchClaimed = true;
