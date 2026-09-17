@@ -5405,8 +5405,20 @@ async function fetchCustomerWalletLedger(phone) {
 
         // Strictly enforce descending sort by creation timestamp and clamp to exactly 15 records
         fetchedTxs.sort((a, b) => {
-            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
-            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+            const parseTxTime = (item) => {
+                if (!item) return 0;
+                const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+                if (cand?.toDate && typeof cand.toDate === 'function') {
+                    try { return cand.toDate().getTime(); } catch (e) {}
+                }
+                if (cand && typeof cand.seconds === 'number') {
+                    return cand.seconds * 1000 + (cand.nanoseconds ? Math.round(cand.nanoseconds / 1e6) : 0);
+                }
+                const parsed = cand ? new Date(cand).getTime() : 0;
+                return isNaN(parsed) ? 0 : parsed;
+            };
+            const timeA = parseTxTime(a);
+            const timeB = parseTxTime(b);
             return timeB - timeA;
         });
         const constrainedTxs = fetchedTxs.slice(0, 15);
@@ -5440,9 +5452,12 @@ async function fetchCustomerWallet(phone) {
             const doc = await fs.collection('wallets').doc(cleanPhone).get();
             if (doc.exists && doc.data()) {
                 const valid = calculateValidWalletBalance(doc.data());
+                const docData = doc.data();
+                const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
                 currentCustomerWallet = {
-                    ...doc.data(),
-                    ...valid
+                    ...docData,
+                    ...valid,
+                    transactions: existingTx.length > 0 ? existingTx : (docData.transactions || [])
                 };
             }
 
@@ -5470,6 +5485,82 @@ window.fetchCustomerWallet = fetchCustomerWallet;
 let customerUserRealtimeUnsubscribe = null;
 let activeWalletListeningPhone = null;
 
+/**
+ * Single authoritative state source protection for wallet transactions.
+ * Merges incoming Firestore transactions with existing in-memory transactions,
+ * preventing secondary asynchronous snapshots or unmerged fallback arrays from
+ * coercing credits into debits or overwriting normalized dates.
+ * @param {Array} existingTxs 
+ * @param {Array} incomingTxs 
+ * @returns {Array}
+ */
+function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
+    const listA = Array.isArray(existingTxs) ? existingTxs : [];
+    const listB = Array.isArray(incomingTxs) ? incomingTxs : [];
+    if (listA.length === 0 && listB.length === 0) return [];
+    if (listA.length === 0) return listB.slice(0, 30);
+    if (listB.length === 0) return listA.slice(0, 30);
+
+    const parseTxTimestamp = (item) => {
+        if (!item) return 0;
+        const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+        if (cand?.toDate && typeof cand.toDate === 'function') {
+            try { return cand.toDate().getTime(); } catch (e) {}
+        }
+        if (cand && typeof cand.seconds === 'number') {
+            return cand.seconds * 1000 + (cand.nanoseconds ? Math.round(cand.nanoseconds / 1e6) : 0);
+        }
+        const parsed = cand ? new Date(cand).getTime() : 0;
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const getTxKey = (tx) => {
+        if (!tx) return '';
+        if (tx.id) return String(tx.id);
+        const oId = String(tx.orderId || '').trim();
+        const type = String(tx.type || '').trim().toLowerCase();
+        if (oId) return `${oId}_${type}`;
+        return `${parseTxTimestamp(tx)}_${tx.amount}_${type}`;
+    };
+
+    const map = new Map();
+
+    // 1. Index incoming records
+    listB.forEach(tx => {
+        if (!tx) return;
+        const key = getTxKey(tx);
+        if (key) map.set(key, { ...tx });
+    });
+
+    // 2. Merge existing records, safeguarding credit status and parsed metadata
+    listA.forEach(tx => {
+        if (!tx) return;
+        const key = getTxKey(tx);
+        if (!key) return;
+        if (map.has(key)) {
+            const incoming = map.get(key);
+            const exTypeUpper = String(tx.type || '').toUpperCase();
+            const incTypeUpper = String(incoming.type || '').toUpperCase();
+            const isExCredit = exTypeUpper === 'CREDIT' || exTypeUpper === 'CASHBACK_EARNED' || tx.type === 'credit';
+            const isIncDebit = incTypeUpper === 'DEBIT' || incTypeUpper === 'ORDER_PAYMENT';
+
+            map.set(key, {
+                ...incoming,
+                ...tx,
+                // Preserve credit classification against unmerged downgrade
+                type: (isExCredit && isIncDebit) ? tx.type : (incoming.type || tx.type),
+                createdAt: tx.createdAt || incoming.createdAt,
+                description: tx.description || incoming.description || tx.title || incoming.title
+            });
+        } else {
+            map.set(key, { ...tx });
+        }
+    });
+
+    return Array.from(map.values()).sort((a, b) => parseTxTimestamp(b) - parseTxTimestamp(a)).slice(0, 30);
+}
+window.mergeAndPreserveWalletTransactions = mergeAndPreserveWalletTransactions;
+
 function applyLiveWalletData(data, source = 'wallets') {
     if (!data) return;
 
@@ -5490,13 +5581,16 @@ function applyLiveWalletData(data, source = 'wallets') {
         ? data.walletTransactions
         : (Array.isArray(data.transactions) && data.transactions.length > 0 ? data.transactions : (currentCustomerWallet?.transactions || []));
 
+    const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
+    const mergedTx = mergeAndPreserveWalletTransactions(existingTx, incomingTx);
+
     currentCustomerWallet = {
         ...(currentCustomerWallet || {}),
         ...data,
         ...valid,
         balance: valid.balance,
         nonExpiredBalance: valid.nonExpiredBalance,
-        transactions: incomingTx
+        transactions: mergedTx
     };
     reconcileWalletTranches(currentCustomerWallet);
     try {
@@ -6630,8 +6724,20 @@ function renderProfileWalletTxList() {
 
     // Enforce strict reverse chronological order by creation timestamp and cap to 15 entries
     const sortedTxList = [...txList].sort((a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.timestamp ? new Date(a.timestamp).getTime() : 0);
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.timestamp ? new Date(b.timestamp).getTime() : 0);
+        const getTxTimestamp = (item) => {
+            if (!item) return 0;
+            const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+            if (cand?.toDate && typeof cand.toDate === 'function') {
+                try { return cand.toDate().getTime(); } catch (e) {}
+            }
+            if (cand && typeof cand.seconds === 'number') {
+                return cand.seconds * 1000 + (cand.nanoseconds ? Math.round(cand.nanoseconds / 1e6) : 0);
+            }
+            const parsed = cand ? new Date(cand).getTime() : 0;
+            return isNaN(parsed) ? 0 : parsed;
+        };
+        const timeA = getTxTimestamp(a);
+        const timeB = getTxTimestamp(b);
         return timeB - timeA;
     }).slice(0, 15);
 
@@ -6646,12 +6752,68 @@ function renderProfileWalletTxList() {
     }
 
     container.innerHTML = sortedTxList.map(tx => {
-        const isCredit = (tx.type === 'credit');
+        const typeUpper = String(tx.type || '').trim().toUpperCase();
+        const statusUpper = String(tx.status || '').trim().toUpperCase();
+        const descLower = String(tx.description || tx.title || '').toLowerCase();
+
         const isRefund = (tx.type === 'REFUND' || tx.type === 'refund');
-        const isHold = (tx.type === 'hold' || tx.status === 'LOCKED_HOLD');
+        const isHold = (tx.type === 'hold' || tx.status === 'LOCKED_HOLD' || typeUpper === 'HOLD' || statusUpper === 'LOCKED_HOLD');
+
+        // Robust Credit (+) vs Debit (-) Classification:
+        // If type === "CASHBACK_EARNED", type === "CREDIT", or transaction represents cash reward/unlock:
+        // Display with a positive sign + ₹${amount}, colored in green (credit badge).
+        // If type === "DEBIT", type === "ORDER_PAYMENT", or wallet funds were redeemed during checkout:
+        // Display with a negative sign - ₹${amount}, colored in red/muted (debit badge).
+        const isExplicitCredit = typeUpper === 'CASHBACK_EARNED' ||
+                                 typeUpper === 'CREDIT' ||
+                                 typeUpper === 'CASHBACK' ||
+                                 typeUpper === 'REWARD' ||
+                                 typeUpper === 'WONCASHBACK' ||
+                                 typeUpper === 'BONUS' ||
+                                 tx.type === 'credit' ||
+                                 Boolean(tx.campaign) ||
+                                 descLower.includes('cashback') ||
+                                 descLower.includes('credited') ||
+                                 descLower.includes('reward') ||
+                                 descLower.includes('earned') ||
+                                 descLower.includes('scratch');
+
+        const isExplicitDebit = typeUpper === 'DEBIT' ||
+                                typeUpper === 'ORDER_PAYMENT' ||
+                                typeUpper === 'PAYMENT' ||
+                                typeUpper === 'REDEEMED' ||
+                                typeUpper === 'DEDUCTION' ||
+                                (descLower.includes('redeemed') && !descLower.includes('credited'));
+
+        const isCredit = !isRefund && !isHold && (isExplicitCredit || (!isExplicitDebit && (tx.remainingAmount !== undefined || Number(tx.amount) >= 0)));
         const isPositive = isCredit || isRefund;
         const amt = Math.abs(Number(tx.amount) || 0);
-        const dateStr = tx.createdAt ? new Date(tx.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently';
+
+        // Robust Date Formatting (Safely resolve Firestore Timestamp, ISO string, or numeric epoch)
+        let rawDate;
+        const candDate = tx.createdAt || tx.timestamp || tx.date || tx.creditedAt;
+        if (candDate?.toDate && typeof candDate.toDate === 'function') {
+            try { rawDate = candDate.toDate(); } catch (e) { rawDate = new Date(); }
+        } else if (candDate && typeof candDate.seconds === 'number') {
+            rawDate = new Date(candDate.seconds * 1000 + (candDate.nanoseconds ? Math.round(candDate.nanoseconds / 1e6) : 0));
+        } else if (tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt ? new Date(tx.createdAt) : null)) {
+            rawDate = tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt ? new Date(tx.createdAt) : new Date());
+        } else if (candDate) {
+            rawDate = (candDate instanceof Date) ? candDate : new Date(candDate);
+        } else {
+            rawDate = new Date();
+        }
+
+        const isValidDate = rawDate instanceof Date && !isNaN(rawDate.getTime());
+        const validDate = isValidDate ? rawDate : new Date();
+
+        // Format as: DD MMM, HH:mm (e.g., "17 Sept, 14:28")
+        const day = validDate.getDate();
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+        const month = monthNames[validDate.getMonth()];
+        const hours = String(validDate.getHours()).padStart(2, '0');
+        const minutes = String(validDate.getMinutes()).padStart(2, '0');
+        const dateStr = `${day} ${month}, ${hours}:${minutes}`;
 
         let expiryNotice = '';
         if (isRefund) {
@@ -12035,10 +12197,12 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             currentCustomerWallet.cashbackExpiryDays = u.cashbackExpiryDays || activeDays;
             currentCustomerWallet.lastCreditedAt = u.lastCreditedAt || null;
 
-            if (Array.isArray(u.walletTransactions) && u.walletTransactions.length > 0) {
-                currentCustomerWallet.transactions = u.walletTransactions;
-            } else if (Array.isArray(u.transactions) && u.transactions.length > 0) {
-                currentCustomerWallet.transactions = u.transactions;
+            const uTxs = (Array.isArray(u.walletTransactions) && u.walletTransactions.length > 0)
+                ? u.walletTransactions
+                : (Array.isArray(u.transactions) && u.transactions.length > 0 ? u.transactions : []);
+            if (uTxs.length > 0) {
+                const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
+                currentCustomerWallet.transactions = mergeAndPreserveWalletTransactions(existingTx, uTxs);
             }
             reconcileWalletTranches(currentCustomerWallet);
             safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
@@ -18099,9 +18263,11 @@ function listenToCustomerActiveOrders() {
             }
             customerPhoneOrdersCurrentQueryPhone = currentUid;
             try {
-                customerPhoneOrdersUnsubscribe = customerFirestore.collection('orders')
-                    .where('userId', '==', currentUid)
-                    .limit(25)
+                const ordersRef = customerFirestore.collection('orders');
+                const ordersQuery = verifiedPhone
+                    ? ordersRef.where('customerPhone', '==', verifiedPhone).limit(25)
+                    : ordersRef.where('userId', '==', currentUid).limit(25);
+                customerPhoneOrdersUnsubscribe = ordersQuery
                     .onSnapshot((snapshot) => {
                         if (!snapshot) return;
                         const remoteOrders = [];
