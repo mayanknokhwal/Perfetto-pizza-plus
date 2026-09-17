@@ -14767,7 +14767,7 @@
                 // Direct standalone Firestore real-time listener on active orders collection (decoupled from Staff tab)
                 // Query scoped strictly to active orders with limit(25) to eliminate historical full-collection reads
                 adminOrdersUnsubscribe = db.collection('orders')
-                    .where('status', 'in', ['PENDING', 'ACCEPTED'])
+                    .where('status', 'in', ['PENDING', 'pending', 'ACCEPTED', 'accepted', 'new', 'NEW', 'placed', 'PLACED', 'preparing', 'PREPARING'])
                     .limit(25)
                     .onSnapshot((snapshot) => {
                         const liveOrders = [];

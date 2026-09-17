@@ -404,6 +404,71 @@ let isFirestoreInitialHydrationDone = false;
 const processedOrderDocIds = new Set();
 const staffIncomingAlertedIds = new Set();
 
+/**
+ * Robust document parser for Staff Portal kitchen ingestion.
+ * Strictly guarantees clean string IDs, arrays for items, numeric totals,
+ * normalized status, and prevents unhandled exceptions from malformed or partial payloads.
+ */
+function parseStaffOrder(docId, data = {}) {
+    const rawId = data.orderId || data.id || docId;
+    const cleanId = String(rawId).replace(/^#/, '').trim();
+
+    // Normalize status (default to 'pending' if missing or blank)
+    const rawStatus = String(data.status || 'pending').trim();
+    const status = rawStatus || 'pending';
+
+    // Normalize customer info from top-level or nested objects
+    const customerName = data.customerName || data.customer?.name || data.deliveryDetails?.name || data.name || 'Customer';
+    const customerPhone = data.customerPhone || data.customer?.phone || data.phone || data.deliveryDetails?.phone || '';
+    const address = data.address || data.deliveryAddress || data.customer?.address || data.deliveryDetails?.address || '';
+    const notes = data.notes || data.orderNotes || data.customer?.notes || '';
+
+    // Normalize items array
+    let items = data.items || data.cart || data.orderItems || [];
+    if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch (e) { items = []; }
+    }
+    if (!Array.isArray(items)) items = [];
+
+    // Normalize total
+    let total = data.total !== undefined ? data.total : (data.finalPayable !== undefined ? data.finalPayable : (data.totalAmount !== undefined ? data.totalAmount : (data.costs?.total !== undefined ? data.costs.total : 0)));
+    total = Number(total) || 0;
+
+    // Normalize createdAt timestamp
+    let createdAt = data.createdAt;
+    if (!createdAt && data.serverTimestamp) {
+        if (typeof data.serverTimestamp.toDate === 'function') {
+            createdAt = data.serverTimestamp.toDate().toISOString();
+        } else {
+            createdAt = new Date(data.serverTimestamp).toISOString();
+        }
+    }
+    if (!createdAt && data.timestamp) {
+        createdAt = new Date(data.timestamp).toISOString();
+    }
+    if (!createdAt) {
+        createdAt = new Date().toISOString();
+    }
+
+    return {
+        ...data,
+        id: cleanId || String(docId),
+        orderId: cleanId || String(docId),
+        firestoreDocId: docId,
+        docId: docId,
+        customerName,
+        customerPhone,
+        address,
+        notes,
+        items,
+        total,
+        status,
+        createdAt,
+        paymentMethod: data.paymentMethod || data.paymentStatus || 'Cash on Delivery'
+    };
+}
+window.parseStaffOrder = parseStaffOrder;
+
 function listenToFirestoreStaffOrders() {
     const db = getStaffFirestore();
     if (!db) {
@@ -428,7 +493,8 @@ function listenToFirestoreStaffOrders() {
             snapshot.forEach((doc) => {
                 const docId = doc.id;
                 const data = doc.data() || {};
-                const orderId = String(data.orderId || data.id || docId);
+                const parsed = parseStaffOrder(docId, data);
+                const orderId = String(parsed.orderId || parsed.id || docId);
                 const matchingKey = String(orderId).replace(/^#/, '').trim();
                 processedOrderDocIds.add(docId);
                 processedOrderDocIds.add(orderId);
@@ -450,10 +516,11 @@ function listenToFirestoreStaffOrders() {
                 const doc = change.doc;
                 const data = doc.data() || {};
                 const docId = doc.id;
-                const orderId = String(data.orderId || data.id || docId);
+                const parsed = parseStaffOrder(docId, data);
+                const orderId = String(parsed.orderId || parsed.id || docId);
                 const matchingKey = String(orderId).replace(/^#/, '').trim();
-                const status = String(data.status || '').toLowerCase().trim();
-                const isIncoming = (status === 'placed' || status === 'pending' || status === 'new');
+                const status = String(parsed.status || '').toLowerCase().trim();
+                const isIncoming = ['placed', 'pending', 'new', 'confirmed', 'received', 'order_placed'].includes(status);
 
                 if (change.type === 'added' || change.type === 'modified') {
                     const isDismissed = staffDismissedAlertOrderIds.has(orderId) || 
@@ -476,12 +543,12 @@ function listenToFirestoreStaffOrders() {
                         if (matchingKey) staffSeenOrderIds.add(matchingKey);
 
                         console.log(`🔥 [Firestore Real-Time] Incoming order detected via docChanges (${change.type}): Order #${orderId} (Status: ${status})`);
-                        const customerName = data.customerName || data.customer?.name || 'Customer';
-                        const total = data.total || data.costs?.total || '';
-                        const summary = total ? `${customerName} • ₹${total}` : customerName;
+                        const customerName = parsed.customerName || 'Customer';
+                        const total = parsed.total ? `₹${parsed.total}` : '';
+                        const summary = total ? `${customerName} • ${total}` : customerName;
 
                         // 1. Immediately set the incoming modal state to visible
-                        showIncomingOrderModal(orderId, summary, data);
+                        showIncomingOrderModal(orderId, summary, parsed);
 
                         // 2. Immediately invoke the primed audio chime to loop continuously
                         startOrderAlertAudio(orderId, summary, data);
@@ -519,13 +586,8 @@ function listenToFirestoreStaffOrders() {
         snapshot.forEach((doc) => {
             const data = doc.data() || {};
             const docId = doc.id;
-            liveOrders.push({
-                ...data,
-                firestoreDocId: docId,
-                docId: docId,
-                id: data.id || data.orderId || docId,
-                orderId: data.orderId || data.id || docId
-            });
+            const parsed = parseStaffOrder(docId, data);
+            liveOrders.push(parsed);
         });
         // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
         mergeLiveOrdersIntoStaff(liveOrders);
@@ -535,7 +597,7 @@ function listenToFirestoreStaffOrders() {
         // Centralized shared restaurant order pool across all staff devices
         // Query scoped strictly to active kitchen orders to prevent historical full-collection reads
         staffOrdersUnsubscribe = db.collection('orders')
-            .where('status', 'in', ['PENDING', 'ACCEPTED'])
+            .where('status', 'in', ['PENDING', 'pending', 'ACCEPTED', 'accepted', 'new', 'NEW', 'placed', 'PLACED', 'preparing', 'PREPARING'])
             .limit(25)
             .onSnapshot((snapshot) => {
                 processOrdersSnapshot(snapshot);
@@ -2290,8 +2352,8 @@ function loadCustomerOrders() {
 }
 
 async function fetchOrdersFromBackend(force = false) {
-    // Quota optimization: Skip polling if real-time onSnapshot listener is actively receiving orders
-    if (!force && staffOrdersUnsubscribe) {
+    // Quota optimization: Skip polling if real-time onSnapshot listener is actively receiving orders and orders cache is already populated
+    if (!force && staffOrdersUnsubscribe && staffOrders.length > 0) {
         return;
     }
     try {
@@ -2370,7 +2432,7 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     if (isInitialOrdersSyncDone) {
         const newIncomingOrders = staffOrders.filter(o => {
             const s = String(o.status || '').trim().toLowerCase();
-            const isIncoming = (s === 'placed' || s === 'pending' || s === 'new');
+            const isIncoming = ['placed', 'pending', 'new', 'confirmed', 'received', 'order_placed'].includes(s);
             const id = getOrderMatchingKey(o);
             return isIncoming && !staffSeenOrderIds.has(id) && !staffDismissedAlertOrderIds.has(id);
         });
@@ -2383,7 +2445,9 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
             const summary = total ? `${customerName} • ₹${total}` : customerName;
 
             showStaffToast('🔔 New Customer Order Received in Real-Time!');
+            showIncomingOrderModal(orderId, summary, latestNew);
             startOrderAlertAudio(orderId, summary, latestNew);
+            startStaffVibrationLoop();
         }
     } else {
         // Exclude initial collection hydration so already existing orders do not re-alarm on page load
@@ -3436,9 +3500,15 @@ function renderOrders() {
     // Tab 3: Rejected (strictly rejected, cancelled, canceled, declined)
     const rejectedOrders = validOrders.filter(isRejectedStaffOrder);
 
-    // If pending orders queue becomes empty, immediately stop and reset looping audio
+    // If pending orders queue becomes empty, stop audio only if alerting order is no longer pending
     if (pendingOrders.length === 0 && isOrderAlertAudioPlaying) {
-        stopOrderAlertAudio();
+        const hasActiveAlertOrder = currentAlertingOrderId && staffOrders.some(o => {
+            const k = getOrderMatchingKey(o);
+            return (k === currentAlertingOrderId || String(o.id) === currentAlertingOrderId || String(o.orderId) === currentAlertingOrderId) && isPendingStaffOrder(o);
+        });
+        if (!hasActiveAlertOrder) {
+            stopOrderAlertAudio();
+        }
     }
 
     if (pendingCountEl) pendingCountEl.textContent = pendingOrders.length;
