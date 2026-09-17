@@ -9766,6 +9766,7 @@ function initOrderOtpSuccessModal() {
 let activeScratchOrder = null;
 let activeScratchRewardAmount = 0;
 let isScratchingCard = false;
+let hasScratchStarted = false;
 let isScratchCardRevealed = false;
 let scratchLastX = 0;
 let scratchLastY = 0;
@@ -9853,10 +9854,15 @@ function triggerScratchCelebrationConfetti() {
     renderConfetti();
 }
 
-function setupScratchCanvas(order, rewardAmount) {
+function setupScratchCanvas(order, rewardAmount, forceReset = false) {
     const canvas = document.getElementById('scratch-interactive-canvas');
     const stage = document.getElementById('scratch-card-stage');
     if (!canvas || !stage) return;
+
+    // Guard against window resize or modal re-renders wiping out scratched progress
+    if (hasScratchStarted && !forceReset) {
+        return;
+    }
 
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
@@ -9872,6 +9878,9 @@ function setupScratchCanvas(order, rewardAmount) {
     canvas.style.height = '100%';
     canvas.style.opacity = '1';
     canvas.style.pointerEvents = 'auto';
+    canvas.style.touchAction = 'none';
+    canvas.style.userSelect = 'none';
+    canvas.style.webkitUserSelect = 'none';
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
@@ -9931,8 +9940,8 @@ function initScratchCardCanvasEvents() {
     if (!canvas || canvas.__scratchEventsBound) return;
     canvas.__scratchEventsBound = true;
 
-    // Calibrated realistic fingertip/thumb clearing radius in CSS px (small circular patch)
-    const brushRadius = 12;
+    // Calibrated realistic fingertip/thumb clearing radius in CSS px (PhonePe / FamPay butter-smooth 26px)
+    const brushRadius = 26;
 
     let canvasRect = null;
     function updateRect() {
@@ -10009,12 +10018,14 @@ function initScratchCardCanvasEvents() {
         }
     }
 
-    // Touch Event Handlers with preventDefault to eliminate background page scroll and pointer lag
+    // Touch Event Handlers with preventDefault and stopPropagation to eliminate background page scroll and pointer lag
     function onTouchStart(e) {
         if (isScratchCardRevealed) return;
         if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
         updateRect();
         isScratchingCard = true;
+        hasScratchStarted = true;
         const touch = e.touches[0];
         const coords = getCoords(touch.clientX, touch.clientY);
         scratchLastX = coords.x;
@@ -10025,6 +10036,8 @@ function initScratchCardCanvasEvents() {
     function onTouchMove(e) {
         if (!isScratchingCard || isScratchCardRevealed) return;
         if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
+        hasScratchStarted = true;
         const touch = e.touches[0];
         const coords = getCoords(touch.clientX, touch.clientY);
         eraseContinuousPath(scratchLastX, scratchLastY, coords.x, coords.y);
@@ -10036,6 +10049,7 @@ function initScratchCardCanvasEvents() {
     function onTouchEnd(e) {
         if (!isScratchingCard) return;
         if (e.cancelable) e.preventDefault();
+        e.stopPropagation();
         isScratchingCard = false;
         checkScratchCompletion();
     }
@@ -10044,8 +10058,10 @@ function initScratchCardCanvasEvents() {
     function onMouseDown(e) {
         if (isScratchCardRevealed || e.button !== 0) return;
         e.preventDefault();
+        e.stopPropagation();
         updateRect();
         isScratchingCard = true;
+        hasScratchStarted = true;
         const coords = getCoords(e.clientX, e.clientY);
         scratchLastX = coords.x;
         scratchLastY = coords.y;
@@ -10055,6 +10071,8 @@ function initScratchCardCanvasEvents() {
     function onMouseMove(e) {
         if (!isScratchingCard || isScratchCardRevealed) return;
         e.preventDefault();
+        e.stopPropagation();
+        hasScratchStarted = true;
         const coords = getCoords(e.clientX, e.clientY);
         eraseContinuousPath(scratchLastX, scratchLastY, coords.x, coords.y);
         scratchLastX = coords.x;
@@ -10062,8 +10080,10 @@ function initScratchCardCanvasEvents() {
         triggerCheck();
     }
 
-    function onMouseUp() {
+    function onMouseUp(e) {
         if (!isScratchingCard) return;
+        if (e && e.cancelable) e.preventDefault();
+        if (e) e.stopPropagation();
         isScratchingCard = false;
         checkScratchCompletion();
     }
@@ -10103,8 +10123,8 @@ function checkScratchCompletion() {
         }
 
         const percentage = total > 0 ? (transparent / total) * 100 : 0;
-        // Require customer to scratch at least 40% of the card area
-        if (percentage >= 40) {
+        // Require customer to scratch at least 35% of the card area
+        if (percentage >= 35) {
             revealScratchCardReward();
         }
     } catch (e) {
@@ -10243,13 +10263,13 @@ function revealScratchCardReward() {
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     if (canvas) {
-        canvas.style.transition = 'opacity 0.45s ease';
+        canvas.style.transition = 'opacity 0.35s ease-out';
         canvas.style.opacity = '0';
         canvas.style.pointerEvents = 'none';
         setTimeout(() => {
             const ctx = canvas.getContext('2d');
             if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }, 450);
+        }, 350);
     }
 
     // Trigger celebratory confetti blast
@@ -10866,11 +10886,15 @@ function openScratchCardModal(order, demoAmount) {
         // Reset to unscratched state
         isScratchCardRevealed = false;
         isScratchingCard = false;
+        hasScratchStarted = false;
 
         const canvas = document.getElementById('scratch-interactive-canvas');
         if (canvas) {
             canvas.style.opacity = '1';
             canvas.style.pointerEvents = 'auto';
+            canvas.style.touchAction = 'none';
+            canvas.style.userSelect = 'none';
+            canvas.style.webkitUserSelect = 'none';
         }
 
         if (claimBtn) {
@@ -10882,15 +10906,17 @@ function openScratchCardModal(order, demoAmount) {
         }
         if (hintText) {
             hintText.textContent = isHindi 
-                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 40%)' 
-                : 'Scratch the card using your finger or mouse! (40% required)';
+                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 35%)' 
+                : 'Scratch the card using your finger or mouse! (35% required)';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-hand-pointer fa-bounce';
 
         // Draw solid canvas IMMEDIATELY before or as modal opens so canvas is 100% solid before paint (eliminates premature visibility)
-        setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount);
+        setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount, true);
         requestAnimationFrame(() => {
-            setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount);
+            if (!hasScratchStarted) {
+                setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount, true);
+            }
         });
     }
 }
@@ -11045,7 +11071,7 @@ function initScratchCardModal() {
     });
 
     window.addEventListener('resize', () => {
-        if (modal.style.display === 'flex' && !isScratchCardRevealed && activeScratchOrder) {
+        if (modal.style.display === 'flex' && !isScratchCardRevealed && !hasScratchStarted && activeScratchOrder) {
             setupScratchCanvas(activeScratchOrder, activeScratchRewardAmount);
         }
     });
