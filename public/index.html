@@ -1902,6 +1902,41 @@
     <!-- Centralized Firebase Configuration -->
     <script type="module" src="./lib/firebaseConfig.js"></script>
 
+    <!-- Client-side One-Time Test Data Cache Reset Routine (Wipes test localStorage on next visit without modifying business logic) -->
+    <script>
+        (function() {
+            var RESET_FLAG = 'perfetto_test_reset_v1';
+            try {
+                if (!localStorage.getItem(RESET_FLAG)) {
+                    var testKeys = [
+                        'customerDeliveryProfile',
+                        'perfettoSavedProfile',
+                        'perfetto_verified_phone',
+                        'perfetto_phone_verification_state',
+                        'perfetto_pizza_cart',
+                        'perfettoCustomerOrders',
+                        'clearedOrderIds',
+                        'perfetto_active_order',
+                        'perfetto_order_draft',
+                        'perfetto_last_placed_order',
+                        'perfetto_customer_wallet',
+                        'perfetto_wallet_balance',
+                        'perfetto_applied_cashback',
+                        'perfetto_scratch_cards'
+                    ];
+                    testKeys.forEach(function(k) {
+                        try { localStorage.removeItem(k); } catch (e) {}
+                        try { sessionStorage.removeItem(k); } catch (e) {}
+                    });
+                    localStorage.setItem(RESET_FLAG, 'true');
+                    console.log('🧹 [Perfetto Client] Cleared local test data cache for clean launch.');
+                }
+            } catch (err) {
+                console.warn('⚠️ [Perfetto Client] Notice during test cache reset:', err);
+            }
+        })();
+    </script>
+
     <!-- Centralized Localization Translations -->
     <script src="translations.js"></script>
     <script src="app.js?v=2.0"></script>
