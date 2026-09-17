@@ -7076,8 +7076,55 @@ function setupFastFoodCards() {
 }
 
 // --------------------------------------------------------------------------
-// 6. CART MANAGEMENT & CALCULATIONS
+// 6. CART MANAGEMENT & CALCULATIONS - DYNAMIC BANNER SETTINGS & CONSTRAINTS
 // --------------------------------------------------------------------------
+function getCustomerBannerSettings() {
+    let settings = {
+        maxClaimableOffers: 2,
+        maxOffersPerOrder: 2,
+        maxQtyPerOffer: 4,
+        max_offers_per_order: 2,
+        max_qty_per_offer: 4
+    };
+
+    if (typeof window !== 'undefined' && window.bannerSettings && typeof window.bannerSettings === 'object') {
+        Object.assign(settings, window.bannerSettings);
+    }
+
+    try {
+        const savedBannersConfig = localStorage.getItem('perfetto_banner_settings');
+        if (savedBannersConfig) {
+            const parsed = JSON.parse(savedBannersConfig);
+            if (parsed && typeof parsed === 'object') {
+                Object.assign(settings, parsed);
+            }
+        }
+    } catch (e) { }
+
+    try {
+        const savedMaxOffers = localStorage.getItem('perfetto_max_offers_per_order');
+        if (savedMaxOffers) {
+            const parsed = parseInt(savedMaxOffers, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) {
+                settings.maxClaimableOffers = parsed;
+                settings.maxOffersPerOrder = parsed;
+                settings.max_offers_per_order = parsed;
+            }
+        }
+        const savedMaxQty = localStorage.getItem('perfetto_max_qty_per_offer');
+        if (savedMaxQty) {
+            const parsed = parseInt(savedMaxQty, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
+                settings.maxQtyPerOffer = parsed;
+                settings.max_qty_per_offer = parsed;
+            }
+        }
+    } catch (e) { }
+
+    return settings;
+}
+window.getCustomerBannerSettings = getCustomerBannerSettings;
+
 let customerMaxOffersPerOrder = (function () {
     try {
         const saved = localStorage.getItem('perfetto_max_offers_per_order');
@@ -7085,8 +7132,11 @@ let customerMaxOffersPerOrder = (function () {
             const parsed = parseInt(saved, 10);
             if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) return parsed;
         }
+        const bannerSettings = getCustomerBannerSettings();
+        const pVal = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder, 10);
+        if (!isNaN(pVal) && pVal >= 1 && pVal <= 3) return pVal;
     } catch (e) { }
-    return 1;
+    return 2;
 })();
 
 try {
@@ -7097,6 +7147,12 @@ try {
                 customerMaxOffersPerOrder = parsed;
             }
         }
+        if (e.key === 'perfetto_max_qty_per_offer' && e.newValue) {
+            const parsed = parseInt(e.newValue, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
+                customerMaxQtyPerOffer = parsed;
+            }
+        }
     });
 } catch (e) { }
 
@@ -7104,7 +7160,13 @@ function setCustomerMaxOffersPerOrder(val) {
     const parsed = parseInt(val, 10);
     if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) {
         customerMaxOffersPerOrder = parsed;
-        if (typeof window !== 'undefined') window.customerMaxOffersPerOrder = parsed;
+        if (typeof window !== 'undefined') {
+            window.customerMaxOffersPerOrder = parsed;
+            if (!window.bannerSettings) window.bannerSettings = {};
+            window.bannerSettings.maxClaimableOffers = parsed;
+            window.bannerSettings.maxOffersPerOrder = parsed;
+            window.bannerSettings.max_offers_per_order = parsed;
+        }
         try {
             localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
         } catch (e) { }
@@ -7114,25 +7176,14 @@ window.setCustomerMaxOffersPerOrder = setCustomerMaxOffersPerOrder;
 window.customerMaxOffersPerOrder = customerMaxOffersPerOrder;
 
 function getCustomerMaxOffersPerOrder() {
-    if (typeof window !== 'undefined' && window.customerMaxOffersPerOrder && window.customerMaxOffersPerOrder >= 1 && window.customerMaxOffersPerOrder <= 3) {
-        customerMaxOffersPerOrder = window.customerMaxOffersPerOrder;
-        return customerMaxOffersPerOrder;
+    const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
+    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 2, 10);
+    if (!isNaN(maxClaimableOffers) && maxClaimableOffers >= 1 && maxClaimableOffers <= 3) {
+        customerMaxOffersPerOrder = maxClaimableOffers;
+        if (typeof window !== 'undefined') window.customerMaxOffersPerOrder = maxClaimableOffers;
+        return maxClaimableOffers;
     }
-    if (customerMaxOffersPerOrder && customerMaxOffersPerOrder >= 1 && customerMaxOffersPerOrder <= 3) {
-        return customerMaxOffersPerOrder;
-    }
-    try {
-        const saved = localStorage.getItem('perfetto_max_offers_per_order');
-        if (saved) {
-            const parsed = parseInt(saved, 10);
-            if (!isNaN(parsed) && parsed >= 1 && parsed <= 3) {
-                customerMaxOffersPerOrder = parsed;
-                if (typeof window !== 'undefined') window.customerMaxOffersPerOrder = parsed;
-                return customerMaxOffersPerOrder;
-            }
-        }
-    } catch (e) { }
-    return 1;
+    return 2;
 }
 window.getCustomerMaxOffersPerOrder = getCustomerMaxOffersPerOrder;
 
@@ -7143,26 +7194,23 @@ let customerMaxQtyPerOffer = (function () {
             const parsed = parseInt(saved, 10);
             if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) return parsed;
         }
+        const bannerSettings = getCustomerBannerSettings();
+        const pVal = parseInt(bannerSettings?.maxQtyPerOffer, 10);
+        if (!isNaN(pVal) && pVal >= 1 && pVal <= 9) return pVal;
     } catch (e) { }
-    return 1;
+    return 4;
 })();
-
-try {
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'perfetto_max_qty_per_offer' && e.newValue) {
-            const parsed = parseInt(e.newValue, 10);
-            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
-                customerMaxQtyPerOffer = parsed;
-            }
-        }
-    });
-} catch (e) { }
 
 function setCustomerMaxQtyPerOffer(val) {
     const parsed = parseInt(val, 10);
     if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
         customerMaxQtyPerOffer = parsed;
-        if (typeof window !== 'undefined') window.customerMaxQtyPerOffer = parsed;
+        if (typeof window !== 'undefined') {
+            window.customerMaxQtyPerOffer = parsed;
+            if (!window.bannerSettings) window.bannerSettings = {};
+            window.bannerSettings.maxQtyPerOffer = parsed;
+            window.bannerSettings.max_qty_per_offer = parsed;
+        }
         try {
             localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
         } catch (e) { }
@@ -7172,25 +7220,14 @@ window.setCustomerMaxQtyPerOffer = setCustomerMaxQtyPerOffer;
 window.customerMaxQtyPerOffer = customerMaxQtyPerOffer;
 
 function getCustomerMaxQtyPerOffer() {
-    if (typeof window !== 'undefined' && window.customerMaxQtyPerOffer && window.customerMaxQtyPerOffer >= 1 && window.customerMaxQtyPerOffer <= 9) {
-        customerMaxQtyPerOffer = window.customerMaxQtyPerOffer;
-        return customerMaxQtyPerOffer;
+    const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
+    const maxQtyPerOffer = parseInt(bannerSettings?.maxQtyPerOffer || bannerSettings?.max_qty_per_offer || 4, 10);
+    if (!isNaN(maxQtyPerOffer) && maxQtyPerOffer >= 1 && maxQtyPerOffer <= 9) {
+        customerMaxQtyPerOffer = maxQtyPerOffer;
+        if (typeof window !== 'undefined') window.customerMaxQtyPerOffer = maxQtyPerOffer;
+        return maxQtyPerOffer;
     }
-    if (customerMaxQtyPerOffer && customerMaxQtyPerOffer >= 1 && customerMaxQtyPerOffer <= 9) {
-        return customerMaxQtyPerOffer;
-    }
-    try {
-        const saved = localStorage.getItem('perfetto_max_qty_per_offer');
-        if (saved) {
-            const parsed = parseInt(saved, 10);
-            if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
-                customerMaxQtyPerOffer = parsed;
-                if (typeof window !== 'undefined') window.customerMaxQtyPerOffer = parsed;
-                return customerMaxQtyPerOffer;
-            }
-        }
-    } catch (e) { }
-    return 1;
+    return 4;
 }
 window.getCustomerMaxQtyPerOffer = getCustomerMaxQtyPerOffer;
 
@@ -7205,18 +7242,10 @@ window.getOrdinal = getOrdinal;
 function getActiveBannerOfferTypes(currentCart = cart) {
     const list = Array.isArray(currentCart) ? currentCart : [];
     const offers = new Set();
-    if (list.some(i => (i.isSpotlightDeal || i.isBannerDeal) && !i.isFreeGift && !i.isBogoCombo && !i.isBogoReward && !i.isBogoQualifying)) {
+    if (list.some(i => (i.isSpotlightDeal || (i.isBannerDeal && !i.isFreeGift && !i.isBogoCombo && !i.isBogoReward && !i.isBogoQualifying)))) {
         offers.add('spotlight');
     }
-    const isBanner2SpendOfferActive = (function () {
-        try {
-            return sessionStorage.getItem('banner2SpendOfferActive') === 'true' &&
-                   sessionStorage.getItem('banner2SpendBarDismissed') !== 'true';
-        } catch (e) {
-            return false;
-        }
-    })();
-    if (list.some(i => i.isFreeGift) || isBanner2SpendOfferActive) {
+    if (list.some(i => i.isFreeGift)) {
         offers.add('freeGift');
     }
     if (list.some(i => i.isBogoCombo || i.isBogoReward || i.isBogoQualifying)) {
@@ -7227,18 +7256,32 @@ function getActiveBannerOfferTypes(currentCart = cart) {
 window.getActiveBannerOfferTypes = getActiveBannerOfferTypes;
 
 function canClaimBannerOffer(offerType, currentCart = cart) {
+    const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
+    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 2, 10);
+
     const activeOffers = getActiveBannerOfferTypes(currentCart);
-    if (activeOffers.has(offerType)) {
-        return true; // Already active in cart: adjusting/re-claiming does not increase distinct active offers
+    const normalizedType = (function (t) {
+        const s = String(t || '').toLowerCase();
+        if (s === '1' || s === 'b1' || s === 'spotlight') return 'spotlight';
+        if (s === '2' || s === 'b2' || s === 'freegift' || s === 'spend') return 'freeGift';
+        if (s === '3' || s === 'b3' || s === 'bogocombo' || s === 'bogo') return 'bogoCombo';
+        return t;
+    })(offerType);
+
+    // If this offer type is already present in the cart, adjusting/re-claiming does NOT consume an extra distinct offer slot
+    if (activeOffers.has(normalizedType)) {
+        return true;
     }
-    const maxLimit = getCustomerMaxOffersPerOrder();
-    return activeOffers.size < maxLimit;
+
+    // Attempting to claim a new/distinct banner slot: verify against dynamic maxClaimableOffers
+    return activeOffers.size < maxClaimableOffers;
 }
 window.canClaimBannerOffer = canClaimBannerOffer;
 
 function showOfferLimitToast() {
-    const maxLimit = getCustomerMaxOffersPerOrder();
-    showToast(`Limit reached: ${maxLimit} offer${maxLimit > 1 ? 's' : ''} per order`);
+    const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
+    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 2, 10);
+    showToast(`Limit reached: ${maxClaimableOffers} offer${maxClaimableOffers > 1 ? 's' : ''} per order`);
 }
 window.showOfferLimitToast = showOfferLimitToast;
 
@@ -7291,7 +7334,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         if (isBannerDeal || cart[existingIndex].isBannerDeal || cart[existingIndex].isSpotlightDeal || cart[existingIndex].isBogoCombo || cart[existingIndex].isBogoQualifying) {
             const maxQty = getCustomerMaxQtyPerOffer();
             if (cart[existingIndex].qty >= maxQty) {
-                showToast(`Max limit of ${maxQty} reached for this deal.`);
+                showToast(`Maximum ${maxQty} units allowed for this offer`);
                 return false;
             }
         }
@@ -7428,7 +7471,7 @@ function updateQuantity(index, change) {
         if (isOfferDeal) {
             const maxQty = getCustomerMaxQtyPerOffer();
             if (item.qty >= maxQty) {
-                showToast(`Max limit of ${maxQty} reached for this deal.`);
+                showToast(`Maximum ${maxQty} units allowed for this offer`);
                 return;
             }
         }
@@ -8048,7 +8091,7 @@ function updateCartUI() {
             const isMaxQtyReached = isOfferDeal && (item.qty >= maxQty);
             const maxLimitTitle = isBogoItem
                 ? `Max limit of ${maxQty} BOGO combos reached`
-                : `Max limit of ${maxQty} reached for this deal`;
+                : `Maximum ${maxQty} units allowed for this offer`;
 
             return `
             <div class="cart-item-card">
@@ -14151,7 +14194,7 @@ function claimSpotlightDealToCart() {
     const fullItemName = addonNames.length > 0 ? `${itemName} (+${addonNames.join(', ')})` : itemName;
     const existingItem = (Array.isArray(cart) ? cart : []).find(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal));
     if (existingItem && existingItem.qty >= maxQty) {
-        showToast(`Max limit of ${maxQty} reached for this deal.`);
+        showToast(`Maximum ${maxQty} units allowed for this offer`);
         return;
     }
 
@@ -14159,6 +14202,7 @@ function claimSpotlightDealToCart() {
     const added = addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
         isBannerDeal: true,
         isSpotlightDeal: true,
+        bannerSlot: 1,
         appliedPrice: finalDiscountedPrice,
         skipToast: true
     });
@@ -14587,7 +14631,9 @@ function confirmClaimFreeGift() {
             qty: cart[window.__editingFreeGiftIndex].qty || 1,
             img: selectedItem.img || '',
             addons: addonsList,
-            isFreeGift: true
+            isFreeGift: true,
+            isBannerDeal: true,
+            bannerSlot: 2
         };
         window.__editingFreeGiftIndex = null;
         showToast(`🎁 Swapped Free ${baseItemName}!`);
@@ -14605,7 +14651,9 @@ function confirmClaimFreeGift() {
                 qty: 1,
                 img: selectedItem.img || '',
                 addons: addonsList,
-                isFreeGift: true
+                isFreeGift: true,
+                isBannerDeal: true,
+                bannerSlot: 2
             });
         }
         const newTotalClaimed = cart.filter(i => i.isFreeGift).reduce((s, i) => s + (Number(i.qty) || 1), 0);
@@ -15258,6 +15306,8 @@ function confirmClaimBogoCombo() {
             addons: itemAddonsList,
             isBogoCombo: true,
             isBogoQualifying: true,
+            isBannerDeal: true,
+            bannerSlot: 3,
             bogoComboId: bogoComboId,
             bogoBuyQtyRequired: config.buyQty
         });
@@ -15276,6 +15326,8 @@ function confirmClaimBogoCombo() {
         addons: rewardAddonsList,
         isBogoCombo: true,
         isBogoReward: true,
+        isBannerDeal: true,
+        bannerSlot: 3,
         bogoComboId: bogoComboId,
         bogoBuyQtyRequired: config.buyQty
     });
@@ -17668,7 +17720,30 @@ function applyIncomingSettingsData(data) {
 
 function applyIncomingDailyBannersData(docData) {
     if (!docData || typeof docData !== 'object') return;
-    
+
+    const rawMaxOffers = parseInt(docData.max_offers_per_order || docData.maxOffersPerOrder || docData.maxClaimableOffers, 10);
+    if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
+        customerMaxOffersPerOrder = rawMaxOffers;
+        if (typeof window !== 'undefined') window.customerMaxOffersPerOrder = rawMaxOffers;
+        try { localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder)); } catch (e) {}
+    }
+    const rawMaxQty = parseInt(docData.max_qty_per_offer || docData.maxQtyPerOffer, 10);
+    if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
+        customerMaxQtyPerOffer = rawMaxQty;
+        if (typeof window !== 'undefined') window.customerMaxQtyPerOffer = rawMaxQty;
+        try { localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer)); } catch (e) {}
+    }
+
+    const bannerSettingsObj = {
+        maxClaimableOffers: customerMaxOffersPerOrder || 2,
+        maxOffersPerOrder: customerMaxOffersPerOrder || 2,
+        maxQtyPerOffer: customerMaxQtyPerOffer || 4,
+        max_offers_per_order: customerMaxOffersPerOrder || 2,
+        max_qty_per_offer: customerMaxQtyPerOffer || 4
+    };
+    if (typeof window !== 'undefined') window.bannerSettings = bannerSettingsObj;
+    try { localStorage.setItem('perfetto_banner_settings', JSON.stringify(bannerSettingsObj)); } catch (e) {}
+
     // Support docData.banners array, raw array docData, or slot1..slot4 fields
     let rawList = null;
     if (Array.isArray(docData.banners) && docData.banners.length > 0) {
@@ -17687,16 +17762,6 @@ function applyIncomingDailyBannersData(docData) {
     let banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS)) : [];
     
     if (Array.isArray(rawList) && rawList.length > 0) {
-        const rawMaxOffers = parseInt(docData.max_offers_per_order || docData.maxOffersPerOrder, 10);
-        if (!isNaN(rawMaxOffers) && rawMaxOffers >= 1 && rawMaxOffers <= 3) {
-            customerMaxOffersPerOrder = rawMaxOffers;
-            localStorage.setItem('perfetto_max_offers_per_order', String(customerMaxOffersPerOrder));
-        }
-        const rawMaxQty = parseInt(docData.max_qty_per_offer || docData.maxQtyPerOffer, 10);
-        if (!isNaN(rawMaxQty) && rawMaxQty >= 1 && rawMaxQty <= 9) {
-            customerMaxQtyPerOffer = rawMaxQty;
-            localStorage.setItem('perfetto_max_qty_per_offer', String(customerMaxQtyPerOffer));
-        }
         const slot1Data = (docData.slot1 && typeof docData.slot1 === 'object') ? docData.slot1 : {};
         const slot2Data = (docData.slot2 && typeof docData.slot2 === 'object') ? docData.slot2 : {};
         const slot3Data = (docData.slot3 && typeof docData.slot3 === 'object') ? docData.slot3 : {};
