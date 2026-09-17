@@ -831,61 +831,312 @@ export function isOrder100MinsExpired(order, nowMs = Date.now()) {
 export const isOrderThreeHoursExpired = isOrder100MinsExpired;
 
 /**
- * Calculates dashboard order KPIs statically without side effects or mutations.
- * @param {Array} list
- * @returns {{ totalRevenue: number, pendingCount: number, todayDeliveredCount: number, todayRejectedCount: number }}
+ * Resiliently extracts and parses a valid Date object from an order document.
+ * Supports Firestore Timestamps, ISO strings, milliseconds/seconds epoch, and order ID embedded timestamps.
+ * @param {Object} order 
+ * @returns {Date|null}
  */
-export function calculateDashboardKPIs(list = []) {
-    const PENDING = new Set(["placed", "pending", "preparing", "out_for_delivery", "out-for-delivery", "ready", "new", "delivery", "dispatched"]);
-    const DELIVERED = new Set(["delivered", "completed"]);
-    const REJECTED = new Set(["rejected", "cancelled", "canceled", "declined"]);
-    const startOfDay = new Date().setHours(0, 0, 0, 0);
+export function parseOrderDate(order) {
+    if (!order || typeof order !== 'object') return null;
+    const raw = order.createdAt || order.created_at || order.timestamp || order.date ||
+                order.orderTime || order.deliveredAt || order.completedAt ||
+                order.rejectedAt || order.cancelledAt || order.updatedAt;
 
-    if (!Array.isArray(list) || list.length === 0) {
-        return { totalRevenue: 0, pendingCount: 0, todayDeliveredCount: 0, todayRejectedCount: 0 };
+    if (raw !== undefined && raw !== null && raw !== '') {
+        if (typeof raw.toDate === 'function') {
+            try { return raw.toDate(); } catch (e) {}
+        }
+        if (typeof raw.toMillis === 'function') {
+            try { return new Date(raw.toMillis()); } catch (e) {}
+        }
+        if (typeof raw === 'object') {
+            if (raw.seconds !== undefined) return new Date(raw.seconds * 1000);
+            if (raw._seconds !== undefined) return new Date(raw._seconds * 1000);
+        }
+        if (typeof raw === 'number') {
+            return new Date(raw < 1e11 ? raw * 1000 : raw);
+        }
+        const parsed = new Date(raw);
+        if (!isNaN(parsed.getTime())) return parsed;
     }
 
-    const deliveredOrders = list.filter(o => o && DELIVERED.has(String(o.status || '').trim().toLowerCase()));
-    const pendingOrders = list.filter(o => o && PENDING.has(String(o.status || '').trim().toLowerCase()));
-    const rejectedOrders = list.filter(o => o && REJECTED.has(String(o.status || '').trim().toLowerCase()));
+    // Fallback: Check if order ID contains a 10 to 13 digit epoch timestamp
+    const idStr = String(order.orderId || order.id || order.firestoreDocId || '');
+    const match = idStr.match(/(\d{10,13})/);
+    if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > 1500000000 && num < 2500000000000) {
+            return new Date(num < 1e11 ? num * 1000 : num);
+        }
+    }
 
-    const totalRevenue = deliveredOrders.reduce((sum, o) => {
-        let amount = 0;
-        if (o.totalAmount !== undefined && o.totalAmount !== null && !isNaN(Number(o.totalAmount))) amount = Number(o.totalAmount);
-        else if (o.finalPayable !== undefined && o.finalPayable !== null && !isNaN(Number(o.finalPayable))) amount = Number(o.finalPayable);
-        else if (o.costs && o.costs.finalPayable !== undefined && !isNaN(Number(o.costs.finalPayable))) amount = Number(o.costs.finalPayable);
-        else if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) amount = Number(o.total);
-        else if (o.costs && o.costs.total !== undefined && !isNaN(Number(o.costs.total))) amount = Number(o.costs.total);
-        return sum + (amount > 0 ? amount : 0);
-    }, 0);
+    return null;
+}
 
-    const getTs = (o, field) => {
-        if (!o) return 0;
-        const v = field ? o[field] : (o.createdAt || o.timestamp || o.date || o.orderTime);
-        if (!v) return 0;
-        if (typeof v.toMillis === 'function') return v.toMillis();
-        if (typeof v.toDate === 'function') return v.toDate().getTime();
-        const p = new Date(v).getTime();
-        return isNaN(p) ? 0 : p;
-    };
+/**
+ * Calculates start and end timestamps for the current calendar day in Indian Standard Time (IST, UTC+5:30).
+ * @param {Date} [refDate=new Date()]
+ * @returns {{ start: Date, end: Date, startIso: string, endIso: string, startMs: number, endMs: number }}
+ */
+export function getISTDayBounds(refDate = new Date()) {
+    const safeRef = (refDate instanceof Date && !isNaN(refDate.getTime())) ? refDate : new Date();
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(safeRef.getTime() + istOffsetMs);
+    const y = istNow.getUTCFullYear();
+    const m = istNow.getUTCMonth();
+    const d = istNow.getUTCDate();
 
-    const todayDeliveredCount = deliveredOrders.filter(o => {
-        const c = getTs(o, 'createdAt') || getTs(o, 'timestamp') || getTs(o, 'date');
-        const d = getTs(o, 'deliveredAt') || getTs(o, 'completedAt');
-        return (d >= startOfDay) || (!d && c >= startOfDay);
-    }).length;
-
-    const todayRejectedCount = rejectedOrders.filter(o => {
-        const c = getTs(o, 'createdAt') || getTs(o, 'timestamp') || getTs(o, 'date');
-        const r = getTs(o, 'rejectedAt') || getTs(o, 'cancelledAt');
-        return (r >= startOfDay) || (!r && c >= startOfDay);
-    }).length;
+    const startUtcMs = Date.UTC(y, m, d, 0, 0, 0, 0) - istOffsetMs;
+    const endUtcMs = Date.UTC(y, m, d, 23, 59, 59, 999) - istOffsetMs;
 
     return {
-        totalRevenue: Math.round(totalRevenue),
+        start: new Date(startUtcMs),
+        end: new Date(endUtcMs),
+        startIso: new Date(startUtcMs).toISOString(),
+        endIso: new Date(endUtcMs).toISOString(),
+        startMs: startUtcMs,
+        endMs: endUtcMs
+    };
+}
+
+/**
+ * Determines whether an order belongs to the specified calendar day (defaults to today).
+ * Checks both local calendar day (orderDate.toDateString() === refDate.toDateString())
+ * and IST calendar day (Asia/Kolkata) to eliminate UTC vs IST timezone disparities.
+ * @param {Object} order 
+ * @param {Date} [refDate=new Date()] 
+ * @returns {boolean}
+ */
+export function isOrderBelongingToToday(order, refDate = new Date()) {
+    const orderDate = parseOrderDate(order);
+    if (!orderDate || isNaN(orderDate.getTime())) return false;
+    const safeRef = (refDate instanceof Date && !isNaN(refDate.getTime())) ? refDate : new Date();
+
+    // 1. Safe local date comparison as requested: orderDate.toDateString() === new Date().toDateString()
+    if (orderDate.toDateString() === safeRef.toDateString()) {
+        return true;
+    }
+
+    // 2. Safe IST (Asia/Kolkata) calendar day comparison
+    try {
+        const istFormatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        if (istFormatter.format(orderDate) === istFormatter.format(safeRef)) {
+            return true;
+        }
+    } catch (e) {
+        // Fallback to manual IST offset bounds
+        const { startMs, endMs } = getISTDayBounds(safeRef);
+        const orderMs = orderDate.getTime();
+        if (orderMs >= startMs && orderMs <= endMs) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Normalizes an order status string into canonical categories: 'DELIVERED', 'REJECTED', 'PENDING', or other.
+ * @param {string} status 
+ * @returns {'DELIVERED'|'REJECTED'|'PENDING'|string}
+ */
+export function normalizeOrderStatus(status) {
+    const s = String(status || '').trim().toUpperCase();
+    if (s === 'DELIVERED' || s === 'COMPLETED') return 'DELIVERED';
+    if (s === 'REJECTED' || s === 'CANCELLED' || s === 'CANCELED' || s === 'DECLINED') return 'REJECTED';
+    if (s === 'PENDING' || s === 'PLACED' || s === 'NEW' || s === 'PREPARING' ||
+        s === 'READY' || s === 'OUT_FOR_DELIVERY' || s === 'OUT-FOR-DELIVERY' ||
+        s === 'DELIVERY' || s === 'DISPATCHED') {
+        return 'PENDING';
+    }
+    return s;
+}
+
+/**
+ * Calculates dashboard order KPIs accurately in-memory with zero side effects or database writes.
+ * Let todayOrders be the list of orders belonging to today's date:
+ * - Pending Orders: Count of orders with status === "PENDING"
+ * - Today's Delivered: Count of orders with status === "DELIVERED"
+ * - Today's Rejected: Count of orders with status === "REJECTED"
+ * - Total Revenue: Sum of totalAmount (or finalTotal) strictly for orders where status === "DELIVERED"
+ * 
+ * @param {Array} list
+ * @param {Object} [options={}] - { refDate }
+ * @returns {{ totalRevenue: number, formattedRevenue: string, cleanRevenue: string, pendingCount: number, todayDeliveredCount: number, todayRejectedCount: number, todayOrdersCount: number }}
+ */
+export function calculateDashboardKPIs(list = [], options = {}) {
+    if (!Array.isArray(list) || list.length === 0) {
+        return {
+            totalRevenue: 0,
+            formattedRevenue: '₹0',
+            cleanRevenue: '₹0',
+            pendingCount: 0,
+            todayDeliveredCount: 0,
+            todayRejectedCount: 0,
+            todayOrdersCount: 0
+        };
+    }
+
+    const refDate = (options && options.refDate instanceof Date) ? options.refDate : new Date();
+
+    // 1. Filter orders strictly belonging to today's date
+    const todayOrders = list.filter(o => o && isOrderBelongingToToday(o, refDate));
+
+    // 2. Pending Orders: Count of active pending orders in queue
+    const pendingOrders = list.filter(o => {
+        if (!o) return false;
+        return normalizeOrderStatus(o.status) === 'PENDING';
+    });
+
+    // 3. Today's Delivered: Count of today's orders where status is DELIVERED
+    const todayDeliveredOrders = todayOrders.filter(o => {
+        if (!o) return false;
+        return normalizeOrderStatus(o.status) === 'DELIVERED';
+    });
+
+    // 4. Today's Rejected: Count of today's orders where status is REJECTED
+    const todayRejectedOrders = todayOrders.filter(o => {
+        if (!o) return false;
+        return normalizeOrderStatus(o.status) === 'REJECTED';
+    });
+
+    // 5. Total Revenue: Sum of totalAmount (or finalTotal) strictly for orders where status === "DELIVERED"
+    const totalRevenue = todayDeliveredOrders.reduce((sum, o) => {
+        let amount = 0;
+        const candidate = o.totalAmount !== undefined && o.totalAmount !== null ? o.totalAmount
+            : (o.finalTotal !== undefined && o.finalTotal !== null ? o.finalTotal
+            : (o.finalPayable !== undefined && o.finalPayable !== null ? o.finalPayable
+            : (o.total !== undefined && o.total !== null ? o.total
+            : (o.costs && o.costs.total !== undefined ? o.costs.total : 0))));
+
+        const parsed = parseFloat(candidate);
+        if (!isNaN(parsed) && parsed > 0) {
+            amount = parsed;
+        }
+        return sum + amount;
+    }, 0);
+
+    const roundedRevenue = Math.round(totalRevenue);
+    const formattedRevenue = `₹${roundedRevenue.toLocaleString('en-IN')}`;
+    const cleanRevenue = `₹${roundedRevenue}`;
+
+    return {
+        totalRevenue: roundedRevenue,
+        formattedRevenue,
+        cleanRevenue,
         pendingCount: pendingOrders.length,
-        todayDeliveredCount,
-        todayRejectedCount
+        todayDeliveredCount: todayDeliveredOrders.length,
+        todayRejectedCount: todayRejectedOrders.length,
+        todayOrdersCount: todayOrders.length
+    };
+}
+
+/**
+ * Updates Admin Dashboard metric counter cards in the DOM without triggering flicker or layout reflows.
+ * @param {Object} kpis 
+ */
+export function updateDashboardKPIsDOM(kpis) {
+    if (typeof document === 'undefined' || !kpis) return;
+
+    const revEl = document.getElementById('stat-total-revenue');
+    const pendingEl = document.getElementById('stat-pending-orders');
+    const rejectedEl = document.getElementById('stat-rejected-orders');
+    const deliveredEl = document.getElementById('stat-delivered-orders');
+
+    const formattedRev = kpis.formattedRevenue || `₹${Math.round(kpis.totalRevenue || 0).toLocaleString('en-IN')}`;
+    const pendingStr = String(kpis.pendingCount !== undefined ? kpis.pendingCount : 0);
+    const rejectedStr = String(kpis.todayRejectedCount !== undefined ? kpis.todayRejectedCount : 0);
+    const deliveredStr = String(kpis.todayDeliveredCount !== undefined ? kpis.todayDeliveredCount : 0);
+
+    if (revEl && revEl.textContent !== formattedRev) revEl.textContent = formattedRev;
+    if (pendingEl && pendingEl.textContent !== pendingStr) pendingEl.textContent = pendingStr;
+    if (rejectedEl && rejectedEl.textContent !== rejectedStr) rejectedEl.textContent = rejectedStr;
+    if (deliveredEl && deliveredEl.textContent !== deliveredStr) deliveredEl.textContent = deliveredStr;
+}
+
+/**
+ * Scoped, lightweight order listener or query for today's summary metrics.
+ * Fetches/listens strictly with bounded limits to protect Firestore quotas,
+ * and maintains metric calculations strictly in memory with zero database writes.
+ * 
+ * @param {Object} [options={}] - { db, limit, onUpdate }
+ * @returns {Function} Unsubscribe cleanup callback
+ */
+export function listenToAdminTodayOrders(options = {}) {
+    const db = options.db || (typeof window !== 'undefined' && (window.adminFirestore || window.db || (typeof getAdminFirestore === 'function' ? getAdminFirestore() : null)));
+    const onUpdate = typeof options.onUpdate === 'function' ? options.onUpdate : null;
+    const limitCount = options.limit || 50;
+
+    // Resilient fallback to backend API if Firestore is not directly reachable
+    const fetchApiFallback = () => {
+        if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+            const endpoint = (typeof resolveApiUrl === 'function') ? resolveApiUrl('/api/orders') : '/api/orders';
+            fetch(endpoint)
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success && Array.isArray(data.orders)) {
+                        const kpis = calculateDashboardKPIs(data.orders);
+                        updateDashboardKPIsDOM(kpis);
+                        if (onUpdate) onUpdate(kpis, data.orders);
+                    }
+                })
+                .catch(err => {
+                    console.warn('[admin.js] Dashboard API fallback notice:', err.message);
+                });
+        }
+    };
+
+    if (!db || typeof db.collection !== 'function') {
+        fetchApiFallback();
+        return () => {};
+    }
+
+    let unsubscribe = null;
+    try {
+        // Query orders strictly bounded by limit to eliminate excessive reads
+        let queryRef;
+        try {
+            queryRef = db.collection('orders').orderBy('createdAt', 'desc').limit(limitCount);
+        } catch (e) {
+            queryRef = db.collection('orders').limit(limitCount);
+        }
+
+        unsubscribe = queryRef.onSnapshot((snapshot) => {
+            const orders = [];
+            if (snapshot && typeof snapshot.forEach === 'function') {
+                snapshot.forEach((doc) => {
+                    const data = doc.data() || {};
+                    orders.push({
+                        ...data,
+                        id: data.id || data.orderId || doc.id,
+                        orderId: data.orderId || data.id || doc.id,
+                        firestoreDocId: doc.id
+                    });
+                });
+            }
+
+            // In-memory pure calculation with zero Firestore writes
+            const kpis = calculateDashboardKPIs(orders);
+            updateDashboardKPIsDOM(kpis);
+            if (onUpdate) onUpdate(kpis, orders);
+        }, (err) => {
+            console.warn('[admin.js] Bounded dashboard metrics listener note:', err.message);
+            fetchApiFallback();
+        });
+    } catch (err) {
+        console.warn('[admin.js] Error initializing dashboard metrics listener:', err.message);
+        fetchApiFallback();
+    }
+
+    return () => {
+        if (typeof unsubscribe === 'function') {
+            try { unsubscribe(); } catch (e) {}
+        }
     };
 }
 
@@ -937,8 +1188,15 @@ if (typeof window !== 'undefined') {
     window.isOrder100MinsExpired = isOrder100MinsExpired;
     window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
     window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
+    window.parseOrderDate = parseOrderDate;
+    window.getISTDayBounds = getISTDayBounds;
+    window.isOrderBelongingToToday = isOrderBelongingToToday;
+    window.normalizeOrderStatus = normalizeOrderStatus;
     window.calculateDashboardKPIs = calculateDashboardKPIs;
+    window.updateDashboardKPIsDOM = updateDashboardKPIsDOM;
+    window.listenToAdminTodayOrders = listenToAdminTodayOrders;
 }
+
 
 
 

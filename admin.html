@@ -5685,6 +5685,9 @@
     <!-- Centralized Firebase Configuration -->
     <script type="module" src="./lib/firebaseConfig.js"></script>
 
+    <!-- Admin Management Module -->
+    <script type="module" src="./admin.js"></script>
+
     <!-- Leaflet Map JS CDN -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -8424,12 +8427,46 @@
         const REJECTED_ADMIN_STATUSES = new Set(["rejected", "cancelled", "canceled", "declined"]);
 
         function applyOrderKPIsUI(list) {
+            if (typeof window.calculateDashboardKPIs === 'function') {
+                const kpis = window.calculateDashboardKPIs(list);
+                if (typeof window.updateDashboardKPIsDOM === 'function') {
+                    window.updateDashboardKPIsDOM(kpis);
+                } else {
+                    const revEl = document.getElementById('stat-total-revenue');
+                    const pendingEl = document.getElementById('stat-pending-orders');
+                    const rejectedEl = document.getElementById('stat-rejected-orders');
+                    const deliveredEl = document.getElementById('stat-delivered-orders');
+                    if (revEl && revEl.textContent !== kpis.formattedRevenue) revEl.textContent = kpis.formattedRevenue;
+                    if (pendingEl && pendingEl.textContent !== String(kpis.pendingCount)) pendingEl.textContent = String(kpis.pendingCount);
+                    if (rejectedEl && rejectedEl.textContent !== String(kpis.todayRejectedCount)) rejectedEl.textContent = String(kpis.todayRejectedCount);
+                    if (deliveredEl && deliveredEl.textContent !== String(kpis.todayDeliveredCount)) deliveredEl.textContent = String(kpis.todayDeliveredCount);
+                }
+                return;
+            }
+
             const revEl = document.getElementById('stat-total-revenue');
             const pendingEl = document.getElementById('stat-pending-orders');
             const rejectedEl = document.getElementById('stat-rejected-orders');
             const deliveredEl = document.getElementById('stat-delivered-orders');
 
-            const startOfDay = new Date().setHours(0, 0, 0, 0);
+            const isOrderTodayFallback = (o) => {
+                if (!o) return false;
+                const raw = o.createdAt || o.created_at || o.timestamp || o.date || o.orderTime || o.deliveredAt || o.completedAt || o.rejectedAt || o.cancelledAt || o.updatedAt;
+                if (!raw) return false;
+                let d = null;
+                if (typeof raw.toDate === 'function') d = raw.toDate();
+                else if (typeof raw.toMillis === 'function') d = new Date(raw.toMillis());
+                else if (typeof raw === 'number') d = new Date(raw < 1e11 ? raw * 1000 : raw);
+                else d = new Date(raw);
+                if (!d || isNaN(d.getTime())) return false;
+                if (d.toDateString() === new Date().toDateString()) return true;
+                try {
+                    const ist = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' });
+                    return ist.format(d) === ist.format(new Date());
+                } catch (e) {
+                    return false;
+                }
+            };
 
             let totalRev = 0;
             let pendingCount = 0;
@@ -8437,40 +8474,20 @@
             let todayDeliveredCount = 0;
 
             if (Array.isArray(list) && list.length > 0) {
-                // Strictly calculate by summing static filtered arrays from the snapshot once without running mutations
-                const deliveredOrders = list.filter(o => o && DELIVERED_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
+                const todayOrders = list.filter(isOrderTodayFallback);
                 const pendingOrders = list.filter(o => o && PENDING_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
-                const rejectedOrders = list.filter(o => o && REJECTED_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
+                const todayDelivered = todayOrders.filter(o => o && DELIVERED_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
+                const todayRejected = todayOrders.filter(o => o && REJECTED_ADMIN_STATUSES.has(String(o.status || '').trim().toLowerCase()));
 
-                totalRev = deliveredOrders.reduce((sum, o) => {
-                    let amount = 0;
-                    if (o.totalAmount !== undefined && o.totalAmount !== null && !isNaN(Number(o.totalAmount))) {
-                        amount = Number(o.totalAmount);
-                    } else if (o.finalPayable !== undefined && o.finalPayable !== null && !isNaN(Number(o.finalPayable))) {
-                        amount = Number(o.finalPayable);
-                    } else if (o.costs && o.costs.finalPayable !== undefined && !isNaN(Number(o.costs.finalPayable))) {
-                        amount = Number(o.costs.finalPayable);
-                    } else if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) {
-                        amount = Number(o.total);
-                    } else if (o.costs && o.costs.total !== undefined && !isNaN(Number(o.costs.total))) {
-                        amount = Number(o.costs.total);
-                    }
-                    return sum + (amount > 0 ? amount : 0);
+                totalRev = todayDelivered.reduce((sum, o) => {
+                    const candidate = o.totalAmount ?? o.finalTotal ?? o.finalPayable ?? o.total ?? o.costs?.total ?? 0;
+                    const parsed = parseFloat(candidate);
+                    return sum + (!isNaN(parsed) && parsed > 0 ? parsed : 0);
                 }, 0);
 
                 pendingCount = pendingOrders.length;
-
-                todayDeliveredCount = deliveredOrders.filter(o => {
-                    const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
-                    const deliveredTime = getOrderTimestamp(o, 'deliveredAt') || getOrderTimestamp(o, 'completedAt');
-                    return (deliveredTime >= startOfDay) || (!deliveredTime && createdTime >= startOfDay);
-                }).length;
-
-                todayRejectedCount = rejectedOrders.filter(o => {
-                    const createdTime = getOrderTimestamp(o, 'createdAt') || getOrderTimestamp(o, 'timestamp') || getOrderTimestamp(o, 'date');
-                    const rejectedTime = getOrderTimestamp(o, 'rejectedAt') || getOrderTimestamp(o, 'cancelledAt');
-                    return (rejectedTime >= startOfDay) || (!rejectedTime && createdTime >= startOfDay);
-                }).length;
+                todayDeliveredCount = todayDelivered.length;
+                todayRejectedCount = todayRejected.length;
             }
 
             const formattedRev = `₹${Math.round(totalRev).toLocaleString('en-IN')}`;
@@ -14764,11 +14781,14 @@
             }
             if (adminOrdersUnsubscribe) return;
             try {
-                // Direct standalone Firestore real-time listener on active orders collection (decoupled from Staff tab)
-                // Query scoped strictly to active orders with limit(25) to eliminate historical full-collection reads
-                adminOrdersUnsubscribe = db.collection('orders')
-                    .where('status', 'in', ['PENDING', 'pending', 'ACCEPTED', 'accepted', 'new', 'NEW', 'placed', 'PLACED', 'preparing', 'PREPARING'])
-                    .limit(25)
+                // Direct standalone Firestore real-time listener on active orders collection (bounded to protect quotas)
+                let queryRef;
+                try {
+                    queryRef = db.collection('orders').orderBy('createdAt', 'desc').limit(50);
+                } catch (e) {
+                    queryRef = db.collection('orders').limit(50);
+                }
+                adminOrdersUnsubscribe = queryRef
                     .onSnapshot((snapshot) => {
                         const liveOrders = [];
                         let hasNewIncomingOrder = false;
@@ -14894,16 +14914,22 @@
                 }
             });
 
-            // 2. Only preserve local orders if explicitly tagged as offline pending
+            // 2. Preserve local orders if offline pending OR created recently (today's orders)
             try {
                 const stored = localStorage.getItem('perfettoCustomerOrders');
                 if (stored) {
                     const localOrders = JSON.parse(stored) || [];
                     if (Array.isArray(localOrders)) {
                         localOrders.forEach(o => {
-                            if (o && o._isLocalOfflinePending) {
-                                const id = String(o.orderId || o.id || '').trim();
-                                if (id && !mergedMap.has(id)) mergedMap.set(id, o);
+                            if (o) {
+                                const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                                if (id && !mergedMap.has(id)) {
+                                    const rawDate = o.createdAt || o.timestamp || o.date || o.orderTime;
+                                    const isRecent = rawDate && (Date.now() - new Date(rawDate).getTime() < 86400000);
+                                    if (o._isLocalOfflinePending || isRecent) {
+                                        mergedMap.set(id, o);
+                                    }
+                                }
                             }
                         });
                     }
