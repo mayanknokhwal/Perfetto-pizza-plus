@@ -14765,8 +14765,10 @@
             if (adminOrdersUnsubscribe) return;
             try {
                 // Direct standalone Firestore real-time listener on active orders collection (decoupled from Staff tab)
+                // Query scoped strictly to active orders with limit(25) to eliminate historical full-collection reads
                 adminOrdersUnsubscribe = db.collection('orders')
-                    .limit(150)
+                    .where('status', 'in', ['PENDING', 'ACCEPTED'])
+                    .limit(25)
                     .onSnapshot((snapshot) => {
                         const liveOrders = [];
                         let hasNewIncomingOrder = false;
@@ -15200,10 +15202,16 @@
             if (isAdminSweeperRunning) return;
             let list = ordersList;
             if (!Array.isArray(list)) {
-                try {
-                    const stored = localStorage.getItem('perfettoCustomerOrders');
-                    if (stored) list = JSON.parse(stored);
-                } catch (e) { }
+                if (Array.isArray(window.adminOrders)) {
+                    list = window.adminOrders;
+                } else if (typeof adminOrders !== 'undefined' && Array.isArray(adminOrders)) {
+                    list = adminOrders;
+                } else {
+                    try {
+                        const stored = localStorage.getItem('perfettoCustomerOrders');
+                        if (stored) list = JSON.parse(stored);
+                    } catch (e) { }
+                }
             }
             if (!Array.isArray(list) || list.length === 0) return;
 

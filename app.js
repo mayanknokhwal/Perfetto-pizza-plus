@@ -8912,10 +8912,16 @@ async function saveOrderToBackendAPI(order) {
         ? (order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeOrderDays * 24 * 60 * 60 * 1000))
         : null;
 
+    const currentCustomerUid = (order && order.userId) ||
+        (currentUserProfile && (currentUserProfile.uid || currentUserProfile.firebaseUid || currentUserProfile.id)) ||
+        (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser ? firebase.auth().currentUser.uid : null) ||
+        cleanCustomerPhone;
+
     const firestoreOrderPayload = {
         ...order,
         id: finalOrderId,
         orderId: finalOrderId,
+        userId: currentCustomerUid,
         customerPhone: cleanCustomerPhone,
         phone: cleanCustomerPhone,
         status: 'PENDING',
@@ -17484,8 +17490,28 @@ async function initFirebaseRealtimeSync() {
 
 let menuCollectionRealtimeUnsubscribe = null;
 
-// Direct Fetch for Menu Items, Prices, Availability & Addons (Spark Free Tier Quota Optimization)
-async function fetchMenuFromFirestoreDirect() {
+const CUSTOMER_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour TTL
+const CUSTOMER_CACHE_VERSION = 'v1_2026';
+
+// Direct Fetch for Menu Items, Prices, Availability & Addons with Aggressive 1-Hour Local Caching
+async function fetchMenuFromFirestoreDirect(force = false) {
+    const cachedAt = parseInt(localStorage.getItem('perfetto_menu_cached_at') || '0', 10);
+    const cachedVer = localStorage.getItem('perfetto_menu_cache_version');
+    const storedMenu = localStorage.getItem(MENU_STORAGE_KEY);
+    const isCacheValid = !force && storedMenu && cachedVer === CUSTOMER_CACHE_VERSION && (Date.now() - cachedAt < CUSTOMER_CACHE_TTL_MS);
+
+    if (isCacheValid) {
+        try {
+            const items = JSON.parse(storedMenu);
+            if (Array.isArray(items) && items.length > 0) {
+                syncCartWithLatestMenu(items);
+                refreshActiveCustomerView(items);
+                updateCartUI();
+                return;
+            }
+        } catch (e) { }
+    }
+
     if (!customerFirestore) return;
     try {
         const doc = await customerFirestore.collection('settings').doc('menu').get();
@@ -17505,6 +17531,8 @@ async function fetchMenuFromFirestoreDirect() {
             const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
             try {
                 localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
+                localStorage.setItem('perfetto_menu_cached_at', String(Date.now()));
+                localStorage.setItem('perfetto_menu_cache_version', CUSTOMER_CACHE_VERSION);
             } catch (e) { }
             syncCartWithLatestMenu(freshItems);
             refreshActiveCustomerView(freshItems);
@@ -17754,7 +17782,17 @@ function applyIncomingDailyBannersData(docData) {
     }
 }
 
-async function fetchSettingsFromFirestoreDirect() {
+async function fetchSettingsFromFirestoreDirect(force = false) {
+    const cachedAt = parseInt(localStorage.getItem('perfetto_settings_cached_at') || '0', 10);
+    const cachedVer = localStorage.getItem('perfetto_settings_cache_version');
+    const isCacheValid = !force && cachedVer === CUSTOMER_CACHE_VERSION && (Date.now() - cachedAt < CUSTOMER_CACHE_TTL_MS);
+
+    if (isCacheValid) {
+        applyRealtimeStoreSettings();
+        checkAndUpdateShopStatusUI();
+        return;
+    }
+
     const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
     if (!fs) return;
     try {
@@ -17787,6 +17825,10 @@ async function fetchSettingsFromFirestoreDirect() {
                 }
             } catch (slotErr) { }
         }
+        try {
+            localStorage.setItem('perfetto_settings_cached_at', String(Date.now()));
+            localStorage.setItem('perfetto_settings_cache_version', CUSTOMER_CACHE_VERSION);
+        } catch (e) { }
     } catch (e) {
         console.warn('Firestore settings direct fetch notice:', e.message);
     }
@@ -17816,38 +17858,10 @@ window.listenToStoreStatusRealtime = listenToStoreStatusRealtime;
 let customerMenuRealtimeUnsubscribe = null;
 
 function setupCustomerMenuRealtimeListener() {
-    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
-    if (!fs) return;
-    if (customerMenuRealtimeUnsubscribe) return;
-
-    try {
-        customerMenuRealtimeUnsubscribe = fs.collection('settings').doc('menu').onSnapshot((doc) => {
-            if (doc && doc.exists && doc.data() && Array.isArray(doc.data().items) && doc.data().items.length > 0) {
-                if (doc.data().categoryAddons) {
-                    try {
-                        customerCategoryAddons = cleanCustomerCategoryAddons({ ...DEFAULT_CATEGORY_ADDONS, ...doc.data().categoryAddons });
-                        localStorage.setItem('perfetto_category_addons', JSON.stringify(customerCategoryAddons));
-                    } catch (e) { }
-                }
-                if (doc.data().categoryDiscounts) {
-                    try {
-                        customerCategoryDiscounts = { ...doc.data().categoryDiscounts };
-                        localStorage.setItem('perfetto_category_discounts', JSON.stringify(customerCategoryDiscounts));
-                    } catch (e) { }
-                }
-                const freshItems = sanitizeStoredMenuItems(doc.data().items) || doc.data().items;
-                try {
-                    localStorage.setItem(MENU_STORAGE_KEY, JSON.stringify(freshItems));
-                } catch (e) { }
-                syncCartWithLatestMenu(freshItems);
-                refreshActiveCustomerView(freshItems);
-                updateCartUI();
-            }
-        }, (err) => {
-            console.warn('Firestore menu onSnapshot notice:', err);
-        });
-    } catch (e) {
-        console.warn('Could not setup customerMenuRealtimeListener:', e);
+    // Quota optimization: Persistent onSnapshot menu listener disabled on customer devices
+    if (typeof customerMenuRealtimeUnsubscribe === 'function') {
+        try { customerMenuRealtimeUnsubscribe(); } catch (e) { }
+        customerMenuRealtimeUnsubscribe = null;
     }
 }
 window.setupCustomerMenuRealtimeListener = setupCustomerMenuRealtimeListener;
@@ -18006,18 +18020,22 @@ function listenToCustomerActiveOrders() {
     if (!customerFirestore) return;
 
     const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    const currentUid = (currentUserProfile && (currentUserProfile.uid || currentUserProfile.firebaseUid || currentUserProfile.id)) ||
+        (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser ? firebase.auth().currentUser.uid : null) ||
+        verifiedPhone ||
+        (currentUserProfile && currentUserProfile.phone ? String(currentUserProfile.phone).replace(/[^0-9]/g, '').slice(-10) : null);
 
-    // 1. Strict Firestore query listener strictly filtered by verified customer phone
-    if (verifiedPhone) {
-        if (customerPhoneOrdersCurrentQueryPhone !== verifiedPhone) {
+    // Strict Firestore query listener strictly filtered by current user's active orders
+    if (currentUid) {
+        if (customerPhoneOrdersCurrentQueryPhone !== currentUid) {
             if (customerPhoneOrdersUnsubscribe) {
                 customerPhoneOrdersUnsubscribe();
                 customerPhoneOrdersUnsubscribe = null;
             }
-            customerPhoneOrdersCurrentQueryPhone = verifiedPhone;
+            customerPhoneOrdersCurrentQueryPhone = currentUid;
             try {
                 customerPhoneOrdersUnsubscribe = customerFirestore.collection('orders')
-                    .where('customerPhone', '==', verifiedPhone)
+                    .where('userId', '==', currentUid)
                     .limit(25)
                     .onSnapshot((snapshot) => {
                         if (!snapshot) return;
@@ -18034,12 +18052,12 @@ function listenToCustomerActiveOrders() {
                                 handleRealtimeCustomerOrderUpdate(doc.id, data);
                             }
                         });
-                        syncCustomerPhoneOrders(remoteOrders, verifiedPhone);
+                        syncCustomerPhoneOrders(remoteOrders, verifiedPhone || currentUid);
                     }, (err) => {
-                        console.warn('Firestore customer phone orders query listener notice:', err.message);
+                        console.warn('Firestore customer active orders query listener notice:', err.message);
                     });
             } catch (e) {
-                console.warn('Error attaching customer phone orders query listener:', e);
+                console.warn('Error attaching customer active orders query listener:', e);
             }
         }
 
@@ -18442,11 +18460,8 @@ function startUnifiedSmartSync() {
         clearInterval(customerMenuPollerInterval);
         customerMenuPollerInterval = null;
     }
-    customerSmartSyncInterval = setInterval(() => {
-        triggerUnifiedSmartSyncIfVisible();
-    }, UNIFIED_SMART_SYNC_INTERVAL_MS);
-    customerMenuPollerInterval = customerSmartSyncInterval;
-    return customerSmartSyncInterval;
+    // Quota optimization: Persistent background Firestore pollers killed to maintain zero-cost Spark tier
+    return null;
 }
 window.startUnifiedSmartSync = startUnifiedSmartSync;
 window.startPeriodicMenuSync = startUnifiedSmartSync;

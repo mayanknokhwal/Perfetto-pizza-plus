@@ -533,9 +533,10 @@ function listenToFirestoreStaffOrders() {
 
     try {
         // Centralized shared restaurant order pool across all staff devices
-        // Query does NOT filter by individual staff user ID or phone; all devices watch the identical restaurant order pool
+        // Query scoped strictly to active kitchen orders to prevent historical full-collection reads
         staffOrdersUnsubscribe = db.collection('orders')
-            .limit(150)
+            .where('status', 'in', ['PENDING', 'ACCEPTED'])
+            .limit(25)
             .onSnapshot((snapshot) => {
                 processOrdersSnapshot(snapshot);
             }, (err) => {
@@ -683,6 +684,7 @@ async function autoRejectExpiredOrder(order) {
 
     markOrderEvaluatedForExpiry(order);
     setOrderActionInFlight(order, true);
+    const orderId = String(order.orderId || order.id || order.firestoreDocId || '').trim();
 
     try {
         console.log(`[STAFF SWEEPER] Auto-rejecting 100-minute expired order #${orderId}...`);
@@ -836,15 +838,6 @@ async function autoRejectExpiredOrder(order) {
 
                 batch.set(orderRef, orderUpdate, { merge: true });
                 await batch.commit();
-
-                // Direct update fallback
-                try {
-                    if (typeof updateDoc === 'function') {
-                        await updateDoc(orderRef, orderUpdate);
-                    } else if (orderRef && typeof orderRef.update === 'function') {
-                        await orderRef.update(orderUpdate);
-                    }
-                } catch (uErr) { }
 
                 console.log(`✅ [STAFF SWEEPER] Firestore atomic batch committed for expired Order #${orderId}`);
             } catch (fsErr) {
@@ -2173,7 +2166,7 @@ function processAutoAcceptanceForOnlineOrders() {
             if (!order.prepStartedAt) {
                 order.prepStartedAt = order.createdAt || new Date().toISOString();
             }
-            syncOrderStatusToBackend(order.id, 'preparing');
+            // In-memory state updated; zero Firestore writes inside snapshot handler to prevent infinite loops
             changed = true;
         }
     });
