@@ -456,6 +456,8 @@ window.getOrFetchEmergencyMasterOtp = getOrFetchEmergencyMasterOtp;
 
 let staffOrdersReconnectTimeout = null;
 let isFirestoreInitialHydrationDone = false;
+let isStaffAlertDismissedInSession = false;
+window.isStaffAlertDismissedInSession = isStaffAlertDismissedInSession;
 const processedOrderDocIds = new Set();
 const staffIncomingAlertedIds = new Set();
 
@@ -540,103 +542,6 @@ function listenToFirestoreStaffOrders() {
     function processOrdersSnapshot(snapshot) {
         if (!snapshot) return;
 
-        const docChanges = typeof snapshot.docChanges === 'function' ? snapshot.docChanges() : [];
-        const isFirstHydration = !isFirestoreInitialHydrationDone;
-
-        if (isFirstHydration) {
-            // Exclude initial collection hydration so already existing orders do not re-alarm on page load
-            snapshot.forEach((doc) => {
-                const docId = doc.id;
-                const data = doc.data() || {};
-                const parsed = parseStaffOrder(docId, data);
-                const orderId = String(parsed.orderId || parsed.id || docId);
-                const matchingKey = String(orderId).replace(/^#/, '').trim();
-                processedOrderDocIds.add(docId);
-                processedOrderDocIds.add(orderId);
-                staffSeenOrderIds.add(docId);
-                staffSeenOrderIds.add(orderId);
-                staffIncomingAlertedIds.add(docId);
-                staffIncomingAlertedIds.add(orderId);
-                if (matchingKey) {
-                    processedOrderDocIds.add(matchingKey);
-                    staffSeenOrderIds.add(matchingKey);
-                    staffIncomingAlertedIds.add(matchingKey);
-                }
-            });
-            isFirestoreInitialHydrationDone = true;
-            console.log(`📡 [Firestore Orders] Initial collection hydration complete (${snapshot.size} orders recorded, alerts suppressed).`);
-        } else {
-            // Real-time snapshot updates: check for newly added or status-modified documents
-            for (const change of docChanges) {
-                const doc = change.doc;
-                const data = doc.data() || {};
-                const docId = doc.id;
-                const parsed = parseStaffOrder(docId, data);
-                const orderId = String(parsed.orderId || parsed.id || docId);
-                const matchingKey = String(orderId).replace(/^#/, '').trim();
-                const status = String(parsed.status || '').toLowerCase().trim();
-                const isIncoming = ['placed', 'pending', 'new', 'confirmed', 'received', 'order_placed'].includes(status);
-
-                if (change.type === 'added' || change.type === 'modified') {
-                    const isDismissed = staffDismissedAlertOrderIds.has(orderId) || 
-                                        (matchingKey && staffDismissedAlertOrderIds.has(matchingKey));
-                    const isAlreadyAlerted = staffIncomingAlertedIds.has(docId) ||
-                                             staffIncomingAlertedIds.has(orderId) ||
-                                             (matchingKey && staffIncomingAlertedIds.has(matchingKey));
-
-                    if (isIncoming && !isAlreadyAlerted && !isDismissed) {
-                        staffIncomingAlertedIds.add(docId);
-                        staffIncomingAlertedIds.add(orderId);
-                        if (matchingKey) staffIncomingAlertedIds.add(matchingKey);
-                        staffProcessedAudioOrderIds.add(orderId);
-                        if (matchingKey) staffProcessedAudioOrderIds.add(matchingKey);
-                        processedOrderDocIds.add(docId);
-                        processedOrderDocIds.add(orderId);
-                        if (matchingKey) processedOrderDocIds.add(matchingKey);
-                        staffSeenOrderIds.add(docId);
-                        staffSeenOrderIds.add(orderId);
-                        if (matchingKey) staffSeenOrderIds.add(matchingKey);
-
-                        console.log(`🔥 [Firestore Real-Time] Incoming order detected via docChanges (${change.type}): Order #${orderId} (Status: ${status})`);
-                        const customerName = parsed.customerName || 'Customer';
-                        const total = parsed.total ? `₹${parsed.total}` : '';
-                        const summary = total ? `${customerName} • ${total}` : customerName;
-
-                        // 1. Immediately set the incoming modal state to visible
-                        showIncomingOrderModal(orderId, summary, parsed);
-
-                        // 2. Immediately invoke the primed audio chime to loop continuously
-                        startOrderAlertAudio(orderId, summary, data);
-
-                        // 3. Fire the vibration sequence
-                        startStaffVibrationLoop();
-
-                        // 4. Toast notification
-                        showStaffToast(`🔔 New Order #${orderId} Received in Real-Time!`);
-                    } else if (change.type === 'modified' && !isIncoming) {
-                        // If currently alerting for this order and status transitioned away from incoming, stop alert
-                        if (currentAlertingOrderId && (
-                            currentAlertingOrderId === orderId || 
-                            currentAlertingOrderId === docId || 
-                            currentAlertingOrderId === matchingKey
-                        )) {
-                            console.log(`🛑 [Firestore Real-Time] Alerting order #${orderId} transitioned to '${status}'. Stopping alert.`);
-                            stopOrderAlertAudio();
-                        }
-                    }
-                } else if (change.type === 'removed') {
-                    if (currentAlertingOrderId && (
-                        currentAlertingOrderId === orderId || 
-                        currentAlertingOrderId === docId || 
-                        currentAlertingOrderId === matchingKey
-                    )) {
-                        console.log(`🛑 [Firestore Real-Time] Alerting order #${orderId} removed. Stopping alert.`);
-                        stopOrderAlertAudio();
-                    }
-                }
-            }
-        }
-
         const liveOrders = [];
         snapshot.forEach((doc) => {
             const data = doc.data() || {};
@@ -644,16 +549,70 @@ function listenToFirestoreStaffOrders() {
             const parsed = parseStaffOrder(docId, data);
             liveOrders.push(parsed);
         });
-        // Always synchronize snapshot into shared kitchen pool (even if empty, to reflect purges)
-        mergeLiveOrdersIntoStaff(liveOrders);
+
+        // 1. In-memory sort by timestamp (oldest first for FIFO kitchen queue)
+        const sortedLiveOrders = sortOrdersOldestFirst(liveOrders);
+
+        // 2. Synchronize snapshot into shared kitchen pool
+        mergeLiveOrdersIntoStaff(sortedLiveOrders);
+
+        // 3. Filter valid pending kitchen orders
+        const pendingOrders = staffOrders.filter(isValidStaffOrder).filter(isPendingStaffOrder);
+
+        // 4. Check for brand-new incoming orders not previously seen in this session
+        let hasNewIncomingOrder = false;
+        let newestOrder = null;
+        pendingOrders.forEach(po => {
+            const key = getOrderMatchingKey(po);
+            if (key && !staffSeenOrderIds.has(key)) {
+                hasNewIncomingOrder = true;
+                newestOrder = po;
+            }
+        });
+
+        // If a new pending order arrived, reset session dismissal
+        if (hasNewIncomingOrder) {
+            isStaffAlertDismissedInSession = false;
+        }
+
+        // 5. Audio Alert Trigger:
+        // When the pending orders snapshot fires:
+        // If pendingOrders.length > 0 and staff alert is not manually dismissed in the current session:
+        // Trigger the staff looping audio alert immediately.
+        if (pendingOrders.length > 0) {
+            if (!isStaffAlertDismissedInSession) {
+                const targetOrder = newestOrder || pendingOrders[pendingOrders.length - 1] || pendingOrders[0];
+                const targetOrderId = String(targetOrder.orderId || targetOrder.id || 'New');
+                const customerName = targetOrder.customerName || 'Customer';
+                const total = targetOrder.total ? `₹${targetOrder.total}` : '';
+                const summary = `${pendingOrders.length} Pending Order${pendingOrders.length > 1 ? 's' : ''} • ${customerName}${total ? ` (${total})` : ''}`;
+
+                console.log(`🔊 [Firestore Pending Snapshot] ${pendingOrders.length} active pending order(s) in queue. Triggering continuous looping audio alert...`);
+                startOrderAlertAudio(targetOrderId, summary, targetOrder);
+            }
+        } else {
+            if (isOrderAlertAudioPlaying) {
+                stopOrderAlertAudio();
+            }
+            isStaffAlertDismissedInSession = false;
+        }
+
+        // 6. Record seen order IDs
+        pendingOrders.forEach(po => {
+            const key = getOrderMatchingKey(po);
+            if (key) {
+                staffSeenOrderIds.add(key);
+                staffSeenOrderIds.add(String(po.id));
+                if (po.firestoreDocId) staffSeenOrderIds.add(String(po.firestoreDocId));
+            }
+        });
+        isFirestoreInitialHydrationDone = true;
     }
 
     try {
-        // Centralized shared restaurant order pool across all staff devices
-        // Query scoped strictly to active kitchen orders to prevent historical full-collection reads
+        // Query strictly scoped to status == 'PENDING' without composite index ordering or date boundary filters
         staffOrdersUnsubscribe = db.collection('orders')
-            .where('status', 'in', ['PENDING', 'pending', 'ACCEPTED', 'accepted', 'new', 'NEW', 'placed', 'PLACED', 'preparing', 'PREPARING'])
-            .limit(25)
+            .where('status', '==', 'PENDING')
             .onSnapshot((snapshot) => {
                 processOrdersSnapshot(snapshot);
             }, (err) => {
@@ -2625,12 +2584,14 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
         }
     });
 
-    // 2. Only preserve local orders if they were created offline and have not yet synced to remote
+    // 2. Preserve completed and rejected orders from previous fetches/state, or local offline pending
     staffOrders.forEach(lo => {
-        if (isValidStaffOrder(lo) && lo._isLocalOfflinePending) {
+        if (isValidStaffOrder(lo)) {
             const key = getOrderMatchingKey(lo);
             if (key && !mergedMap.has(key)) {
-                mergedMap.set(key, lo);
+                if (isCompletedStaffOrder(lo) || isRejectedStaffOrder(lo) || lo._isLocalOfflinePending) {
+                    mergedMap.set(key, lo);
+                }
             }
         }
     });
@@ -3171,29 +3132,34 @@ const REJECTED_STAFF_STATUSES = new Set(["rejected", "cancelled", "canceled", "d
 
 function isPendingStaffOrder(order) {
     if (!order) return false;
-    const s = String(order.status || '').trim().toLowerCase();
-    // Strictly exclude completed and rejected/cancelled orders
-    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
-    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || s === 'expired' || s === 'auto_expired' || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order))) {
-        return false;
+    const rawStatus = String(order.status || '').trim().toUpperCase();
+    // Strictly guarantee: any order with status === 'PENDING' renders as an active card in Pending tab
+    if (rawStatus === 'PENDING') {
+        return true;
     }
-    // Any other order status is considered pending/active in kitchen
-    return PENDING_STAFF_STATUSES.has(s) || true;
+    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
+    const s = rawStatus.toLowerCase();
+    return PENDING_STAFF_STATUSES.has(s);
 }
 
 function isCompletedStaffOrder(order) {
     if (!order) return false;
-    const s = String(order.status || '').trim().toLowerCase();
+    const rawStatus = String(order.status || '').trim().toUpperCase();
+    if (rawStatus === 'PENDING') return false;
+    const s = rawStatus.toLowerCase();
     return COMPLETED_STAFF_STATUSES.has(s);
 }
 
 function isRejectedStaffOrder(order) {
     if (!order) return false;
-    const s = String(order.status || '').trim().toLowerCase();
-    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || s === 'expired' || s === 'auto_expired' || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order))) {
+    const rawStatus = String(order.status || '').trim().toUpperCase();
+    if (rawStatus === 'PENDING') return false;
+    const s = rawStatus.toLowerCase();
+    if (REJECTED_STAFF_STATUSES.has(s) || s === 'expired' || s === 'auto_expired') return true;
+    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && s !== 'pending') {
         return true;
     }
-    return REJECTED_STAFF_STATUSES.has(s);
+    return false;
 }
 
 function isFinishedStaffOrder(order) {
@@ -6278,6 +6244,7 @@ window.hideIncomingOrderModal = hideIncomingOrderModal;
  */
 function dismissIncomingOrderAlert() {
     staffSoundMuted = true;
+    isStaffAlertDismissedInSession = true;
     const alertingId = currentAlertingOrderId;
     if (alertingId) {
         const cleanId = String(alertingId).replace(/^#/, '').trim();
