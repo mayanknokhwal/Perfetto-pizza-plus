@@ -2678,9 +2678,10 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     renderOrders();
 }
 
-let isStaffSoundEnabled = true; // Sound switch defaults to active ON, respects saved localStorage preference
+let isStaffSoundEnabled = true; // Sound switch defaults to active ON, scoped to session
+let staffSoundMuted = false;    // Pure in-memory tab-isolated mute flag
 try {
-    const saved = localStorage.getItem('staff_sound_enabled');
+    const saved = sessionStorage.getItem('staff_sound_enabled');
     if (saved === 'false') {
         isStaffSoundEnabled = false;
     }
@@ -2831,8 +2832,9 @@ function stopStaffAudioKeepAlive() {
 function enableStaffSound(options = {}) {
     console.log('🔔 [Staff Audio] Activating sound notifications via user interaction...');
     isStaffSoundEnabled = true;
+    staffSoundMuted = false;
     try {
-        localStorage.setItem('staff_sound_enabled', 'true');
+        sessionStorage.setItem('staff_sound_enabled', 'true');
     } catch (e) { }
 
     // 1. Immediately unlock and initialize browser AudioContext
@@ -2873,8 +2875,9 @@ async function toggleStaffSoundState() {
         // Switch OFF: Mute alerts, stop keep-alive, release wake lock, update UI
         console.log('🔕 [Staff Audio] Sound toggled OFF by staff.');
         isStaffSoundEnabled = false;
+        staffSoundMuted = true;
         try {
-            localStorage.setItem('staff_sound_enabled', 'false');
+            sessionStorage.setItem('staff_sound_enabled', 'false');
         } catch (e) { }
 
         // Pause audio if currently playing (volume mute override)
@@ -2894,8 +2897,9 @@ async function toggleStaffSoundState() {
         showStaffToast('🔕 Audio Muted. Kitchen alerts silenced.');
     } else {
         // Switch ON
+        staffSoundMuted = false;
         try {
-            localStorage.setItem('staff_sound_enabled', 'true');
+            sessionStorage.setItem('staff_sound_enabled', 'true');
         } catch (e) { }
         enableStaffSound({ playChime: true, showToast: true });
 
@@ -3330,9 +3334,9 @@ function initStaffApp() {
     checkStaffAuthSession();
     startStaffAutoExpireInterval();
 
-    // Sound switch reflects active preference (defaults to active ON)
+    // Sound switch reflects active preference (defaults to active ON in session scope)
     try {
-        const saved = localStorage.getItem('staff_sound_enabled');
+        const saved = sessionStorage.getItem('staff_sound_enabled');
         isStaffSoundEnabled = saved !== 'false';
     } catch (e) {
         isStaffSoundEnabled = true;
@@ -3491,6 +3495,10 @@ function updateLiveTimers() {
 }
 
 window.addEventListener('storage', (e) => {
+    // Strictly ignore any audio, sound, or dismiss keys to guarantee total tab-level audio isolation
+    if (e.key && (e.key === 'staff_sound_enabled' || e.key.includes('sound') || e.key.includes('audio') || e.key.includes('dismiss'))) {
+        return;
+    }
     if (!e.key || e.key === 'perfettoCustomerOrders' || e.key === STAFF_ORDERS_STORAGE_KEY) {
         syncCustomerOrders();
     }
@@ -6050,6 +6058,7 @@ function startSynthesizedBeepLoop() {
 }
 
 function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
+    staffSoundMuted = false;
     const cleanId = String(orderId || 'New').replace(/^#/, '').trim();
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === cleanId) {
         return; // Already playing for this order
@@ -6268,6 +6277,7 @@ window.hideIncomingOrderModal = hideIncomingOrderModal;
  * while keeping the incoming order card fully visible and operable in the Pending Orders queue.
  */
 function dismissIncomingOrderAlert() {
+    staffSoundMuted = true;
     const alertingId = currentAlertingOrderId;
     if (alertingId) {
         const cleanId = String(alertingId).replace(/^#/, '').trim();
@@ -6306,6 +6316,14 @@ function dismissIncomingOrderAlert() {
     showStaffToast('Order alert silenced. Order is waiting in Pending queue.');
 }
 window.dismissIncomingOrderAlert = dismissIncomingOrderAlert;
+window.dismissStaffSound = dismissIncomingOrderAlert;
+try {
+    Object.defineProperty(window, 'staffSoundMuted', {
+        get: () => staffSoundMuted,
+        set: (v) => { staffSoundMuted = !!v; },
+        configurable: true
+    });
+} catch (e) { }
 
 // Desktop Keyboard Usability: Pressing Escape silences the incoming audio alert
 if (typeof window !== 'undefined') {

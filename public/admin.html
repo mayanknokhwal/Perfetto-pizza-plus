@@ -14396,6 +14396,7 @@
         }
 
         // Admin Incoming Order Audio Alert & Universal Tap-to-Unlock
+        let adminSoundDismissed = false;
         let adminInitialOrdersLoaded = false;
         const adminKnownOrderIds = new Set();
         const adminHandledAudioOrderIds = new Set();
@@ -14660,6 +14661,11 @@
             const banner = document.getElementById('admin-incoming-order-banner');
             if (!banner) return;
 
+            adminSoundDismissed = false;
+            if (typeof window.setAdminSoundDismissed === 'function') {
+                window.setAdminSoundDismissed(false);
+            }
+
             const rawId = orderData.orderId || orderData.id || 'New';
             const orderId = String(rawId).replace(/^#/, '').trim();
             currentAdminAlertOrderId = orderId;
@@ -14706,6 +14712,11 @@
          * Dismisses the incoming order banner and immediately halts audio chime if playing mid-chime
          */
         function dismissAdminOrderAlert() {
+            adminSoundDismissed = true;
+            if (typeof window.setAdminSoundDismissed === 'function') {
+                window.setAdminSoundDismissed(true);
+            }
+
             const banner = document.getElementById('admin-incoming-order-banner');
             if (banner) {
                 banner.style.display = 'none';
@@ -14758,6 +14769,13 @@
             console.log('🔇 [Admin Alert] Dismissed incoming order alert banner and stopped chime.');
         }
         window.dismissAdminOrderAlert = dismissAdminOrderAlert;
+        try {
+            Object.defineProperty(window, 'adminSoundDismissed', {
+                get: () => adminSoundDismissed,
+                set: (v) => { adminSoundDismissed = !!v; },
+                configurable: true
+            });
+        } catch (e) { }
 
         // Desktop keyboard shortcut: Escape key closes active incoming order alert banner instantly
         document.addEventListener('keydown', function(evt) {
@@ -16738,6 +16756,10 @@
         });
 
         window.addEventListener('storage', (e) => {
+            // Strictly ignore any audio, sound, or dismiss keys to prevent cross-tab interference
+            if (e.key && (e.key === 'staff_sound_enabled' || e.key.includes('sound') || e.key.includes('audio') || e.key.includes('dismiss'))) {
+                return;
+            }
             if (!e.key || e.key === STORAGE_KEY) {
                 initMenuData();
             }

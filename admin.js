@@ -1197,6 +1197,349 @@ if (typeof window !== 'undefined') {
     window.listenToAdminTodayOrders = listenToAdminTodayOrders;
 }
 
+// ============================================================================
+// TAB-ISOLATED IN-MEMORY ADMIN AUDIO & ALERT CONTROLLER
+// Guarantees zero cross-tab localStorage interference and independent in-memory audio state.
+// ============================================================================
+
+let adminSoundDismissed = false;
+let adminAudioContext = null;
+let adminAlertAudio = null;
+let adminAudioUnlocked = false;
+let lastAdminChimeTimestamp = 0;
+let lastAdminChimedOrderId = null;
+let currentAdminAlertOrderId = null;
+let adminAlertAutoDismissTimeout = null;
+const adminActiveChimeNodes = [];
+export const adminHandledAudioOrderIds = new Set();
+export const adminKnownOrderIds = new Set();
+
+export function getAdminSoundDismissed() {
+    return adminSoundDismissed;
+}
+
+export function setAdminSoundDismissed(val) {
+    adminSoundDismissed = !!val;
+}
+
+export function getAdminAudioSrc() {
+    try {
+        if (typeof window !== 'undefined' && window.location && window.location.origin) {
+            return `${window.location.origin}/order-alert.mp3`;
+        }
+    } catch (e) { }
+    return '/order-alert.mp3';
+}
+
+export function getAdminAudioContext() {
+    if (!adminAudioContext && typeof window !== 'undefined') {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            try {
+                adminAudioContext = new AudioCtx();
+            } catch (e) { }
+        }
+    }
+    return adminAudioContext;
+}
+
+export function initAdminAudio() {
+    if (!adminAlertAudio && typeof Audio !== 'undefined') {
+        try {
+            adminAlertAudio = new Audio(getAdminAudioSrc());
+            adminAlertAudio.loop = false; // Strictly single-play chime (never loop)
+            adminAlertAudio.preload = 'auto';
+            adminAlertAudio.muted = false;
+            adminAlertAudio.volume = 1.0;
+            adminAlertAudio.onended = function() {
+                try {
+                    adminAlertAudio.pause();
+                    adminAlertAudio.currentTime = 0;
+                } catch (e) { }
+            };
+        } catch (e) { }
+    }
+    if (adminAlertAudio) {
+        adminAlertAudio.loop = false;
+    }
+    return adminAlertAudio;
+}
+
+export function unlockAdminAudioContext() {
+    try {
+        const ctx = getAdminAudioContext();
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            ctx.resume().catch(() => {});
+        }
+    } catch (e) { }
+
+    try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+            Notification.requestPermission().catch(() => {});
+        }
+    } catch (e) { }
+
+    try {
+        const audio = initAdminAudio();
+        if (audio && !adminAudioUnlocked) {
+            audio.muted = true;
+            const p = audio.play();
+            if (p && typeof p.then === 'function') {
+                p.then(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    audio.muted = false;
+                    audio.volume = 1.0;
+                    adminAudioUnlocked = true;
+                    console.log('🔓 [Admin Audio] Audio element and context primed successfully.');
+                }).catch(() => {
+                    audio.muted = false;
+                    audio.volume = 1.0;
+                });
+            }
+        }
+    } catch (e) { }
+
+    adminAudioUnlocked = true;
+}
+
+export function playAdminSynthesizedChime() {
+    try {
+        const ctx = getAdminAudioContext();
+        if (!ctx) return;
+        const scheduleTones = () => {
+            try {
+                const now = ctx.currentTime;
+                // Elegant isolated 3-tone harmonic chime: E5 (659.25Hz) -> A5 (880Hz) -> E6 (1318.51Hz)
+                const masterGain = ctx.createGain();
+                masterGain.connect(ctx.destination);
+                adminActiveChimeNodes.push(masterGain);
+
+                const tones = [
+                    { freq: 659.25, time: 0.00, dur: 0.45, vol: 0.35 },
+                    { freq: 880.00, time: 0.15, dur: 0.50, vol: 0.40 },
+                    { freq: 1318.51, time: 0.32, dur: 0.85, vol: 0.30 }
+                ];
+
+                tones.forEach(t => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(t.freq, now + t.time);
+                    
+                    gain.gain.setValueAtTime(0.001, now + t.time);
+                    gain.gain.exponentialRampToValueAtTime(t.vol, now + t.time + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + t.time + t.dur);
+
+                    osc.connect(gain);
+                    gain.connect(masterGain);
+                    osc.start(now + t.time);
+                    osc.stop(now + t.time + t.dur + 0.05);
+                });
+
+                setTimeout(() => {
+                    const idx = adminActiveChimeNodes.indexOf(masterGain);
+                    if (idx !== -1) adminActiveChimeNodes.splice(idx, 1);
+                }, 1300);
+            } catch (e) { }
+        };
+
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+            ctx.resume().then(scheduleTones).catch(() => {});
+        } else {
+            scheduleTones();
+        }
+    } catch (e) {
+        console.warn('Admin synthesized chime error:', e);
+    }
+}
+
+export function playAdminOrderChime(orderId = null) {
+    const now = Date.now();
+    const cleanOrderId = orderId ? String(orderId).replace(/^#/, '').trim() : null;
+
+    // Debounce only if exact same order within 2000ms. Novel incoming orders chime immediately.
+    if (cleanOrderId && cleanOrderId === lastAdminChimedOrderId && (now - lastAdminChimeTimestamp < 2000)) {
+        return;
+    }
+    if (!cleanOrderId && (now - lastAdminChimeTimestamp < 2000)) {
+        return;
+    }
+
+    lastAdminChimeTimestamp = now;
+    lastAdminChimedOrderId = cleanOrderId;
+
+    // A novel incoming order resets the dismissed state for the new event
+    adminSoundDismissed = false;
+
+    console.log(`🔔 [Admin Alert] Playing order alert chime for #${cleanOrderId || 'new'}...`);
+
+    try {
+        const ctx = getAdminAudioContext();
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            ctx.resume().catch(() => {});
+        }
+    } catch (e) { }
+
+    let playedHtml5 = false;
+    try {
+        const audio = initAdminAudio();
+        if (audio) {
+            try {
+                audio.pause();
+                audio.currentTime = 0;
+            } catch (e) { }
+            audio.loop = false;
+            audio.muted = false;
+            audio.volume = 1.0;
+            const playPromise = audio.play();
+            if (playPromise !== undefined && typeof playPromise.then === 'function') {
+                playPromise.then(() => {
+                    console.log('🔊 [Admin Alert] HTML5 audio chime playing successfully (single-play).');
+                    adminAudioUnlocked = true;
+                }).catch((err) => {
+                    if (err.name === 'AbortError') {
+                        return;
+                    }
+                    console.warn('HTML5 audio play blocked or failed, falling back to synthesized chime:', err.message);
+                    playAdminSynthesizedChime();
+                });
+                playedHtml5 = true;
+            }
+        }
+    } catch (e) {
+        console.warn('HTML5 audio chime error, falling back:', e);
+    }
+
+    if (!playedHtml5) {
+        playAdminSynthesizedChime();
+    }
+}
+
+export function showAdminOrderAlert(orderData = {}) {
+    adminSoundDismissed = false;
+    const rawId = orderData.orderId || orderData.id || 'New';
+    const orderId = String(rawId).replace(/^#/, '').trim();
+    currentAdminAlertOrderId = orderId;
+    playAdminOrderChime(orderId);
+
+    if (typeof document !== 'undefined') {
+        const banner = document.getElementById('admin-incoming-order-banner');
+        if (banner) {
+            const orderNumberEl = document.getElementById('admin-alert-order-number');
+            const customerNameEl = document.getElementById('admin-alert-customer-name');
+            const orderTotalEl = document.getElementById('admin-alert-order-total');
+            const itemsSummaryEl = document.getElementById('admin-alert-items-summary');
+
+            const customer = orderData.customerName || orderData.customer?.name || orderData.name || 'Customer';
+            const total = orderData.total !== undefined ? orderData.total : (orderData.finalPayable !== undefined ? orderData.finalPayable : (orderData.totalAmount !== undefined ? orderData.totalAmount : (orderData.costs?.total !== undefined ? orderData.costs.total : '')));
+
+            let itemsText = '';
+            if (Array.isArray(orderData.items) && orderData.items.length > 0) {
+                itemsText = orderData.items.map(i => `${i.qty || 1}x ${i.name || 'Pizza'}`).join(', ');
+            } else if (orderData.itemsSummary) {
+                itemsText = orderData.itemsSummary;
+            }
+
+            if (orderNumberEl) orderNumberEl.textContent = `Order #${orderId}`;
+            if (customerNameEl) customerNameEl.textContent = customer;
+            if (orderTotalEl) orderTotalEl.textContent = total !== '' ? `₹${total}` : '';
+            if (itemsSummaryEl) itemsSummaryEl.textContent = itemsText ? itemsText : 'Incoming customer order pending review';
+
+            banner.style.display = 'flex';
+
+            if (adminAlertAutoDismissTimeout) {
+                clearTimeout(adminAlertAutoDismissTimeout);
+            }
+            adminAlertAutoDismissTimeout = setTimeout(() => {
+                adminAlertAutoDismissTimeout = null;
+                if (banner && banner.style.display !== 'none') {
+                    banner.style.display = 'none';
+                }
+            }, 30000);
+        }
+    }
+}
+
+export function dismissAdminOrderAlert() {
+    adminSoundDismissed = true;
+
+    if (typeof document !== 'undefined') {
+        const banner = document.getElementById('admin-incoming-order-banner');
+        if (banner) {
+            banner.style.display = 'none';
+        }
+    }
+    if (adminAlertAutoDismissTimeout) {
+        clearTimeout(adminAlertAutoDismissTimeout);
+        adminAlertAutoDismissTimeout = null;
+    }
+
+    if (currentAdminAlertOrderId) {
+        adminHandledAudioOrderIds.add(currentAdminAlertOrderId);
+        adminHandledAudioOrderIds.add(String(currentAdminAlertOrderId).replace(/^#/, '').trim());
+    }
+    currentAdminAlertOrderId = null;
+    lastAdminChimedOrderId = null;
+    lastAdminChimeTimestamp = 0; // Reset debounce so novel incoming order chimes immediately!
+
+    // Silence any active synthesized chime nodes
+    try {
+        const ctx = getAdminAudioContext();
+        const now = ctx ? ctx.currentTime : 0;
+        while (adminActiveChimeNodes.length > 0) {
+            const g = adminActiveChimeNodes.pop();
+            if (g && g.gain) {
+                try {
+                    if (ctx) {
+                        g.gain.cancelScheduledValues(now);
+                        g.gain.setValueAtTime(0, now);
+                    }
+                } catch (e) { }
+            }
+        }
+        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+            ctx.resume().catch(() => {});
+        }
+    } catch (e) { }
+
+    // Pause and reset HTML5 audio chime
+    try {
+        if (adminAlertAudio) {
+            adminAlertAudio.pause();
+            adminAlertAudio.currentTime = 0;
+            adminAlertAudio.muted = false;
+            adminAlertAudio.volume = 1.0;
+        }
+    } catch (e) { }
+
+    adminAudioUnlocked = true;
+    console.log('🔇 [Admin Alert] Dismissed incoming order alert banner and stopped chime in-memory.');
+}
+
+// Global browser window bindings
+if (typeof window !== 'undefined') {
+    window.initAdminAudio = initAdminAudio;
+    window.unlockAdminAudioContext = unlockAdminAudioContext;
+    window.playAdminOrderChime = playAdminOrderChime;
+    window.playAdminSynthesizedChime = playAdminSynthesizedChime;
+    window.showAdminOrderAlert = showAdminOrderAlert;
+    window.dismissAdminOrderAlert = dismissAdminOrderAlert;
+    window.getAdminSoundDismissed = getAdminSoundDismissed;
+    window.setAdminSoundDismissed = setAdminSoundDismissed;
+    window.adminHandledAudioOrderIds = adminHandledAudioOrderIds;
+    window.adminKnownOrderIds = adminKnownOrderIds;
+
+    try {
+        Object.defineProperty(window, 'adminSoundDismissed', {
+            get: () => adminSoundDismissed,
+            set: (v) => { adminSoundDismissed = !!v; },
+            configurable: true
+        });
+    } catch (e) { }
+}
+
+
 
 
 
