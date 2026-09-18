@@ -5169,10 +5169,100 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 }
 
                 console.log(`[STAFF OTP] Executing atomic delivery batch for Order #${rawId} (Cashback: ₹${cashbackAmount}, Credit Eligible: ${shouldCreditCashback}, Validity: ${validityDays}d, Expires: ${expiresAt})...`);
+                const cleanOrderId = String(rawId).replace(/^#/, '');
+                const walletHoldAmount = Math.max(0, Math.round(Number(
+                    order?.walletDeductedAmount ??
+                    order?.walletUsed ??
+                    order?.walletDiscount ??
+                    order?.usedWalletCash ??
+                    order?.appliedWalletDiscount ??
+                    order?.usedWallet ??
+                    extraPayload?.walletDeductedAmount ??
+                    extraPayload?.walletUsed ??
+                    0
+                )));
+
+                let existingWalletTxs = [];
+                let holdTxToTransition = null;
+                let holdTxIndex = -1;
+
+                if (cleanPhone) {
+                    try {
+                        const walletSnap = await db.collection('wallets').doc(cleanPhone).get();
+                        if (walletSnap && walletSnap.exists) {
+                            const wData = walletSnap.data();
+                            if (Array.isArray(wData.transactions)) {
+                                existingWalletTxs = [...wData.transactions];
+                                holdTxIndex = existingWalletTxs.findIndex(tx => {
+                                    if (!tx) return false;
+                                    const txOid = String(tx.orderId || '').trim().replace(/^#/, '');
+                                    const isOrderMatch = txOid === cleanOrderId || tx.id === `tx_hold_${cleanOrderId}` || tx.id === `tx_hold_#${cleanOrderId}`;
+                                    const txType = String(tx.type || '').trim().toUpperCase();
+                                    const txStatus = String(tx.status || '').trim().toUpperCase();
+                                    const isHoldState = txType === 'HOLD' || txType === 'WALLET_HOLD' || txStatus === 'LOCKED_HOLD' || txStatus === 'LOCKED' || txStatus === 'HELD';
+                                    return isOrderMatch && isHoldState;
+                                });
+                                if (holdTxIndex >= 0) {
+                                    holdTxToTransition = existingWalletTxs[holdTxIndex];
+                                }
+                            }
+                        }
+                    } catch (wErr) {
+                        console.warn('[STAFF OTP] Pre-fetching wallet for hold transition:', wErr.message);
+                    }
+                }
+
+                const finalDebitAmt = Math.round(Number(holdTxToTransition?.amount || walletHoldAmount || 0));
+                const debitTxId = holdTxToTransition?.id || `tx_hold_${cleanOrderId}`;
+                const debitTitle = `Used for Order #${cleanOrderId}`;
+                const debitDesc = `Used for Order #${cleanOrderId}`;
+                let transitionedDebitTx = null;
+
+                if (holdTxToTransition || finalDebitAmt > 0) {
+                    transitionedDebitTx = {
+                        ...(holdTxToTransition || {}),
+                        id: debitTxId,
+                        type: 'debit',
+                        amount: finalDebitAmt,
+                        orderId: String(cleanOrderId),
+                        title: debitTitle,
+                        description: debitDesc,
+                        status: 'COMPLETED',
+                        completedAt: creditedAtIso,
+                        updatedAt: serverTs
+                    };
+
+                    if (holdTxIndex >= 0) {
+                        existingWalletTxs[holdTxIndex] = transitionedDebitTx;
+                    } else if (finalDebitAmt > 0) {
+                        existingWalletTxs.unshift(transitionedDebitTx);
+                    }
+
+                    fsUpdate.walletHoldStatus = 'COMPLETED';
+                    fsUpdate.walletDebitStatus = 'COMPLETED';
+                }
+
                 const batch = db.batch();
                 const orderRef = db.collection('orders').doc(exactDocId);
                 batch.set(orderRef, fsUpdate, { merge: true });
 
+                const walletRef = cleanPhone ? db.collection('wallets').doc(cleanPhone) : null;
+                const userPhoneRef = cleanPhone ? db.collection('users').doc(`phone_${cleanPhone}`) : null;
+                const userRawRef = cleanPhone ? db.collection('users').doc(cleanPhone) : null;
+
+                // 1. If wallet hold exists for this order, atomically transition it to completed debit
+                if (transitionedDebitTx && cleanPhone && walletRef) {
+                    batch.set(walletRef.collection('transactions').doc(debitTxId), transitionedDebitTx, { merge: true });
+                    if (userPhoneRef) {
+                        batch.set(userPhoneRef.collection('transactions').doc(debitTxId), transitionedDebitTx, { merge: true });
+                    }
+                    if (userRawRef) {
+                        batch.set(userRawRef.collection('transactions').doc(debitTxId), transitionedDebitTx, { merge: true });
+                    }
+                }
+
+                // 2. Prepare cashback transaction if eligible
+                let inDocTxEntry = null;
                 if (shouldCreditCashback && cleanPhone && FieldValue) {
                     const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
@@ -5193,7 +5283,7 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         status: "active"
                     };
 
-                    const inDocTxEntry = {
+                    inDocTxEntry = {
                         id: txId,
                         type: 'credit',
                         amount: cashbackAmount,
@@ -5211,51 +5301,94 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                         status: 'active'
                     };
 
-                    // 1. Wallets collection: wallets/{cleanPhone}
-                    const walletRef = db.collection('wallets').doc(cleanPhone);
-                    batch.set(walletRef, {
+                    existingWalletTxs.unshift(inDocTxEntry);
+
+                    batch.set(walletRef.collection('transactions').doc(txId), ledgerRecord);
+                    if (userPhoneRef) batch.set(userPhoneRef.collection('transactions').doc(txId), ledgerRecord);
+                    if (userRawRef) batch.set(userRawRef.collection('transactions').doc(txId), ledgerRecord);
+                }
+
+                // 3. Atomically update wallet & user documents with updated transactions array and balance
+                if (cleanPhone && walletRef) {
+                    const walletUpdatePayload = {
                         phone: cleanPhone,
-                        balance: FieldValue.increment(cashbackAmount),
-                        transactions: FieldValue.arrayUnion(inDocTxEntry),
-                        lastCreditedAt: creditedAtIso,
                         updatedAt: serverTs
-                    }, { merge: true });
+                    };
+                    if (existingWalletTxs.length > 0) {
+                        walletUpdatePayload.transactions = existingWalletTxs.slice(0, 30);
+                    }
+                    if (shouldCreditCashback && FieldValue && cashbackAmount > 0) {
+                        walletUpdatePayload.balance = FieldValue.increment(cashbackAmount);
+                        walletUpdatePayload.lastCreditedAt = creditedAtIso;
+                    }
+                    batch.set(walletRef, walletUpdatePayload, { merge: true });
 
-                    const walletTxRef = walletRef.collection('transactions').doc(txId);
-                    batch.set(walletTxRef, ledgerRecord);
+                    if (userPhoneRef) {
+                        const userUpdatePayload = {
+                            phone: cleanPhone,
+                            updatedAt: serverTs
+                        };
+                        if (existingWalletTxs.length > 0) {
+                            userUpdatePayload.walletTransactions = existingWalletTxs.slice(0, 30);
+                        }
+                        if (shouldCreditCashback && FieldValue && cashbackAmount > 0) {
+                            userUpdatePayload.walletBalance = FieldValue.increment(cashbackAmount);
+                            userUpdatePayload.balance = FieldValue.increment(cashbackAmount);
+                            userUpdatePayload.lastCreditedAt = creditedAtIso;
+                        }
+                        batch.set(userPhoneRef, userUpdatePayload, { merge: true });
+                    }
 
-                    // 2. Users collection: users/phone_{cleanPhone}
-                    const userPhoneRef = db.collection('users').doc(`phone_${cleanPhone}`);
-                    batch.set(userPhoneRef, {
-                        phone: cleanPhone,
-                        walletBalance: FieldValue.increment(cashbackAmount),
-                        balance: FieldValue.increment(cashbackAmount),
-                        walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
-                        lastCreditedAt: creditedAtIso,
-                        updatedAt: serverTs
-                    }, { merge: true });
-
-                    const userPhoneTxRef = userPhoneRef.collection('transactions').doc(txId);
-                    batch.set(userPhoneTxRef, ledgerRecord);
-
-                    // 3. Users collection: users/{cleanPhone}
-                    const userRawRef = db.collection('users').doc(cleanPhone);
-                    batch.set(userRawRef, {
-                        phone: cleanPhone,
-                        walletBalance: FieldValue.increment(cashbackAmount),
-                        balance: FieldValue.increment(cashbackAmount),
-                        walletTransactions: FieldValue.arrayUnion(inDocTxEntry),
-                        lastCreditedAt: creditedAtIso,
-                        updatedAt: serverTs
-                    }, { merge: true });
-
-                    const userRawTxRef = userRawRef.collection('transactions').doc(txId);
-                    batch.set(userRawTxRef, ledgerRecord);
+                    if (userRawRef) {
+                        const userUpdatePayload = {
+                            phone: cleanPhone,
+                            updatedAt: serverTs
+                        };
+                        if (existingWalletTxs.length > 0) {
+                            userUpdatePayload.walletTransactions = existingWalletTxs.slice(0, 30);
+                        }
+                        if (shouldCreditCashback && FieldValue && cashbackAmount > 0) {
+                            userUpdatePayload.walletBalance = FieldValue.increment(cashbackAmount);
+                            userUpdatePayload.balance = FieldValue.increment(cashbackAmount);
+                            userUpdatePayload.lastCreditedAt = creditedAtIso;
+                        }
+                        batch.set(userRawRef, userUpdatePayload, { merge: true });
+                    }
                 }
 
                 await batch.commit();
                 firestoreSucceeded = true;
                 console.log(`✅ [STAFF OTP] Atomic delivery batch committed for Order #${exactDocId}`);
+
+                // Synchronize local cache on client device if available
+                try {
+                    const localWalletStr = localStorage.getItem('perfetto_customer_wallet');
+                    if (localWalletStr) {
+                        const localWallet = JSON.parse(localWalletStr);
+                        if (Array.isArray(localWallet.transactions)) {
+                            const lIdx = localWallet.transactions.findIndex(t => {
+                                if (!t) return false;
+                                const tOid = String(t.orderId || '').trim().replace(/^#/, '');
+                                return (tOid === cleanOrderId || t.id === `tx_hold_${cleanOrderId}`);
+                            });
+                            if (lIdx >= 0) {
+                                localWallet.transactions[lIdx] = {
+                                    ...localWallet.transactions[lIdx],
+                                    type: 'debit',
+                                    status: 'COMPLETED',
+                                    title: debitTitle,
+                                    description: debitDesc,
+                                    completedAt: creditedAtIso
+                                };
+                                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(localWallet));
+                            }
+                        }
+                    }
+                } catch (e) {}
+
+                if (typeof commitWalletHold === 'function') {
+                    try { commitWalletHold(cleanOrderId); } catch (e) {}
+                }
             } else if (isRejected) {
                 fsUpdate.status = 'rejected';
                 fsUpdate.rejectedAt = serverTs;

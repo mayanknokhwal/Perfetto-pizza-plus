@@ -4999,7 +4999,7 @@ function reconcileWalletTranches(wallet) {
         const txOrderId = String(tx.orderId || '').trim();
         const cleanOrderId = txOrderId.replace(/^#/, '');
 
-        if (txType === 'debit' || (tx.type === 'hold' && tx.status === 'LOCKED_HOLD') || (txType === 'hold' && (txStatus === 'locked_hold' || txStatus === 'hold' || txStatus === 'completed'))) {
+        if (txType === 'debit' || (tx.type === 'hold' && tx.status === 'LOCKED_HOLD') || (txType === 'hold' && (txStatus === 'locked_hold' || txStatus === 'hold' || txStatus === 'completed' || txStatus === 'completed_hold'))) {
             if (tx.status !== 'released' && txStatus !== 'released' && txStatus !== 'cancelled') {
                 const amt = Math.max(0, Math.abs(Number(tx.amount) || 0));
                 if (amt > 0) {
@@ -5008,7 +5008,7 @@ function reconcileWalletTranches(wallet) {
                     debits.push({ tx, amount: amt, time: debitTime });
                 }
             }
-        } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || (txType.includes('credit') && !txType.includes('debit'))) {
+        } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || txType === 'reward' || txType === 'woncashback' || txStatus === 'unlocked' || txStatus === 'active' || tx.status === 'UNLOCKED' || tx.type === 'CASHBACK_EARNED' || (txType.includes('credit') && !txType.includes('debit'))) {
             // Strict 1-to-1 Order Idempotency:
             if (txType === 'refund' && txOrderId) {
                 // Deduplicate redundant refund entries for the same orderId
@@ -5044,8 +5044,13 @@ function reconcileWalletTranches(wallet) {
             if (tx.originalAmount === undefined) {
                 tx.originalAmount = tx.initialAmount;
             }
-            tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
-            tx.status = 'active';
+            if (tx.remainingAmount === undefined) {
+                tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
+            }
+            const currentStatusUpper = String(tx.status || '').toUpperCase();
+            if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'REDEEMED' && currentStatusUpper !== 'EXPIRED' && currentStatusUpper !== 'USED') {
+                tx.status = 'active';
+            }
 
             const parsedCreated = parseTs(tx.createdAt || tx.timestamp || tx.creditedAt);
             const createdTime = isNaN(parsedCreated) ? 0 : parsedCreated;
@@ -5065,14 +5070,22 @@ function reconcileWalletTranches(wallet) {
 
     // 3. For each debit, allocate against eligible credits:
     // Eligible credits must have been active (not expired at debit time, and created at or before debit time)
+    // A debit for Order X CANNOT consume credit earned from Order X
     // Consuming strictly in FIFO order: earliest expiring first
     for (const debit of debits) {
         let needed = debit.amount;
         if (needed <= 0) continue;
 
+        const debitOrderId = String(debit.tx.orderId || '').trim().replace(/^#/, '');
+
         // Filter and sort available credit tranches for this debit
         const eligible = credits
-            .filter(c => c.tx.remainingAmount > 0 && c.createdTime <= debit.time && c.expiresAtMs > debit.time)
+            .filter(c => {
+                if (c.tx.remainingAmount <= 0) return false;
+                const creditOrderId = String(c.tx.orderId || '').trim().replace(/^#/, '');
+                if (debitOrderId && creditOrderId && debitOrderId === creditOrderId) return false;
+                return c.createdTime <= debit.time && c.expiresAtMs > debit.time;
+            })
             .sort((a, b) => {
                 if (a.expiresAtMs !== b.expiresAtMs) return a.expiresAtMs - b.expiresAtMs;
                 return a.createdTime - b.createdTime;
@@ -5087,31 +5100,12 @@ function reconcileWalletTranches(wallet) {
                 needed -= avail;
                 c.tx.remainingAmount = 0;
                 c.tx.status = 'redeemed';
+                c.tx.isRedeemed = true;
             } else {
                 c.tx.remainingAmount = avail - needed;
                 needed = 0;
                 c.tx.status = 'partially_used';
-            }
-        }
-
-        // Fallback for legacy data where credit createdAt may be missing or newer than debit
-        if (needed > 0) {
-            const fallbackEligible = credits
-                .filter(c => c.tx.remainingAmount > 0 && c.expiresAtMs > debit.time)
-                .sort((a, b) => a.expiresAtMs - b.expiresAtMs);
-            for (const c of fallbackEligible) {
-                if (needed <= 0) break;
-                const avail = c.tx.remainingAmount;
-                if (avail <= 0) continue;
-                if (avail <= needed) {
-                    needed -= avail;
-                    c.tx.remainingAmount = 0;
-                    c.tx.status = 'redeemed';
-                } else {
-                    c.tx.remainingAmount = avail - needed;
-                    needed = 0;
-                    c.tx.status = 'partially_used';
-                }
+                c.tx.isRedeemed = false;
             }
         }
     }
@@ -5122,28 +5116,50 @@ function reconcileWalletTranches(wallet) {
     let earliestExpiryMs = Infinity;
 
     credits.forEach(c => {
-        if (c.expiresAtMs <= nowMs) {
+        const isExp = c.expiresAtMs <= nowMs;
+        c.tx.isExpired = isExp;
+        if (isExp) {
             expiredSum += (c.tx.remainingAmount || 0);
             c.tx.remainingAmount = 0;
             c.tx.status = 'expired';
+            c.tx.isRedeemed = false;
         } else if (c.tx.remainingAmount > 0) {
-            activeSum += c.tx.remainingAmount;
+            c.tx.isRedeemed = false;
             if (c.expiresAtMs < earliestExpiryMs) {
                 earliestExpiryMs = c.expiresAtMs;
             }
             if (c.tx.remainingAmount < c.tx.initialAmount) {
                 c.tx.status = 'partially_used';
             } else {
-                c.tx.status = 'active';
+                const sUpper = String(c.tx.status || '').toUpperCase();
+                if (sUpper !== 'UNLOCKED') {
+                    c.tx.status = 'active';
+                }
             }
         } else {
             c.tx.status = 'redeemed';
+            c.tx.isRedeemed = true;
         }
     });
 
+    // Authoritative balance calculation:
+    // The authoritative balance calculation must sum all valid, active, and unexpired credit tranches:
+    const tranches = credits.map(c => c.tx);
+    const activeBalance = tranches.reduce((sum, t) => {
+        const st = String(t.status || '').toUpperCase();
+        const tp = String(t.type || '').toUpperCase();
+        const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (t.expiresAt && parseTs(t.expiresAt) <= nowMs);
+        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
+        if ((st === "ACTIVE" || st === "UNLOCKED" || tp === "CASHBACK_EARNED" || tp === "CREDIT" || tp === "REFUND") && !isExp && !isRed) {
+            const val = Number(t.remainingAmount !== undefined ? t.remainingAmount : (t.amount || 0));
+            return sum + (isNaN(val) ? 0 : val);
+        }
+        return sum;
+    }, 0);
+
     let reconciledBalance = 0;
     if (credits.length > 0) {
-        reconciledBalance = Math.max(0, activeSum);
+        reconciledBalance = Math.max(0, activeBalance);
     } else {
         // When no credit tranches exist in this transaction slice, retain authoritative wallet.balance unless expired
         let rawBal = Number(wallet.balance) || 0;
@@ -6290,17 +6306,31 @@ window.debitCustomerWallet = debitCustomerWallet;
 
 function commitWalletHold(orderId) {
     if (!currentCustomerWallet || !Array.isArray(currentCustomerWallet.transactions)) return;
-    const effectiveOrderId = String(orderId || '');
-    const holdTx = currentCustomerWallet.transactions.find(tx => tx && (tx.type === 'hold' || tx.type === 'debit') && String(tx.orderId) === effectiveOrderId);
+    const effectiveOrderId = String(orderId || '').replace(/^#/, '');
+    const holdTx = currentCustomerWallet.transactions.find(tx => tx && 
+        (tx.type === 'hold' || tx.type === 'WALLET_HOLD' || tx.type === 'debit' || String(tx.id || '') === `tx_hold_${effectiveOrderId}`) && 
+        (String(tx.orderId || '').replace(/^#/, '') === effectiveOrderId || String(tx.id || '') === `tx_hold_${effectiveOrderId}`)
+    );
     if (holdTx) {
         holdTx.type = 'debit';
-        holdTx.status = 'completed';
-        holdTx.description = `Redeemed on Order #${effectiveOrderId}`;
+        holdTx.status = 'COMPLETED';
+        holdTx.title = `Used for Order #${effectiveOrderId}`;
+        holdTx.description = `Used for Order #${effectiveOrderId}`;
         holdTx.completedAt = new Date().toISOString();
         reconcileWalletTranches(currentCustomerWallet);
         updateProfileWalletUI();
         renderProfileWalletTxList();
         updateCheckoutWalletUI();
+
+        try {
+            localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+        } catch (e) {}
+
+        const cleanPhone = currentCustomerWallet.phone || (currentUserProfile && currentUserProfile.phone) || '';
+        if (cleanPhone && customerFirestore) {
+            const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
+            walletRef.collection('transactions').doc(holdTx.id || `tx_hold_${effectiveOrderId}`).set(holdTx, { merge: true }).catch(() => {});
+        }
     }
 }
 window.commitWalletHold = commitWalletHold;
@@ -6895,8 +6925,9 @@ function renderProfileWalletTxList() {
         const statusUpper = String(tx.status || '').trim().toUpperCase();
         const descLower = String(tx.description || tx.title || '').toLowerCase();
 
+        const isCompletedDebit = statusUpper === 'COMPLETED' || statusUpper === 'DEBITED' || tx.status === 'completed' || tx.status === 'debited' || typeUpper === 'DEBIT' || tx.type === 'debit';
         const isRefund = (tx.type === 'REFUND' || tx.type === 'refund');
-        const isHold = (tx.type === 'hold' || tx.status === 'LOCKED_HOLD' || typeUpper === 'HOLD' || statusUpper === 'LOCKED_HOLD');
+        const isHold = !isCompletedDebit && (tx.type === 'hold' || tx.type === 'WALLET_HOLD' || tx.status === 'LOCKED_HOLD' || typeUpper === 'HOLD' || typeUpper === 'WALLET_HOLD' || statusUpper === 'LOCKED_HOLD' || statusUpper === 'LOCKED' || statusUpper === 'HELD');
 
         // Robust Credit (+) vs Debit (-) Classification:
         // If type === "CASHBACK_EARNED", type === "CREDIT", or transaction represents cash reward/unlock:
@@ -6917,14 +6948,17 @@ function renderProfileWalletTxList() {
                                  descLower.includes('earned') ||
                                  descLower.includes('scratch');
 
-        const isExplicitDebit = typeUpper === 'DEBIT' ||
+        const isExplicitDebit = isCompletedDebit ||
+                                typeUpper === 'DEBIT' ||
                                 typeUpper === 'ORDER_PAYMENT' ||
                                 typeUpper === 'PAYMENT' ||
                                 typeUpper === 'REDEEMED' ||
                                 typeUpper === 'DEDUCTION' ||
+                                descLower.includes('used for order') ||
+                                descLower.includes('order payment') ||
                                 (descLower.includes('redeemed') && !descLower.includes('credited'));
 
-        const isCredit = !isRefund && !isHold && (isExplicitCredit || (!isExplicitDebit && (tx.remainingAmount !== undefined || Number(tx.amount) >= 0)));
+        const isCredit = !isRefund && !isHold && !isExplicitDebit && (isExplicitCredit || (tx.remainingAmount !== undefined || Number(tx.amount) >= 0));
         const isPositive = isCredit || isRefund;
         const amt = Math.abs(Number(tx.amount) || 0);
 
@@ -6990,7 +7024,7 @@ function renderProfileWalletTxList() {
             if (isRefund) txTitle = `Refund for Order #${tx.orderId || ''}`;
             else if (isHold) txTitle = `Wallet hold for Order #${tx.orderId || ''}`;
             else if (isCredit) txTitle = `credited +₹${amt} for Order #${tx.orderId || ''}`;
-            else txTitle = `Redeemed on Order #${tx.orderId || ''}`;
+            else txTitle = `Used for Order #${tx.orderId || ''}`;
         }
 
         const amountPrefix = isPositive ? '+' : (isHold ? '' : '-');
