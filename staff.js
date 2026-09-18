@@ -47,10 +47,25 @@ const STAFF_MSG91_CONFIG = {
 };
 
 let currentStaffUser = null;
+try {
+    Object.defineProperty(window, 'currentStaffUser', {
+        get: () => currentStaffUser,
+        set: (v) => { currentStaffUser = v; },
+        configurable: true
+    });
+} catch (e) { }
 let staffCurrentName = '';
 let staffCurrentPhone = '';
 let staffOtpTimerId = null;
 let staffOtpCountdown = 45;
+
+var staffOrderAlertAudio = null;
+var isOrderAlertAudioPlaying = false;
+var currentAlertingOrderId = null;
+var staffAudioContext = null;
+var staffVibrationInterval = null;
+const staffDismissedAlertOrderIds = new Set();
+const staffProcessedAudioOrderIds = new Set();
 
 // Centralized Firebase Configuration for Real-time sync
 const defaultFirebaseConfig = {
@@ -283,11 +298,13 @@ async function initStaffFirebase() {
         }
         listenToFirestoreStaffSettings();
         fetchStaffSettingsFromBackend();
-        if (db) {
+        if (db && isStaffAuthenticated()) {
             listenToFirestoreStaffOrders();
         }
-        // Initialize FCM Service Worker and push messaging
-        initStaffFCM();
+        // Initialize FCM Service Worker and push messaging strictly if authenticated
+        if (isStaffAuthenticated()) {
+            initStaffFCM();
+        }
     } catch (e) {
         console.warn('Staff Firebase init notice:', e.message);
     }
@@ -527,6 +544,10 @@ function parseStaffOrder(docId, data = {}) {
 window.parseStaffOrder = parseStaffOrder;
 
 function listenToFirestoreStaffOrders() {
+    if (!isStaffAuthenticated()) {
+        console.log('🔒 [Staff Orders] Skipping Firestore orders listener: Staff is not logged in/authenticated yet.');
+        return;
+    }
     const db = getStaffFirestore();
     if (!db) {
         if (!staffOrdersReconnectTimeout) {
@@ -541,6 +562,10 @@ function listenToFirestoreStaffOrders() {
 
     function processOrdersSnapshot(snapshot) {
         if (!snapshot) return;
+        if (!isStaffAuthenticated()) {
+            stopOrderAlertAudio();
+            return;
+        }
 
         const liveOrders = [];
         snapshot.forEach((doc) => {
@@ -555,6 +580,18 @@ function listenToFirestoreStaffOrders() {
 
         // 2. Synchronize snapshot into shared kitchen pool
         mergeLiveOrdersIntoStaff(sortedLiveOrders);
+
+        // Auto-reject any snapshot orders that have exceeded 100 minutes timeout
+        const nowMs = Date.now();
+        sortedLiveOrders.forEach(o => {
+            const rawStatus = String(o.status || '').toUpperCase().trim();
+            if (rawStatus === 'PENDING') {
+                const remMs = getOrderRemainingTimeMs(o, nowMs);
+                if (remMs <= 0) {
+                    autoRejectExpiredOrder(o);
+                }
+            }
+        });
 
         // 3. Filter valid pending kitchen orders
         const pendingOrders = staffOrders.filter(isValidStaffOrder).filter(isPendingStaffOrder);
@@ -577,9 +614,8 @@ function listenToFirestoreStaffOrders() {
 
         // 5. Audio Alert Trigger:
         // When the pending orders snapshot fires:
-        // If pendingOrders.length > 0 and staff alert is not manually dismissed in the current session:
-        // Trigger the staff looping audio alert immediately.
-        if (pendingOrders.length > 0) {
+        // Trigger looping audio strictly IF staff member is actively logged in and authenticated.
+        if (pendingOrders.length > 0 && isStaffAuthenticated()) {
             if (!isStaffAlertDismissedInSession) {
                 const targetOrder = newestOrder || pendingOrders[pendingOrders.length - 1] || pendingOrders[0];
                 const targetOrderId = String(targetOrder.orderId || targetOrder.id || 'New');
@@ -712,15 +748,11 @@ window.calculateRecoveredExpiry = calculateRecoveredExpiry;
 function isOrder100MinsExpired(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').toUpperCase().trim();
-    if (rawStatus !== 'PENDING' && rawStatus !== 'NEW' && rawStatus !== 'PLACED' && rawStatus !== 'PREPARING') return false;
     const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
     if (terminalStatuses.includes(rawStatus)) return false;
-    if (order.autoExpired === true || order.isAutoExpired === true) return false;
-    if (isOrderAlreadyEvaluatedForExpiry(order)) return false;
 
-    const createdMs = getOrderCreationTimeMs(order);
-    if (!createdMs) return false;
-    return (Date.now() - createdMs) >= ONE_HUNDRED_MINS_EXPIRATION_MS;
+    const timeRemainingMs = getOrderRemainingTimeMs(order);
+    return timeRemainingMs <= 0;
 }
 const isOrderThreeHoursExpired = isOrder100MinsExpired;
 window.isOrder100MinsExpired = isOrder100MinsExpired;
@@ -732,16 +764,11 @@ function getOrderCountdownPillHTML(order) {
     const st = String(order.status || '').toLowerCase().trim();
     if (terminalStatuses.includes(st) || isRejectedStaffOrder(order)) return '';
 
-    const createdMs = getOrderCreationTimeMs(order) || (order.createdAt ? new Date(order.createdAt).getTime() : Date.now());
-    const elapsedMs = Date.now() - createdMs;
-    const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
-    const remMins = Math.max(0, Math.ceil(remMs / 60000));
-    const hrs = Math.floor(remMins / 60);
-    const mins = remMins % 60;
-    const countdownText = remMs <= 0 ? 'Expired' : (hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`);
-    const pillClass = remMs <= 0 ? 'pill-expired' : (remMins <= 20 ? 'pill-urgent' : 'pill-active');
+    const remMs = getOrderRemainingTimeMs(order);
+    const countdownText = format100MinCountdown(remMs);
+    const pillClass = remMs <= 0 ? 'pill-expired' : (remMs <= 20 * 60 * 1000 ? 'pill-urgent' : 'pill-active');
 
-    return `<span class="order-countdown-pill ${pillClass}" title="100-Minute Auto-Expiry Countdown">⏱ ${countdownText}</span>`;
+    return `<span class="order-countdown-pill ${pillClass}" id="countdown-pill-${order.id}" title="100-Minute Auto-Expiry Countdown">⏱ ${countdownText}</span>`;
 }
 window.getOrderCountdownPillHTML = getOrderCountdownPillHTML;
 
@@ -778,8 +805,8 @@ async function autoRejectExpiredOrder(order) {
         ));
 
         const nowIso = new Date().toISOString();
-        const autoExpiryReason = 'Order timed out (>100 mins) - auto expired'; // 100-minute fulfillment timeout
-        const autoExpiryDetailed = 'Order timed out (>100 minutes) - automatically cancelled by system';
+        const autoExpiryReason = 'Auto-expired: 100 minutes timeout';
+        const autoExpiryDetailed = 'Auto-expired: 100 minutes timeout';
 
         order.status = 'REJECTED';
         order.cancellationReason = autoExpiryDetailed;
@@ -975,8 +1002,8 @@ async function autoExpireOrder(orderId) {
                 body: JSON.stringify({
                     orderId: cleanId,
                     status: 'rejected',
-                    cancellationReason: 'Order timed out (>100 minutes) - automatically cancelled by system',
-                    rejectionReason: 'Order timed out (>100 minutes) - automatically cancelled by system',
+                    cancellationReason: 'Auto-expired: 100 minutes timeout',
+                    rejectionReason: 'Auto-expired: 100 minutes timeout',
                     rejectedBy: 'SYSTEM_AUTO_EXPIRE',
                     autoExpired: true,
                     isAutoExpired: true
@@ -996,7 +1023,7 @@ async function sweepAutoExpiredOrders() {
     const expiredOrders = staffOrders.filter(o => {
         const rawStatus = String(o.status || '').toUpperCase().trim();
         const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING');
-        return isPending && isOrder100MinsExpired(o) && !isOrderAlreadyEvaluatedForExpiry(o);
+        return isPending && isOrder100MinsExpired(o);
     });
     if (expiredOrders.length === 0) return;
 
@@ -1067,6 +1094,47 @@ function isStaffAdminUser(user) {
     return false;
 }
 window.isStaffAdminUser = isStaffAdminUser;
+
+/**
+ * Authentication Guard for Staff Portal:
+ * Evaluates to true strictly if the staff member is actively logged in and authenticated.
+ * Returns false on staff login, phone entry, OTP verification screens, and blocked/pending screens.
+ */
+function isStaffAuthenticated() {
+    const overlay = typeof document !== 'undefined' ? document.getElementById('staff-login-overlay') : null;
+    if (overlay && overlay.style.display !== 'none' && overlay.style.visibility !== 'hidden' && overlay.style.opacity === '1') {
+        return false;
+    }
+    let user = currentStaffUser;
+    if (!user) {
+        try {
+            const wasLoggedOut = sessionStorage.getItem('perfetto_staff_logged_out') === 'true' || localStorage.getItem('perfetto_staff_logged_out') === 'true';
+            if (wasLoggedOut) return false;
+            const saved = sessionStorage.getItem(STAFF_SESSION_STORAGE_KEY) || localStorage.getItem(STAFF_LOCAL_STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && parsed.phone) user = parsed;
+            }
+        } catch (e) { }
+    }
+    if (!user) return false;
+    const cleanPhone = String(user.phone || '').replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone) return false;
+    if (cleanPhone === MASTER_ADMIN_PHONE_NUM || user.isMasterAdmin === true || user.role === 'Master Admin') {
+        return true;
+    }
+    if (user.status === 'blocked' || user.status === 'rejected') return false;
+    return user.status === 'active' && user.isApproved !== false;
+}
+window.isStaffAuthenticated = isStaffAuthenticated;
+try {
+    Object.defineProperty(window, 'isStaffLoggedIn', {
+        get: () => isStaffAuthenticated(),
+        configurable: true
+    });
+} catch (e) {
+    window.isStaffLoggedIn = isStaffAuthenticated;
+}
 
 function hideStaffAuthSplash() {
     const splash = document.getElementById('staff-auth-splash');
@@ -1151,7 +1219,23 @@ async function checkStaffAuthSession() {
 
 function lockStaffDashboard() {
     stopOrderAlertAudio();
+    pendingOrderAlertData = null;
     currentStaffUser = null;
+    stopStaffAudioKeepAlive();
+    try {
+        if (staffOrderAlertAudio) {
+            staffOrderAlertAudio.pause();
+            staffOrderAlertAudio.currentTime = 0;
+            staffOrderAlertAudio.muted = true;
+        }
+    } catch (e) { }
+    try {
+        if (staffAudioContext && staffAudioContext.state === 'running') {
+            staffAudioContext.suspend().catch(() => {});
+        }
+    } catch (e) { }
+    dismissStaffAudioBanner();
+
     const appRoot = document.getElementById('staff-app-root') || document.querySelector('.staff-app');
     if (appRoot) {
         appRoot.style.setProperty('display', 'none', 'important');
@@ -1646,6 +1730,23 @@ function handleStaffResetToPhone() {
 }
 
 function showStaffPendingAccessScreen(name, phone, status = 'pending') {
+    stopOrderAlertAudio();
+    pendingOrderAlertData = null;
+    stopStaffAudioKeepAlive();
+    try {
+        if (staffOrderAlertAudio) {
+            staffOrderAlertAudio.pause();
+            staffOrderAlertAudio.currentTime = 0;
+            staffOrderAlertAudio.muted = true;
+        }
+    } catch (e) { }
+    try {
+        if (staffAudioContext && staffAudioContext.state === 'running') {
+            staffAudioContext.suspend().catch(() => {});
+        }
+    } catch (e) { }
+    dismissStaffAudioBanner();
+
     const appRoot = document.getElementById('staff-app-root') || document.querySelector('.staff-app');
     if (appRoot) {
         appRoot.style.setProperty('display', 'none', 'important');
@@ -2791,6 +2892,10 @@ function stopStaffAudioKeepAlive() {
  * Standalone Sound Pill: acts purely as an indicator and volume mute override.
  */
 function enableStaffSound(options = {}) {
+    if (!isStaffAuthenticated()) {
+        console.log('🔒 [Staff Audio] Sound activation skipped: Staff member is not logged in or authenticated.');
+        return;
+    }
     console.log('🔔 [Staff Audio] Activating sound notifications via user interaction...');
     isStaffSoundEnabled = true;
     staffSoundMuted = false;
@@ -2918,6 +3023,12 @@ function unlockAudio(event) {
         } catch (e) { }
     }
 
+    // On staff login and OTP entry screens: ensure all audio routines remain silenced and deactivated
+    if (!isStaffAuthenticated()) {
+        pendingOrderAlertData = null;
+        return;
+    }
+
     // 2. Play and instantly pause HTML5 audio element
     try {
         const audio = getOrderAlertAudio();
@@ -2964,8 +3075,8 @@ function unlockAudio(event) {
     enableStaffSound({ playChime: false, showToast: false });
     dismissStaffAudioBanner();
 
-    // 4. Once clicked, immediately replay pending sirens
-    if (pendingOrderAlertData && isStaffSoundEnabled) {
+    // 4. Once clicked, replay pending sirens strictly IF authenticated
+    if (pendingOrderAlertData && isStaffSoundEnabled && isStaffAuthenticated()) {
         const { orderId, details, orderData } = pendingOrderAlertData;
         pendingOrderAlertData = null;
         startOrderAlertAudio(orderId, details, orderData);
@@ -3008,8 +3119,13 @@ window.dismissStaffAudioBanner = dismissStaffAudioBanner;
 
 function checkAndShowStaffAudioBanner() {
     const banner = document.getElementById('staff-audio-banner');
-    const bannerText = document.getElementById('staff-audio-banner-text');
     if (!banner) return;
+    // Strictly silence and hide on login/OTP screens before staff authentication
+    if (!isStaffAuthenticated()) {
+        banner.style.display = 'none';
+        return;
+    }
+    const bannerText = document.getElementById('staff-audio-banner-text');
     const ctx = getStaffAudioContext();
     const needsUnlock = !isStaffAudioUnlocked || isAudioAutoplayBlocked || (ctx && ctx.state === 'suspended');
     if (needsUnlock) {
@@ -3027,6 +3143,38 @@ window.checkAndShowStaffAudioBanner = checkAndShowStaffAudioBanner;
 // --------------------------------------------------------------------------
 // 4. UPWARD ELAPSED TIMER & DYNAMIC GRADIENT SHIFT CALCULATIONS
 // --------------------------------------------------------------------------
+
+function getOrderRemainingTimeMs(order, nowMs = Date.now()) {
+    if (!order) return 0;
+    const maxDurationMs = 100 * 60 * 1000;
+    let createdMs = 0;
+    if (order.createdAt) {
+        createdMs = new Date(order.createdAt).getTime();
+    }
+    if (!createdMs || isNaN(createdMs)) {
+        createdMs = getOrderCreationTimeMs(order);
+    }
+    if (!createdMs || isNaN(createdMs)) return 0;
+    const timeElapsedMs = nowMs - createdMs;
+    const timeRemainingMs = maxDurationMs - timeElapsedMs;
+    return timeRemainingMs;
+}
+window.getOrderRemainingTimeMs = getOrderRemainingTimeMs;
+
+function format100MinCountdown(timeRemainingMs) {
+    if (timeRemainingMs <= 0) return 'Expired';
+    const boundedMs = Math.min(Math.max(0, timeRemainingMs), ONE_HUNDRED_MINS_EXPIRATION_MS);
+    const totalSecs = Math.floor(boundedMs / 1000);
+    const hrs = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hrs > 0) {
+        return `${hrs}h ${mins}m`;
+    }
+    return `${mins}m ${String(secs).padStart(2, '0')}s`;
+}
+window.format100MinCountdown = format100MinCountdown;
+
 function getOrderCreationTimeMs(order) {
     if (!order) return Date.now();
     const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
@@ -3133,11 +3281,20 @@ const REJECTED_STAFF_STATUSES = new Set(["rejected", "cancelled", "canceled", "d
 function isPendingStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
-    // Strictly guarantee: any order with status === 'PENDING' renders as an active card in Pending tab
+
+    // Auto-cancellation boundary: if remaining time <= 0, remove from Pending immediately
+    const timeRemainingMs = getOrderRemainingTimeMs(order);
+    if (timeRemainingMs <= 0) {
+        return false;
+    }
+    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+        return false;
+    }
+    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
+
     if (rawStatus === 'PENDING') {
         return true;
     }
-    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
     const s = rawStatus.toLowerCase();
     return PENDING_STAFF_STATUSES.has(s);
 }
@@ -3153,18 +3310,28 @@ function isCompletedStaffOrder(order) {
 function isRejectedStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
-    if (rawStatus === 'PENDING') return false;
-    const s = rawStatus.toLowerCase();
-    if (REJECTED_STAFF_STATUSES.has(s) || s === 'expired' || s === 'auto_expired') return true;
-    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && s !== 'pending') {
+    if (isCompletedStaffOrder(order)) return false;
+
+    // Any order whose remaining time <= 0 is categorized under Rejected / Expired
+    const timeRemainingMs = getOrderRemainingTimeMs(order);
+    if (timeRemainingMs <= 0 && rawStatus === 'PENDING') {
         return true;
     }
+    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+        return true;
+    }
+    const s = rawStatus.toLowerCase();
+    if (REJECTED_STAFF_STATUSES.has(s) || s === 'expired' || s === 'auto_expired') return true;
     return false;
 }
 
 function isFinishedStaffOrder(order) {
     return isCompletedStaffOrder(order) || isRejectedStaffOrder(order);
 }
+window.isPendingStaffOrder = isPendingStaffOrder;
+window.isCompletedStaffOrder = isCompletedStaffOrder;
+window.isRejectedStaffOrder = isRejectedStaffOrder;
+window.isFinishedStaffOrder = isFinishedStaffOrder;
 
 function formatStaffTimestamp(raw) {
     if (!raw) return '';
@@ -3186,64 +3353,76 @@ function formatStaffTimestamp(raw) {
 
 function getOrderElapsedData(order) {
     const isCompleted = order.status === 'completed' || order.status === 'delivered';
-    const isRejected = order.status === 'rejected' || order.status === 'cancelled' || order.status === 'declined';
+    const isRejected = order.status === 'rejected' || order.status === 'cancelled' || order.status === 'declined' || isRejectedStaffOrder(order);
     const createdMs = getOrderCreationTimeMs(order);
 
     let elapsedSec = 0;
+    let formatted = '';
+    let stageTitle = '';
+    let isExpired = false;
 
     if (isCompleted || isRejected) {
-        // FREEZE TIMER PERMANENTLY ON COMPLETION
+        // FREEZE TIMER PERMANENTLY ON COMPLETION / REJECTION
         if (typeof order.completedDurationSec === 'number' && !isNaN(order.completedDurationSec)) {
             elapsedSec = Math.max(0, Math.floor(order.completedDurationSec));
         } else {
-            const endIso = order.completedAt || order.deliveredAt || order.updatedAt;
+            const endIso = order.completedAt || order.deliveredAt || order.rejectedAt || order.cancelledAt || order.updatedAt;
             const endMs = endIso ? new Date(endIso).getTime() : Date.now();
             elapsedSec = Math.max(0, Math.floor((endMs - createdMs) / 1000));
-            // Cache duration on order object
             order.completedDurationSec = elapsedSec;
         }
+        const elapsedMins = Math.floor(elapsedSec / 60);
+        const remSecs = elapsedSec % 60;
+        if (elapsedMins < 60) {
+            formatted = `${String(elapsedMins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
+        } else {
+            const hrs = Math.floor(elapsedMins / 60);
+            const mins = elapsedMins % 60;
+            formatted = `${hrs}h ${String(mins).padStart(2, '0')}m`;
+        }
+        if (isCompleted) {
+            stageTitle = `Final Duration: ${formatted} (Completed & Frozen)`;
+        } else {
+            stageTitle = (order.autoExpired || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE')
+                ? `Auto-Expired: 100 minutes timeout`
+                : `Order Declined (${formatted})`;
+        }
     } else {
-        // LIVE UPWARD COUNTING
-        const nowMs = Date.now();
-        elapsedSec = Math.max(0, Math.floor((nowMs - createdMs) / 1000));
+        // COUNTDOWN FROM 100 MINUTES STRICTLY FOR ACTIVE / PENDING ORDERS
+        const timeRemainingMs = getOrderRemainingTimeMs(order);
+        formatted = format100MinCountdown(timeRemainingMs);
+        if (timeRemainingMs <= 0) {
+            isExpired = true;
+            stageTitle = 'Auto-expired: 100 minutes timeout';
+        } else {
+            stageTitle = `Expires in: ${formatted} (100m Timeout)`;
+        }
+        elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
     }
 
-    const elapsedMins = Math.floor(elapsedSec / 60);
-    const remSecs = elapsedSec % 60;
-
-    let formatted = '';
-    if (elapsedMins < 60) {
-        formatted = `${String(elapsedMins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
-    } else {
-        const hrs = Math.floor(elapsedMins / 60);
-        const mins = elapsedMins % 60;
-        formatted = `${hrs}h ${String(mins).padStart(2, '0')}m`;
-    }
-
-    const color = getDynamicTimerColor(elapsedSec);
-
-    let stageTitle = `Elapsed: ${formatted}`;
+    let color;
     if (isCompleted) {
-        stageTitle = `Final Duration: ${formatted} (Completed & Frozen)`;
-    } else if (isRejected) {
-        stageTitle = `Order Declined (${formatted})`;
-    } else if (elapsedMins >= 20) {
-        stageTitle = `Critical Delay: ${formatted} (20+ mins)`;
-    } else if (elapsedMins >= 14) {
-        stageTitle = `Delayed: ${formatted} (14+ mins)`;
-    } else if (elapsedMins >= 7) {
-        stageTitle = `Attention: ${formatted} (7-14 mins)`;
+        color = { textColor: '#10b981', borderColor: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', shadowColor: 'rgba(16, 185, 129, 0.2)', isCritical: false };
+    } else if (isRejected || isExpired) {
+        color = { textColor: '#ef4444', borderColor: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.12)', shadowColor: 'rgba(239, 68, 68, 0.3)', isCritical: true };
     } else {
-        stageTitle = `On Time: ${formatted} (0-7 mins)`;
+        const timeRemainingMs = getOrderRemainingTimeMs(order);
+        if (timeRemainingMs <= 10 * 60 * 1000) {
+            color = { textColor: '#ef4444', borderColor: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.12)', shadowColor: 'rgba(239, 68, 68, 0.3)', isCritical: true };
+        } else if (timeRemainingMs <= 20 * 60 * 1000) {
+            color = { textColor: '#f59e0b', borderColor: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.12)', shadowColor: 'rgba(245, 158, 11, 0.3)', isCritical: false };
+        } else {
+            color = { textColor: '#10b981', borderColor: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', shadowColor: 'rgba(16, 185, 129, 0.2)', isCritical: false };
+        }
     }
 
     return {
         elapsedSec,
-        elapsedMins,
         formatted,
         color,
         isCompleted,
         isRejected,
+        isExpired,
         stageTitle,
         styleAttr: `color: ${color.textColor}; border-color: ${color.borderColor}; background-color: ${color.bgColor}; box-shadow: 0 2px 12px ${color.shadowColor};`
     };
@@ -3432,19 +3611,50 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function updateLiveTimers() {
+    if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
+    const nowMs = Date.now();
+    let anyExpiredThisTick = false;
+
     staffOrders.forEach(order => {
-        // Skip updating active elapsed time if already completed/frozen
+        if (!order) return;
+        // Skip updating if already completed or rejected
         if (isFinishedStaffOrder(order)) {
             return;
         }
 
+        const rawStatus = String(order.status || '').toUpperCase().trim();
+        const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED');
+
+        if (isPending) {
+            const timeRemainingMs = getOrderRemainingTimeMs(order, nowMs);
+            if (timeRemainingMs <= 0) {
+                anyExpiredThisTick = true;
+                autoRejectExpiredOrder(order);
+                return;
+            }
+        }
+
         const badgeEl = document.getElementById(`timer-badge-${order.id}`);
         const valEl = document.getElementById(`timer-val-${order.id}`);
-        if (badgeEl && valEl) {
-            const timerData = getOrderElapsedData(order);
-            valEl.textContent = timerData.formatted;
+        const pillEl = document.getElementById(`countdown-pill-${order.id}`);
 
-            // Apply continuous smooth color transition
+        const timerData = getOrderElapsedData(order);
+
+        if (valEl) {
+            valEl.textContent = timerData.formatted;
+        }
+        if (pillEl) {
+            const timeRemainingMs = getOrderRemainingTimeMs(order, nowMs);
+            pillEl.textContent = `⏱ ${timerData.formatted}`;
+            if (timeRemainingMs <= 0) {
+                pillEl.className = 'order-countdown-pill pill-expired';
+            } else if (timeRemainingMs <= 20 * 60 * 1000) {
+                pillEl.className = 'order-countdown-pill pill-urgent';
+            } else {
+                pillEl.className = 'order-countdown-pill pill-active';
+            }
+        }
+        if (badgeEl) {
             badgeEl.style.color = timerData.color.textColor;
             badgeEl.style.borderColor = timerData.color.borderColor;
             badgeEl.style.backgroundColor = timerData.color.bgColor;
@@ -3458,6 +3668,10 @@ function updateLiveTimers() {
             }
         }
     });
+
+    if (anyExpiredThisTick) {
+        renderOrders();
+    }
 }
 
 window.addEventListener('storage', (e) => {
@@ -5804,14 +6018,6 @@ window.handleDeleteAllCompletedOrders = handleDeleteAllCompletedOrders;
 // 12. WEB AUDIO ALERT SYSTEM & INCOMING ORDER MODAL
 // --------------------------------------------------------------------------
 
-let staffOrderAlertAudio = null;
-let isOrderAlertAudioPlaying = false;
-let currentAlertingOrderId = null;
-let staffAudioContext = null;
-let staffVibrationInterval = null;
-const staffDismissedAlertOrderIds = new Set();
-const staffProcessedAudioOrderIds = new Set();
-
 /**
  * Triggers hardware vibration alert pattern: 300ms on, 150ms off, 300ms on, 150ms off, 500ms on
  */
@@ -6024,6 +6230,12 @@ function startSynthesizedBeepLoop() {
 }
 
 function startOrderAlertAudio(orderId = '', details = '', orderData = null) {
+    // Strictly guard audio loop behind full staff authentication
+    if (!isStaffAuthenticated()) {
+        console.log('🔒 [Staff Audio Guard] Looping audio alert blocked: Staff member is not authenticated.');
+        stopOrderAlertAudio();
+        return;
+    }
     staffSoundMuted = false;
     const cleanId = String(orderId || 'New').replace(/^#/, '').trim();
     if (isOrderAlertAudioPlaying && currentAlertingOrderId === cleanId) {
