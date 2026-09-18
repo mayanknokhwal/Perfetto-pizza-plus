@@ -479,6 +479,75 @@ const processedOrderDocIds = new Set();
 const staffIncomingAlertedIds = new Set();
 
 /**
+ * Reliably parses order creation timestamp from Firestore server timestamps, ISO strings,
+ * epoch milliseconds, epoch seconds, or embedded IDs without returning NaN or zero.
+ */
+function parseOrderCreationTimeMs(rawInput) {
+    if (!rawInput) return Date.now();
+    let val = rawInput;
+    if (typeof rawInput === 'object' && rawInput !== null) {
+        val = rawInput.createdAt || rawInput.created_at || rawInput.serverTimestamp || rawInput.timestamp || rawInput.date || rawInput.prepStartedAt || rawInput;
+    }
+    if (!val) return Date.now();
+
+    // 1. Direct number (epoch ms or epoch sec)
+    if (typeof val === 'number') {
+        if (isNaN(val) || val <= 0) return Date.now();
+        return val < 1e11 ? val * 1000 : val;
+    }
+
+    // 2. Firestore Timestamp object
+    if (typeof val === 'object' && val !== null) {
+        if (typeof val.toMillis === 'function') {
+            const ms = val.toMillis();
+            if (typeof ms === 'number' && !isNaN(ms) && ms > 0) return ms;
+        }
+        if (typeof val.toDate === 'function') {
+            const d = val.toDate();
+            if (d instanceof Date && !isNaN(d.getTime())) return d.getTime();
+        }
+        if (typeof val.seconds === 'number' && !isNaN(val.seconds)) {
+            const ms = val.seconds * 1000 + Math.floor((val.nanoseconds || 0) / 1e6);
+            if (ms > 0) return ms;
+        }
+        if (typeof val._seconds === 'number' && !isNaN(val._seconds)) {
+            const ms = val._seconds * 1000 + Math.floor((val._nanoseconds || 0) / 1e6);
+            if (ms > 0) return ms;
+        }
+    }
+
+    // 3. String representation
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (/^\d{10,13}$/.test(trimmed)) {
+            const num = Number(trimmed);
+            if (!isNaN(num) && num > 0) {
+                return num < 1e11 ? num * 1000 : num;
+            }
+        }
+        const parsed = new Date(trimmed).getTime();
+        if (!isNaN(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+
+    // 4. Try extract timestamp from Order ID
+    if (typeof rawInput === 'object' && rawInput !== null) {
+        const idStr = String(rawInput.orderId || rawInput.id || rawInput.firestoreDocId || rawInput.docId || '');
+        const match = idStr.match(/(\d{10,13})/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > 1500000000 && num < 2500000000000) {
+                return num < 1e11 ? num * 1000 : num;
+            }
+        }
+    }
+
+    return Date.now();
+}
+window.parseOrderCreationTimeMs = parseOrderCreationTimeMs;
+
+/**
  * Robust document parser for Staff Portal kitchen ingestion.
  * Strictly guarantees clean string IDs, arrays for items, numeric totals,
  * normalized status, and prevents unhandled exceptions from malformed or partial payloads.
@@ -508,21 +577,9 @@ function parseStaffOrder(docId, data = {}) {
     let total = data.total !== undefined ? data.total : (data.finalPayable !== undefined ? data.finalPayable : (data.totalAmount !== undefined ? data.totalAmount : (data.costs?.total !== undefined ? data.costs.total : 0)));
     total = Number(total) || 0;
 
-    // Normalize createdAt timestamp
-    let createdAt = data.createdAt;
-    if (!createdAt && data.serverTimestamp) {
-        if (typeof data.serverTimestamp.toDate === 'function') {
-            createdAt = data.serverTimestamp.toDate().toISOString();
-        } else {
-            createdAt = new Date(data.serverTimestamp).toISOString();
-        }
-    }
-    if (!createdAt && data.timestamp) {
-        createdAt = new Date(data.timestamp).toISOString();
-    }
-    if (!createdAt) {
-        createdAt = new Date().toISOString();
-    }
+    // Normalize createdAt timestamp reliably without NaN or zero
+    const createdMs = parseOrderCreationTimeMs(data);
+    const createdAt = new Date(createdMs).toISOString();
 
     return {
         ...data,
@@ -586,8 +643,7 @@ function listenToFirestoreStaffOrders() {
         sortedLiveOrders.forEach(o => {
             const rawStatus = String(o.status || '').toUpperCase().trim();
             if (rawStatus === 'PENDING') {
-                const remMs = getOrderRemainingTimeMs(o, nowMs);
-                if (remMs <= 0) {
+                if (isOrder100MinsExpired(o, nowMs)) {
                     autoRejectExpiredOrder(o);
                 }
             }
@@ -745,14 +801,17 @@ function calculateRecoveredExpiry(originalExpiresAt, nowMs = Date.now()) {
 }
 window.calculateRecoveredExpiry = calculateRecoveredExpiry;
 
-function isOrder100MinsExpired(order) {
+function isOrder100MinsExpired(order, nowMs = Date.now()) {
     if (!order) return false;
     const rawStatus = String(order.status || '').toUpperCase().trim();
     const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
     if (terminalStatuses.includes(rawStatus)) return false;
 
-    const timeRemainingMs = getOrderRemainingTimeMs(order);
-    return timeRemainingMs <= 0;
+    const createdMs = parseOrderCreationTimeMs(order);
+    if (!createdMs || isNaN(createdMs) || createdMs <= 0) return false;
+    const elapsedMs = nowMs - createdMs;
+    // Enforce that a pending order is ONLY considered expired if its creation timestamp is strictly more than 100 minutes in the past
+    return elapsedMs >= ONE_HUNDRED_MINS_EXPIRATION_MS;
 }
 const isOrderThreeHoursExpired = isOrder100MinsExpired;
 window.isOrder100MinsExpired = isOrder100MinsExpired;
@@ -782,6 +841,15 @@ async function autoRejectExpiredOrder(order) {
     const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
     if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
         markOrderEvaluatedForExpiry(order);
+        return;
+    }
+
+    // Strict 100-minute guard: NEVER reject or touch fresh pending orders whose elapsed duration is under 100 minutes
+    const createdMs = parseOrderCreationTimeMs(order);
+    const elapsedMs = Date.now() - createdMs;
+    if (elapsedMs < ONE_HUNDRED_MINS_EXPIRATION_MS) {
+        console.log(`[STAFF SWEEPER] Order #${order.id || order.orderId} is fresh (${Math.round(elapsedMs / 60000)}m old). Auto-expiry skipped.`);
+        setOrderActionInFlight(order, false);
         return;
     }
 
@@ -3145,18 +3213,10 @@ window.checkAndShowStaffAudioBanner = checkAndShowStaffAudioBanner;
 // --------------------------------------------------------------------------
 
 function getOrderRemainingTimeMs(order, nowMs = Date.now()) {
-    if (!order) return 0;
-    const maxDurationMs = 100 * 60 * 1000;
-    let createdMs = 0;
-    if (order.createdAt) {
-        createdMs = new Date(order.createdAt).getTime();
-    }
-    if (!createdMs || isNaN(createdMs)) {
-        createdMs = getOrderCreationTimeMs(order);
-    }
-    if (!createdMs || isNaN(createdMs)) return 0;
-    const timeElapsedMs = nowMs - createdMs;
-    const timeRemainingMs = maxDurationMs - timeElapsedMs;
+    if (!order) return ONE_HUNDRED_MINS_EXPIRATION_MS;
+    const createdMs = parseOrderCreationTimeMs(order);
+    const elapsedMs = Math.max(0, nowMs - createdMs);
+    const timeRemainingMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
     return timeRemainingMs;
 }
 window.getOrderRemainingTimeMs = getOrderRemainingTimeMs;
@@ -3176,39 +3236,9 @@ function format100MinCountdown(timeRemainingMs) {
 window.format100MinCountdown = format100MinCountdown;
 
 function getOrderCreationTimeMs(order) {
-    if (!order) return Date.now();
-    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
-    if (raw) {
-        if (typeof raw === 'number') {
-            return raw < 1e11 ? raw * 1000 : raw;
-        }
-        if (typeof raw === 'object') {
-            if (typeof raw.toMillis === 'function') {
-                return raw.toMillis();
-            }
-            if (typeof raw.toDate === 'function') {
-                return raw.toDate().getTime();
-            }
-            if (raw.seconds) {
-                return raw.seconds * 1000;
-            }
-            if (raw._seconds) {
-                return raw._seconds * 1000;
-            }
-        }
-        const parsed = new Date(raw).getTime();
-        if (!isNaN(parsed) && parsed > 0) return parsed;
-    }
-    const idStr = String(order.id || order.orderId || order.firestoreDocId || '');
-    const match = idStr.match(/(\d{10,13})/);
-    if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > 1500000000 && num < 2500000000000) {
-            return num < 1e11 ? num * 1000 : num;
-        }
-    }
-    return Date.now();
+    return parseOrderCreationTimeMs(order);
 }
+window.getOrderCreationTimeMs = getOrderCreationTimeMs;
 
 /**
  * Calculates a smooth, continuous HSL color gradient shift:
@@ -3282,9 +3312,8 @@ function isPendingStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
 
-    // Auto-cancellation boundary: if remaining time <= 0, remove from Pending immediately
-    const timeRemainingMs = getOrderRemainingTimeMs(order);
-    if (timeRemainingMs <= 0) {
+    // Auto-cancellation boundary: strictly remove only if order is 100 minutes expired
+    if (isOrder100MinsExpired(order)) {
         return false;
     }
     if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
@@ -3312,9 +3341,8 @@ function isRejectedStaffOrder(order) {
     const rawStatus = String(order.status || '').trim().toUpperCase();
     if (isCompletedStaffOrder(order)) return false;
 
-    // Any order whose remaining time <= 0 is categorized under Rejected / Expired
-    const timeRemainingMs = getOrderRemainingTimeMs(order);
-    if (timeRemainingMs <= 0 && rawStatus === 'PENDING') {
+    // Any order whose creation timestamp is strictly >= 100 minutes in the past is categorized under Rejected / Expired
+    if (isOrder100MinsExpired(order) && (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED')) {
         return true;
     }
     if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
@@ -3626,8 +3654,7 @@ function updateLiveTimers() {
         const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED');
 
         if (isPending) {
-            const timeRemainingMs = getOrderRemainingTimeMs(order, nowMs);
-            if (timeRemainingMs <= 0) {
+            if (isOrder100MinsExpired(order, nowMs)) {
                 anyExpiredThisTick = true;
                 autoRejectExpiredOrder(order);
                 return;

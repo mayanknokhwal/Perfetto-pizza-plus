@@ -1097,6 +1097,9 @@ export function listenToAdminTodayOrders(options = {}) {
     }
 
     let unsubscribe = null;
+    let isInitialAdminHydration = true;
+    const adminKnownOrderIds = new Set();
+
     try {
         // Query orders strictly bounded by limit to eliminate excessive reads
         let queryRef;
@@ -1108,17 +1111,69 @@ export function listenToAdminTodayOrders(options = {}) {
 
         unsubscribe = queryRef.onSnapshot((snapshot) => {
             const orders = [];
+            const newPendingOrders = [];
+
             if (snapshot && typeof snapshot.forEach === 'function') {
                 snapshot.forEach((doc) => {
                     const data = doc.data() || {};
-                    orders.push({
+                    const docId = doc.id;
+                    const rawId = data.orderId || data.id || docId;
+                    const cleanId = String(rawId).replace(/^#/, '').trim();
+                    const orderObj = {
                         ...data,
-                        id: data.id || data.orderId || doc.id,
-                        orderId: data.orderId || data.id || doc.id,
-                        firestoreDocId: doc.id
-                    });
+                        id: data.id || data.orderId || docId,
+                        orderId: data.orderId || data.id || docId,
+                        firestoreDocId: docId
+                    };
+                    orders.push(orderObj);
+
+                    const status = String(data.status || '').toUpperCase().trim();
+                    const isPending = status === 'PENDING' || status === 'NEW' || status === 'PLACED';
+
+                    if (!isInitialAdminHydration && isPending && !adminKnownOrderIds.has(cleanId) && !adminKnownOrderIds.has(docId)) {
+                        newPendingOrders.push(orderObj);
+                    }
+                    adminKnownOrderIds.add(cleanId);
+                    adminKnownOrderIds.add(docId);
                 });
             }
+
+            // Also inspect snapshot.docChanges() for immediate additions / updates
+            if (!isInitialAdminHydration && snapshot && typeof snapshot.docChanges === 'function') {
+                try {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === 'added' || change.type === 'modified') {
+                            const data = change.doc.data() || {};
+                            const docId = change.doc.id;
+                            const rawId = data.orderId || data.id || docId;
+                            const cleanId = String(rawId).replace(/^#/, '').trim();
+                            const status = String(data.status || '').toUpperCase().trim();
+                            const isPending = status === 'PENDING' || status === 'NEW' || status === 'PLACED';
+
+                            if (isPending && !adminKnownOrderIds.has(cleanId) && !adminKnownOrderIds.has(docId) && !adminHandledAudioOrderIds.has(cleanId)) {
+                                const orderObj = {
+                                    ...data,
+                                    id: data.id || data.orderId || docId,
+                                    orderId: data.orderId || data.id || docId,
+                                    firestoreDocId: docId
+                                };
+                                newPendingOrders.push(orderObj);
+                                adminKnownOrderIds.add(cleanId);
+                                adminKnownOrderIds.add(docId);
+                            }
+                        }
+                    });
+                } catch (dcErr) { }
+            }
+
+            // When a newly added document with pending status arrives after initial page load, trigger admin order chime & banner
+            if (!isInitialAdminHydration && newPendingOrders.length > 0) {
+                const latestNewOrder = newPendingOrders[0];
+                console.log(`🔔 [admin.js] Real-time incoming pending order #${latestNewOrder.orderId || latestNewOrder.id}. Triggering admin chime & banner...`);
+                showAdminOrderAlert(latestNewOrder);
+            }
+
+            isInitialAdminHydration = false;
 
             // In-memory pure calculation with zero Firestore writes
             const kpis = calculateDashboardKPIs(orders);

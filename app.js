@@ -957,24 +957,17 @@ window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
 
 function getStoredVerifiedPhone() {
     try {
-        // 1. Check direct verified phone key
-        const direct = safeStorage.getItem(VERIFIED_PHONE_STORAGE_KEY) || safeSessionStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
-        if (direct && typeof direct === 'string') {
-            const clean = direct.replace(/[^0-9]/g, '').slice(-10);
+        // Strictly check active session storage first
+        const sessionDirect = safeSessionStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
+        if (sessionDirect && typeof sessionDirect === 'string') {
+            const clean = sessionDirect.replace(/[^0-9]/g, '').slice(-10);
             if (clean.length === 10) return clean;
         }
 
-        // 2. Check structured verified phone state object
-        const parsedState = safeStorage.getJSON(VERIFIED_PHONE_STATE_KEY, null);
-        if (parsedState && parsedState.isVerified && parsedState.phone) {
-            const clean = String(parsedState.phone).replace(/[^0-9]/g, '').slice(-10);
-            if (clean.length === 10) return clean;
-        }
-
-        // 3. Check delivery profile if marked isVerified
-        const parsedProfile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
-        if (parsedProfile && parsedProfile.isVerified && parsedProfile.phone) {
-            const clean = String(parsedProfile.phone).replace(/[^0-9]/g, '').slice(-10);
+        // Check in-memory verified state if active in session
+        if (typeof isPhoneVerified !== 'undefined' && isPhoneVerified) {
+            const phoneInput = document.getElementById('customer-phone');
+            const clean = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').slice(-10) : '';
             if (clean.length === 10) return clean;
         }
     } catch (e) {
@@ -987,15 +980,6 @@ function getVerifiedCustomerPhone() {
     try {
         const verified = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : null;
         if (verified && verified.length === 10) return verified;
-        if (currentUserProfile && currentUserProfile.phone) {
-            const clean = String(currentUserProfile.phone).replace(/[^0-9]/g, '').slice(-10);
-            if (clean.length === 10) return clean;
-        }
-        const profile = typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null;
-        if (profile && profile.phone) {
-            const clean = String(profile.phone).replace(/[^0-9]/g, '').slice(-10);
-            if (clean.length === 10 && profile.isVerified !== false) return clean;
-        }
     } catch (e) {
         console.warn('Error resolving verified customer phone:', e);
     }
@@ -1041,6 +1025,7 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
                 profile.phone = cleanPhone;
                 profile.isVerified = true;
                 safeStorage.setJSON(DELIVERY_PROFILE_KEY, profile);
+                safeStorage.setJSON(`customerDeliveryProfile_${cleanPhone}`, profile);
             }
 
             // Only trigger restore if explicitly requested and not already verified to prevent recursive loops
@@ -1056,6 +1041,9 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
             safeStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             safeSessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             safeStorage.removeItem(VERIFIED_PHONE_STATE_KEY);
+            if (cleanPhone) {
+                safeStorage.removeItem(`customerDeliveryProfile_${cleanPhone}`);
+            }
 
             const profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
             if (profile && typeof profile === 'object') {
@@ -5563,8 +5551,20 @@ function getEffectiveWalletBalance() {
     if (typeof checkAndApplyWalletLedgerReset === 'function') {
         checkAndApplyWalletLedgerReset();
     }
+    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    if (!verifiedPhone) {
+        return 0;
+    }
     if (currentCustomerWallet) {
-        return reconcileWalletTranches(currentCustomerWallet);
+        const walletPhone = currentCustomerWallet.phone || currentCustomerWallet.customerPhone;
+        const cleanWalletPhone = walletPhone ? String(walletPhone).replace(/[^0-9]/g, '').slice(-10) : null;
+        if (!cleanWalletPhone || cleanWalletPhone === verifiedPhone) {
+            return reconcileWalletTranches(currentCustomerWallet);
+        }
+    }
+    const phoneScopedStored = localStorage.getItem(`perfetto_wallet_balance_${verifiedPhone}`);
+    if (phoneScopedStored !== null && !isNaN(Number(phoneScopedStored))) {
+        return Math.max(0, Number(phoneScopedStored));
     }
     const directStored = localStorage.getItem('perfetto_wallet_balance');
     if (directStored !== null && !isNaN(Number(directStored))) {
@@ -5748,6 +5748,10 @@ async function fetchCustomerWallet(phone) {
                 reconcileWalletTranches(currentCustomerWallet);
                 localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
                 localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
+                if (cleanPhone) {
+                    localStorage.setItem(`perfetto_customer_wallet_${cleanPhone}`, JSON.stringify(currentCustomerWallet));
+                    localStorage.setItem(`perfetto_wallet_balance_${cleanPhone}`, String(currentCustomerWallet.balance));
+                }
                 return currentCustomerWallet;
             }
         } catch (e) {
@@ -5876,6 +5880,11 @@ function applyLiveWalletData(data, source = 'wallets') {
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
         localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
+        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        if (verifiedPhone) {
+            localStorage.setItem(`perfetto_customer_wallet_${verifiedPhone}`, JSON.stringify(currentCustomerWallet));
+            localStorage.setItem(`perfetto_wallet_balance_${verifiedPhone}`, String(currentCustomerWallet.balance));
+        }
     } catch (e) {}
 
     // Instantly reflect in Profile, Checkout and Cart UI without refresh
@@ -7104,8 +7113,9 @@ function updateProfileWalletUI() {
         }
     }
 
-    // Read updated cumulative balance dynamically
-    const balance = getEffectiveWalletBalance();
+    // Read updated cumulative balance dynamically (strictly 0 if unverified)
+    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    const balance = verifiedPhone ? getEffectiveWalletBalance() : 0;
     valEl.textContent = balance;
 
     if (rulesText) {
@@ -7122,7 +7132,7 @@ function updateProfileWalletUI() {
     const expiringAmountEl = document.getElementById('profile-wallet-expiring-amount');
     const expiringCountdownEl = document.getElementById('profile-wallet-expiring-countdown');
 
-    if (balance <= 0) {
+    if (!verifiedPhone || balance <= 0) {
         if (expiryTag) expiryTag.style.display = 'none';
         if (expiringAlert) expiringAlert.style.display = 'none';
     } else {
@@ -7165,7 +7175,7 @@ function updateProfileWalletUI() {
     // Check for unclaimed scratch cards from delivered orders
     const unclaimedBanner = document.getElementById('profile-scratch-unclaimed-banner');
     if (unclaimedBanner) {
-        if (!isSystemEnabled && balance <= 0) {
+        if (!verifiedPhone || (!isSystemEnabled && balance <= 0)) {
             unclaimedBanner.style.display = 'none';
         } else {
             const unclaimedOrder = getFirstUnclaimedDeliveredOrder();
@@ -11081,11 +11091,15 @@ function permanentlyInvalidateScratchCard(order) {
 
 function getFirstUnclaimedOrder() {
     try {
+        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        if (!verifiedPhone) return null;
         const stored = localStorage.getItem('perfettoCustomerOrders');
         if (stored) {
             const orders = JSON.parse(stored);
             if (Array.isArray(orders)) {
                 return orders.find(o => {
+                    const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                    if (p !== verifiedPhone) return false;
                     const isCancelled = o.status === 'rejected' || o.status === 'cancelled';
                     const amount = Number(o.earnedCashback || (o.scratchCard && o.scratchCard.amount) || 0);
                     const isClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
@@ -11097,6 +11111,7 @@ function getFirstUnclaimedOrder() {
     } catch (e) { }
     return null;
 }
+window.getFirstUnclaimedOrder = getFirstUnclaimedOrder;
 const getFirstUnclaimedDeliveredOrder = getFirstUnclaimedOrder;
 
 function openScratchCardModal(order, demoAmount) {
@@ -13040,6 +13055,26 @@ function renderProfileHeaderAndInputs(profile) {
             }
             if (coordsDisplay) coordsDisplay.style.display = 'none';
             if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
+
+            const fullNameInput = document.getElementById('customer-fullname');
+            const colonyInput = document.getElementById('customer-colony-name');
+            const nearbyInput = document.getElementById('customer-nearby');
+            const streetInput = document.getElementById('customer-street-name');
+            const wardInput = document.getElementById('customer-ward-no');
+            const emailInput = document.getElementById('customer-email');
+            const phoneInput = document.getElementById('customer-phone');
+            if (fullNameInput) fullNameInput.value = '';
+            if (emailInput) emailInput.value = '';
+            if (phoneInput) {
+                phoneInput.value = '';
+                phoneInput.readOnly = false;
+                phoneInput.style.backgroundColor = '';
+                phoneInput.style.cursor = '';
+            }
+            if (colonyInput) colonyInput.value = '';
+            if (nearbyInput) nearbyInput.value = '';
+            if (streetInput) streetInput.value = '';
+            if (wardInput) wardInput.value = '';
         }
     }
 }
@@ -13057,43 +13092,52 @@ function updateProfileTotalsUI() {
     if (itemCountEl) itemCountEl.textContent = `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
     if (orderTotalEl) orderTotalEl.textContent = formatPrice(total);
 
+    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+
     // Update stats counters - clean Total Orders only (strictly isolated to verified phone)
     let orderCount = 0;
-    try {
-        const storedOrders = localStorage.getItem('perfettoCustomerOrders');
-        if (storedOrders) {
-            let list = JSON.parse(storedOrders);
-            if (Array.isArray(list)) {
-                const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
-                if (verifiedPhone) {
+    if (verifiedPhone) {
+        try {
+            const storedOrders = localStorage.getItem('perfettoCustomerOrders');
+            if (storedOrders) {
+                let list = JSON.parse(storedOrders);
+                if (Array.isArray(list)) {
                     list = list.filter(o => {
                         const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
                         return p === verifiedPhone;
                     });
+                    const clearedSet = new Set(getClearedOrderIds());
+                    const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
+                    list = list.filter(o => {
+                        const id = String((o && (o.id || o.orderId)) || '');
+                        const st = String((o && o.status) || '').trim().toLowerCase();
+                        return !(clearedSet.has(id) && terminalStatuses.has(st));
+                    });
+                    orderCount = list.length;
                 }
-                const clearedSet = new Set(getClearedOrderIds());
-                const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
-                list = list.filter(o => {
-                    const id = String((o && (o.id || o.orderId)) || '');
-                    const st = String((o && o.status) || '').trim().toLowerCase();
-                    return !(clearedSet.has(id) && terminalStatuses.has(st));
-                });
-                orderCount = list.length;
             }
-        }
-    } catch (e) { }
+        } catch (e) { }
+    } else {
+        orderCount = 0;
+    }
 
     const totalOrdersEl = document.getElementById('stat-total-orders');
     if (totalOrdersEl) totalOrdersEl.textContent = orderCount;
 
-    // Update profile display name/phone & prefill inputs
+    // Update profile display name/phone & prefill inputs strictly scoped to verified session
     let currentProfile = null;
-    try {
-        const savedProfile = localStorage.getItem(DELIVERY_PROFILE_KEY);
-        if (savedProfile) {
-            currentProfile = JSON.parse(savedProfile);
-        }
-    } catch (e) { }
+    if (verifiedPhone) {
+        try {
+            const savedProfile = localStorage.getItem(`customerDeliveryProfile_${verifiedPhone}`) || localStorage.getItem(DELIVERY_PROFILE_KEY);
+            if (savedProfile) {
+                const parsed = JSON.parse(savedProfile);
+                const pPhone = String(parsed.phone || '').replace(/[^0-9]/g, '').slice(-10);
+                if (pPhone === verifiedPhone) {
+                    currentProfile = parsed;
+                }
+            }
+        } catch (e) { }
+    }
 
     renderProfileHeaderAndInputs(currentProfile);
 
@@ -13101,7 +13145,7 @@ function updateProfileTotalsUI() {
     updateProfileWalletUI();
     renderProfileWalletTxList();
     startWalletCountdownTimer();
-    if (currentProfile && currentProfile.phone) {
+    if (verifiedPhone && currentProfile && currentProfile.phone) {
         fetchCustomerWallet(currentProfile.phone).then(() => {
             updateProfileWalletUI();
             renderProfileWalletTxList();
@@ -13620,13 +13664,25 @@ function renderOrderHistoryDetails() {
     const clearBtn = document.getElementById('btn-clear-history') || document.getElementById('clear-completed-orders-btn') || document.querySelector('[data-id="clear-completed-orders-btn"]');
     if (!listEl) return;
 
+    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    if (!verifiedPhone) {
+        if (clearBtn) clearBtn.style.display = 'none';
+        listEl.innerHTML = `
+            <div class="empty-state-notice" style="text-align: center; padding: 28px 16px; color: var(--text-muted);">
+                <i class="fa-solid fa-clock-rotate-left" style="font-size: 2.2rem; margin-bottom: 12px; opacity: 0.4; display: block;"></i>
+                <h4 style="font-size: 1rem; margin-bottom: 6px; color: var(--text-main);">No Order History</h4>
+                <p style="font-size: 0.85rem; margin: 0;">Please verify your phone number to view your past orders.</p>
+            </div>
+        `;
+        return;
+    }
+
     try {
         let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
-        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
-        if (verifiedPhone && Array.isArray(orders)) {
+        if (Array.isArray(orders)) {
             orders = orders.filter(o => {
                 const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
-                return !p || p === verifiedPhone;
+                return p === verifiedPhone;
             });
         }
 
