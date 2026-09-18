@@ -4926,6 +4926,9 @@ let currentCustomerWallet = (function() {
     } catch (e) {}
     return { balance: directBal, nonExpiredBalance: directBal, transactions: [] };
 })();
+if (typeof window !== 'undefined') {
+    window.currentCustomerWallet = currentCustomerWallet;
+}
 
 function parseTimestampMs(val) {
     if (!val) return NaN;
@@ -4941,8 +4944,104 @@ function parseTimestampMs(val) {
 }
 window.parseTimestampMs = parseTimestampMs;
 
+function checkAndApplyWalletLedgerReset(targetWallet = null) {
+    try {
+        if (typeof localStorage === 'undefined') return false;
+        if (localStorage.getItem("RESET_WALLET_LEDGER") !== "true") return false;
+
+        console.warn("[WALLET] RESET_WALLET_LEDGER flag detected. Performing one-time clean wallet purge and reset to 0.");
+
+        // Clear local storage wallet keys
+        localStorage.removeItem('perfetto_wallet_balance');
+        localStorage.removeItem('perfetto_customer_wallet');
+        if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.setJSON === 'function') {
+            safeStorage.setJSON('perfetto_wallet_balance', 0);
+            safeStorage.setJSON('perfetto_customer_wallet', { balance: 0, nonExpiredBalance: 0, transactions: [] });
+        }
+
+        const phone = (typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ||
+            (targetWallet && targetWallet.phone) ||
+            (typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet && currentCustomerWallet.phone) ||
+            (typeof safeStorage !== 'undefined' && safeStorage && safeStorage.getJSON ? (safeStorage.getJSON('perfettoCustomerProfile', {}) || {}).phone : '') ||
+            '';
+        const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+
+        if (targetWallet) {
+            targetWallet.balance = 0;
+            targetWallet.nonExpiredBalance = 0;
+            targetWallet.usableBalance = 0;
+            targetWallet.transactions = [];
+            targetWallet.phone = cleanPhone;
+        }
+
+        if (typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet) {
+            currentCustomerWallet.balance = 0;
+            currentCustomerWallet.nonExpiredBalance = 0;
+            currentCustomerWallet.usableBalance = 0;
+            currentCustomerWallet.transactions = [];
+            currentCustomerWallet.phone = cleanPhone;
+        } else if (typeof currentCustomerWallet !== 'undefined') {
+            currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, usableBalance: 0, transactions: [], phone: cleanPhone };
+        }
+
+        if (typeof window !== 'undefined' && window.currentCustomerWallet) {
+            window.currentCustomerWallet.balance = 0;
+            window.currentCustomerWallet.nonExpiredBalance = 0;
+            window.currentCustomerWallet.usableBalance = 0;
+            window.currentCustomerWallet.transactions = [];
+            window.currentCustomerWallet.phone = cleanPhone;
+        }
+
+        // Reset user and wallet document in Firestore cleanly to 0 if firestore is available
+        try {
+            const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+            if (fs && cleanPhone) {
+                const zeroPayload = {
+                    balance: 0,
+                    walletBalance: 0,
+                    transactions: [],
+                    walletTransactions: [],
+                    updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                        ? firebase.firestore.FieldValue.serverTimestamp()
+                        : new Date().toISOString()
+                };
+                fs.collection('wallets').doc(cleanPhone).set({ phone: cleanPhone, ...zeroPayload }, { merge: true }).catch(() => {});
+                fs.collection('users').doc(`phone_${cleanPhone}`).set(zeroPayload, { merge: true }).catch(() => {});
+                fs.collection('users').doc(cleanPhone).set(zeroPayload, { merge: true }).catch(() => {});
+            }
+        } catch (fsErr) {
+            console.warn("[WALLET] Firestore reset sync notice:", fsErr.message);
+        }
+
+        // Remove the flag so it only runs once
+        localStorage.removeItem("RESET_WALLET_LEDGER");
+
+        if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
+        if (typeof renderProfileWalletTxList === 'function') renderProfileWalletTxList();
+        if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+
+        return true;
+    } catch (err) {
+        console.error("[WALLET] Failed to check and apply wallet ledger reset:", err);
+        return false;
+    }
+}
+window.checkAndApplyWalletLedgerReset = checkAndApplyWalletLedgerReset;
+
+function resetCustomerWalletLedger() {
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem("RESET_WALLET_LEDGER", "true");
+        return checkAndApplyWalletLedgerReset();
+    }
+    return false;
+}
+window.resetCustomerWalletLedger = resetCustomerWalletLedger;
+
 function reconcileWalletTranches(wallet) {
     if (!wallet) return 0;
+    if (typeof checkAndApplyWalletLedgerReset === 'function') {
+        checkAndApplyWalletLedgerReset();
+    }
     const nowMs = Date.now();
     const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => {
         if (!v) return NaN;
@@ -4978,16 +5077,92 @@ function reconcileWalletTranches(wallet) {
     const processedRefundOrderIds = new Set();
     const processedCreditOrderIds = new Set();
 
+    let storedOrders = [];
+    try {
+        if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.getJSON === 'function') {
+            storedOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        } else if (typeof localStorage !== 'undefined') {
+            const raw = localStorage.getItem('perfettoCustomerOrders');
+            if (raw) storedOrders = JSON.parse(raw);
+        }
+    } catch (e) {}
+    if (!Array.isArray(storedOrders)) storedOrders = [];
+
+    const activePendingOrderMap = new Map();
+    const terminalOrderMap = new Map();
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined', 'auto_expired'];
+
+    storedOrders.forEach(o => {
+        if (!o) return;
+        const oid = String(o.id || o.orderId || '').replace(/^#/, '').trim();
+        if (!oid) return;
+        const oStatus = String(o.status || '').toLowerCase().trim();
+        const isRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
+        if (terminalStatuses.includes(oStatus) || isRefunded) {
+            terminalOrderMap.set(oid, { status: oStatus, order: o });
+        } else if (oStatus === 'pending') {
+            activePendingOrderMap.set(oid, o);
+        }
+    });
+
     // First pass: identify order IDs with released or cancelled holds
     wallet.transactions.forEach(tx => {
         if (!tx) return;
         const txType = String(tx.type || '').toLowerCase().trim();
         const txStatus = String(tx.status || '').toLowerCase().trim();
         const orderId = String(tx.orderId || '').trim();
-        if ((txType === 'hold' || txType === 'debit') && (txStatus === 'released' || txStatus === 'cancelled')) {
+        if ((txType === 'hold' || txType === 'debit' || txType === 'wallet_hold') && (txStatus === 'released' || txStatus === 'cancelled')) {
             if (orderId) {
                 releasedOrderHolds.add(orderId);
                 releasedOrderHolds.add(orderId.replace(/^#/, ''));
+            }
+        }
+    });
+
+    // Reconcile and purge corrupted/orphaned holds in wallet.transactions:
+    // Discard orphaned holds where the corresponding order does not exist in active "PENDING" status.
+    // If an order is already completed, delivered, or deleted, release any lingering "LOCKED" / "LOCKED_HOLD" flag immediately.
+    wallet.transactions.forEach(tx => {
+        if (!tx) return;
+        const tType = String(tx.type || '').toUpperCase().trim();
+        const tStat = String(tx.status || '').toUpperCase().trim();
+        const hStat = String(tx.holdStatus || '').toUpperCase().trim();
+        const isHoldType = (tType === 'WALLET_HOLD' || tType === 'HOLD' || (tType === 'DEBIT' && (tStat === 'LOCKED' || tStat === 'LOCKED_HOLD')));
+        const isHoldLocked = (tStat === 'LOCKED' || tStat === 'LOCKED_HOLD' || tStat === 'PENDING' || hStat === 'LOCKED' || hStat === 'LOCKED_HOLD');
+        const isReleased = (tStat === 'RELEASED' || tStat === 'CANCELLED' || tStat === 'COMPLETED' || tStat === 'DEBITED');
+
+        if (isHoldType && isHoldLocked && !isReleased) {
+            const rawOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
+            if (rawOid) {
+                const termInfo = terminalOrderMap.get(rawOid);
+                if (termInfo) {
+                    if (termInfo.status === 'completed' || termInfo.status === 'delivered') {
+                        tx.type = 'debit';
+                        tx.status = 'COMPLETED';
+                        tx.holdStatus = 'COMPLETED';
+                        tx.title = `Used for Order #${rawOid}`;
+                        return;
+                    } else {
+                        tx.status = 'released';
+                        tx.holdStatus = 'RELEASED';
+                        releasedOrderHolds.add(rawOid);
+                        return;
+                    }
+                }
+
+                // Check if order exists in active PENDING status
+                const isPending = activePendingOrderMap.has(rawOid);
+                if (!isPending) {
+                    // Orphaned hold! The corresponding order does not exist in active "PENDING" status
+                    console.warn(`[WALLET] Releasing orphaned hold for Order #${rawOid} (not in active PENDING status)`);
+                    tx.status = 'released';
+                    tx.holdStatus = 'RELEASED';
+                    releasedOrderHolds.add(rawOid);
+                    return;
+                }
+            } else {
+                tx.status = 'released';
+                tx.holdStatus = 'RELEASED';
             }
         }
     });
@@ -5179,11 +5354,14 @@ function reconcileWalletTranches(wallet) {
             const isReleased = (tStat === 'RELEASED' || tStat === 'CANCELLED' || tStat === 'COMPLETED' || tStat === 'DEBITED');
             if (isHoldType && isHoldLocked && !isReleased) {
                 const oid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
-                if (oid && seenHoldOrderIds.has(oid)) return;
-                if (oid) seenHoldOrderIds.add(oid);
-                const amt = Number(tx.amount || 0);
-                if (amt > 0) {
-                    activeHolds.push({ orderId: oid, amount: amt, status: 'LOCKED' });
+                // Strictly guard: only active pending orders can hold wallet funds
+                if (oid && activePendingOrderMap.has(oid)) {
+                    if (seenHoldOrderIds.has(oid)) return;
+                    seenHoldOrderIds.add(oid);
+                    const amt = Number(tx.amount || 0);
+                    if (amt > 0) {
+                        activeHolds.push({ orderId: oid, amount: amt, status: 'LOCKED' });
+                    }
                 }
             }
         });
@@ -5382,6 +5560,9 @@ function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
 window.getEarliestExpiringWalletBatch = getEarliestExpiringWalletBatch;
 
 function getEffectiveWalletBalance() {
+    if (typeof checkAndApplyWalletLedgerReset === 'function') {
+        checkAndApplyWalletLedgerReset();
+    }
     if (currentCustomerWallet) {
         return reconcileWalletTranches(currentCustomerWallet);
     }
@@ -5976,20 +6157,30 @@ function getTotalFundedWalletCredit(wallet = currentCustomerWallet) {
 }
 window.getTotalFundedWalletCredit = getTotalFundedWalletCredit;
 
-function getActiveLockedWalletInfo() {
+function getActiveLockedWalletInfo(excludeOrderId = null) {
     let lockedAmount = 0;
     const lockedOrderIds = [];
     const seenOrderIds = new Set();
     const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined', 'auto_expired'];
+    let orders = [];
+    const cleanExcludeId = excludeOrderId ? String(excludeOrderId).replace(/^#/, '').trim() : null;
 
     try {
-        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.getJSON === 'function') {
+            orders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        } else if (typeof localStorage !== 'undefined') {
+            const raw = localStorage.getItem('perfettoCustomerOrders');
+            if (raw) orders = JSON.parse(raw);
+        }
+        if (!Array.isArray(orders)) orders = [];
+
         if (Array.isArray(orders)) {
             orders.forEach(o => {
                 if (!o) return;
                 const rawId = String(o.id || o.orderId || '').trim();
                 const idClean = rawId.replace(/^#/, '').trim();
                 if (!idClean || seenOrderIds.has(idClean)) return;
+                if (cleanExcludeId && idClean === cleanExcludeId) return;
 
                 const idCandidates = [
                     o.orderId,
@@ -6003,6 +6194,8 @@ function getActiveLockedWalletInfo() {
                     allKeys.add(k);
                     allKeys.add(k.replace(/^#/, '').trim());
                 });
+
+                if (cleanExcludeId && (allKeys.has(cleanExcludeId) || allKeys.has(`#${cleanExcludeId}`))) return;
 
                 // If any identifier was already seen, skip duplicate entry to protect single-order hold integrity
                 if (Array.from(allKeys).some(k => seenOrderIds.has(k))) return;
@@ -6056,13 +6249,26 @@ function getActiveLockedWalletInfo() {
 
                 if (isHold && isLocked && !isTerminal) {
                     const rawOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
+                    if (cleanExcludeId && rawOid === cleanExcludeId) return;
+
                     if (rawOid && !seenOrderIds.has(rawOid)) {
-                        seenOrderIds.add(rawOid);
-                        const amt = Number(tx.amount || 0);
-                        if (amt > 0) {
-                            lockedAmount += amt;
-                            if (!lockedOrderIds.includes(rawOid)) {
-                                lockedOrderIds.push(rawOid);
+                        let isStillPending = false;
+                        if (Array.isArray(orders) && orders.length > 0) {
+                            isStillPending = orders.some(o => {
+                                if (!o) return false;
+                                const oid = String(o.id || o.orderId || '').replace(/^#/, '').trim();
+                                const ost = String(o.status || '').toLowerCase().trim();
+                                return oid === rawOid && ost === 'pending';
+                            });
+                        }
+                        if (isStillPending) {
+                            seenOrderIds.add(rawOid);
+                            const amt = Number(tx.amount || 0);
+                            if (amt > 0) {
+                                lockedAmount += amt;
+                                if (!lockedOrderIds.includes(rawOid)) {
+                                    lockedOrderIds.push(rawOid);
+                                }
                             }
                         }
                     }
@@ -6349,10 +6555,11 @@ async function createWalletHoldRecord(phone, amount, orderId) {
         ? getTotalFundedWalletCredit(currentCustomerWallet)
         : (Number(currentCustomerWallet.balance) || 0);
 
-    const activeLocked = (typeof getActiveLockedWalletInfo === 'function') ? getActiveLockedWalletInfo().lockedAmount : 0;
+    const activeLocked = (typeof getActiveLockedWalletInfo === 'function') 
+        ? getActiveLockedWalletInfo(effectiveOrderId).lockedAmount 
+        : 0;
     const maxPermissibleHold = Math.max(0, totalFunded - activeLocked);
-    const currentAvail = (typeof getEffectiveWalletBalance === 'function') ? getEffectiveWalletBalance() : 0;
-    const finalHoldAmt = Math.min(debitAmt, maxPermissibleHold, currentAvail);
+    const finalHoldAmt = Math.min(debitAmt, maxPermissibleHold);
 
     if (finalHoldAmt <= 0) {
         console.warn(`[WALLET] Refusing hold for Order #${effectiveOrderId}: available balance is zero or aggregate holds would exceed total funded credit.`);
@@ -9359,12 +9566,39 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         status: 'PENDING',
         createdAt: now.toISOString()
     };
-
     const customerPhone = (profile && profile.phone) ? profile.phone : ((currentUserProfile && currentUserProfile.phone) || '');
 
-    // If wallet cash was used, immediately record atomic WALLET_HOLD in Firestore & local state
+    // 1. Immediately save order locally via SafeStorage (Immediate Offline Resilience & Fast State)
+    try {
+        let ordersList = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (!Array.isArray(ordersList)) ordersList = [];
+        const existingIndex = ordersList.findIndex(o => o && (o.id || o.orderId) === orderId);
+        if (existingIndex >= 0) {
+            ordersList[existingIndex] = newOrder;
+        } else {
+            ordersList.unshift(newOrder);
+        }
+        safeStorage.setJSON('perfettoCustomerOrders', ordersList);
+        try {
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
+        } catch (e) { }
+    } catch (saveErr) {
+        console.warn('[ORDER] Error saving order to safeStorage:', saveErr);
+    }
+
+    // 2. Wrap wallet hold creation inside a non-blocking try...catch block
+    // An issue in wallet ledger hold creation must NEVER block the primary order placement document from being written to Firestore
     if (walletDiscountToApply > 0) {
-        createWalletHoldRecord(customerPhone, walletDiscountToApply, orderId);
+        try {
+            const holdPromise = createWalletHoldRecord(customerPhone, walletDiscountToApply, orderId);
+            if (holdPromise && typeof holdPromise.catch === 'function') {
+                holdPromise.catch(err => {
+                    console.warn('[WALLET] Non-blocking wallet hold promise rejected:', err);
+                });
+            }
+        } catch (holdErr) {
+            console.warn('[WALLET] Non-blocking wallet hold exception caught:', holdErr);
+        }
         isWalletRedemptionSelected = false;
         appliedWalletDiscountAmount = 0;
     }
@@ -9372,41 +9606,45 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     // Note: Cashback scratch card reward is unlocked immediately upon order placement, with an immutable per-transaction expiry deadline!
     // (Wallet crediting occurs when the customer scratches & claims the card in the Scratch Card Modal)
 
-    // 1. Save order to LocalStorage via SafeStorage (Immediate Offline Resilience)
-    let ordersList = safeStorage.getJSON('perfettoCustomerOrders', []);
-    if (!Array.isArray(ordersList)) ordersList = [];
-    const existingIndex = ordersList.findIndex(o => o && (o.id || o.orderId) === orderId);
-    if (existingIndex >= 0) {
-        ordersList[existingIndex] = newOrder;
-    } else {
-        ordersList.unshift(newOrder);
-    }
-    safeStorage.setJSON('perfettoCustomerOrders', ordersList);
     try {
-        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
-    } catch (e) { }
-
-    if (walletDiscountToApply > 0) {
-        if (currentCustomerWallet) {
+        if (walletDiscountToApply > 0 && currentCustomerWallet) {
             reconcileWalletTranches(currentCustomerWallet);
         }
         if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
         if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+    } catch (uiErr) {
+        console.warn('[ORDER] Wallet UI update notice:', uiErr);
     }
 
-    if (typeof renderOrderHistoryDetails === 'function') {
-        renderOrderHistoryDetails();
+    try {
+        if (typeof renderOrderHistoryDetails === 'function') {
+            renderOrderHistoryDetails();
+        }
+    } catch (renderErr) {
+        console.warn('[ORDER] Order history render notice:', renderErr);
     }
 
-    // 2. Asynchronously save order to Firebase Firestore via Backend API
-    saveOrderToBackendAPI(newOrder);
+    // 3. Asynchronously save order to Firebase Firestore via Backend API
+    try {
+        saveOrderToBackendAPI(newOrder);
+    } catch (apiErr) {
+        console.warn('[ORDER] Asynchronous backend order save caught:', apiErr);
+    }
 
     if (clearCartNow) {
-        cart = [];
-        saveCartToStorage();
-        updateCartUI();
-        updateProfileTotalsUI();
-        openOrderOtpSuccessModal(newOrder);
+        try {
+            cart = [];
+            saveCartToStorage();
+            updateCartUI();
+            updateProfileTotalsUI();
+        } catch (cartErr) {
+            console.warn('[ORDER] Cart clear warning:', cartErr);
+        }
+        try {
+            openOrderOtpSuccessModal(newOrder);
+        } catch (modalErr) {
+            console.error('[ORDER] Error opening order success modal:', modalErr);
+        }
     }
 }
 window.executeOrderPlacement = executeOrderPlacement;
@@ -9481,9 +9719,15 @@ async function saveOrderToBackendAPI(order) {
     };
 
     // 1. Instantly write to Firestore for live Kitchen & Admin display
-    if (customerFirestore) {
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) ||
+               (typeof customerFirestore !== 'undefined' && customerFirestore ? customerFirestore : null) ||
+               (typeof window !== 'undefined' && window.db ? window.db : null) ||
+               (typeof firebase !== 'undefined' && firebase.firestore ? firebase.firestore() : null);
+
+    if (fs) {
         try {
-            await customerFirestore.collection('orders').doc(finalOrderId).set(firestoreOrderPayload, { merge: true });
+            await fs.collection('orders').doc(finalOrderId).set(firestoreOrderPayload, { merge: true });
+            console.log('Order successfully pushed to Firestore orders collection:', finalOrderId);
         } catch (fsErr) {
             console.warn('Firestore live order push notice:', fsErr.message);
         }
