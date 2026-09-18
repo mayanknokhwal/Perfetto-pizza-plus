@@ -486,9 +486,20 @@ function parseOrderCreationTimeMs(rawInput) {
     if (!rawInput) return Date.now();
     let val = rawInput;
     if (typeof rawInput === 'object' && rawInput !== null) {
-        val = rawInput.createdAt || rawInput.created_at || rawInput.serverTimestamp || rawInput.timestamp || rawInput.date || rawInput.prepStartedAt || rawInput;
+        if (rawInput instanceof Date && !isNaN(rawInput.getTime())) {
+            return rawInput.getTime();
+        }
+        val = rawInput.createdAt || rawInput.created_at || rawInput.serverTimestamp || rawInput.timestamp || rawInput.date || rawInput.orderDate || rawInput.prepStartedAt;
+        if (val === undefined || val === null) {
+            val = rawInput;
+        }
     }
     if (!val) return Date.now();
+
+    // 0. Date instance
+    if (val instanceof Date && !isNaN(val.getTime())) {
+        return val.getTime();
+    }
 
     // 1. Direct number (epoch ms or epoch sec)
     if (typeof val === 'number') {
@@ -581,6 +592,15 @@ function parseStaffOrder(docId, data = {}) {
     const createdMs = parseOrderCreationTimeMs(data);
     const createdAt = new Date(createdMs).toISOString();
 
+    // Strict guard: If order is created within the last 100 minutes and has pending status, sanitize stale autoExpired flags
+    const isFresh = (Date.now() - createdMs) < ONE_HUNDRED_MINS_EXPIRATION_MS;
+    const isPendingDoc = status.toUpperCase() === 'PENDING' || status.toLowerCase() === 'pending';
+    const autoExpired = (isFresh && isPendingDoc) ? false : Boolean(data.autoExpired);
+    const isAutoExpired = (isFresh && isPendingDoc) ? false : Boolean(data.isAutoExpired);
+    const rejectedBy = (isFresh && isPendingDoc && data.rejectedBy === 'SYSTEM_AUTO_EXPIRE') ? null : (data.rejectedBy || null);
+    const rejectionReason = (isFresh && isPendingDoc && String(data.rejectionReason || '').includes('100 minutes timeout')) ? null : (data.rejectionReason || null);
+    const cancellationReason = (isFresh && isPendingDoc && String(data.cancellationReason || '').includes('100 minutes timeout')) ? null : (data.cancellationReason || null);
+
     return {
         ...data,
         id: cleanId || String(docId),
@@ -593,8 +613,13 @@ function parseStaffOrder(docId, data = {}) {
         notes,
         items,
         total,
-        status,
+        status: (isFresh && isPendingDoc) ? 'pending' : status,
         createdAt,
+        autoExpired,
+        isAutoExpired,
+        rejectedBy,
+        rejectionReason,
+        cancellationReason,
         paymentMethod: data.paymentMethod || data.paymentStatus || 'Cash on Delivery'
     };
 }
@@ -643,7 +668,8 @@ function listenToFirestoreStaffOrders() {
         sortedLiveOrders.forEach(o => {
             const rawStatus = String(o.status || '').toUpperCase().trim();
             if (rawStatus === 'PENDING') {
-                if (isOrder100MinsExpired(o, nowMs)) {
+                const rem = getOrderRemainingTimeMs(o, nowMs);
+                if (rem <= 0 && isOrder100MinsExpired(o, nowMs)) {
                     autoRejectExpiredOrder(o);
                 }
             }
@@ -670,7 +696,7 @@ function listenToFirestoreStaffOrders() {
 
         // 5. Audio Alert Trigger:
         // When the pending orders snapshot fires:
-        // Trigger looping audio strictly IF staff member is actively logged in and authenticated.
+        // Ensure looping audio siren remains active whenever pendingOrders.length > 0 and staff is authenticated.
         if (pendingOrders.length > 0 && isStaffAuthenticated()) {
             if (!isStaffAlertDismissedInSession) {
                 const targetOrder = newestOrder || pendingOrders[pendingOrders.length - 1] || pendingOrders[0];
@@ -679,8 +705,10 @@ function listenToFirestoreStaffOrders() {
                 const total = targetOrder.total ? `₹${targetOrder.total}` : '';
                 const summary = `${pendingOrders.length} Pending Order${pendingOrders.length > 1 ? 's' : ''} • ${customerName}${total ? ` (${total})` : ''}`;
 
-                console.log(`🔊 [Firestore Pending Snapshot] ${pendingOrders.length} active pending order(s) in queue. Triggering continuous looping audio alert...`);
-                startOrderAlertAudio(targetOrderId, summary, targetOrder);
+                if (!isOrderAlertAudioPlaying) {
+                    console.log(`🔊 [Firestore Pending Snapshot] ${pendingOrders.length} active pending order(s) in queue. Triggering continuous looping audio alert...`);
+                    startOrderAlertAudio(targetOrderId, summary, targetOrder);
+                }
             }
         } else {
             if (isOrderAlertAudioPlaying) {
@@ -807,7 +835,11 @@ function isOrder100MinsExpired(order, nowMs = Date.now()) {
     const terminalStatuses = ['COMPLETED', 'DELIVERED', 'REJECTED', 'CANCELLED', 'CANCELED', 'ARCHIVED', 'DECLINED'];
     if (terminalStatuses.includes(rawStatus)) return false;
 
-    const createdMs = parseOrderCreationTimeMs(order);
+    // Strict guard: If remaining time > 0, NEVER expired
+    const remainingMs = getOrderRemainingTimeMs(order, nowMs);
+    if (remainingMs > 0) return false;
+
+    const createdMs = getOrderCreationTimeMs(order);
     if (!createdMs || isNaN(createdMs) || createdMs <= 0) return false;
     const elapsedMs = nowMs - createdMs;
     // Enforce that a pending order is ONLY considered expired if its creation timestamp is strictly more than 100 minutes in the past
@@ -844,11 +876,22 @@ async function autoRejectExpiredOrder(order) {
         return;
     }
 
-    // Strict 100-minute guard: NEVER reject or touch fresh pending orders whose elapsed duration is under 100 minutes
-    const createdMs = parseOrderCreationTimeMs(order);
-    const elapsedMs = Date.now() - createdMs;
-    if (elapsedMs < ONE_HUNDRED_MINS_EXPIRATION_MS) {
-        console.log(`[STAFF SWEEPER] Order #${order.id || order.orderId} is fresh (${Math.round(elapsedMs / 60000)}m old). Auto-expiry skipped.`);
+    // Strict 100-minute guard: NEVER auto-reject or cancel an order whose elapsed time is less than 100 minutes (6,000,000 ms)
+    const nowMs = Date.now();
+    const createdMs = getOrderCreationTimeMs(order);
+    const elapsedMs = nowMs - createdMs;
+    const remainingMs = getOrderRemainingTimeMs(order, nowMs);
+
+    if (remainingMs > 0 || elapsedMs < ONE_HUNDRED_MINS_EXPIRATION_MS) {
+        console.log(`[STAFF SWEEPER] Order #${order.id || order.orderId} is fresh (Remaining: ${Math.round(remainingMs / 60000)}m, Elapsed: ${Math.round(elapsedMs / 60000)}m). Auto-expiry strictly skipped.`);
+        order.status = 'PENDING';
+        order.autoExpired = false;
+        order.isAutoExpired = false;
+        if (order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+            order.rejectedBy = null;
+            order.rejectionReason = null;
+            order.cancellationReason = null;
+        }
         setOrderActionInFlight(order, false);
         return;
     }
@@ -1088,10 +1131,22 @@ let isSweeperRunning = false;
 async function sweepAutoExpiredOrders() {
     if (isSweeperRunning) return;
     if (!Array.isArray(staffOrders) || staffOrders.length === 0) return;
+    const nowMs = Date.now();
     const expiredOrders = staffOrders.filter(o => {
+        if (!o) return false;
         const rawStatus = String(o.status || '').toUpperCase().trim();
         const isPending = (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING');
-        return isPending && isOrder100MinsExpired(o);
+        if (!isPending) return false;
+
+        // Strict guard: if remaining time > 0 or elapsed time < 100 mins, NEVER expired
+        const remMs = getOrderRemainingTimeMs(o, nowMs);
+        if (remMs > 0) return false;
+
+        const createdMs = getOrderCreationTimeMs(o);
+        const elapsedMs = nowMs - createdMs;
+        if (elapsedMs < ONE_HUNDRED_MINS_EXPIRATION_MS) return false;
+
+        return isOrder100MinsExpired(o, nowMs);
     });
     if (expiredOrders.length === 0) return;
 
@@ -3214,9 +3269,31 @@ window.checkAndShowStaffAudioBanner = checkAndShowStaffAudioBanner;
 
 function getOrderRemainingTimeMs(order, nowMs = Date.now()) {
     if (!order) return ONE_HUNDRED_MINS_EXPIRATION_MS;
-    const createdMs = parseOrderCreationTimeMs(order);
+    let createdMs = 0;
+    try {
+        if (typeof getOrderCreationTimeMs === 'function') {
+            createdMs = getOrderCreationTimeMs(order);
+        } else if (typeof parseOrderCreationTimeMs === 'function') {
+            createdMs = parseOrderCreationTimeMs(order);
+        }
+    } catch (e) {
+        createdMs = nowMs;
+    }
+
+    // If created timestamp is missing, invalid, or evaluates to NaN, default to current time (Date.now())
+    // so new orders are NEVER marked expired.
+    if (!createdMs || isNaN(createdMs) || createdMs <= 0) {
+        createdMs = nowMs;
+    }
+
     const elapsedMs = Math.max(0, nowMs - createdMs);
     const timeRemainingMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+
+    // If created timestamp is within the last 100 minutes, remaining time MUST be strictly positive
+    if (elapsedMs < ONE_HUNDRED_MINS_EXPIRATION_MS) {
+        return Math.max(1, timeRemainingMs);
+    }
+
     return timeRemainingMs;
 }
 window.getOrderRemainingTimeMs = getOrderRemainingTimeMs;
@@ -3236,7 +3313,12 @@ function format100MinCountdown(timeRemainingMs) {
 window.format100MinCountdown = format100MinCountdown;
 
 function getOrderCreationTimeMs(order) {
-    return parseOrderCreationTimeMs(order);
+    if (!order) return Date.now();
+    const createdMs = parseOrderCreationTimeMs(order);
+    if (!createdMs || isNaN(createdMs) || createdMs <= 0) {
+        return Date.now();
+    }
+    return createdMs;
 }
 window.getOrderCreationTimeMs = getOrderCreationTimeMs;
 
@@ -3312,11 +3394,17 @@ function isPendingStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
 
+    // If remaining time > 0 and status is active pending/unfulfilled, order MUST stay in status PENDING and render in Pending Orders tab
+    const remMs = getOrderRemainingTimeMs(order);
+    if (remMs > 0 && (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(rawStatus.toLowerCase()))) {
+        return true;
+    }
+
     // Auto-cancellation boundary: strictly remove only if order is 100 minutes expired
     if (isOrder100MinsExpired(order)) {
         return false;
     }
-    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && remMs <= 0) {
         return false;
     }
     if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
@@ -3341,11 +3429,17 @@ function isRejectedStaffOrder(order) {
     const rawStatus = String(order.status || '').trim().toUpperCase();
     if (isCompletedStaffOrder(order)) return false;
 
+    // Strict guard: If remaining time > 0 and status is PENDING or incoming, NEVER put in Rejected
+    const remMs = getOrderRemainingTimeMs(order);
+    if (remMs > 0 && (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(rawStatus.toLowerCase()))) {
+        return false;
+    }
+
     // Any order whose creation timestamp is strictly >= 100 minutes in the past is categorized under Rejected / Expired
     if (isOrder100MinsExpired(order) && (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED')) {
         return true;
     }
-    if (order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && remMs <= 0) {
         return true;
     }
     const s = rawStatus.toLowerCase();
@@ -4979,7 +5073,8 @@ function handleRejectOrder(orderId) {
     const order = staffOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId));
     if (!order) return;
 
-    if (order.autoExpired || order.isAutoExpired || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order))) {
+    const remMs = getOrderRemainingTimeMs(order);
+    if (remMs <= 0 && typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order)) {
         console.log(`[STAFF] Order #${order.id} is auto-expired (>100 mins). Bypassing modal, OTP, and reason inputs; auto-expiring now...`);
         showStaffToast(`⏱ Order #${order.id} timed out (>100 mins). Automatically rejecting...`);
         if (typeof autoExpireOrder === 'function') {
