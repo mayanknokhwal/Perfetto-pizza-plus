@@ -9896,7 +9896,11 @@ function initClearHistoryModal() {
                 return;
             }
             e.preventDefault();
-            clearCustomerOrderHistory();
+            if (typeof clearFinishedCustomerOrders === 'function') {
+                clearFinishedCustomerOrders();
+            } else if (typeof clearCustomerOrderHistory === 'function') {
+                clearCustomerOrderHistory();
+            }
         }
     });
 }
@@ -13404,20 +13408,18 @@ const isOrderThreeHoursExpired = isOrder100MinsExpired;
 window.isOrder100MinsExpired = isOrder100MinsExpired;
 window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
 
-function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
-    if (!order) return '';
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
-    const st = String(order.status || '').toLowerCase().trim();
-    if (terminalStatuses.includes(st)) return '';
-
+function getCustomerOrderRemainingTimeMs(order, nowMs = Date.now()) {
+    if (!order) return 0;
     let createdMs = 0;
     const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
     if (raw) {
-        if (typeof raw === 'number') createdMs = raw < 1e11 ? raw * 1000 : raw;
-        else if (typeof raw === 'object') {
+        if (typeof raw === 'number') {
+            createdMs = raw < 1e11 ? raw * 1000 : raw;
+        } else if (typeof raw === 'object') {
             if (typeof raw.toMillis === 'function') createdMs = raw.toMillis();
             else if (typeof raw.toDate === 'function') createdMs = raw.toDate().getTime();
             else if (raw.seconds) createdMs = raw.seconds * 1000;
+            else if (raw._seconds) createdMs = raw._seconds * 1000;
         } else {
             const parsed = new Date(raw).getTime();
             if (!isNaN(parsed) && parsed > 0) createdMs = parsed;
@@ -13428,13 +13430,23 @@ function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
         const match = idStr.match(/(\d{10,13})/);
         if (match) {
             const num = parseInt(match[1], 10);
-            if (num > 1500000000 && num < 2500000000000) createdMs = num < 1e11 ? num * 1000 : num;
+            if (num > 1500000000 && num < 2500000000000) {
+                createdMs = num < 1e11 ? num * 1000 : num;
+            }
         }
     }
     if (!createdMs) createdMs = nowMs;
+    return ONE_HUNDRED_MINS_EXPIRATION_MS - (nowMs - createdMs);
+}
+window.getCustomerOrderRemainingTimeMs = getCustomerOrderRemainingTimeMs;
 
-    const elapsedMs = nowMs - createdMs;
-    const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
+    if (!order) return '';
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const st = String(order.status || '').toLowerCase().trim();
+    if (terminalStatuses.includes(st)) return '';
+
+    const remMs = getCustomerOrderRemainingTimeMs(order, nowMs);
     const remMins = Math.max(0, Math.ceil(remMs / 60000));
     const hrs = Math.floor(remMins / 60);
     const mins = remMins % 60;
@@ -13659,9 +13671,24 @@ async function reconcileCustomerActiveOrdersLazySync() {
 }
 window.reconcileCustomerActiveOrdersLazySync = reconcileCustomerActiveOrdersLazySync;
 
+function copyOrderHistoryOtp(code) {
+    if (!code) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(() => {
+            showToast('OTP copied to clipboard: ' + code);
+        }).catch(() => {
+            showToast('Delivery OTP: ' + code);
+        });
+    } else {
+        showToast('Delivery OTP: ' + code);
+    }
+}
+window.copyOrderHistoryOtp = copyOrderHistoryOtp;
+
 function renderOrderHistoryDetails() {
     const listEl = document.getElementById('order-history-list');
-    const clearBtn = document.getElementById('btn-clear-history') || document.getElementById('clear-completed-orders-btn') || document.querySelector('[data-id="clear-completed-orders-btn"]');
+    const headerEl = document.querySelector('.order-history-card-header');
+    let clearBtn = document.getElementById('btn-clear-history') || (headerEl ? headerEl.querySelector('.btn-clear-history') : null) || document.getElementById('clear-completed-orders-btn') || document.querySelector('[data-id="clear-completed-orders-btn"]');
     if (!listEl) return;
 
     const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
@@ -13677,6 +13704,18 @@ function renderOrderHistoryDetails() {
         return;
     }
 
+    // Ensure clear button in header row is re-rendered with the exact requested markup
+    if (headerEl) {
+        const existingBtn = headerEl.querySelector('.btn-clear-history') || document.getElementById('btn-clear-history');
+        const clearBtnHTML = `<button type="button" class="btn-clear-history" id="btn-clear-history" onclick="clearFinishedCustomerOrders()" title="Clear Completed Orders"><i class="fa-solid fa-trash-can"></i> Clear</button>`;
+        if (existingBtn) {
+            existingBtn.outerHTML = clearBtnHTML;
+        } else {
+            headerEl.insertAdjacentHTML('beforeend', clearBtnHTML);
+        }
+        clearBtn = headerEl.querySelector('.btn-clear-history') || document.getElementById('btn-clear-history');
+    }
+
     try {
         let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
         if (Array.isArray(orders)) {
@@ -13686,32 +13725,63 @@ function renderOrderHistoryDetails() {
             });
         }
 
+        const nowMs = Date.now();
         const clearedSet = new Set(getClearedOrderIds());
-        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
 
-        // Filter out terminal orders that were explicitly cleared by customer
+        // Filter out terminal or expired orders that were explicitly cleared by customer
         if (Array.isArray(orders)) {
             orders = orders.filter(o => {
                 const id = String((o && (o.id || o.orderId)) || '');
-                const st = String((o && o.status) || '').trim().toLowerCase();
-                return !(clearedSet.has(id) && terminalStatuses.has(st));
+                const rawSt = String((o && o.status) || '').trim().toUpperCase();
+                const remMs = getCustomerOrderRemainingTimeMs(o, nowMs);
+                const isDelivered = rawSt === 'COMPLETED' || rawSt === 'DELIVERED';
+                const isRejected = rawSt === 'REJECTED' || rawSt === 'CANCELLED' || rawSt === 'CANCELED' || rawSt === 'DECLINED' || rawSt === 'ARCHIVED';
+                const isExpired = !isDelivered && (remMs <= 0 || (o && (o.autoExpired === true || o.isAutoExpired === true || o.rejectedBy === 'SYSTEM_AUTO_EXPIRE')));
+                return !(clearedSet.has(id) && (isDelivered || isRejected || isExpired));
             });
         }
 
-        const hasClearableOrders = Array.isArray(orders) && orders.some(o => {
-            const st = String((o && o.status) || '').trim().toLowerCase();
-            return terminalStatuses.has(st);
-        });
-
         if (clearBtn) {
-            clearBtn.style.display = hasClearableOrders ? 'inline-flex' : 'none';
+            clearBtn.style.display = (Array.isArray(orders) && orders.length > 0) ? 'inline-flex' : 'none';
         }
 
         if (Array.isArray(orders) && orders.length > 0) {
             listEl.innerHTML = orders.map(o => {
                 const otpCode = o.deliveryOtp || o.otp || '';
-                const isDelivered = o.status === 'completed' || o.status === 'delivered';
-                const isCancelled = o.status === 'cancelled' || o.status === 'rejected';
+                const rawStatus = String(o.status || '').trim().toUpperCase();
+                const timeRemainingMs = getCustomerOrderRemainingTimeMs(o, nowMs);
+
+                const isDelivered = rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED';
+                const isExplicitlyRejected = rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED';
+                const isExpired = !isDelivered && (
+                    timeRemainingMs <= 0 ||
+                    o.autoExpired === true ||
+                    o.isAutoExpired === true ||
+                    o.rejectedBy === 'SYSTEM_AUTO_EXPIRE'
+                );
+                const isRejected = !isDelivered && (isExplicitlyRejected || isExpired);
+                const isCancelled = isRejected; // For backward-compatible wallet refund & scratch voiding
+                const isActivePending = !isDelivered && !isCancelled && !isExpired && (timeRemainingMs > 0) && ['PENDING', 'NEW', 'PLACED', 'PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY', 'ACCEPTED'].includes(rawStatus);
+
+                // Auto-trigger background auto-reject write to Firestore if expired
+                if (isExpired && !isExplicitlyRejected && typeof autoRejectExpiredCustomerOrder === 'function') {
+                    autoRejectExpiredCustomerOrder(o).catch(() => {});
+                }
+
+                // Determine bottom status HTML: Expired MUST show EXPIRED (or REJECTED), not PENDING
+                let statusTagHtml = '';
+                if (isExpired) {
+                    statusTagHtml = `<span class="order-status-tag status-rejected">Status: EXPIRED</span>`;
+                } else if (rawStatus === 'REJECTED') {
+                    statusTagHtml = `<span class="order-status-tag status-rejected">Status: REJECTED</span>`;
+                } else if (rawStatus === 'CANCELLED' || rawStatus === 'CANCELED') {
+                    statusTagHtml = `<span class="order-status-tag status-rejected">Status: CANCELLED</span>`;
+                } else if (isDelivered) {
+                    statusTagHtml = `<span class="order-status-tag status-delivered">Status: DELIVERED</span>`;
+                } else {
+                    statusTagHtml = `<span class="order-status-tag status-pending">Status: ${escapeHtml(rawStatus || 'PENDING')}</span>`;
+                }
+
                 const itemsText = (o.items || []).map(i => {
                     if (i.type === 'combo' && Array.isArray(i.items) && i.items.length > 0) {
                         const subNames = i.items.map(s => {
@@ -13796,7 +13866,7 @@ function renderOrderHistoryDetails() {
                     }
                 }
 
-                    return `
+                return `
                     <div style="background: var(--bg-surface); padding: 14px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border-color);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                             <strong style="color: var(--primary-orange); font-size: 0.95rem;">#${escapeHtml(o.id || o.orderId)}</strong>
@@ -13809,21 +13879,19 @@ function renderOrderHistoryDetails() {
                             ${itemsText}
                         </div>
                         
-                        ${otpCode ? `
-                        <div class="order-history-otp-box ${isDelivered ? 'otp-verified' : isCancelled ? 'otp-cancelled' : ''}">
+                        ${(isActivePending && otpCode) ? `
+                        <div class="order-history-otp-box delivery-verification-otp">
                             <div class="order-history-otp-left">
                                 <span class="order-history-otp-label">
-                                    <i class="fa-solid ${isDelivered ? 'fa-circle-check' : isCancelled ? 'fa-ban' : 'fa-shield-halved'}"></i>
-                                    ${isDelivered ? 'Delivered & Verified' : isCancelled ? 'Cancelled Order' : 'Delivery Verification OTP'}
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                    Delivery Verification OTP
                                 </span>
                                 <span class="order-history-otp-digits">${escapeHtml(otpCode)}</span>
-                                ${!isDelivered && !isCancelled ? `<span class="order-history-otp-note">Share with delivery partner upon arrival</span>` : ''}
+                                <span class="order-history-otp-note">Share with delivery partner upon arrival</span>
                             </div>
-                            ${!isDelivered && !isCancelled ? `
-                                <button type="button" class="order-history-copy-btn" onclick="copyOrderHistoryOtp('${escapeHtml(otpCode)}')" title="Copy Delivery OTP">
-                                    <i class="fa-solid fa-copy"></i> Copy
-                                </button>
-                            ` : ''}
+                            <button type="button" class="order-history-copy-btn" onclick="copyOrderHistoryOtp('${escapeHtml(otpCode)}')" title="Copy Delivery OTP">
+                                <i class="fa-solid fa-copy"></i> Copy
+                            </button>
                         </div>
                         ` : ''}
 
@@ -13866,8 +13934,8 @@ function renderOrderHistoryDetails() {
                             `}
                         ` : ''}
 
-                        <div style="display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 4px;">
-                            <span>Status: <span class="order-status-val ${isDelivered ? 'status-delivered' : isCancelled ? 'status-cancelled' : 'status-pending'}">${escapeHtml(o.status)}</span></span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 4px;">
+                            ${statusTagHtml}
                             <span style="color: var(--primary-orange);">₹${o.total || (o.costs && o.costs.total) || 0}</span>
                         </div>
                         ${isCancelled && o.rejectionReason ? `
@@ -13879,10 +13947,13 @@ function renderOrderHistoryDetails() {
                             <i class="fa-solid fa-rotate-left"></i> <span>₹${o.walletRefundAmount || o.walletDiscount || o.usedWalletCash || 0} refunded to your wallet balance</span>
                         </div>` : ''}
                     </div>
-                `}).join('');
-                return;
-            }
-    } catch (e) { }
+                `;
+            }).join('');
+            return;
+        }
+    } catch (e) {
+        console.error('Error rendering customer order history details:', e);
+    }
 
     if (clearBtn) clearBtn.style.display = 'none';
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
@@ -13892,15 +13963,91 @@ function renderOrderHistoryDetails() {
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(emptyMsg)}</span>`;
 }
 
-function openClearHistoryModal() {
-    const modal = document.getElementById('clear-history-confirm-modal');
-    if (!modal) {
-        confirmClearCustomerOrderHistory();
-        return;
+function clearFinishedCustomerOrders() {
+    let allOrders = [];
+    try {
+        const stored = localStorage.getItem('perfettoCustomerOrders');
+        if (stored) {
+            allOrders = JSON.parse(stored) || [];
+        }
+    } catch (e) {
+        allOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
     }
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('modal-open');
+    if (!Array.isArray(allOrders)) {
+        allOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+    }
+    if (!Array.isArray(allOrders)) {
+        allOrders = [];
+    }
+
+    const nowMs = Date.now();
+    const isOrderActive = (o) => {
+        if (!o) return false;
+        const rawStatus = String(o.status || '').trim().toUpperCase();
+        const timeRemainingMs = getCustomerOrderRemainingTimeMs(o, nowMs);
+
+        // Terminal, cancelled, or expired orders are NOT active
+        if (rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') return false;
+        if (rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED') return false;
+        if (o.autoExpired === true || o.isAutoExpired === true || o.rejectedBy === 'SYSTEM_AUTO_EXPIRE') return false;
+        if (timeRemainingMs <= 0) return false;
+
+        // Retain ALL active pending orders (status === 'pending', 'preparing', 'delivery', with timeRemainingMs > 0)
+        const activeStatuses = ['PENDING', 'PREPARING', 'DELIVERY', 'OUT_FOR_DELIVERY', 'NEW', 'PLACED', 'READY', 'ACCEPTED'];
+        return activeStatuses.includes(rawStatus) && timeRemainingMs > 0;
+    };
+
+    // Purge ONLY completed, delivered, rejected, and expired orders from the local storage cache
+    const activeOrders = allOrders.filter(o => isOrderActive(o));
+    const removedOrders = allOrders.filter(o => !isOrderActive(o));
+
+    // Remember user-cleared terminal order IDs so background remote sync does not re-add them
+    if (typeof getClearedOrderIds === 'function' && typeof saveClearedOrderIds === 'function') {
+        const clearedSet = new Set(getClearedOrderIds());
+        removedOrders.forEach(o => {
+            const id = String((o && (o.id || o.orderId)) || '');
+            if (id) clearedSet.add(id);
+        });
+        saveClearedOrderIds(Array.from(clearedSet));
+    }
+
+    // Clean up Firestore snapshot listeners for removed orders
+    if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
+        removedOrders.forEach(o => {
+            const orderId = String((o && (o.id || o.orderId)) || '');
+            if (orderId && customerOrdersUnsubscribeMap.has(orderId)) {
+                try {
+                    const unsub = customerOrdersUnsubscribeMap.get(orderId);
+                    if (typeof unsub === 'function') unsub();
+                } catch (unsubErr) { }
+                customerOrdersUnsubscribeMap.delete(orderId);
+            }
+        });
+    }
+
+    // Save filtered active orders back to storage
+    safeStorage.setJSON('perfettoCustomerOrders', activeOrders);
+    try {
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(activeOrders));
+    } catch (e) { }
+
+    if (typeof closeClearHistoryModal === 'function') {
+        closeClearHistoryModal();
+    }
+
+    // Re-render the profile/history UI immediately
+    renderOrderHistoryDetails();
+    if (typeof updateProfileTotalsUI === 'function') {
+        updateProfileTotalsUI();
+    }
+
+    showToast("Cleared completed and expired order history.");
+}
+window.clearFinishedCustomerOrders = clearFinishedCustomerOrders;
+window.renderRecentOrders = renderOrderHistoryDetails;
+
+function openClearHistoryModal() {
+    clearFinishedCustomerOrders();
 }
 
 function closeClearHistoryModal() {
@@ -13912,92 +14059,13 @@ function closeClearHistoryModal() {
 }
 
 function clearCustomerOrderHistory() {
-    openClearHistoryModal();
+    clearFinishedCustomerOrders();
 }
 
 window.openClearHistoryModal = openClearHistoryModal;
 window.closeClearHistoryModal = closeClearHistoryModal;
 window.clearCustomerOrderHistory = clearCustomerOrderHistory;
-
-function confirmClearCustomerOrderHistory() {
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    try {
-        let currentOrders = [];
-        try {
-            const stored = localStorage.getItem('perfettoCustomerOrders');
-            if (stored) {
-                currentOrders = JSON.parse(stored) || [];
-            }
-        } catch (readErr) {
-            currentOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
-        }
-
-        if (!Array.isArray(currentOrders)) {
-            currentOrders = [];
-        }
-
-        // Terminal/finalized statuses: only these may be cleared
-        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
-        const isTerminalOrder = (order) => {
-            const st = String((order && order.status) || '').trim().toLowerCase();
-            return terminalStatuses.has(st);
-        };
-
-        // Strictly protect all active/transitional orders (e.g., pending, accepted, preparing, out_for_delivery)
-        const preservedOrders = currentOrders.filter(o => !isTerminalOrder(o));
-        const removedOrders = currentOrders.filter(o => isTerminalOrder(o));
-        const removedCount = removedOrders.length;
-
-        // Remember user-cleared terminal order IDs so background remote sync does not re-add them
-        const clearedIds = getClearedOrderIds();
-        const clearedSet = new Set(clearedIds);
-        removedOrders.forEach(o => {
-            const id = String((o && (o.id || o.orderId)) || '');
-            if (id) clearedSet.add(id);
-        });
-        saveClearedOrderIds(Array.from(clearedSet));
-
-        // Clean up Firestore snapshot listeners for removed terminal orders only
-        if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
-            removedOrders.forEach(o => {
-                const orderId = String((o && (o.id || o.orderId)) || '');
-                if (orderId && customerOrdersUnsubscribeMap.has(orderId)) {
-                    try {
-                        const unsub = customerOrdersUnsubscribeMap.get(orderId);
-                        if (typeof unsub === 'function') unsub();
-                    } catch (unsubErr) { }
-                    customerOrdersUnsubscribeMap.delete(orderId);
-                }
-            });
-        }
-
-        // Strictly update order list, preserving active orders, tokens, credentials, and session state
-        safeStorage.setJSON('perfettoCustomerOrders', preservedOrders);
-        try {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(preservedOrders));
-        } catch (e) { }
-
-        closeClearHistoryModal();
-        renderOrderHistoryDetails();
-        updateProfileTotalsUI();
-
-        if (removedCount > 0) {
-            showToast(isHindi
-                ? `🧹 ${removedCount} पूरे हुए ऑर्डर हटा दिए गए। सक्रिय ऑर्डर सुरक्षित हैं!`
-                : `🧹 ${removedCount} completed/cancelled order${removedCount > 1 ? 's' : ''} cleared. Active orders preserved!`);
-        } else {
-            showToast(isHindi
-                ? `ℹ️ हटाने के लिए कोई पूरा हुआ ऑर्डर नहीं मिला। आपके सक्रिय ऑर्डर चल रहे हैं!`
-                : `ℹ️ No completed orders to clear. Active orders are still ongoing!`);
-        }
-    } catch (e) {
-        console.error('Error clearing customer order history:', e);
-        closeClearHistoryModal();
-        renderOrderHistoryDetails();
-        updateProfileTotalsUI();
-    }
-}
-window.confirmClearCustomerOrderHistory = confirmClearCustomerOrderHistory;
+window.confirmClearCustomerOrderHistory = clearFinishedCustomerOrders;
 
 // --------------------------------------------------------------------------
 // 7. TOAST NOTIFICATION SYSTEM
