@@ -1113,67 +1113,116 @@ export function listenToAdminTodayOrders(options = {}) {
             const orders = [];
             const newPendingOrders = [];
 
-            if (snapshot && typeof snapshot.forEach === 'function') {
-                snapshot.forEach((doc) => {
-                    const data = doc.data() || {};
-                    const docId = doc.id;
-                    const rawId = data.orderId || data.id || docId;
-                    const cleanId = String(rawId).replace(/^#/, '').trim();
-                    const orderObj = {
-                        ...data,
-                        id: data.id || data.orderId || docId,
-                        orderId: data.orderId || data.id || docId,
-                        firestoreDocId: docId
-                    };
-                    orders.push(orderObj);
+            if (isInitialAdminHydration) {
+                // On the initial snapshot load, populate adminKnownOrderIds without playing sound
+                if (snapshot && typeof snapshot.forEach === 'function') {
+                    snapshot.forEach((doc) => {
+                        const data = doc.data() || {};
+                        const docId = doc.id;
+                        const rawId = data.orderId || data.id || docId;
+                        const cleanId = String(rawId).replace(/^#/, '').trim();
+                        const orderObj = {
+                            ...data,
+                            id: data.id || data.orderId || docId,
+                            orderId: data.orderId || data.id || docId,
+                            firestoreDocId: docId
+                        };
+                        orders.push(orderObj);
 
-                    const status = String(data.status || '').toUpperCase().trim();
-                    const isPending = status === 'PENDING' || status === 'NEW' || status === 'PLACED';
-
-                    if (!isInitialAdminHydration && isPending && !adminKnownOrderIds.has(cleanId) && !adminKnownOrderIds.has(docId)) {
-                        newPendingOrders.push(orderObj);
-                    }
-                    adminKnownOrderIds.add(cleanId);
-                    adminKnownOrderIds.add(docId);
-                });
-            }
-
-            // Also inspect snapshot.docChanges() for immediate additions / updates
-            if (!isInitialAdminHydration && snapshot && typeof snapshot.docChanges === 'function') {
-                try {
-                    snapshot.docChanges().forEach((change) => {
-                        if (change.type === 'added' || change.type === 'modified') {
-                            const data = change.doc.data() || {};
-                            const docId = change.doc.id;
-                            const rawId = data.orderId || data.id || docId;
-                            const cleanId = String(rawId).replace(/^#/, '').trim();
-                            const status = String(data.status || '').toUpperCase().trim();
-                            const isPending = status === 'PENDING' || status === 'NEW' || status === 'PLACED';
-
-                            if (isPending && !adminKnownOrderIds.has(cleanId) && !adminKnownOrderIds.has(docId) && !adminHandledAudioOrderIds.has(cleanId)) {
-                                const orderObj = {
-                                    ...data,
-                                    id: data.id || data.orderId || docId,
-                                    orderId: data.orderId || data.id || docId,
-                                    firestoreDocId: docId
-                                };
-                                newPendingOrders.push(orderObj);
-                                adminKnownOrderIds.add(cleanId);
-                                adminKnownOrderIds.add(docId);
+                        adminKnownOrderIds.add(cleanId);
+                        adminKnownOrderIds.add(docId);
+                        try {
+                            if (typeof window !== 'undefined' && window.adminKnownOrderIds && window.adminKnownOrderIds !== adminKnownOrderIds) {
+                                window.adminKnownOrderIds.add(cleanId);
+                                window.adminKnownOrderIds.add(docId);
                             }
+                        } catch (e) { }
+                    });
+                }
+                isInitialAdminHydration = false;
+            } else {
+                // On subsequent snapshots, compare incoming pending order IDs against adminKnownOrderIds
+                if (snapshot && typeof snapshot.forEach === 'function') {
+                    snapshot.forEach((doc) => {
+                        const data = doc.data() || {};
+                        const docId = doc.id;
+                        const rawId = data.orderId || data.id || docId;
+                        const cleanId = String(rawId).replace(/^#/, '').trim();
+                        const orderObj = {
+                            ...data,
+                            id: data.id || data.orderId || docId,
+                            orderId: data.orderId || data.id || docId,
+                            firestoreDocId: docId
+                        };
+                        orders.push(orderObj);
+
+                        const status = String(data.status || '').toUpperCase().trim();
+                        const isPending = status === 'PENDING' || status === 'NEW' || status === 'PLACED';
+                        const isKnown = adminKnownOrderIds.has(cleanId) || adminKnownOrderIds.has(docId) ||
+                            (typeof window !== 'undefined' && window.adminKnownOrderIds && (window.adminKnownOrderIds.has(cleanId) || window.adminKnownOrderIds.has(docId)));
+
+                        if (isPending && !isKnown) {
+                            newPendingOrders.push(orderObj);
                         }
                     });
-                } catch (dcErr) { }
-            }
+                }
 
-            // When a newly added document with pending status arrives after initial page load, trigger admin order chime & banner
-            if (!isInitialAdminHydration && newPendingOrders.length > 0) {
-                const latestNewOrder = newPendingOrders[0];
-                console.log(`🔔 [admin.js] Real-time incoming pending order #${latestNewOrder.orderId || latestNewOrder.id}. Triggering admin chime & banner...`);
-                showAdminOrderAlert(latestNewOrder);
-            }
+                // Also inspect snapshot.docChanges() for immediate additions / updates
+                if (snapshot && typeof snapshot.docChanges === 'function') {
+                    try {
+                        snapshot.docChanges().forEach((change) => {
+                            if (change.type === 'added' || change.type === 'modified') {
+                                const data = change.doc.data() || {};
+                                const docId = change.doc.id;
+                                const rawId = data.orderId || data.id || docId;
+                                const cleanId = String(rawId).replace(/^#/, '').trim();
+                                const status = String(data.status || '').toUpperCase().trim();
+                                const isPending = status === 'PENDING' || status === 'NEW' || status === 'PLACED';
+                                const isKnown = adminKnownOrderIds.has(cleanId) || adminKnownOrderIds.has(docId) ||
+                                    (typeof window !== 'undefined' && window.adminKnownOrderIds && (window.adminKnownOrderIds.has(cleanId) || window.adminKnownOrderIds.has(docId))) ||
+                                    newPendingOrders.some(o => {
+                                        const oid = String(o.orderId || o.id).replace(/^#/, '').trim();
+                                        return oid === cleanId || o.firestoreDocId === docId;
+                                    });
 
-            isInitialAdminHydration = false;
+                                if (isPending && !isKnown) {
+                                    const orderObj = {
+                                        ...data,
+                                        id: data.id || data.orderId || docId,
+                                        orderId: data.orderId || data.id || docId,
+                                        firestoreDocId: docId
+                                    };
+                                    newPendingOrders.push(orderObj);
+                                }
+                            }
+                        });
+                    } catch (dcErr) { }
+                }
+
+                // For any genuinely new incoming order with status "PENDING":
+                // Add the ID to adminKnownOrderIds and immediately trigger showAdminOrderAlert(newOrder) and playAdminOrderChime(newOrderId)
+                if (newPendingOrders.length > 0) {
+                    newPendingOrders.forEach((newOrder) => {
+                        const newOrderId = newOrder.orderId || newOrder.id || newOrder.firestoreDocId;
+                        const cleanId = String(newOrderId).replace(/^#/, '').trim();
+                        adminKnownOrderIds.add(cleanId);
+                        if (newOrder.firestoreDocId) {
+                            adminKnownOrderIds.add(newOrder.firestoreDocId);
+                        }
+                        try {
+                            if (typeof window !== 'undefined' && window.adminKnownOrderIds && window.adminKnownOrderIds !== adminKnownOrderIds) {
+                                window.adminKnownOrderIds.add(cleanId);
+                                if (newOrder.firestoreDocId) window.adminKnownOrderIds.add(newOrder.firestoreDocId);
+                            }
+                        } catch (e) { }
+
+                        console.log(`🔔 [admin.js] Real-time incoming pending order #${cleanId}. Triggering admin chime & banner...`);
+                        const latestNewOrder = newOrder;
+                        showAdminOrderAlert(latestNewOrder);
+                        playAdminOrderChime(newOrderId);
+                    });
+                }
+            }
 
             // In-memory pure calculation with zero Firestore writes
             const kpis = calculateDashboardKPIs(orders);
@@ -1287,7 +1336,7 @@ export function getAdminAudioSrc() {
 }
 
 export function getAdminAudioContext() {
-    if (!adminAudioContext && typeof window !== 'undefined') {
+    if ((!adminAudioContext || adminAudioContext.state === 'closed') && typeof window !== 'undefined') {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (AudioCtx) {
             try {
@@ -1323,8 +1372,17 @@ export function initAdminAudio() {
 export function unlockAdminAudioContext() {
     try {
         const ctx = getAdminAudioContext();
-        if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-            ctx.resume().catch(() => {});
+        if (ctx) {
+            if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+                ctx.resume().catch(() => {});
+            }
+            try {
+                const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.001)), ctx.sampleRate);
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(ctx.destination);
+                source.start(0);
+            } catch (e) { }
         }
     } catch (e) { }
 
@@ -1351,11 +1409,35 @@ export function unlockAdminAudioContext() {
                     audio.muted = false;
                     audio.volume = 1.0;
                 });
+            } else {
+                audio.muted = false;
+                audio.volume = 1.0;
             }
         }
     } catch (e) { }
 
     adminAudioUnlocked = true;
+}
+
+/**
+ * Attaches interaction listeners to common page gestures (click, touchstart, keydown, pointerdown)
+ * so the browser autoplay restriction is lifted immediately upon user arrival.
+ */
+export function attachAdminAudioUnlockListeners() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const handleUnlock = () => {
+        try {
+            initAdminAudio();
+            unlockAdminAudioContext();
+        } catch (e) { }
+    };
+
+    const events = ['click', 'touchstart', 'touchend', 'pointerdown', 'keydown'];
+    events.forEach((evt) => {
+        document.addEventListener(evt, handleUnlock, { capture: true, passive: true });
+        window.addEventListener(evt, handleUnlock, { capture: true, passive: true });
+    });
 }
 
 export function playAdminSynthesizedChime() {
@@ -1400,7 +1482,9 @@ export function playAdminSynthesizedChime() {
         };
 
         if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
-            ctx.resume().then(scheduleTones).catch(() => {});
+            ctx.resume().then(scheduleTones).catch(() => {
+                scheduleTones();
+            });
         } else {
             scheduleTones();
         }
@@ -1453,10 +1537,10 @@ export function playAdminOrderChime(orderId = null) {
                     console.log('🔊 [Admin Alert] HTML5 audio chime playing successfully (single-play).');
                     adminAudioUnlocked = true;
                 }).catch((err) => {
-                    if (err.name === 'AbortError') {
+                    if (err && err.name === 'AbortError' && adminSoundDismissed) {
                         return;
                     }
-                    console.warn('HTML5 audio play blocked or failed, falling back to synthesized chime:', err.message);
+                    console.warn('HTML5 audio play blocked or failed, falling back to synthesized chime:', err ? err.message : err);
                     playAdminSynthesizedChime();
                 });
                 playedHtml5 = true;
@@ -1576,6 +1660,7 @@ export function dismissAdminOrderAlert() {
 if (typeof window !== 'undefined') {
     window.initAdminAudio = initAdminAudio;
     window.unlockAdminAudioContext = unlockAdminAudioContext;
+    window.attachAdminAudioUnlockListeners = attachAdminAudioUnlockListeners;
     window.playAdminOrderChime = playAdminOrderChime;
     window.playAdminSynthesizedChime = playAdminSynthesizedChime;
     window.showAdminOrderAlert = showAdminOrderAlert;
@@ -1592,6 +1677,19 @@ if (typeof window !== 'undefined') {
             configurable: true
         });
     } catch (e) { }
+
+    // Attach unlock listeners immediately for early interaction support
+    attachAdminAudioUnlockListeners();
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                attachAdminAudioUnlockListeners();
+                try { initAdminAudio(); } catch (e) { }
+            }, { once: true });
+        } else {
+            try { initAdminAudio(); } catch (e) { }
+        }
+    }
 }
 
 
