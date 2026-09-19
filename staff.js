@@ -660,12 +660,17 @@ function listenToFirestoreStaffOrders() {
         }
 
         const liveOrders = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data() || {};
-            const docId = doc.id;
-            const parsed = parseStaffOrder(docId, data);
-            liveOrders.push(parsed);
-        });
+        if (typeof snapshot.forEach === 'function') {
+            snapshot.forEach((doc) => {
+                if (!doc) return;
+                const data = (typeof doc.data === 'function') ? (doc.data() || {}) : (doc.data || {});
+                const docId = doc.id || data.id || data.orderId;
+                const parsed = parseStaffOrder(docId, data);
+                if (parsed && isValidStaffOrder(parsed)) {
+                    liveOrders.push(parsed);
+                }
+            });
+        }
 
         // 1. In-memory sort by timestamp (oldest first for FIFO kitchen queue)
         const sortedLiveOrders = sortOrdersOldestFirst(liveOrders);
@@ -685,15 +690,24 @@ function listenToFirestoreStaffOrders() {
             }
         });
 
-        // 3. Filter valid pending kitchen orders (includes pending, preparing, ready, delivery)
+        // 3. Filter pending orders in JavaScript memory using isPendingStaffOrder(order)
+        // ensuring all statuses ('PENDING', 'pending', 'new', 'placed', 'preparing', 'ready', 'delivery') are cleanly ingested
         const pendingOrders = staffOrders.filter(isValidStaffOrder).filter(isPendingStaffOrder);
 
-        // 4. Distinct Audio Trigger for Each New Order:
-        // Compare incoming order IDs against previously tracked snapshot IDs.
-        // If a genuinely new pending order arrives that was not in the previous snapshot:
-        // - Reset isStaffAlertDismissedInSession = false.
-        // - Start the looping siren alert immediately for the new order.
-        let newlyArrivedOrder = null;
+        // 4. Update staffOrders in-memory array and localStorage cache immediately
+        try {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
+        } catch (e) { }
+
+        // 5. Re-render the orders UI immediately
+        renderOrders();
+
+        // 6. Distinct Audio Trigger for Each New Incoming Order:
+        // Compare incoming pending order IDs against previously tracked snapshot IDs.
+        // If a genuinely new pending order arrives:
+        // - Unconditionally reset isStaffAlertDismissedInSession = false so prior session dismissal never blocks the siren
+        // - Start the looping siren alert immediately for the incoming order
+        const newlyArrivedOrders = [];
         if (isFirestoreInitialHydrationDone) {
             for (const po of pendingOrders) {
                 const key = getOrderMatchingKey(po);
@@ -705,24 +719,33 @@ function listenToFirestoreStaffOrders() {
                                   (docId && staffSnapshotTrackedOrderIds.has(docId));
 
                 if (!isTracked) {
-                    newlyArrivedOrder = po;
-                    break;
+                    newlyArrivedOrders.push(po);
                 }
             }
         }
 
-        if (newlyArrivedOrder) {
-            // Reset dismissal and alerting order ID so the novel incoming order rings loudly and distinctly
+        if (newlyArrivedOrders.length > 0) {
+            // Novel pending orders detected: reset dismissal and trigger looping siren
             isStaffAlertDismissedInSession = false;
             currentAlertingOrderId = null;
+            newlyArrivedOrders.forEach(no => {
+                const id = String(no.orderId || no.id || '').replace(/^#/, '').trim();
+                staffDismissedAlertOrderIds.delete(id);
+                staffProcessedAudioOrderIds.delete(id);
+            });
+
+            const newlyArrivedOrder = newlyArrivedOrders[newlyArrivedOrders.length - 1];
             const newOrderId = String(newlyArrivedOrder.orderId || newlyArrivedOrder.id || 'New').replace(/^#/, '').trim();
             const customerName = newlyArrivedOrder.customerName || 'Customer';
             const total = newlyArrivedOrder.total ? `₹${newlyArrivedOrder.total}` : '';
-            const summary = `New Order Received • ${customerName}${total ? ` (${total})` : ''}`;
+            const summary = newlyArrivedOrders.length > 1
+                ? `${newlyArrivedOrders.length} New Orders Received • ${customerName}${total ? ` (${total})` : ''}`
+                : `New Order Received • ${customerName}${total ? ` (${total})` : ''}`;
 
-            console.log(`🚨 [Staff Snapshot Alert] Genuinely new incoming order detected: #${newOrderId}. Resetting dismissal & triggering audio siren alert!`);
+            console.log(`🚨 [Staff Snapshot Alert] Genuinely new incoming pending order detected: #${newOrderId}. Resetting dismissal & triggering looping audio siren alert!`);
             showStaffToast(`🔔 New Order #${newOrderId} Received!`);
             startOrderAlertAudio(newOrderId, summary, newlyArrivedOrder);
+            startStaffVibrationLoop();
         } else if (!isFirestoreInitialHydrationDone && pendingOrders.length > 0 && isStaffAuthenticated()) {
             // Initial hydration: trigger alert for unaccepted incoming orders if not dismissed
             const unacceptedOrders = pendingOrders.filter(o => {
@@ -746,7 +769,7 @@ function listenToFirestoreStaffOrders() {
             isStaffAlertDismissedInSession = false;
         }
 
-        // 5. Update tracked snapshot order IDs for subsequent snapshot comparisons
+        // 7. Update tracked snapshot order IDs for subsequent snapshot comparisons
         liveOrders.forEach(o => {
             const key = getOrderMatchingKey(o);
             if (key) staffSnapshotTrackedOrderIds.add(key);
@@ -758,64 +781,72 @@ function listenToFirestoreStaffOrders() {
             const key = getOrderMatchingKey(po);
             if (key) {
                 staffSeenOrderIds.add(key);
-                staffSeenOrderIds.add(String(po.id));
-                if (po.firestoreDocId) staffSeenOrderIds.add(String(po.firestoreDocId));
+                staffSeenOrderIds.add(String(po.id).replace(/^#/, '').trim());
+                if (po.firestoreDocId) staffSeenOrderIds.add(String(po.firestoreDocId).trim());
             }
         });
         isFirestoreInitialHydrationDone = true;
     }
 
     try {
-        // Multi-status kitchen query covering all active kitchen states without composite index dependencies
-        const ACTIVE_KITCHEN_STATUSES = [
-            'PENDING', 'pending',
-            'PREPARING', 'preparing',
-            'READY', 'ready',
-            'DELIVERY', 'delivery',
-            'PLACED', 'placed',
-            'NEW', 'new'
-        ];
-        staffOrdersUnsubscribe = db.collection('orders')
-            .where('status', 'in', ACTIVE_KITCHEN_STATUSES)
-            .onSnapshot((snapshot) => {
-                processOrdersSnapshot(snapshot);
-            }, (err) => {
-                console.warn('Firestore staff orders listener note:', err.message);
-                if (typeof staffOrdersUnsubscribe === 'function') {
-                    try { staffOrdersUnsubscribe(); } catch (e) { }
-                }
-                staffOrdersUnsubscribe = null;
+        // Query orders collection directly without restrictive composite filters (exact parity with admin.js)
+        let queryRef;
+        try {
+            const colRef = db.collection('orders');
+            if (typeof colRef.orderBy === 'function') {
+                queryRef = colRef.orderBy('createdAt', 'desc').limit(50);
+            } else if (typeof colRef.limit === 'function') {
+                queryRef = colRef.limit(50);
+            } else {
+                queryRef = colRef;
+            }
+        } catch (e) {
+            try {
+                queryRef = db.collection('orders').limit(50);
+            } catch (e2) {
+                queryRef = db.collection('orders');
+            }
+        }
 
-                // Resilient fallback: query collection directly with limit
-                try {
-                    staffOrdersUnsubscribe = db.collection('orders')
-                        .limit(100)
-                        .onSnapshot((fallbackSnap) => {
-                            processOrdersSnapshot(fallbackSnap);
-                        }, (fbErr) => {
-                            console.warn('Firestore staff orders fallback listener note:', fbErr.message);
-                            if (typeof staffOrdersUnsubscribe === 'function') {
-                                try { staffOrdersUnsubscribe(); } catch (e) { }
-                            }
-                            staffOrdersUnsubscribe = null;
-                            if (!staffOrdersReconnectTimeout) {
-                                staffOrdersReconnectTimeout = setTimeout(() => {
-                                    staffOrdersReconnectTimeout = null;
-                                    listenToFirestoreStaffOrders();
-                                }, 3000);
-                            }
-                            fetchOrdersFromBackend();
-                        });
-                } catch (fallbackEx) {
-                    if (!staffOrdersReconnectTimeout) {
-                        staffOrdersReconnectTimeout = setTimeout(() => {
-                            staffOrdersReconnectTimeout = null;
-                            listenToFirestoreStaffOrders();
-                        }, 3000);
-                    }
-                    fetchOrdersFromBackend();
+        staffOrdersUnsubscribe = queryRef.onSnapshot((snapshot) => {
+            processOrdersSnapshot(snapshot);
+        }, (err) => {
+            console.warn('Firestore staff orders listener note:', err.message);
+            if (typeof staffOrdersUnsubscribe === 'function') {
+                try { staffOrdersUnsubscribe(); } catch (e) { }
+            }
+            staffOrdersUnsubscribe = null;
+
+            // Resilient fallback: query collection directly with limit
+            try {
+                staffOrdersUnsubscribe = db.collection('orders')
+                    .limit(50)
+                    .onSnapshot((fallbackSnap) => {
+                        processOrdersSnapshot(fallbackSnap);
+                    }, (fbErr) => {
+                        console.warn('Firestore staff orders fallback listener note:', fbErr.message);
+                        if (typeof staffOrdersUnsubscribe === 'function') {
+                            try { staffOrdersUnsubscribe(); } catch (e) { }
+                        }
+                        staffOrdersUnsubscribe = null;
+                        if (!staffOrdersReconnectTimeout) {
+                            staffOrdersReconnectTimeout = setTimeout(() => {
+                                staffOrdersReconnectTimeout = null;
+                                listenToFirestoreStaffOrders();
+                            }, 3000);
+                        }
+                        fetchOrdersFromBackend();
+                    });
+            } catch (fallbackEx) {
+                if (!staffOrdersReconnectTimeout) {
+                    staffOrdersReconnectTimeout = setTimeout(() => {
+                        staffOrdersReconnectTimeout = null;
+                        listenToFirestoreStaffOrders();
+                    }, 3000);
                 }
-            });
+                fetchOrdersFromBackend();
+            }
+        });
     } catch (e) {
         console.warn('Error attaching Firestore staff listener:', e);
         staffOrdersUnsubscribe = null;
