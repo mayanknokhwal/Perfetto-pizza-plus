@@ -11536,6 +11536,10 @@ let otpResendTimerId = null;
 // --------------------------------------------------------------------------
 let customerLeafletMap = null;
 let customerLocationMarker = null;
+let deliveryMap = null;
+let deliveryMapMarker = null;
+window.deliveryMap = null;
+window.deliveryMapMarker = null;
 let customerStoreMarker = null;
 let customerCoverageCircle = null;
 let customerTempCoords = { lat: 29.533736, lng: 73.447895 }; // Raisingh Nagar default
@@ -11819,6 +11823,9 @@ function initCustomerLeafletMap(lat, lng) {
             maxBoundsViscosity: 1.0,
             zoomControl: true
         });
+        deliveryMap = customerLeafletMap;
+        window.deliveryMap = customerLeafletMap;
+        window.customerLeafletMap = customerLeafletMap;
 
         // Compute dynamic minZoom that fits bounding square within viewport
         const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
@@ -11860,6 +11867,9 @@ function initCustomerLeafletMap(lat, lng) {
             icon: customIcon,
             zIndexOffset: 1000
         }).addTo(customerLeafletMap);
+        deliveryMapMarker = customerLocationMarker;
+        window.deliveryMapMarker = customerLocationMarker;
+        window.customerLocationMarker = customerLocationMarker;
 
         customerLocationMarker.bindPopup(`
             <div style="text-align: center; padding: 4px;">
@@ -11944,6 +11954,10 @@ function initCustomerLeafletMap(lat, lng) {
         if (customerLocationMarker) {
             customerLocationMarker.setLatLng([lat, lng]);
         }
+        deliveryMap = customerLeafletMap;
+        deliveryMapMarker = customerLocationMarker;
+        window.deliveryMap = customerLeafletMap;
+        window.deliveryMapMarker = customerLocationMarker;
         if (customerStoreMarker) {
             customerStoreMarker.setLatLng([storeLat, storeLng]);
         }
@@ -11994,24 +12008,33 @@ function clampCoordsToDeliveryRadius(lat, lng) {
 }
 
 function updateMapModalCoordsDisplay(lat, lng) {
-    const banner = document.getElementById('map-zone-status-banner');
+    const banner = document.getElementById('map-zone-status-banner') || document.querySelector('.map-zone-status-banner');
     const icon = document.getElementById('zone-status-icon');
     const text = document.getElementById('zone-status-text');
     const confirmBtn = document.getElementById('btn-confirm-map-location');
 
     const check = isWithinDeliveryRadius(lat, lng);
+    const dist = check.distanceKm;
 
-    if (banner && icon && text) {
-        if (!check.isAllowed) {
-            banner.className = 'map-zone-status-banner out-zone';
-            if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
-            text.textContent = 'Delivery not available at this location. Please select a point within the delivery zone.';
-        } else {
-            banner.className = 'map-zone-status-banner in-zone';
-            if (icon) icon.className = 'fa-solid fa-circle-check';
-            text.textContent = `Within Delivery Zone (${check.distanceKm} km from store)`;
-        }
+    if (banner) {
+        banner.className = !check.isAllowed ? 'map-zone-status-banner out-zone' : 'map-zone-status-banner in-zone';
     }
+    if (icon) {
+        icon.className = !check.isAllowed ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check';
+    }
+    if (text) {
+        text.textContent = !check.isAllowed
+            ? 'Delivery not available at this location. Please select a point within the delivery zone.'
+            : `Within Delivery Zone (${dist} km from store)`;
+    }
+
+    document.querySelectorAll('.delivery-zone-status, #delivery-zone-info, .delivery-zone-info').forEach(el => {
+        if (el) {
+            el.textContent = !check.isAllowed
+                ? `Delivery not available at this location (${dist} km from store).`
+                : `Within Delivery Zone (${dist} km from store)`;
+        }
+    });
 
     if (confirmBtn) {
         confirmBtn.disabled = !check.isAllowed;
@@ -12022,8 +12045,8 @@ function updateMapModalCoordsDisplay(lat, lng) {
 }
 
 function handleDetectLiveGps() {
-    const btn = document.getElementById('btn-detect-live-gps');
-    const btnText = document.getElementById('detect-gps-btn-text');
+    const btn = document.getElementById('btn-detect-live-gps') || document.querySelector('.btn-detect-live-gps');
+    const btnText = document.getElementById('detect-gps-btn-text') || (btn ? btn.querySelector('span') : null);
 
     if (!navigator.geolocation) {
         showToast('⚠️ Geolocation is not supported on this device/browser.');
@@ -12032,6 +12055,7 @@ function handleDetectLiveGps() {
 
     if (btn) {
         btn.disabled = true;
+        btn.classList.add('loading', 'btn-loading', 'is-loading');
         if (btnText) btnText.innerHTML = '<span class="btn-spinner"></span> Detecting GPS...';
     }
 
@@ -12039,63 +12063,136 @@ function handleDetectLiveGps() {
 
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            let lat = parseFloat(position.coords.latitude.toFixed(6));
-            let lng = parseFloat(position.coords.longitude.toFixed(6));
+            const rawLat = position.coords.latitude;
+            const rawLng = position.coords.longitude;
+            let lat = parseFloat(rawLat.toFixed(6));
+            let lng = parseFloat(rawLng.toFixed(6));
             const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
             lastGpsAccuracyMeters = accuracy;
 
-            const radiusCheck = isWithinDeliveryRadius(lat, lng);
-            if (!radiusCheck.isAllowed) {
-                const clamped = clampCoordsToDeliveryRadius(lat, lng);
-                showToast(`⚠️ Location (${radiusCheck.distanceKm} km) is outside our ${radiusCheck.maxRadiusKm} km delivery zone. Marker placed at nearest point.`);
-                lat = clamped.lat;
-                lng = clamped.lng;
-            } else {
-                showToast(`📍 Location detected! Drag marker or tap anywhere to fine-tune.`);
+            // 1. Unconditionally reset the button text back to "Re-detect Live GPS" and remove loading spinner classes.
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('loading', 'btn-loading', 'is-loading');
+                const spinner = btn.querySelector('.btn-spinner, .spinner');
+                if (spinner) spinner.remove();
+            }
+            if (btnText) {
+                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
             }
 
-            customerTempCoords = { lat, lng, isLiveGps: true };
+            // 2. Calculate the fresh distance from store coordinates using calculateDistanceHaversine.
+            const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+            const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
+            const dist = parseFloat(calculateDistanceHaversine(storeLat, storeLng, lat, lng).toFixed(2));
 
-            if (customerLeafletMap) {
-                customerLeafletMap.setView([lat, lng], 16);
-                if (customerLocationMarker) {
-                    customerLocationMarker.setLatLng([lat, lng]);
+            // Sync deliveryMap and deliveryMapMarker references
+            if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap) {
+                deliveryMap = customerLeafletMap;
+                window.deliveryMap = customerLeafletMap;
+            }
+            if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker) {
+                deliveryMapMarker = customerLocationMarker;
+                window.deliveryMapMarker = customerLocationMarker;
+            }
+
+            // 3. Update the active marker position (deliveryMapMarker.setLatLng([lat, lng])) and pan/zoom the map view to the new center (deliveryMap.setView([lat, lng], 16)).
+            if (typeof deliveryMapMarker !== 'undefined' && deliveryMapMarker && typeof deliveryMapMarker.setLatLng === 'function') {
+                deliveryMapMarker.setLatLng([lat, lng]);
+                if (typeof deliveryMapMarker.openPopup === 'function') {
+                    deliveryMapMarker.openPopup();
+                }
+            } else if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker && typeof customerLocationMarker.setLatLng === 'function') {
+                customerLocationMarker.setLatLng([lat, lng]);
+                if (typeof customerLocationMarker.openPopup === 'function') {
                     customerLocationMarker.openPopup();
                 }
             }
 
+            if (typeof deliveryMap !== 'undefined' && deliveryMap && typeof deliveryMap.setView === 'function') {
+                if (typeof deliveryMap.invalidateSize === 'function') {
+                    deliveryMap.invalidateSize();
+                }
+                deliveryMap.setView([lat, lng], 16);
+                if (typeof deliveryMap.panTo === 'function') {
+                    deliveryMap.panTo([lat, lng], { animate: true });
+                }
+            } else if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap && typeof customerLeafletMap.setView === 'function') {
+                if (typeof customerLeafletMap.invalidateSize === 'function') {
+                    customerLeafletMap.invalidateSize();
+                }
+                customerLeafletMap.setView([lat, lng], 16);
+                if (typeof customerLeafletMap.panTo === 'function') {
+                    customerLeafletMap.panTo([lat, lng], { animate: true });
+                }
+            }
+
+            customerTempCoords = { lat, lng, isLiveGps: true };
+
+            // 4. Immediately update the bottom text badge (e.g., .delivery-zone-status / #delivery-zone-info) with the newly calculated distance: "Within Delivery Zone ({dist} km from store)".
+            const banner = document.getElementById('map-zone-status-banner') || document.querySelector('.map-zone-status-banner');
+            const icon = document.getElementById('zone-status-icon');
+            const text = document.getElementById('zone-status-text');
+
+            if (banner) {
+                banner.className = 'map-zone-status-banner in-zone';
+            }
+            if (icon) {
+                icon.className = 'fa-solid fa-circle-check';
+            }
+            if (text) {
+                text.textContent = `Within Delivery Zone (${dist} km from store)`;
+            }
+
+            document.querySelectorAll('.delivery-zone-status, #delivery-zone-info, .delivery-zone-info, #zone-status-text').forEach(el => {
+                if (el) {
+                    el.textContent = `Within Delivery Zone (${dist} km from store)`;
+                }
+            });
+
             updateMapModalCoordsDisplay(lat, lng);
 
-            if (btn) {
-                btn.disabled = false;
-                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
-            }
+            // 5. Update hidden input fields #customer-gps-lat, #customer-gps-lng, and set #customer-gps-is-live to "true".
+            const latHidden = document.getElementById('customer-gps-lat');
+            const lngHidden = document.getElementById('customer-gps-lng');
+            const isLiveHidden = document.getElementById('customer-gps-is-live');
+            if (latHidden) latHidden.value = String(lat);
+            if (lngHidden) lngHidden.value = String(lng);
+            if (isLiveHidden) isLiveHidden.value = 'true';
+
+            currentCustomerGps = { lat, lng, isLiveGps: true };
+
+            showToast(`📍 Live GPS detected (${dist} km from store)!`);
         },
         (error) => {
             console.error('Geolocation Error:', error);
+            // In error/timeout fallback:
+            // Restore button state cleanly and show a helpful toast ("Could not fetch fresh GPS. Please check location permissions.")
             if (btn) {
                 btn.disabled = false;
-                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Detect My Live GPS';
+                btn.classList.remove('loading', 'btn-loading', 'is-loading');
+                const spinner = btn.querySelector('.btn-spinner, .spinner');
+                if (spinner) spinner.remove();
+            }
+            if (btnText) {
+                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
             }
 
-            let errorMsg = '⚠️ Unable to detect location. You can manually drag the pin to your address.';
-            if (error.code === error.PERMISSION_DENIED) {
-                errorMsg = '⚠️ Location permission not granted. Please drag the map pin manually to set your address.';
-            } else if (error.code === error.POSITION_UNAVAILABLE) {
-                errorMsg = '⚠️ Location unavailable. Please drag the map pin manually.';
-            } else if (error.code === error.TIMEOUT) {
-                errorMsg = '⚠️ Location request timed out. Please drag the map pin manually or tap retry.';
-            }
-
-            showToast(errorMsg);
+            showToast('Could not fetch fresh GPS. Please check location permissions.');
         },
         {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 60000
+            maximumAge: 0
         }
     );
 }
+
+const detectCurrentCustomerLocation = handleDetectLiveGps;
+const reDetectLiveGps = handleDetectLiveGps;
+window.handleDetectLiveGps = handleDetectLiveGps;
+window.detectCurrentCustomerLocation = detectCurrentCustomerLocation;
+window.reDetectLiveGps = reDetectLiveGps;
 
 function handleConfirmMapLocation() {
     if (!customerTempCoords || isNaN(customerTempCoords.lat) || isNaN(customerTempCoords.lng)) {
@@ -19808,6 +19905,10 @@ window.copyDeliveryOtpToClipboard = copyDeliveryOtpToClipboard;
 window.viewOrderHistoryFromOtpModal = viewOrderHistoryFromOtpModal;
 window.closeOrderOtpSuccessModal = closeOrderOtpSuccessModal;
 window.handleDetectLiveGps = handleDetectLiveGps;
+window.detectCurrentCustomerLocation = handleDetectLiveGps;
+window.reDetectLiveGps = handleDetectLiveGps;
+window.deliveryMap = deliveryMap;
+window.deliveryMapMarker = deliveryMapMarker;
 window.handleConfirmMapLocation = handleConfirmMapLocation;
 window.cleanupAllCustomerListeners = cleanupAllCustomerListeners;
 window.openStoreNoticeModal = openStoreNoticeModal;
