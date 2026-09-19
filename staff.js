@@ -474,9 +474,19 @@ window.getOrFetchEmergencyMasterOtp = getOrFetchEmergencyMasterOtp;
 let staffOrdersReconnectTimeout = null;
 let isFirestoreInitialHydrationDone = false;
 let isStaffAlertDismissedInSession = false;
-window.isStaffAlertDismissedInSession = isStaffAlertDismissedInSession;
+try {
+    Object.defineProperty(window, 'isStaffAlertDismissedInSession', {
+        get: () => isStaffAlertDismissedInSession,
+        set: (v) => { isStaffAlertDismissedInSession = Boolean(v); },
+        configurable: true
+    });
+} catch (e) {
+    window.isStaffAlertDismissedInSession = isStaffAlertDismissedInSession;
+}
 const processedOrderDocIds = new Set();
 const staffIncomingAlertedIds = new Set();
+const staffSnapshotTrackedOrderIds = new Set();
+window.staffSnapshotTrackedOrderIds = staffSnapshotTrackedOrderIds;
 
 /**
  * Reliably parses order creation timestamp from Firestore server timestamps, ISO strings,
@@ -675,49 +685,75 @@ function listenToFirestoreStaffOrders() {
             }
         });
 
-        // 3. Filter valid pending kitchen orders
+        // 3. Filter valid pending kitchen orders (includes pending, preparing, ready, delivery)
         const pendingOrders = staffOrders.filter(isValidStaffOrder).filter(isPendingStaffOrder);
 
-        // 4. Check for brand-new incoming orders not previously seen in this session
-        let hasNewIncomingOrder = false;
-        let newestOrder = null;
-        pendingOrders.forEach(po => {
-            const key = getOrderMatchingKey(po);
-            if (key && !staffSeenOrderIds.has(key)) {
-                hasNewIncomingOrder = true;
-                newestOrder = po;
-            }
-        });
+        // 4. Distinct Audio Trigger for Each New Order:
+        // Compare incoming order IDs against previously tracked snapshot IDs.
+        // If a genuinely new pending order arrives that was not in the previous snapshot:
+        // - Reset isStaffAlertDismissedInSession = false.
+        // - Start the looping siren alert immediately for the new order.
+        let newlyArrivedOrder = null;
+        if (isFirestoreInitialHydrationDone) {
+            for (const po of pendingOrders) {
+                const key = getOrderMatchingKey(po);
+                const rawId = String(po.id || po.orderId || '').replace(/^#/, '').trim();
+                const docId = String(po.firestoreDocId || '').trim();
 
-        // If a new pending order arrived, reset session dismissal
-        if (hasNewIncomingOrder) {
-            isStaffAlertDismissedInSession = false;
-        }
+                const isTracked = (key && staffSnapshotTrackedOrderIds.has(key)) ||
+                                  (rawId && staffSnapshotTrackedOrderIds.has(rawId)) ||
+                                  (docId && staffSnapshotTrackedOrderIds.has(docId));
 
-        // 5. Audio Alert Trigger:
-        // When the pending orders snapshot fires:
-        // Ensure looping audio siren remains active whenever pendingOrders.length > 0 and staff is authenticated.
-        if (pendingOrders.length > 0 && isStaffAuthenticated()) {
-            if (!isStaffAlertDismissedInSession) {
-                const targetOrder = newestOrder || pendingOrders[pendingOrders.length - 1] || pendingOrders[0];
-                const targetOrderId = String(targetOrder.orderId || targetOrder.id || 'New');
-                const customerName = targetOrder.customerName || 'Customer';
-                const total = targetOrder.total ? `₹${targetOrder.total}` : '';
-                const summary = `${pendingOrders.length} Pending Order${pendingOrders.length > 1 ? 's' : ''} • ${customerName}${total ? ` (${total})` : ''}`;
-
-                if (!isOrderAlertAudioPlaying) {
-                    console.log(`🔊 [Firestore Pending Snapshot] ${pendingOrders.length} active pending order(s) in queue. Triggering continuous looping audio alert...`);
-                    startOrderAlertAudio(targetOrderId, summary, targetOrder);
+                if (!isTracked) {
+                    newlyArrivedOrder = po;
+                    break;
                 }
             }
-        } else {
+        }
+
+        if (newlyArrivedOrder) {
+            // Reset dismissal and alerting order ID so the novel incoming order rings loudly and distinctly
+            isStaffAlertDismissedInSession = false;
+            currentAlertingOrderId = null;
+            const newOrderId = String(newlyArrivedOrder.orderId || newlyArrivedOrder.id || 'New').replace(/^#/, '').trim();
+            const customerName = newlyArrivedOrder.customerName || 'Customer';
+            const total = newlyArrivedOrder.total ? `₹${newlyArrivedOrder.total}` : '';
+            const summary = `New Order Received • ${customerName}${total ? ` (${total})` : ''}`;
+
+            console.log(`🚨 [Staff Snapshot Alert] Genuinely new incoming order detected: #${newOrderId}. Resetting dismissal & triggering audio siren alert!`);
+            showStaffToast(`🔔 New Order #${newOrderId} Received!`);
+            startOrderAlertAudio(newOrderId, summary, newlyArrivedOrder);
+        } else if (!isFirestoreInitialHydrationDone && pendingOrders.length > 0 && isStaffAuthenticated()) {
+            // Initial hydration: trigger alert for unaccepted incoming orders if not dismissed
+            const unacceptedOrders = pendingOrders.filter(o => {
+                const s = String(o.status || '').trim().toLowerCase();
+                return ['new', 'placed', 'pending', 'confirmed', 'received', 'order_placed'].includes(s);
+            });
+            if (unacceptedOrders.length > 0 && !isStaffAlertDismissedInSession && !isOrderAlertAudioPlaying) {
+                const targetOrder = unacceptedOrders[unacceptedOrders.length - 1] || unacceptedOrders[0];
+                const targetOrderId = String(targetOrder.orderId || targetOrder.id || 'New').replace(/^#/, '').trim();
+                const customerName = targetOrder.customerName || 'Customer';
+                const total = targetOrder.total ? `₹${targetOrder.total}` : '';
+                const summary = `${unacceptedOrders.length} Pending Order${unacceptedOrders.length > 1 ? 's' : ''} • ${customerName}${total ? ` (${total})` : ''}`;
+
+                console.log(`🔊 [Firestore Initial Hydration] ${unacceptedOrders.length} unaccepted incoming order(s) in queue. Triggering continuous looping audio alert...`);
+                startOrderAlertAudio(targetOrderId, summary, targetOrder);
+            }
+        } else if (pendingOrders.length === 0) {
             if (isOrderAlertAudioPlaying) {
                 stopOrderAlertAudio();
             }
             isStaffAlertDismissedInSession = false;
         }
 
-        // 6. Record seen order IDs
+        // 5. Update tracked snapshot order IDs for subsequent snapshot comparisons
+        liveOrders.forEach(o => {
+            const key = getOrderMatchingKey(o);
+            if (key) staffSnapshotTrackedOrderIds.add(key);
+            if (o.id) staffSnapshotTrackedOrderIds.add(String(o.id).replace(/^#/, '').trim());
+            if (o.orderId) staffSnapshotTrackedOrderIds.add(String(o.orderId).replace(/^#/, '').trim());
+            if (o.firestoreDocId) staffSnapshotTrackedOrderIds.add(String(o.firestoreDocId).trim());
+        });
         pendingOrders.forEach(po => {
             const key = getOrderMatchingKey(po);
             if (key) {
@@ -730,9 +766,17 @@ function listenToFirestoreStaffOrders() {
     }
 
     try {
-        // Query strictly scoped to status == 'PENDING' without composite index ordering or date boundary filters
+        // Multi-status kitchen query covering all active kitchen states without composite index dependencies
+        const ACTIVE_KITCHEN_STATUSES = [
+            'PENDING', 'pending',
+            'PREPARING', 'preparing',
+            'READY', 'ready',
+            'DELIVERY', 'delivery',
+            'PLACED', 'placed',
+            'NEW', 'new'
+        ];
         staffOrdersUnsubscribe = db.collection('orders')
-            .where('status', '==', 'PENDING')
+            .where('status', 'in', ACTIVE_KITCHEN_STATUSES)
             .onSnapshot((snapshot) => {
                 processOrdersSnapshot(snapshot);
             }, (err) => {
@@ -742,14 +786,35 @@ function listenToFirestoreStaffOrders() {
                 }
                 staffOrdersUnsubscribe = null;
 
-                // Auto-reconnect resiliently after 3 seconds instead of dropping listener
-                if (!staffOrdersReconnectTimeout) {
-                    staffOrdersReconnectTimeout = setTimeout(() => {
-                        staffOrdersReconnectTimeout = null;
-                        listenToFirestoreStaffOrders();
-                    }, 3000);
+                // Resilient fallback: query collection directly with limit
+                try {
+                    staffOrdersUnsubscribe = db.collection('orders')
+                        .limit(100)
+                        .onSnapshot((fallbackSnap) => {
+                            processOrdersSnapshot(fallbackSnap);
+                        }, (fbErr) => {
+                            console.warn('Firestore staff orders fallback listener note:', fbErr.message);
+                            if (typeof staffOrdersUnsubscribe === 'function') {
+                                try { staffOrdersUnsubscribe(); } catch (e) { }
+                            }
+                            staffOrdersUnsubscribe = null;
+                            if (!staffOrdersReconnectTimeout) {
+                                staffOrdersReconnectTimeout = setTimeout(() => {
+                                    staffOrdersReconnectTimeout = null;
+                                    listenToFirestoreStaffOrders();
+                                }, 3000);
+                            }
+                            fetchOrdersFromBackend();
+                        });
+                } catch (fallbackEx) {
+                    if (!staffOrdersReconnectTimeout) {
+                        staffOrdersReconnectTimeout = setTimeout(() => {
+                            staffOrdersReconnectTimeout = null;
+                            listenToFirestoreStaffOrders();
+                        }, 3000);
+                    }
+                    fetchOrdersFromBackend();
                 }
-                fetchOrdersFromBackend();
             });
     } catch (e) {
         console.warn('Error attaching Firestore staff listener:', e);
@@ -2808,12 +2873,12 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
         }
     });
 
-    // 2. Preserve completed and rejected orders from previous fetches/state, or local offline pending
+    // 2. Preserve completed and rejected orders from previous fetches/state, local offline pending, or in-flight actions
     staffOrders.forEach(lo => {
         if (isValidStaffOrder(lo)) {
             const key = getOrderMatchingKey(lo);
             if (key && !mergedMap.has(key)) {
-                if (isCompletedStaffOrder(lo) || isRejectedStaffOrder(lo) || lo._isLocalOfflinePending) {
+                if (isCompletedStaffOrder(lo) || isRejectedStaffOrder(lo) || lo._isLocalOfflinePending || isOrderActionInFlight(lo)) {
                     mergedMap.set(key, lo);
                 }
             }
@@ -2834,6 +2899,8 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
         });
 
         if (newIncomingOrders.length > 0) {
+            isStaffAlertDismissedInSession = false;
+            currentAlertingOrderId = null;
             const latestNew = newIncomingOrders[newIncomingOrders.length - 1];
             const orderId = String(latestNew.orderId || latestNew.id);
             const customerName = latestNew.customerName || latestNew.customer?.name || 'Customer';
@@ -4481,7 +4548,7 @@ function buildOrderCardHTML(order) {
                 </button>
             </div>
         `;
-    } else if (order.status === 'preparing') {
+    } else if (normalizedStatus === 'preparing' || normalizedStatus === 'kitchen') {
         // Preparing state: Dispatch Driver button + Direct OTP verification option + Reject Order
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
@@ -4496,7 +4563,7 @@ function buildOrderCardHTML(order) {
                 ${otpVerificationBoxHTML}
             </div>
         `;
-    } else if (order.status === 'ready' || order.status === 'delivery') {
+    } else if (normalizedStatus === 'ready' || normalizedStatus === 'delivery' || normalizedStatus === 'out_for_delivery' || normalizedStatus === 'out-for-delivery' || normalizedStatus === 'dispatched' || normalizedStatus === 'in_transit') {
         // Out for Delivery state: Dispatched Badge + Direct OTP verification + Reject Order
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
@@ -4511,7 +4578,7 @@ function buildOrderCardHTML(order) {
                 ${otpVerificationBoxHTML}
             </div>
         `;
-    } else if (order.status === 'rejected') {
+    } else if (normalizedStatus === 'rejected' || isRejectedStaffOrder(order)) {
         const isMasterAdminViewer = currentStaffUser && (
             currentStaffUser.role === 'Master Admin' || 
             String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10) === MASTER_ADMIN_PHONE_NUM || 
