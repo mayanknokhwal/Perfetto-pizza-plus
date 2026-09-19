@@ -2714,15 +2714,15 @@ function isOrderActionInFlight(orderOrId) {
         const id2 = String(orderOrId.orderId || '').trim();
         const clean2 = id2.replace(/^#/, '').trim();
         const docId = String(orderOrId.firestoreDocId || orderOrId.docId || '').trim();
-        return (id1 && actionInFlightOrders.has(id1)) ||
-               (clean1 && actionInFlightOrders.has(clean1)) ||
-               (id2 && actionInFlightOrders.has(id2)) ||
-               (clean2 && actionInFlightOrders.has(clean2)) ||
-               (docId && actionInFlightOrders.has(docId));
+        return (Boolean(id1) && actionInFlightOrders.has(id1)) ||
+               (Boolean(clean1) && actionInFlightOrders.has(clean1)) ||
+               (Boolean(id2) && actionInFlightOrders.has(id2)) ||
+               (Boolean(clean2) && actionInFlightOrders.has(clean2)) ||
+               (Boolean(docId) && actionInFlightOrders.has(docId));
     }
     const raw = String(orderOrId).trim();
     const clean = raw.replace(/^#/, '').trim();
-    return (raw && actionInFlightOrders.has(raw)) || (clean && actionInFlightOrders.has(clean));
+    return (Boolean(raw) && actionInFlightOrders.has(raw)) || (Boolean(clean) && actionInFlightOrders.has(clean));
 }
 
 /**
@@ -2732,23 +2732,46 @@ function setOrderActionInFlight(orderOrId, inFlight) {
     if (!orderOrId) return;
     const ids = [];
     if (typeof orderOrId === 'object') {
-        if (orderOrId.id) {
-            ids.push(String(orderOrId.id).trim());
-            ids.push(String(orderOrId.id).replace(/^#/, '').trim());
+        if (orderOrId.id !== undefined && orderOrId.id !== null) {
+            const s = String(orderOrId.id).trim();
+            const clean = s.replace(/^#/, '').trim();
+            if (s) ids.push(s);
+            if (clean) ids.push(clean, '#' + clean);
         }
-        if (orderOrId.orderId) {
-            ids.push(String(orderOrId.orderId).trim());
-            ids.push(String(orderOrId.orderId).replace(/^#/, '').trim());
+        if (orderOrId.orderId !== undefined && orderOrId.orderId !== null) {
+            const s = String(orderOrId.orderId).trim();
+            const clean = s.replace(/^#/, '').trim();
+            if (s) ids.push(s);
+            if (clean) ids.push(clean, '#' + clean);
         }
         if (orderOrId.firestoreDocId) {
-            ids.push(String(orderOrId.firestoreDocId).trim());
+            const s = String(orderOrId.firestoreDocId).trim();
+            if (s) ids.push(s, s.replace(/^#/, '').trim());
         }
         if (orderOrId.docId) {
-            ids.push(String(orderOrId.docId).trim());
+            const s = String(orderOrId.docId).trim();
+            if (s) ids.push(s, s.replace(/^#/, '').trim());
         }
     } else {
-        ids.push(String(orderOrId).trim());
-        ids.push(String(orderOrId).replace(/^#/, '').trim());
+        const s = String(orderOrId).trim();
+        const clean = s.replace(/^#/, '').trim();
+        if (s) ids.push(s);
+        if (clean) ids.push(clean, '#' + clean);
+
+        // When clearing in-flight, also look up any associated docId or other IDs for that order in staffOrders
+        if (!inFlight && Array.isArray(staffOrders)) {
+            const matched = staffOrders.find(o => 
+                String(o.id) === s || String(o.id) === clean ||
+                String(o.orderId) === s || String(o.orderId) === clean ||
+                (o.firestoreDocId && (o.firestoreDocId === s || o.firestoreDocId === clean))
+            );
+            if (matched) {
+                if (matched.id) ids.push(String(matched.id).trim(), String(matched.id).replace(/^#/, '').trim());
+                if (matched.orderId) ids.push(String(matched.orderId).trim(), String(matched.orderId).replace(/^#/, '').trim());
+                if (matched.firestoreDocId) ids.push(String(matched.firestoreDocId).trim());
+                if (matched.docId) ids.push(String(matched.docId).trim());
+            }
+        }
     }
     ids.forEach(id => {
         if (!id) return;
@@ -2867,6 +2890,14 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
                 );
                 if (existingLocal && existingLocal.firestoreDocId && !o.firestoreDocId) {
                     o.firestoreDocId = existingLocal.firestoreDocId;
+                }
+                if (existingLocal && (isCompletedStaffOrder(existingLocal) || isRejectedStaffOrder(existingLocal))) {
+                    if (!isCompletedStaffOrder(o) && !isRejectedStaffOrder(o)) {
+                        o.status = existingLocal.status;
+                        if (existingLocal.deliveredAt && !o.deliveredAt) o.deliveredAt = existingLocal.deliveredAt;
+                        if (existingLocal.completedAt && !o.completedAt) o.completedAt = existingLocal.completedAt;
+                        if (existingLocal.rejectedAt && !o.rejectedAt) o.rejectedAt = existingLocal.rejectedAt;
+                    }
                 }
                 mergedMap.set(key, o);
             }
@@ -4752,22 +4783,49 @@ async function verifyAndCompleteOrderDelivery(orderId) {
 
     try {
         // Complete delivery asynchronously with canonical status 'delivered'
-        await updateOrderStatus(order.id, 'delivered', verifyBtn);
+        await updateOrderStatus(order.id || rawId, 'delivered', verifyBtn);
         if (isMasterOtpMatch && !isCustomerOtpMatch) {
-            regenerateMasterDeliveryOtpOnUse(order.id);
-            showStaffToast(`🎉 Emergency Master OTP Verified! Order #${order.id} marked as Delivered!`);
+            regenerateMasterDeliveryOtpOnUse(order.id || rawId);
+            showStaffToast(`🎉 Emergency Master OTP Verified! Order #${rawId} marked as Delivered!`);
         } else {
-            showStaffToast(`🎉 OTP Verified! Order #${order.id} marked as Delivered successfully!`);
+            showStaffToast(`🎉 OTP Verified! Order #${rawId} marked as Delivered successfully!`);
         }
     } catch (err) {
         console.error('Delivery verification write error:', err);
         showStaffToast(`❌ Delivery update failed: ${err.message || 'Database error'}`);
-        alert(`Delivery Update Failed: Could not update Order #${order.id}.\n\n${err.message || 'Please check your connection and retry.'}`);
+        alert(`Delivery Update Failed: Could not update Order #${rawId}.\n\n${err.message || 'Please check your connection and retry.'}`);
     } finally {
+        // 1. Unconditionally clear in-flight status across all possible order ID variants
+        setOrderActionInFlight(orderId, false);
+        setOrderActionInFlight(rawId, false);
+        if (order) {
+            setOrderActionInFlight(order, false);
+            if (order.firestoreDocId) setOrderActionInFlight(order.firestoreDocId, false);
+        }
+
+        // 2. Unconditionally restore button and input state
         if (verifyBtn) {
             verifyBtn.disabled = false;
-            verifyBtn.classList.remove('btn-loading');
+            if (verifyBtn.classList) verifyBtn.classList.remove('btn-loading');
             verifyBtn.innerHTML = originalBtnHTML;
+        }
+        const liveBtn = document.getElementById(`btn-verify-otp-${order ? order.id : rawId}`) ||
+                        document.getElementById(`btn-verify-otp-${rawId}`);
+        if (liveBtn) {
+            liveBtn.disabled = false;
+            if (liveBtn.classList) liveBtn.classList.remove('btn-loading');
+            liveBtn.innerHTML = originalBtnHTML;
+        }
+
+        // 3. Ensure interactive state on remaining active cards
+        ensureOrderCardInteractive(order?.id || rawId);
+        ensureOrderCardInteractive(orderId);
+        if (Array.isArray(staffOrders)) {
+            staffOrders.forEach(o => {
+                if (o && isPendingStaffOrder(o)) {
+                    ensureOrderCardInteractive(o.id || o.orderId);
+                }
+            });
         }
     }
 }
@@ -5021,20 +5079,34 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             extraPayload.shouldCreditCashbackOnDelivery = true;
         }
 
-        // 1. Save updated staffOrders to staff storage
+        // 1. Ensure order is updated in staffOrders
+        const existingIdx = staffOrders.findIndex(o => 
+            String(o.id) === rawId || 
+            String(o.orderId) === rawId || 
+            String(o.id).replace(/^#/, '') === rawId || 
+            String(o.orderId).replace(/^#/, '') === rawId ||
+            (order.firestoreDocId && (o.firestoreDocId === order.firestoreDocId || o.id === order.firestoreDocId))
+        );
+        if (existingIdx >= 0) {
+            staffOrders[existingIdx] = order;
+        } else {
+            staffOrders.push(order);
+        }
+
+        // 2. Save updated staffOrders to staff storage
         try {
             localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
         } catch (e) {
             console.error('Error saving updated order status:', e);
         }
 
-        // 2. Selectively update order status in customer orders cache without wiping order history
+        // 3. Selectively update order status in customer orders cache without wiping order history
         try {
             const rawCust = localStorage.getItem('perfettoCustomerOrders');
             if (rawCust) {
                 const custOrders = JSON.parse(rawCust);
                 if (Array.isArray(custOrders)) {
-                    const cIdx = custOrders.findIndex(o => String(o.id || o.orderId) === rawId);
+                    const cIdx = custOrders.findIndex(o => String(o.id || o.orderId) === rawId || String(o.id || o.orderId).replace(/^#/, '') === rawId);
                     if (cIdx >= 0) {
                         custOrders[cIdx].status = effectiveStatus;
                         custOrders[cIdx].updatedAt = nowIso;
@@ -5059,7 +5131,7 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             }
         } catch (e) { }
 
-        // 3. Persist to Firestore & backend API
+        // 4. Persist to Firestore & backend API
         await syncOrderStatusToBackend(order.id, effectiveStatus, extraPayload);
 
         let msg = `Order #${order.id} updated to ${effectiveStatus.toUpperCase()}`;
@@ -5075,9 +5147,13 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         showStaffToast(`❌ Status update failed: ${err.message || 'Database error'}`);
         throw err;
     } finally {
-        // 1. Unconditionally clear in-flight status across all order ID variants BEFORE re-rendering
+        // 1. Unconditionally clear in-flight status across all possible order ID variants BEFORE re-rendering
+        setOrderActionInFlight(orderId, false);
         setOrderActionInFlight(rawId, false);
-        if (order) setOrderActionInFlight(order, false);
+        if (order) {
+            setOrderActionInFlight(order, false);
+            if (order.firestoreDocId) setOrderActionInFlight(order.firestoreDocId, false);
+        }
 
         // 2. Restore trigger button if it exists and wasn't detached
         if (triggerBtn) {
@@ -5085,12 +5161,28 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             if (triggerBtn.classList) triggerBtn.classList.remove('btn-loading');
             if (originalTriggerHTML) triggerBtn.innerHTML = originalTriggerHTML;
         }
+        const liveBtn = document.getElementById(`btn-verify-otp-${order ? order.id : rawId}`) ||
+                        document.getElementById(`btn-dispatch-${order ? order.id : rawId}`) ||
+                        document.getElementById(`btn-verify-otp-${rawId}`) ||
+                        document.getElementById(`btn-dispatch-${rawId}`);
+        if (liveBtn) {
+            liveBtn.disabled = false;
+            if (liveBtn.classList) liveBtn.classList.remove('btn-loading');
+        }
 
         // 3. Re-render orders now that in-flight flags are completely cleared so buildOrderCardHTML generates active controls
         renderOrders();
 
         // 4. Directly guarantee card interactivity and remove any lingering disabled/pointer-events restrictions
         ensureOrderCardInteractive(order?.id || rawId);
+        ensureOrderCardInteractive(orderId);
+        if (Array.isArray(staffOrders)) {
+            staffOrders.forEach(o => {
+                if (o && isPendingStaffOrder(o)) {
+                    ensureOrderCardInteractive(o.id || o.orderId);
+                }
+            });
+        }
     }
 }
 window.updateOrderStatus = updateOrderStatus;
