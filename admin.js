@@ -1080,6 +1080,18 @@ export function listenToAdminTodayOrders(options = {}) {
                 .then(r => r.json())
                 .then(data => {
                     if (data && data.success && Array.isArray(data.orders)) {
+                        if (data.orders.length === 0) {
+                            try {
+                                localStorage.removeItem('perfetto_staff_orders');
+                                localStorage.removeItem('perfettoCustomerOrders');
+                            } catch (e) { }
+                            const pEl = document.getElementById('stat-pending-orders') || document.getElementById('pending-orders-count');
+                            const cEl = document.getElementById('stat-delivered-orders') || document.getElementById('completed-orders-count');
+                            const rEl = document.getElementById('stat-rejected-orders') || document.getElementById('rejected-orders-count');
+                            if (pEl) pEl.textContent = '0';
+                            if (cEl) cEl.textContent = '0';
+                            if (rEl) rEl.textContent = '0';
+                        }
                         const kpis = calculateDashboardKPIs(data.orders);
                         updateDashboardKPIsDOM(kpis);
                         if (onUpdate) onUpdate(kpis, data.orders);
@@ -1222,6 +1234,20 @@ export function listenToAdminTodayOrders(options = {}) {
                         playAdminOrderChime(newOrderId);
                     });
                 }
+            }
+
+            // Client-Side Auto-Purge Helper: If orders collection is empty, clear local caches and reset badges to 0
+            if (orders.length === 0) {
+                try {
+                    localStorage.removeItem('perfetto_staff_orders');
+                    localStorage.removeItem('perfettoCustomerOrders');
+                } catch (e) { }
+                const pEl = document.getElementById('stat-pending-orders') || document.getElementById('pending-orders-count');
+                const cEl = document.getElementById('stat-delivered-orders') || document.getElementById('completed-orders-count');
+                const rEl = document.getElementById('stat-rejected-orders') || document.getElementById('rejected-orders-count');
+                if (pEl) pEl.textContent = '0';
+                if (cEl) cEl.textContent = '0';
+                if (rEl) rEl.textContent = '0';
             }
 
             // In-memory pure calculation with zero Firestore writes

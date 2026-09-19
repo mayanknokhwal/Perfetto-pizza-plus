@@ -672,6 +672,27 @@ function listenToFirestoreStaffOrders() {
             });
         }
 
+        // Client-Side Auto-Purge Helper: When orders collection is empty, clear local caches and reset badges to 0
+        if (liveOrders.length === 0) {
+            staffOrders = [];
+            try {
+                localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
+                localStorage.removeItem('perfetto_staff_orders');
+                localStorage.removeItem('perfettoCustomerOrders');
+            } catch (e) { }
+            renderOrders();
+            const pendingCountEl = document.getElementById('pending-orders-count');
+            const completedCountEl = document.getElementById('completed-orders-count');
+            const rejectedCountEl = document.getElementById('rejected-orders-count');
+            if (pendingCountEl) pendingCountEl.textContent = '0';
+            if (completedCountEl) completedCountEl.textContent = '0';
+            if (rejectedCountEl) rejectedCountEl.textContent = '0';
+            stopOrderAlertAudio();
+            isStaffAlertDismissedInSession = false;
+            isFirestoreInitialHydrationDone = true;
+            return;
+        }
+
         // 1. In-memory sort by timestamp (oldest first for FIFO kitchen queue)
         const sortedLiveOrders = sortOrdersOldestFirst(liveOrders);
 
@@ -2876,7 +2897,23 @@ async function fetchOrdersFromBackend(force = false) {
         }
         const data = await response.json();
         if (data && data.success && Array.isArray(data.orders)) {
-            mergeLiveOrdersIntoStaff(data.orders);
+            if (data.orders.length === 0) {
+                staffOrders = [];
+                try {
+                    localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
+                    localStorage.removeItem('perfetto_staff_orders');
+                    localStorage.removeItem('perfettoCustomerOrders');
+                } catch (e) { }
+                renderOrders();
+                const pendingCountEl = document.getElementById('pending-orders-count');
+                const completedCountEl = document.getElementById('completed-orders-count');
+                const rejectedCountEl = document.getElementById('rejected-orders-count');
+                if (pendingCountEl) pendingCountEl.textContent = '0';
+                if (completedCountEl) completedCountEl.textContent = '0';
+                if (rejectedCountEl) rejectedCountEl.textContent = '0';
+            } else {
+                mergeLiveOrdersIntoStaff(data.orders);
+            }
         }
     } catch (err) {
         console.error('Staff orders sync error:', err);
