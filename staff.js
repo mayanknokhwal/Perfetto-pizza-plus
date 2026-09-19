@@ -579,7 +579,13 @@ function parseStaffOrder(docId, data = {}) {
 
     // Normalize status (default to 'pending' if missing or blank)
     const rawStatus = String(data.status || 'pending').trim();
-    const status = rawStatus || 'pending';
+    const normStatus = rawStatus.toLowerCase();
+
+    // Detect if this document has an active pending or in-preparation status
+    const isPendingDoc = [
+        'pending', 'new', 'placed', 'preparing', 'kitchen', 'in_kitchen', 'in-kitchen',
+        'ready', 'delivery', 'out_for_delivery', 'out-for-delivery', 'dispatched', 'in_transit', 'paid'
+    ].includes(normStatus);
 
     // Normalize customer info from top-level or nested objects
     const customerName = data.customerName || data.customer?.name || data.deliveryDetails?.name || data.name || 'Customer';
@@ -604,12 +610,16 @@ function parseStaffOrder(docId, data = {}) {
 
     // Strict guard: If order is created within the last 100 minutes and has pending status, sanitize stale autoExpired flags
     const isFresh = (Date.now() - createdMs) < ONE_HUNDRED_MINS_EXPIRATION_MS;
-    const isPendingDoc = status.toUpperCase() === 'PENDING' || status.toLowerCase() === 'pending';
     const autoExpired = (isFresh && isPendingDoc) ? false : Boolean(data.autoExpired);
     const isAutoExpired = (isFresh && isPendingDoc) ? false : Boolean(data.isAutoExpired);
     const rejectedBy = (isFresh && isPendingDoc && data.rejectedBy === 'SYSTEM_AUTO_EXPIRE') ? null : (data.rejectedBy || null);
     const rejectionReason = (isFresh && isPendingDoc && String(data.rejectionReason || '').includes('100 minutes timeout')) ? null : (data.rejectionReason || null);
     const cancellationReason = (isFresh && isPendingDoc && String(data.cancellationReason || '').includes('100 minutes timeout')) ? null : (data.cancellationReason || null);
+
+    // If Firestore doc is pending/new/placed/preparing/paid, it MUST NOT have fabricated delivery timestamps or flags
+    const resolvedStatus = isPendingDoc 
+        ? (normStatus === 'paid' ? 'pending' : (normStatus || 'pending')) 
+        : (rawStatus || 'pending');
 
     return {
         ...data,
@@ -623,8 +633,12 @@ function parseStaffOrder(docId, data = {}) {
         notes,
         items,
         total,
-        status: (isFresh && isPendingDoc) ? 'pending' : status,
+        status: resolvedStatus,
         createdAt,
+        deliveredAt: isPendingDoc ? null : (data.deliveredAt || null),
+        completedAt: isPendingDoc ? null : (data.completedAt || null),
+        deliveryVerified: isPendingDoc ? false : Boolean(data.deliveryVerified || data.deliveryOtpVerified),
+        deliveryOtpVerified: isPendingDoc ? false : Boolean(data.deliveryOtpVerified || data.deliveryVerified),
         autoExpired,
         isAutoExpired,
         rejectedBy,
@@ -2734,13 +2748,17 @@ function isOnlinePaymentOrder(order) {
 function processAutoAcceptanceForOnlineOrders() {
     let changed = false;
     staffOrders.forEach(order => {
-        if (order.status === 'new' && isOnlinePaymentOrder(order)) {
-            order.status = 'preparing';
-            if (!order.prepStartedAt) {
-                order.prepStartedAt = order.createdAt || new Date().toISOString();
+        // Online orders may at most move to 'preparing' (if configured), but MUST NEVER transition to 'delivered' or 'completed' on their own
+        const s = String(order.status || '').trim().toLowerCase();
+        if ((s === 'new' || s === 'placed' || s === 'pending') && isOnlinePaymentOrder(order)) {
+            if (order.status !== 'preparing') {
+                order.status = 'preparing';
+                if (!order.prepStartedAt) {
+                    order.prepStartedAt = order.createdAt || new Date().toISOString();
+                }
+                // In-memory state updated; zero Firestore writes inside snapshot handler to prevent infinite loops
+                changed = true;
             }
-            // In-memory state updated; zero Firestore writes inside snapshot handler to prevent infinite loops
-            changed = true;
         }
     });
     if (changed) {
@@ -2836,6 +2854,16 @@ function setOrderActionInFlight(orderOrId, inFlight) {
 }
 
 let staffOrders = [];
+function getStaffOrders() { return staffOrders; }
+function setStaffOrders(val) { 
+    staffOrders = Array.isArray(val) ? val : []; 
+    if (typeof window !== 'undefined') window.staffOrders = staffOrders; 
+}
+if (typeof window !== 'undefined') {
+    window.staffOrders = staffOrders;
+    window.getStaffOrders = getStaffOrders;
+    window.setStaffOrders = setStaffOrders;
+}
 
 function sortOrdersOldestFirst(orders) {
     if (!Array.isArray(orders)) return [];
@@ -2860,13 +2888,24 @@ function isValidStaffOrder(order) {
 }
 
 function loadCustomerOrders() {
-    // 1. Instant load from LocalStorage
+    // 1. Instant load from LocalStorage strictly using STAFF_ORDERS_STORAGE_KEY (never poll customer app keys)
     try {
-        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY) || localStorage.getItem('perfettoCustomerOrders');
+        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY);
         if (stored) {
             const customerOrders = JSON.parse(stored);
             if (Array.isArray(customerOrders)) {
-                staffOrders = sortOrdersOldestFirst(customerOrders.filter(isValidStaffOrder));
+                // Sanitize loaded orders: ensure pending orders never carry fabricated delivery status or timestamps
+                staffOrders = sortOrdersOldestFirst(customerOrders.filter(isValidStaffOrder).map(o => {
+                    const rawStatus = String(o.status || '').trim().toUpperCase();
+                    const s = rawStatus.toLowerCase();
+                    if (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(s) || s === 'paid') {
+                        o.deliveredAt = null;
+                        o.completedAt = null;
+                        o.deliveryVerified = false;
+                        o.deliveryOtpVerified = false;
+                    }
+                    return o;
+                }));
             } else {
                 staffOrders = [];
             }
@@ -2878,7 +2917,7 @@ function loadCustomerOrders() {
         staffOrders = [];
     }
 
-    // Auto-accept any online payment orders
+    // Auto-accept any online payment orders (at most transitions to 'preparing', never 'delivered')
     processAutoAcceptanceForOnlineOrders();
 
     // 2. Asynchronously sync with backend API
@@ -2959,25 +2998,51 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
                 if (existingLocal && existingLocal.firestoreDocId && !o.firestoreDocId) {
                     o.firestoreDocId = existingLocal.firestoreDocId;
                 }
-                if (existingLocal && (isCompletedStaffOrder(existingLocal) || isRejectedStaffOrder(existingLocal))) {
-                    if (!isCompletedStaffOrder(o) && !isRejectedStaffOrder(o)) {
-                        o.status = existingLocal.status;
-                        if (existingLocal.deliveredAt && !o.deliveredAt) o.deliveredAt = existingLocal.deliveredAt;
-                        if (existingLocal.completedAt && !o.completedAt) o.completedAt = existingLocal.completedAt;
-                        if (existingLocal.rejectedAt && !o.rejectedAt) o.rejectedAt = existingLocal.rejectedAt;
-                    }
+
+                // Strictly respect the document's true remote status from Firestore.
+                // If Firestore doc status is 'PENDING', 'pending', 'new', 'placed', or 'preparing',
+                // keep the order strictly in the "Pending Orders" tab.
+                // NEVER override a pending Firestore document with a local 'completed' or 'delivered' state.
+                const remoteRawStatus = String(o.status || '').trim().toUpperCase();
+                const isRemotePending = remoteRawStatus === 'PENDING' || 
+                                        remoteRawStatus === 'NEW' || 
+                                        remoteRawStatus === 'PLACED' || 
+                                        remoteRawStatus === 'PREPARING' || 
+                                        remoteRawStatus === 'KITCHEN' || 
+                                        remoteRawStatus === 'READY' || 
+                                        remoteRawStatus === 'DELIVERY' || 
+                                        remoteRawStatus === 'OUT_FOR_DELIVERY' || 
+                                        remoteRawStatus === 'OUT-FOR-DELIVERY' || 
+                                        remoteRawStatus === 'DISPATCHED' || 
+                                        remoteRawStatus === 'IN_TRANSIT' || 
+                                        remoteRawStatus === 'PAID' ||
+                                        PENDING_STAFF_STATUSES.has(remoteRawStatus.toLowerCase());
+
+                if (isRemotePending) {
+                    // Strictly keep order in Pending Orders tab; strip any fabricated or local delivered flags
+                    o.deliveredAt = null;
+                    o.completedAt = null;
+                    o.deliveryVerified = false;
+                    o.deliveryOtpVerified = false;
+                } else if (existingLocal && isOrderActionInFlight(existingLocal) && existingLocal.status === 'delivered') {
+                    // Only preserve optimistic delivered state if an action is actively in-flight on this specific client
+                    o.status = 'delivered';
+                    o.deliveryVerified = true;
+                    if (existingLocal.deliveredAt) o.deliveredAt = existingLocal.deliveredAt;
+                    if (existingLocal.completedAt) o.completedAt = existingLocal.completedAt;
                 }
+
                 mergedMap.set(key, o);
             }
         }
     });
 
-    // 2. Preserve completed and rejected orders from previous fetches/state, local offline pending, or in-flight actions
+    // 2. Preserve local offline pending or actively in-flight actions only (never revive stale ghost orders)
     staffOrders.forEach(lo => {
         if (isValidStaffOrder(lo)) {
             const key = getOrderMatchingKey(lo);
             if (key && !mergedMap.has(key)) {
-                if (isCompletedStaffOrder(lo) || isRejectedStaffOrder(lo) || lo._isLocalOfflinePending || isOrderActionInFlight(lo)) {
+                if (lo._isLocalOfflinePending || isOrderActionInFlight(lo)) {
                     mergedMap.set(key, lo);
                 }
             }
@@ -2987,6 +3052,7 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     // 3. Sort orders: Oldest/earliest orders at top, new incoming orders at bottom
     const mergedList = sortOrdersOldestFirst(Array.from(mergedMap.values()).filter(isValidStaffOrder));
     staffOrders = mergedList;
+    if (typeof window !== 'undefined') window.staffOrders = staffOrders;
 
     // Check for newly arrived incoming orders (status === 'placed', 'new', or 'pending') while app is active
     if (isInitialOrdersSyncDone) {
@@ -3027,6 +3093,9 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     } catch (e) { }
 
     renderOrders();
+}
+if (typeof window !== 'undefined') {
+    window.mergeLiveOrdersIntoStaff = mergeLiveOrdersIntoStaff;
 }
 
 let isStaffSoundEnabled = true; // Sound switch defaults to active ON, scoped to session
@@ -3559,35 +3628,84 @@ const REJECTED_STAFF_STATUSES = new Set(["rejected", "cancelled", "canceled", "d
 function isPendingStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
+    const s = rawStatus.toLowerCase();
 
-    // If remaining time > 0 and status is active pending/unfulfilled, order MUST stay in status PENDING and render in Pending Orders tab
-    const remMs = getOrderRemainingTimeMs(order);
-    if (remMs > 0 && (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(rawStatus.toLowerCase()))) {
-        return true;
+    // 1. If completed or rejected, it cannot be pending
+    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) {
+        return false;
     }
 
-    // Auto-cancellation boundary: strictly remove only if order is 100 minutes expired
+    // 2. Strict 100-minute boundary for auto-expiry
     if (isOrder100MinsExpired(order)) {
         return false;
     }
-    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && remMs <= 0) {
+    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && getOrderRemainingTimeMs(order) <= 0) {
         return false;
     }
-    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
 
-    if (rawStatus === 'PENDING') {
+    // 3. If remaining time > 0 and status is active pending/unfulfilled, order MUST stay in status PENDING and render in Pending Orders tab
+    if (
+        rawStatus === 'PENDING' || 
+        rawStatus === 'NEW' || 
+        rawStatus === 'PLACED' || 
+        rawStatus === 'PREPARING' || 
+        rawStatus === 'KITCHEN' || 
+        rawStatus === 'READY' || 
+        rawStatus === 'DELIVERY' || 
+        rawStatus === 'OUT_FOR_DELIVERY' || 
+        rawStatus === 'OUT-FOR-DELIVERY' || 
+        rawStatus === 'DISPATCHED' || 
+        rawStatus === 'IN_TRANSIT' || 
+        rawStatus === 'PAID' || 
+        PENDING_STAFF_STATUSES.has(s)
+    ) {
         return true;
     }
-    const s = rawStatus.toLowerCase();
-    return PENDING_STAFF_STATUSES.has(s);
+
+    return false;
 }
 
 function isCompletedStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
-    if (rawStatus === 'PENDING') return false;
     const s = rawStatus.toLowerCase();
-    return COMPLETED_STAFF_STATUSES.has(s);
+
+    // 1. Any pending or active kitchen status can NEVER be in the Completed tab
+    if (
+        rawStatus === 'PENDING' || 
+        rawStatus === 'NEW' || 
+        rawStatus === 'PLACED' || 
+        rawStatus === 'PREPARING' || 
+        rawStatus === 'KITCHEN' || 
+        rawStatus === 'READY' || 
+        rawStatus === 'DELIVERY' || 
+        rawStatus === 'OUT_FOR_DELIVERY' || 
+        rawStatus === 'OUT-FOR-DELIVERY' || 
+        rawStatus === 'DISPATCHED' || 
+        rawStatus === 'IN_TRANSIT' || 
+        rawStatus === 'PAID' || 
+        PENDING_STAFF_STATUSES.has(s)
+    ) {
+        return false;
+    }
+
+    // 2. Rejected/cancelled orders belong in Rejected tab, never Completed
+    if (REJECTED_STAFF_STATUSES.has(s) || order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+        return false;
+    }
+
+    // 3. Must match completed staff statuses ('delivered' or 'completed')
+    if (!COMPLETED_STAFF_STATUSES.has(s)) {
+        return false;
+    }
+
+    // 4. Enforce strict rule: An order can ONLY enter the "Completed" (delivered) tab
+    // IF AND ONLY IF verifyAndCompleteOrderDelivery() successfully verifies the valid 4-digit Delivery OTP or Emergency Master Delivery OTP
+    // (or remote document from Firestore is genuinely delivered with confirmed delivery timestamp)
+    const hasValidDeliveryTimestamp = Boolean(order.deliveredAt || order.completedAt);
+    const isVerifiedDelivery = Boolean(order.deliveryVerified || order.deliveryOtpVerified || order.otpVerified || hasValidDeliveryTimestamp);
+
+    return isVerifiedDelivery;
 }
 
 function isRejectedStaffOrder(order) {
@@ -3966,7 +4084,7 @@ window.addEventListener('storage', (e) => {
     if (e.key && (e.key === 'staff_sound_enabled' || e.key.includes('sound') || e.key.includes('audio') || e.key.includes('dismiss'))) {
         return;
     }
-    if (!e.key || e.key === 'perfettoCustomerOrders' || e.key === STAFF_ORDERS_STORAGE_KEY) {
+    if (!e.key || e.key === STAFF_ORDERS_STORAGE_KEY) {
         syncCustomerOrders();
     }
 });
@@ -4298,8 +4416,8 @@ function renderOrders() {
     const sortedOrders = currentStaffTab === 'pending'
         ? sortOrdersOldestFirst(currentList)
         : [...currentList].sort((a, b) => {
-            const timeA = new Date(a.completedAt || a.deliveredAt || a.rejectedAt || a.cancelledAt || a.updatedAt || a.createdAt || 0).getTime();
-            const timeB = new Date(b.completedAt || b.deliveredAt || b.rejectedAt || b.cancelledAt || b.updatedAt || b.createdAt || 0).getTime();
+            const timeA = new Date(a.deliveredAt || a.completedAt || a.rejectedAt || a.cancelledAt || a.createdAt || 0).getTime();
+            const timeB = new Date(b.deliveredAt || b.completedAt || b.rejectedAt || b.cancelledAt || b.createdAt || 0).getTime();
             return timeB - timeA;
         });
 
@@ -4477,13 +4595,18 @@ function buildCompletedOrderCardHTML(order) {
 
     const totalVal = order.total || order.costs?.total || 0;
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
-    const deliveredTimeStr = formatStaffTimestamp(order.deliveredAt || order.completedAt || order.updatedAt);
+    const createdTimeStr = formatStaffTimestamp(order.createdAt || order.orderDate || order.timestamp || order.date);
+    const deliveredTimeStr = (order.deliveredAt || order.completedAt) ? formatStaffTimestamp(order.deliveredAt || order.completedAt) : '';
 
     return `
         <article class="order-card completed-order-card" id="card-${order.id}">
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                    ${createdTimeStr ? `
+                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-regular fa-clock"></i> <span>Order Placed: ${escapeHtml(createdTimeStr)}</span>
+                    </div>` : ''}
                 </div>
                 <div class="completed-card-status-badge status-delivered">
                     <i class="fa-solid fa-check-double"></i>
@@ -4494,7 +4617,7 @@ function buildCompletedOrderCardHTML(order) {
             <div class="card-body completed-card-body">
                 ${deliveredTimeStr ? `
                 <div style="font-size: 0.78rem; color: #10b981; margin: 4px 0 8px; display: flex; align-items: center; gap: 6px;">
-                    <i class="fa-regular fa-clock"></i> <span>Delivered: ${escapeHtml(deliveredTimeStr)}</span>
+                    <i class="fa-solid fa-check-double"></i> <span>Delivered: ${escapeHtml(deliveredTimeStr)}</span>
                 </div>` : ''}
 
                 <div class="items-list">
@@ -4731,6 +4854,7 @@ function buildOrderCardHTML(order) {
     const rawPhone = order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '';
     const cleanPhone = String(rawPhone).replace(/[^0-9+]/g, '');
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
+    const createdTimeStr = formatStaffTimestamp(order.createdAt || order.orderDate || order.timestamp || order.date);
 
     return `
         <article class="order-card" id="card-${order.id}">
@@ -4738,6 +4862,10 @@ function buildOrderCardHTML(order) {
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                     ${getOrderCountdownPillHTML(order)}
+                    ${createdTimeStr ? `
+                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-regular fa-clock"></i> <span>${escapeHtml(createdTimeStr)}</span>
+                    </div>` : ''}
                 </div>
                 <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
                     <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
