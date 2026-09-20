@@ -287,7 +287,12 @@ async function fetchOrdersFromFirestore(forceFresh = false) {
 
     try {
         const liveDocs = await listFirestoreCollection('orders', 100, forceFresh);
-        if (Array.isArray(liveDocs) && liveDocs.length > 0) {
+        if (Array.isArray(liveDocs)) {
+            if (liveDocs.length === 0) {
+                global.__perfettoOrdersList = [];
+                global.__lastOrdersFetchTime = Date.now();
+                return [];
+            }
             // Merge live docs with in-memory store
             const mergedMap = new Map();
             for (const d of liveDocs) {
@@ -649,6 +654,24 @@ async function handleOrdersRequest(req, res) {
                 global.__lastOrdersFetchTime = 0;
             } catch (err) {
                 console.error('CRITICAL: Firestore order create sync error:', err.message);
+            }
+
+            // Advance global order sequence counter in system_counters and order_metadata
+            try {
+                const parsedNum = parseInt(String(finalOrderId).replace(/[^0-9]/g, ''), 10);
+                if (!isNaN(parsedNum) && parsedNum > 0) {
+                    const nextNum = (parsedNum % 9999) + 1;
+                    const counterUpdate = {
+                        nextOrderNumber: nextNum,
+                        cycleLimit: 9999,
+                        lastOrderPlacedAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    await setFirestoreDoc('settings', 'system_counters', counterUpdate);
+                    await setFirestoreDoc('settings', 'order_metadata', counterUpdate);
+                }
+            } catch (cntErr) {
+                console.warn('Notice updating system order counter:', cntErr.message);
             }
 
             // Bind order & scratch card to customer's permanent mobile profile in users/{phone}

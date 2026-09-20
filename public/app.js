@@ -342,6 +342,222 @@ const CUSTOMER_CARE_PHONE_KEY = 'customerCarePhone';
 const CUSTOMER_CARE_ENABLED_KEY = 'customerCareEnabled';
 const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
 
+var isPhoneVerified = false;
+var currentTargetPhone = null;
+var currentUserProfile = null;
+
+// --------------------------------------------------------------------------
+// CLIENT-SIDE STATE PURGE & ONE-TIME RESET EPOCH ENGINE
+// --------------------------------------------------------------------------
+const CLIENT_STATE_RESET_EPOCH = '2026_09_RESET_V1';
+window.perfettoNextOrderNumber = 1;
+window.perfettoOrderCycleLimit = 9999;
+
+/**
+ * Performs a comprehensive clean-slate purge of local client state,
+ * removing orphan orders, active cart items, cached wallet balances,
+ * scratch card states, and stale phone login sessions.
+ * 
+ * Can be invoked automatically on epoch boundary or manually via console.
+ * @param {Object} [options]
+ * @param {boolean} [options.resetAuth=true]
+ * @param {boolean} [options.resetCart=true]
+ * @returns {boolean}
+ */
+function purgeClientAppState(options = { resetAuth: true, resetCart: true }) {
+    try {
+        console.warn('🧹 [STATE PURGE] Performing clean-slate purge of customer client storage...');
+
+        // 1. Order History
+        try {
+            localStorage.removeItem('perfettoCustomerOrders');
+            localStorage.removeItem('perfettoClearedOrderIds');
+            localStorage.removeItem('clearedOrderIds');
+            if (typeof safeStorage !== 'undefined' && safeStorage) {
+                if (typeof safeStorage.removeItem === 'function') {
+                    safeStorage.removeItem('perfettoCustomerOrders');
+                    safeStorage.removeItem('perfettoClearedOrderIds');
+                    safeStorage.removeItem('clearedOrderIds');
+                }
+                if (typeof safeStorage.setJSON === 'function') {
+                    safeStorage.setJSON('perfettoCustomerOrders', []);
+                    safeStorage.setJSON('perfettoClearedOrderIds', []);
+                }
+            }
+        } catch (e) {}
+
+        // 2. Active Cart Storage & In-Memory Cart
+        if (options && options.resetCart !== false) {
+            try {
+                if (typeof CART_STORAGE_KEY !== 'undefined') {
+                    localStorage.removeItem(CART_STORAGE_KEY);
+                    if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
+                        safeStorage.removeItem(CART_STORAGE_KEY);
+                    }
+                }
+                localStorage.removeItem('perfetto_pizza_cart');
+                if (typeof cart !== 'undefined' && Array.isArray(cart)) {
+                    cart.length = 0;
+                }
+                if (typeof updateCartUI === 'function') updateCartUI();
+                if (typeof updateCartCount === 'function') updateCartCount();
+                if (typeof updateProfileTotalsUI === 'function') updateProfileTotalsUI();
+            } catch (e) {}
+        }
+
+        // 3. Cached Wallet Holdings & Scratch Card States
+        try {
+            localStorage.removeItem('perfetto_customer_wallet');
+            localStorage.removeItem('perfetto_wallet_balance');
+            localStorage.removeItem('perfetto_wallet_hold');
+            localStorage.removeItem('RESET_WALLET_LEDGER');
+            if (typeof safeStorage !== 'undefined' && safeStorage) {
+                if (typeof safeStorage.removeItem === 'function') {
+                    safeStorage.removeItem('perfetto_customer_wallet');
+                    safeStorage.removeItem('perfetto_wallet_balance');
+                }
+                if (typeof safeStorage.setJSON === 'function') {
+                    safeStorage.setJSON('perfetto_wallet_balance', 0);
+                    safeStorage.setJSON('perfetto_customer_wallet', { balance: 0, nonExpiredBalance: 0, transactions: [] });
+                }
+            }
+            if (typeof currentCustomerWallet !== 'undefined') {
+                currentCustomerWallet = null;
+            }
+            if (typeof window !== 'undefined' && window.currentCustomerWallet) {
+                window.currentCustomerWallet = null;
+            }
+        } catch (e) {}
+
+        // 4. Stale Phone Login Sessions & Delivery Profiles
+        if (options && options.resetAuth !== false) {
+            try {
+                const sessionKeys = [
+                    'customerDeliveryProfile',
+                    'perfettoCustomerProfile',
+                    'perfettoSavedProfile',
+                    'perfetto_verified_phone',
+                    'perfetto_phone_verification_state'
+                ];
+                sessionKeys.forEach(k => {
+                    localStorage.removeItem(k);
+                    sessionStorage.removeItem(k);
+                    if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
+                        safeStorage.removeItem(k);
+                    }
+                    if (typeof safeSessionStorage !== 'undefined' && safeSessionStorage && typeof safeSessionStorage.removeItem === 'function') {
+                        safeSessionStorage.removeItem(k);
+                    }
+                });
+
+                // Clear any phone-indexed profile entries
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const key = localStorage.key(i);
+                    if (key && (key.startsWith('customerDeliveryProfile_') || key.startsWith('perfettoCustomerProfile_'))) {
+                        localStorage.removeItem(key);
+                    }
+                }
+
+                if (typeof isPhoneVerified !== 'undefined') isPhoneVerified = false;
+                if (typeof currentTargetPhone !== 'undefined') currentTargetPhone = null;
+                if (typeof currentUserProfile !== 'undefined') currentUserProfile = null;
+                if (typeof applyPhoneVerifiedUI === 'function') applyPhoneVerifiedUI(false, '');
+            } catch (e) {}
+        }
+
+        // 5. Reset UI components
+        try {
+            if (typeof renderOrderHistoryDetails === 'function') renderOrderHistoryDetails();
+            if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
+            if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+        } catch (e) {}
+
+        console.log('✅ [STATE PURGE] Client storage successfully cleansed. Next order placed will start fresh.');
+        return true;
+    } catch (err) {
+        console.error('❌ [STATE PURGE] Error during client storage purge:', err);
+        return false;
+    }
+}
+window.purgeClientAppState = purgeClientAppState;
+
+/**
+ * Checks whether client-side state needs a clean-slate purge based on CLIENT_STATE_RESET_EPOCH.
+ */
+function checkAndApplyClientStateReset() {
+    try {
+        if (typeof localStorage === 'undefined') return;
+        const recordedEpoch = localStorage.getItem('PERFETTO_STATE_EPOCH');
+        if (recordedEpoch !== CLIENT_STATE_RESET_EPOCH) {
+            console.warn(`🧹 [STATE RESET] Applying state reset epoch '${CLIENT_STATE_RESET_EPOCH}' (previous: '${recordedEpoch}')...`);
+            purgeClientAppState({ resetAuth: true, resetCart: true });
+            localStorage.setItem('PERFETTO_STATE_EPOCH', CLIENT_STATE_RESET_EPOCH);
+        }
+    } catch (e) {
+        console.warn('[STATE RESET] Epoch check error:', e);
+    }
+}
+window.checkAndApplyClientStateReset = checkAndApplyClientStateReset;
+
+// Proactively execute one-time state reset check on script load
+try {
+    checkAndApplyClientStateReset();
+} catch (e) {}
+
+let orderCounterUnsubscribe = null;
+
+/**
+ * Real-time Firestore listener for global sequence counter (settings/system_counters)
+ */
+function listenToOrderCounterRealtime() {
+    if (orderCounterUnsubscribe) return;
+
+    let db = null;
+    if (typeof customerFirestore !== 'undefined' && customerFirestore) {
+        db = customerFirestore;
+    } else if (typeof firebase !== 'undefined' && firebase.firestore && firebase.apps && firebase.apps.length) {
+        customerFirestore = firebase.firestore();
+        db = customerFirestore;
+    }
+
+    if (!db) {
+        setTimeout(listenToOrderCounterRealtime, 500);
+        return;
+    }
+
+    try {
+        orderCounterUnsubscribe = db.collection('settings').doc('system_counters').onSnapshot((doc) => {
+            if (doc && doc.exists) {
+                const data = doc.data() || {};
+                const nextNum = parseInt(data.nextOrderNumber, 10);
+                const limit = parseInt(data.cycleLimit, 10);
+                if (!isNaN(nextNum) && nextNum >= 1) {
+                    window.perfettoNextOrderNumber = nextNum;
+                }
+                if (!isNaN(limit) && limit > 0) {
+                    window.perfettoOrderCycleLimit = limit;
+                }
+            }
+        }, (err) => {
+            console.warn('[ORDER COUNTER] Realtime listener notice:', err.message);
+        });
+
+        // Supplementary snapshot check for settings/order_metadata
+        db.collection('settings').doc('order_metadata').get().then((doc) => {
+            if (doc && doc.exists && (!window.perfettoNextOrderNumber || window.perfettoNextOrderNumber === 1)) {
+                const data = doc.data() || {};
+                const nextNum = parseInt(data.nextOrderNumber, 10);
+                if (!isNaN(nextNum) && nextNum >= 1) {
+                    window.perfettoNextOrderNumber = nextNum;
+                }
+            }
+        }).catch(() => {});
+    } catch (e) {
+        console.warn('[ORDER COUNTER] Init error:', e);
+    }
+}
+window.listenToOrderCounterRealtime = listenToOrderCounterRealtime;
+
 // CATEGORY ADD-ONS CONFIGURATION & REAL-TIME STATE
 const DEFAULT_CATEGORY_ADDONS = {
     "Burger": {
@@ -1184,6 +1400,9 @@ function getAppOrigin() {
 }
 
 function loadCartFromStorage() {
+    if (typeof checkAndApplyClientStateReset === 'function') {
+        checkAndApplyClientStateReset();
+    }
     const parsed = safeStorage.getJSON(CART_STORAGE_KEY, []);
     return Array.isArray(parsed) ? parsed : [];
 }
@@ -9537,6 +9756,9 @@ function updateFloatingCartBar() {
 
 function getSavedDeliveryProfile() {
     try {
+        if (typeof checkAndApplyClientStateReset === 'function') {
+            checkAndApplyClientStateReset();
+        }
         let profile = safeStorage.getJSON(DELIVERY_PROFILE_KEY, null);
         if (!profile && typeof currentUserProfile !== 'undefined' && currentUserProfile) {
             profile = currentUserProfile;
@@ -9994,6 +10216,9 @@ window.executeOrderPlacement = executeOrderPlacement;
 function getNextOrderSequenceNumber() {
     let nextOrderSeq = 1;
     try {
+        if (typeof window.perfettoNextOrderNumber === 'number' && window.perfettoNextOrderNumber >= 1) {
+            nextOrderSeq = window.perfettoNextOrderNumber;
+        }
         const storedOrders = localStorage.getItem('perfettoCustomerOrders');
         if (storedOrders) {
             const ordersList = JSON.parse(storedOrders);
@@ -10003,8 +10228,16 @@ function getNextOrderSequenceNumber() {
                     const num = parseInt(rawId, 10);
                     return !isNaN(num) && num > max ? num : max;
                 }, 0);
-                nextOrderSeq = maxNum + 1;
+                if (maxNum >= nextOrderSeq) {
+                    nextOrderSeq = maxNum + 1;
+                }
             }
+        }
+        const cycleLimit = (typeof window.perfettoOrderCycleLimit === 'number' && window.perfettoOrderCycleLimit > 0)
+            ? window.perfettoOrderCycleLimit
+            : 9999;
+        if (nextOrderSeq > cycleLimit) {
+            nextOrderSeq = ((nextOrderSeq - 1) % cycleLimit) + 1;
         }
     } catch (e) {
         nextOrderSeq = 1;
@@ -10100,6 +10333,13 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     const resolvedPaymentStatus = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Paid via Wallet' : paymentStatus;
 
     const orderId = specificOrderId || getNextOrderSequenceNumber().toString();
+    const parsedOrderNum = parseInt(orderId, 10);
+    if (!isNaN(parsedOrderNum) && parsedOrderNum > 0) {
+        const cycleLimit = (typeof window.perfettoOrderCycleLimit === 'number' && window.perfettoOrderCycleLimit > 0)
+            ? window.perfettoOrderCycleLimit
+            : 9999;
+        window.perfettoNextOrderNumber = (parsedOrderNum % cycleLimit) + 1;
+    }
     const deliveryOtp = String(Math.floor(1000 + Math.random() * 9000));
     const orderItems = cart.map(item => {
         if (item.type === 'combo' || item.isComboBundle) {
@@ -10367,6 +10607,22 @@ async function saveOrderToBackendAPI(order) {
         } catch (fsErr) {
             console.warn('Firestore live order push notice:', fsErr.message);
         }
+
+        // Advance global order sequence counter in system_counters and order_metadata
+        try {
+            const parsedNum = parseInt(String(finalOrderId).replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(parsedNum) && parsedNum > 0) {
+                const nextSeq = (parsedNum % 9999) + 1;
+                const counterPayload = {
+                    nextOrderNumber: nextSeq,
+                    cycleLimit: 9999,
+                    lastOrderPlacedAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                fs.collection('settings').doc('system_counters').set(counterPayload, { merge: true }).catch(() => {});
+                fs.collection('settings').doc('order_metadata').set(counterPayload, { merge: true }).catch(() => {});
+            }
+        } catch (cntErr) {}
     }
 
     // 2. Attach real-time listener to track this order
@@ -12175,8 +12431,8 @@ function initScratchCardModal() {
 // MSG91 VOICE / FLASH CALL OTP CONTROLLER (VERCEL SERVERLESS FUNCTION POWERED)
 // Endpoints: /api/send-voice-otp & /api/verify-otp
 // --------------------------------------------------------------------------
-let isPhoneVerified = false;
-let currentTargetPhone = null;
+isPhoneVerified = false;
+currentTargetPhone = null;
 let otpResendCountdown = 0;
 let otpResendTimerId = null;
 
@@ -19004,7 +19260,7 @@ function setupLocalStorageSync() {
 // 10. FIREBASE REAL-TIME FIRESTORE SYNCHRONIZATION SYSTEM
 // --------------------------------------------------------------------------
 let firebaseAuthInstance = null;
-let currentUserProfile = null;
+currentUserProfile = null;
 let customerFirestore = null;
 let menuRealtimeUnsubscribe = null;
 let settingsRealtimeUnsubscribe = null;
@@ -20340,6 +20596,10 @@ if (typeof window !== 'undefined') {
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+    // 0. Clean-slate customer state check and sequence counter initialization
+    if (typeof checkAndApplyClientStateReset === 'function') checkAndApplyClientStateReset();
+    if (typeof listenToOrderCounterRealtime === 'function') listenToOrderCounterRealtime();
+
     // Setup universal backdrop and Escape key modal dismissals
     setupGlobalCustomerModalDismissals();
 
@@ -20610,7 +20870,7 @@ window.getClearedOrderIds = getClearedOrderIds;
 window.saveClearedOrderIds = saveClearedOrderIds;
 window.clearCustomerOrderHistory = clearCustomerOrderHistory;
 window.closeClearHistoryModal = closeClearHistoryModal;
-window.confirmClearCustomerOrderHistory = confirmClearCustomerOrderHistory;
+window.confirmClearCustomerOrderHistory = clearFinishedCustomerOrders;
 window.toggleSavedAddressesView = toggleSavedAddressesView;
 window.editSavedAddress = editSavedAddress;
 window.toggleLegalInfoView = toggleLegalInfoView;
