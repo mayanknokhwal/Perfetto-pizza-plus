@@ -7,8 +7,8 @@
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
-const LOGO_LIGHT = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
-const LOGO_DARK = 'https://i.ibb.co/BH6TR6dh/perfetto-White.png';
+const LOGO_LIGHT = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
+const LOGO_DARK = 'https://i.ibb.co/XZsGT4Mq/perfetto-White.webp';
 
 // Native App Gesture Constraints: Prevent pinch-to-zoom gestures on iOS Safari / WebKit
 if (typeof document !== 'undefined') {
@@ -9152,7 +9152,7 @@ function updateCartUI() {
                 let subItemsHtml = '';
                 subItems.forEach(sub => {
                     const subName = escapeHtml(sub.name || sub.base_name || 'Item');
-                    const subImg = escapeHtml(sub.img || 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png');
+                    const subImg = escapeHtml(sub.img || 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp');
                     const subQty = (sub.quantity || 1) * itemQty;
                     const subAddons = Array.isArray(sub.addons) ? sub.addons : [];
                     let subAddonsHtml = '';
@@ -9168,7 +9168,7 @@ function updateCartUI() {
                         <div class="cart-combo-sub-row">
                             <div class="cart-combo-sub-top">
                                 <div class="cart-combo-sub-left">
-                                    <img src="${subImg}" alt="${subName}" class="cart-combo-sub-thumb" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+                                    <img src="${subImg}" alt="${subName}" class="cart-combo-sub-thumb" onerror="this.src='https://i.ibb.co/wNBDySCg/perfetto-Black.webp'">
                                     <span class="cart-combo-sub-name">${subName}</span>
                                 </div>
                                 <span class="cart-combo-sub-qty">×${subQty}</span>
@@ -17031,7 +17031,7 @@ function resolveComboItemProduct(slot) {
             size: '',
             size_label: '',
             quantity: 1,
-            img: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
+            img: 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp',
             unit_price: 0,
             total_price: 0
         };
@@ -17073,7 +17073,7 @@ function resolveComboItemProduct(slot) {
         } else if (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined') {
             resolvedImg = DEFAULT_FALLBACK_BANNER_LOGO;
         } else {
-            resolvedImg = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+            resolvedImg = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
         }
     }
 
@@ -17487,7 +17487,7 @@ function renderCustomerComboTierDeals(tier) {
             galleryHtml += `
                 <div class="combo-gallery-tile">
                     <div class="combo-tile-media">
-                        <img src="${escapeHtml(item.img)}" alt="${itemName}" class="combo-tile-img" loading="lazy" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+                        <img src="${escapeHtml(item.img)}" alt="${itemName}" class="combo-tile-img" loading="lazy" onerror="this.src='https://i.ibb.co/wNBDySCg/perfetto-Black.webp'">
                         <span class="combo-tile-qty-badge">x${item.quantity}</span>
                     </div>
                     <div class="combo-tile-info">
@@ -18391,24 +18391,24 @@ function setupHistoryState() {
 // 11. GLOBAL FUZZY SEARCH SYSTEM (SPACE-INSENSITIVE & RANKED)
 // --------------------------------------------------------------------------
 const CUSTOMER_CATEGORY_META = {
-    "Pizza": { name: "Pizza", img: "https://i.ibb.co/21fs0TqL/pizza.png" },
-    "Bread": { name: "Bread & Sides", img: "https://i.ibb.co/fzBqSJJx/bread.png" },
-    "Burger": { name: "Burgers", img: "https://i.ibb.co/jZDq51b6/burger.png" },
-    "Chinese Food": { name: "Chinese Food", img: "https://i.ibb.co/YFYwbHmV/chinese-food.png" },
-    "Colo Drinks": { name: "Cold Drinks", img: "https://i.ibb.co/dJxnm38L/colo-drinks.png" },
-    "Pasta": { name: "Pasta", img: "https://i.ibb.co/Qvzgv353/pasta.png" },
-    "Desserts": { name: "Desserts", img: "https://i.ibb.co/YBQ73fv2/dasserts.png" },
-    "Shake": { name: "Shakes", img: "https://i.ibb.co/XZpkRRpJ/shake.png" },
-    "Hot Cold Coffee": { name: "Hot Cold Coffee", img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" },
-    "Mojito": { name: "Mojito", img: "https://i.ibb.co/kV2Wvsdq/mojito.png" },
-    "Momos": { name: "Momos", img: "https://i.ibb.co/gbdrfGJK/momos.png" },
-    "Noodles": { name: "Noodles", img: "https://i.ibb.co/v6LTBqFV/noodles.png" },
-    "Rice": { name: "Rice", img: "https://i.ibb.co/gL0Z5F0C/rice.png" },
-    "Salad": { name: "Salad", img: "https://i.ibb.co/W4V8XcNG/salad.png" },
-    "Sandwich": { name: "Sandwich", img: "https://i.ibb.co/DPyPQfsT/sandwich.png" },
-    "Side Orders": { name: "Side Orders", img: "https://i.ibb.co/JwXzvd1f/side-orders.png" },
-    "Spring Rolls": { name: "Spring Rolls", img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png" },
-    "Wrap": { name: "Wrap", img: "https://i.ibb.co/V0c7gf6d/wrap.png" }
+    "Pizza": { name: "Pizza", img: "https://i.ibb.co/674VBRRS/pizza.webp" },
+    "Bread": { name: "Bread & Sides", img: "https://i.ibb.co/dsf6JwtD/bread.webp" },
+    "Burger": { name: "Burgers", img: "https://i.ibb.co/Tx3ynqfB/burger.webp" },
+    "Chinese Food": { name: "Chinese Food", img: "https://i.ibb.co/LdztgKn2/chinese-food.webp" },
+    "Colo Drinks": { name: "Cold Drinks", img: "https://i.ibb.co/MrVfXHs/colo-drinks.webp" },
+    "Pasta": { name: "Pasta", img: "https://i.ibb.co/ns4d7KsB/pasta.webp" },
+    "Desserts": { name: "Desserts", img: "https://i.ibb.co/YTjGw1fb/dasserts.webp" },
+    "Shake": { name: "Shakes", img: "https://i.ibb.co/390xRbgp/shake.webp" },
+    "Hot Cold Coffee": { name: "Hot Cold Coffee", img: "https://i.ibb.co/b5mD98Ww/hot-cold-coffee.webp" },
+    "Mojito": { name: "Mojito", img: "https://i.ibb.co/WNZnjhYd/mojito.webp" },
+    "Momos": { name: "Momos", img: "https://i.ibb.co/PZgP4rmx/momos.webp" },
+    "Noodles": { name: "Noodles", img: "https://i.ibb.co/gLm01Rg3/noodles.webp" },
+    "Rice": { name: "Rice", img: "https://i.ibb.co/j9k4MWmW/rice.webp" },
+    "Salad": { name: "Salad", img: "https://i.ibb.co/CsWQP0hh/salad.webp" },
+    "Sandwich": { name: "Sandwich", img: "https://i.ibb.co/ZRQf89W0/sandwich.webp" },
+    "Side Orders": { name: "Side Orders", img: "https://i.ibb.co/B26R9rky/side-orders.webp" },
+    "Spring Rolls": { name: "Spring Rolls", img: "https://i.ibb.co/1BhjBqp/spring-rolls.webp" },
+    "Wrap": { name: "Wrap", img: "https://i.ibb.co/Zygp8Qp/wrap.webp" }
 };
 
 let isCustomerSearchActive = false;

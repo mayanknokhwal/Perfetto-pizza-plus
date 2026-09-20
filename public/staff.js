@@ -579,7 +579,13 @@ function parseStaffOrder(docId, data = {}) {
 
     // Normalize status (default to 'pending' if missing or blank)
     const rawStatus = String(data.status || 'pending').trim();
-    const status = rawStatus || 'pending';
+    const normStatus = rawStatus.toLowerCase();
+
+    // Detect if this document has an active pending or in-preparation status
+    const isPendingDoc = [
+        'pending', 'new', 'placed', 'preparing', 'kitchen', 'in_kitchen', 'in-kitchen',
+        'ready', 'delivery', 'out_for_delivery', 'out-for-delivery', 'dispatched', 'in_transit', 'paid'
+    ].includes(normStatus);
 
     // Normalize customer info from top-level or nested objects
     const customerName = data.customerName || data.customer?.name || data.deliveryDetails?.name || data.name || 'Customer';
@@ -604,12 +610,16 @@ function parseStaffOrder(docId, data = {}) {
 
     // Strict guard: If order is created within the last 100 minutes and has pending status, sanitize stale autoExpired flags
     const isFresh = (Date.now() - createdMs) < ONE_HUNDRED_MINS_EXPIRATION_MS;
-    const isPendingDoc = status.toUpperCase() === 'PENDING' || status.toLowerCase() === 'pending';
     const autoExpired = (isFresh && isPendingDoc) ? false : Boolean(data.autoExpired);
     const isAutoExpired = (isFresh && isPendingDoc) ? false : Boolean(data.isAutoExpired);
     const rejectedBy = (isFresh && isPendingDoc && data.rejectedBy === 'SYSTEM_AUTO_EXPIRE') ? null : (data.rejectedBy || null);
     const rejectionReason = (isFresh && isPendingDoc && String(data.rejectionReason || '').includes('100 minutes timeout')) ? null : (data.rejectionReason || null);
     const cancellationReason = (isFresh && isPendingDoc && String(data.cancellationReason || '').includes('100 minutes timeout')) ? null : (data.cancellationReason || null);
+
+    // If Firestore doc is pending/new/placed/preparing/paid, it MUST NOT have fabricated delivery timestamps or flags
+    const resolvedStatus = isPendingDoc 
+        ? (normStatus === 'paid' ? 'pending' : (normStatus || 'pending')) 
+        : (rawStatus || 'pending');
 
     return {
         ...data,
@@ -623,8 +633,12 @@ function parseStaffOrder(docId, data = {}) {
         notes,
         items,
         total,
-        status: (isFresh && isPendingDoc) ? 'pending' : status,
+        status: resolvedStatus,
         createdAt,
+        deliveredAt: isPendingDoc ? null : (data.deliveredAt || null),
+        completedAt: isPendingDoc ? null : (data.completedAt || null),
+        deliveryVerified: isPendingDoc ? false : Boolean(data.deliveryVerified || data.deliveryOtpVerified),
+        deliveryOtpVerified: isPendingDoc ? false : Boolean(data.deliveryOtpVerified || data.deliveryVerified),
         autoExpired,
         isAutoExpired,
         rejectedBy,
@@ -660,12 +674,38 @@ function listenToFirestoreStaffOrders() {
         }
 
         const liveOrders = [];
-        snapshot.forEach((doc) => {
-            const data = doc.data() || {};
-            const docId = doc.id;
-            const parsed = parseStaffOrder(docId, data);
-            liveOrders.push(parsed);
-        });
+        if (typeof snapshot.forEach === 'function') {
+            snapshot.forEach((doc) => {
+                if (!doc) return;
+                const data = (typeof doc.data === 'function') ? (doc.data() || {}) : (doc.data || {});
+                const docId = doc.id || data.id || data.orderId;
+                const parsed = parseStaffOrder(docId, data);
+                if (parsed && isValidStaffOrder(parsed)) {
+                    liveOrders.push(parsed);
+                }
+            });
+        }
+
+        // Client-Side Auto-Purge Helper: When orders collection is empty, clear local caches and reset badges to 0
+        if (liveOrders.length === 0) {
+            staffOrders = [];
+            try {
+                localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
+                localStorage.removeItem('perfetto_staff_orders');
+                localStorage.removeItem('perfettoCustomerOrders');
+            } catch (e) { }
+            renderOrders();
+            const pendingCountEl = document.getElementById('pending-orders-count');
+            const completedCountEl = document.getElementById('completed-orders-count');
+            const rejectedCountEl = document.getElementById('rejected-orders-count');
+            if (pendingCountEl) pendingCountEl.textContent = '0';
+            if (completedCountEl) completedCountEl.textContent = '0';
+            if (rejectedCountEl) rejectedCountEl.textContent = '0';
+            stopOrderAlertAudio();
+            isStaffAlertDismissedInSession = false;
+            isFirestoreInitialHydrationDone = true;
+            return;
+        }
 
         // 1. In-memory sort by timestamp (oldest first for FIFO kitchen queue)
         const sortedLiveOrders = sortOrdersOldestFirst(liveOrders);
@@ -685,15 +725,24 @@ function listenToFirestoreStaffOrders() {
             }
         });
 
-        // 3. Filter valid pending kitchen orders (includes pending, preparing, ready, delivery)
+        // 3. Filter pending orders in JavaScript memory using isPendingStaffOrder(order)
+        // ensuring all statuses ('PENDING', 'pending', 'new', 'placed', 'preparing', 'ready', 'delivery') are cleanly ingested
         const pendingOrders = staffOrders.filter(isValidStaffOrder).filter(isPendingStaffOrder);
 
-        // 4. Distinct Audio Trigger for Each New Order:
-        // Compare incoming order IDs against previously tracked snapshot IDs.
-        // If a genuinely new pending order arrives that was not in the previous snapshot:
-        // - Reset isStaffAlertDismissedInSession = false.
-        // - Start the looping siren alert immediately for the new order.
-        let newlyArrivedOrder = null;
+        // 4. Update staffOrders in-memory array and localStorage cache immediately
+        try {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
+        } catch (e) { }
+
+        // 5. Re-render the orders UI immediately
+        renderOrders();
+
+        // 6. Distinct Audio Trigger for Each New Incoming Order:
+        // Compare incoming pending order IDs against previously tracked snapshot IDs.
+        // If a genuinely new pending order arrives:
+        // - Unconditionally reset isStaffAlertDismissedInSession = false so prior session dismissal never blocks the siren
+        // - Start the looping siren alert immediately for the incoming order
+        const newlyArrivedOrders = [];
         if (isFirestoreInitialHydrationDone) {
             for (const po of pendingOrders) {
                 const key = getOrderMatchingKey(po);
@@ -705,24 +754,33 @@ function listenToFirestoreStaffOrders() {
                                   (docId && staffSnapshotTrackedOrderIds.has(docId));
 
                 if (!isTracked) {
-                    newlyArrivedOrder = po;
-                    break;
+                    newlyArrivedOrders.push(po);
                 }
             }
         }
 
-        if (newlyArrivedOrder) {
-            // Reset dismissal and alerting order ID so the novel incoming order rings loudly and distinctly
+        if (newlyArrivedOrders.length > 0) {
+            // Novel pending orders detected: reset dismissal and trigger looping siren
             isStaffAlertDismissedInSession = false;
             currentAlertingOrderId = null;
+            newlyArrivedOrders.forEach(no => {
+                const id = String(no.orderId || no.id || '').replace(/^#/, '').trim();
+                staffDismissedAlertOrderIds.delete(id);
+                staffProcessedAudioOrderIds.delete(id);
+            });
+
+            const newlyArrivedOrder = newlyArrivedOrders[newlyArrivedOrders.length - 1];
             const newOrderId = String(newlyArrivedOrder.orderId || newlyArrivedOrder.id || 'New').replace(/^#/, '').trim();
             const customerName = newlyArrivedOrder.customerName || 'Customer';
             const total = newlyArrivedOrder.total ? `₹${newlyArrivedOrder.total}` : '';
-            const summary = `New Order Received • ${customerName}${total ? ` (${total})` : ''}`;
+            const summary = newlyArrivedOrders.length > 1
+                ? `${newlyArrivedOrders.length} New Orders Received • ${customerName}${total ? ` (${total})` : ''}`
+                : `New Order Received • ${customerName}${total ? ` (${total})` : ''}`;
 
-            console.log(`🚨 [Staff Snapshot Alert] Genuinely new incoming order detected: #${newOrderId}. Resetting dismissal & triggering audio siren alert!`);
+            console.log(`🚨 [Staff Snapshot Alert] Genuinely new incoming pending order detected: #${newOrderId}. Resetting dismissal & triggering looping audio siren alert!`);
             showStaffToast(`🔔 New Order #${newOrderId} Received!`);
             startOrderAlertAudio(newOrderId, summary, newlyArrivedOrder);
+            startStaffVibrationLoop();
         } else if (!isFirestoreInitialHydrationDone && pendingOrders.length > 0 && isStaffAuthenticated()) {
             // Initial hydration: trigger alert for unaccepted incoming orders if not dismissed
             const unacceptedOrders = pendingOrders.filter(o => {
@@ -746,7 +804,7 @@ function listenToFirestoreStaffOrders() {
             isStaffAlertDismissedInSession = false;
         }
 
-        // 5. Update tracked snapshot order IDs for subsequent snapshot comparisons
+        // 7. Update tracked snapshot order IDs for subsequent snapshot comparisons
         liveOrders.forEach(o => {
             const key = getOrderMatchingKey(o);
             if (key) staffSnapshotTrackedOrderIds.add(key);
@@ -758,64 +816,72 @@ function listenToFirestoreStaffOrders() {
             const key = getOrderMatchingKey(po);
             if (key) {
                 staffSeenOrderIds.add(key);
-                staffSeenOrderIds.add(String(po.id));
-                if (po.firestoreDocId) staffSeenOrderIds.add(String(po.firestoreDocId));
+                staffSeenOrderIds.add(String(po.id).replace(/^#/, '').trim());
+                if (po.firestoreDocId) staffSeenOrderIds.add(String(po.firestoreDocId).trim());
             }
         });
         isFirestoreInitialHydrationDone = true;
     }
 
     try {
-        // Multi-status kitchen query covering all active kitchen states without composite index dependencies
-        const ACTIVE_KITCHEN_STATUSES = [
-            'PENDING', 'pending',
-            'PREPARING', 'preparing',
-            'READY', 'ready',
-            'DELIVERY', 'delivery',
-            'PLACED', 'placed',
-            'NEW', 'new'
-        ];
-        staffOrdersUnsubscribe = db.collection('orders')
-            .where('status', 'in', ACTIVE_KITCHEN_STATUSES)
-            .onSnapshot((snapshot) => {
-                processOrdersSnapshot(snapshot);
-            }, (err) => {
-                console.warn('Firestore staff orders listener note:', err.message);
-                if (typeof staffOrdersUnsubscribe === 'function') {
-                    try { staffOrdersUnsubscribe(); } catch (e) { }
-                }
-                staffOrdersUnsubscribe = null;
+        // Query orders collection directly without restrictive composite filters (exact parity with admin.js)
+        let queryRef;
+        try {
+            const colRef = db.collection('orders');
+            if (typeof colRef.orderBy === 'function') {
+                queryRef = colRef.orderBy('createdAt', 'desc').limit(50);
+            } else if (typeof colRef.limit === 'function') {
+                queryRef = colRef.limit(50);
+            } else {
+                queryRef = colRef;
+            }
+        } catch (e) {
+            try {
+                queryRef = db.collection('orders').limit(50);
+            } catch (e2) {
+                queryRef = db.collection('orders');
+            }
+        }
 
-                // Resilient fallback: query collection directly with limit
-                try {
-                    staffOrdersUnsubscribe = db.collection('orders')
-                        .limit(100)
-                        .onSnapshot((fallbackSnap) => {
-                            processOrdersSnapshot(fallbackSnap);
-                        }, (fbErr) => {
-                            console.warn('Firestore staff orders fallback listener note:', fbErr.message);
-                            if (typeof staffOrdersUnsubscribe === 'function') {
-                                try { staffOrdersUnsubscribe(); } catch (e) { }
-                            }
-                            staffOrdersUnsubscribe = null;
-                            if (!staffOrdersReconnectTimeout) {
-                                staffOrdersReconnectTimeout = setTimeout(() => {
-                                    staffOrdersReconnectTimeout = null;
-                                    listenToFirestoreStaffOrders();
-                                }, 3000);
-                            }
-                            fetchOrdersFromBackend();
-                        });
-                } catch (fallbackEx) {
-                    if (!staffOrdersReconnectTimeout) {
-                        staffOrdersReconnectTimeout = setTimeout(() => {
-                            staffOrdersReconnectTimeout = null;
-                            listenToFirestoreStaffOrders();
-                        }, 3000);
-                    }
-                    fetchOrdersFromBackend();
+        staffOrdersUnsubscribe = queryRef.onSnapshot((snapshot) => {
+            processOrdersSnapshot(snapshot);
+        }, (err) => {
+            console.warn('Firestore staff orders listener note:', err.message);
+            if (typeof staffOrdersUnsubscribe === 'function') {
+                try { staffOrdersUnsubscribe(); } catch (e) { }
+            }
+            staffOrdersUnsubscribe = null;
+
+            // Resilient fallback: query collection directly with limit
+            try {
+                staffOrdersUnsubscribe = db.collection('orders')
+                    .limit(50)
+                    .onSnapshot((fallbackSnap) => {
+                        processOrdersSnapshot(fallbackSnap);
+                    }, (fbErr) => {
+                        console.warn('Firestore staff orders fallback listener note:', fbErr.message);
+                        if (typeof staffOrdersUnsubscribe === 'function') {
+                            try { staffOrdersUnsubscribe(); } catch (e) { }
+                        }
+                        staffOrdersUnsubscribe = null;
+                        if (!staffOrdersReconnectTimeout) {
+                            staffOrdersReconnectTimeout = setTimeout(() => {
+                                staffOrdersReconnectTimeout = null;
+                                listenToFirestoreStaffOrders();
+                            }, 3000);
+                        }
+                        fetchOrdersFromBackend();
+                    });
+            } catch (fallbackEx) {
+                if (!staffOrdersReconnectTimeout) {
+                    staffOrdersReconnectTimeout = setTimeout(() => {
+                        staffOrdersReconnectTimeout = null;
+                        listenToFirestoreStaffOrders();
+                    }, 3000);
                 }
-            });
+                fetchOrdersFromBackend();
+            }
+        });
     } catch (e) {
         console.warn('Error attaching Firestore staff listener:', e);
         staffOrdersUnsubscribe = null;
@@ -981,7 +1047,7 @@ async function autoRejectExpiredOrder(order) {
         ));
 
         const nowIso = new Date().toISOString();
-        const autoExpiryReason = 'Auto-expired: 100 minutes timeout';
+        const autoExpiryReason = 'Auto-expired: 100 minutes timeout'; // 100-minute fulfillment timeout
         const autoExpiryDetailed = 'Auto-expired: 100 minutes timeout';
 
         order.status = 'REJECTED';
@@ -1520,7 +1586,6 @@ function unlockStaffDashboard(user) {
     loadCustomerOrders();
     renderOrders();
     applyStaffTabFromUrl();
-    scheduleClientMidnightCleanup();
     stopStaffOrderAlertSound();
 
     // Register & persist staff FCM push token upon authentication
@@ -2682,13 +2747,17 @@ function isOnlinePaymentOrder(order) {
 function processAutoAcceptanceForOnlineOrders() {
     let changed = false;
     staffOrders.forEach(order => {
-        if (order.status === 'new' && isOnlinePaymentOrder(order)) {
-            order.status = 'preparing';
-            if (!order.prepStartedAt) {
-                order.prepStartedAt = order.createdAt || new Date().toISOString();
+        // Online orders may at most move to 'preparing' (if configured), but MUST NEVER transition to 'delivered' or 'completed' on their own
+        const s = String(order.status || '').trim().toLowerCase();
+        if ((s === 'new' || s === 'placed' || s === 'pending') && isOnlinePaymentOrder(order)) {
+            if (order.status !== 'preparing') {
+                order.status = 'preparing';
+                if (!order.prepStartedAt) {
+                    order.prepStartedAt = order.createdAt || new Date().toISOString();
+                }
+                // In-memory state updated; zero Firestore writes inside snapshot handler to prevent infinite loops
+                changed = true;
             }
-            // In-memory state updated; zero Firestore writes inside snapshot handler to prevent infinite loops
-            changed = true;
         }
     });
     if (changed) {
@@ -2714,15 +2783,15 @@ function isOrderActionInFlight(orderOrId) {
         const id2 = String(orderOrId.orderId || '').trim();
         const clean2 = id2.replace(/^#/, '').trim();
         const docId = String(orderOrId.firestoreDocId || orderOrId.docId || '').trim();
-        return (id1 && actionInFlightOrders.has(id1)) ||
-               (clean1 && actionInFlightOrders.has(clean1)) ||
-               (id2 && actionInFlightOrders.has(id2)) ||
-               (clean2 && actionInFlightOrders.has(clean2)) ||
-               (docId && actionInFlightOrders.has(docId));
+        return (Boolean(id1) && actionInFlightOrders.has(id1)) ||
+               (Boolean(clean1) && actionInFlightOrders.has(clean1)) ||
+               (Boolean(id2) && actionInFlightOrders.has(id2)) ||
+               (Boolean(clean2) && actionInFlightOrders.has(clean2)) ||
+               (Boolean(docId) && actionInFlightOrders.has(docId));
     }
     const raw = String(orderOrId).trim();
     const clean = raw.replace(/^#/, '').trim();
-    return (raw && actionInFlightOrders.has(raw)) || (clean && actionInFlightOrders.has(clean));
+    return (Boolean(raw) && actionInFlightOrders.has(raw)) || (Boolean(clean) && actionInFlightOrders.has(clean));
 }
 
 /**
@@ -2732,23 +2801,46 @@ function setOrderActionInFlight(orderOrId, inFlight) {
     if (!orderOrId) return;
     const ids = [];
     if (typeof orderOrId === 'object') {
-        if (orderOrId.id) {
-            ids.push(String(orderOrId.id).trim());
-            ids.push(String(orderOrId.id).replace(/^#/, '').trim());
+        if (orderOrId.id !== undefined && orderOrId.id !== null) {
+            const s = String(orderOrId.id).trim();
+            const clean = s.replace(/^#/, '').trim();
+            if (s) ids.push(s);
+            if (clean) ids.push(clean, '#' + clean);
         }
-        if (orderOrId.orderId) {
-            ids.push(String(orderOrId.orderId).trim());
-            ids.push(String(orderOrId.orderId).replace(/^#/, '').trim());
+        if (orderOrId.orderId !== undefined && orderOrId.orderId !== null) {
+            const s = String(orderOrId.orderId).trim();
+            const clean = s.replace(/^#/, '').trim();
+            if (s) ids.push(s);
+            if (clean) ids.push(clean, '#' + clean);
         }
         if (orderOrId.firestoreDocId) {
-            ids.push(String(orderOrId.firestoreDocId).trim());
+            const s = String(orderOrId.firestoreDocId).trim();
+            if (s) ids.push(s, s.replace(/^#/, '').trim());
         }
         if (orderOrId.docId) {
-            ids.push(String(orderOrId.docId).trim());
+            const s = String(orderOrId.docId).trim();
+            if (s) ids.push(s, s.replace(/^#/, '').trim());
         }
     } else {
-        ids.push(String(orderOrId).trim());
-        ids.push(String(orderOrId).replace(/^#/, '').trim());
+        const s = String(orderOrId).trim();
+        const clean = s.replace(/^#/, '').trim();
+        if (s) ids.push(s);
+        if (clean) ids.push(clean, '#' + clean);
+
+        // When clearing in-flight, also look up any associated docId or other IDs for that order in staffOrders
+        if (!inFlight && Array.isArray(staffOrders)) {
+            const matched = staffOrders.find(o => 
+                String(o.id) === s || String(o.id) === clean ||
+                String(o.orderId) === s || String(o.orderId) === clean ||
+                (o.firestoreDocId && (o.firestoreDocId === s || o.firestoreDocId === clean))
+            );
+            if (matched) {
+                if (matched.id) ids.push(String(matched.id).trim(), String(matched.id).replace(/^#/, '').trim());
+                if (matched.orderId) ids.push(String(matched.orderId).trim(), String(matched.orderId).replace(/^#/, '').trim());
+                if (matched.firestoreDocId) ids.push(String(matched.firestoreDocId).trim());
+                if (matched.docId) ids.push(String(matched.docId).trim());
+            }
+        }
     }
     ids.forEach(id => {
         if (!id) return;
@@ -2761,6 +2853,16 @@ function setOrderActionInFlight(orderOrId, inFlight) {
 }
 
 let staffOrders = [];
+function getStaffOrders() { return staffOrders; }
+function setStaffOrders(val) { 
+    staffOrders = Array.isArray(val) ? val : []; 
+    if (typeof window !== 'undefined') window.staffOrders = staffOrders; 
+}
+if (typeof window !== 'undefined') {
+    window.staffOrders = staffOrders;
+    window.getStaffOrders = getStaffOrders;
+    window.setStaffOrders = setStaffOrders;
+}
 
 function sortOrdersOldestFirst(orders) {
     if (!Array.isArray(orders)) return [];
@@ -2785,13 +2887,24 @@ function isValidStaffOrder(order) {
 }
 
 function loadCustomerOrders() {
-    // 1. Instant load from LocalStorage
+    // 1. Instant load from LocalStorage strictly using STAFF_ORDERS_STORAGE_KEY (never poll customer app keys)
     try {
-        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY) || localStorage.getItem('perfettoCustomerOrders');
+        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY);
         if (stored) {
             const customerOrders = JSON.parse(stored);
             if (Array.isArray(customerOrders)) {
-                staffOrders = sortOrdersOldestFirst(customerOrders.filter(isValidStaffOrder));
+                // Sanitize loaded orders: ensure pending orders never carry fabricated delivery status or timestamps
+                staffOrders = sortOrdersOldestFirst(customerOrders.filter(isValidStaffOrder).map(o => {
+                    const rawStatus = String(o.status || '').trim().toUpperCase();
+                    const s = rawStatus.toLowerCase();
+                    if (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(s) || s === 'paid') {
+                        o.deliveredAt = null;
+                        o.completedAt = null;
+                        o.deliveryVerified = false;
+                        o.deliveryOtpVerified = false;
+                    }
+                    return o;
+                }));
             } else {
                 staffOrders = [];
             }
@@ -2803,7 +2916,7 @@ function loadCustomerOrders() {
         staffOrders = [];
     }
 
-    // Auto-accept any online payment orders
+    // Auto-accept any online payment orders (at most transitions to 'preparing', never 'delivered')
     processAutoAcceptanceForOnlineOrders();
 
     // 2. Asynchronously sync with backend API
@@ -2822,7 +2935,23 @@ async function fetchOrdersFromBackend(force = false) {
         }
         const data = await response.json();
         if (data && data.success && Array.isArray(data.orders)) {
-            mergeLiveOrdersIntoStaff(data.orders);
+            if (data.orders.length === 0) {
+                staffOrders = [];
+                try {
+                    localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
+                    localStorage.removeItem('perfetto_staff_orders');
+                    localStorage.removeItem('perfettoCustomerOrders');
+                } catch (e) { }
+                renderOrders();
+                const pendingCountEl = document.getElementById('pending-orders-count');
+                const completedCountEl = document.getElementById('completed-orders-count');
+                const rejectedCountEl = document.getElementById('rejected-orders-count');
+                if (pendingCountEl) pendingCountEl.textContent = '0';
+                if (completedCountEl) completedCountEl.textContent = '0';
+                if (rejectedCountEl) rejectedCountEl.textContent = '0';
+            } else {
+                mergeLiveOrdersIntoStaff(data.orders);
+            }
         }
     } catch (err) {
         console.error('Staff orders sync error:', err);
@@ -2868,17 +2997,51 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
                 if (existingLocal && existingLocal.firestoreDocId && !o.firestoreDocId) {
                     o.firestoreDocId = existingLocal.firestoreDocId;
                 }
+
+                // Strictly respect the document's true remote status from Firestore.
+                // If Firestore doc status is 'PENDING', 'pending', 'new', 'placed', or 'preparing',
+                // keep the order strictly in the "Pending Orders" tab.
+                // NEVER override a pending Firestore document with a local 'completed' or 'delivered' state.
+                const remoteRawStatus = String(o.status || '').trim().toUpperCase();
+                const isRemotePending = remoteRawStatus === 'PENDING' || 
+                                        remoteRawStatus === 'NEW' || 
+                                        remoteRawStatus === 'PLACED' || 
+                                        remoteRawStatus === 'PREPARING' || 
+                                        remoteRawStatus === 'KITCHEN' || 
+                                        remoteRawStatus === 'READY' || 
+                                        remoteRawStatus === 'DELIVERY' || 
+                                        remoteRawStatus === 'OUT_FOR_DELIVERY' || 
+                                        remoteRawStatus === 'OUT-FOR-DELIVERY' || 
+                                        remoteRawStatus === 'DISPATCHED' || 
+                                        remoteRawStatus === 'IN_TRANSIT' || 
+                                        remoteRawStatus === 'PAID' ||
+                                        PENDING_STAFF_STATUSES.has(remoteRawStatus.toLowerCase());
+
+                if (isRemotePending) {
+                    // Strictly keep order in Pending Orders tab; strip any fabricated or local delivered flags
+                    o.deliveredAt = null;
+                    o.completedAt = null;
+                    o.deliveryVerified = false;
+                    o.deliveryOtpVerified = false;
+                } else if (existingLocal && isOrderActionInFlight(existingLocal) && existingLocal.status === 'delivered') {
+                    // Only preserve optimistic delivered state if an action is actively in-flight on this specific client
+                    o.status = 'delivered';
+                    o.deliveryVerified = true;
+                    if (existingLocal.deliveredAt) o.deliveredAt = existingLocal.deliveredAt;
+                    if (existingLocal.completedAt) o.completedAt = existingLocal.completedAt;
+                }
+
                 mergedMap.set(key, o);
             }
         }
     });
 
-    // 2. Preserve completed and rejected orders from previous fetches/state, local offline pending, or in-flight actions
+    // 2. Preserve local offline pending or actively in-flight actions only (never revive stale ghost orders)
     staffOrders.forEach(lo => {
         if (isValidStaffOrder(lo)) {
             const key = getOrderMatchingKey(lo);
             if (key && !mergedMap.has(key)) {
-                if (isCompletedStaffOrder(lo) || isRejectedStaffOrder(lo) || lo._isLocalOfflinePending || isOrderActionInFlight(lo)) {
+                if (lo._isLocalOfflinePending || isOrderActionInFlight(lo)) {
                     mergedMap.set(key, lo);
                 }
             }
@@ -2888,6 +3051,7 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     // 3. Sort orders: Oldest/earliest orders at top, new incoming orders at bottom
     const mergedList = sortOrdersOldestFirst(Array.from(mergedMap.values()).filter(isValidStaffOrder));
     staffOrders = mergedList;
+    if (typeof window !== 'undefined') window.staffOrders = staffOrders;
 
     // Check for newly arrived incoming orders (status === 'placed', 'new', or 'pending') while app is active
     if (isInitialOrdersSyncDone) {
@@ -2908,7 +3072,9 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
             const summary = total ? `${customerName} • ₹${total}` : customerName;
 
             showStaffToast('🔔 New Customer Order Received in Real-Time!');
+            // showIncomingOrderModal(orderId, summary, data)
             showIncomingOrderModal(orderId, summary, latestNew);
+            // startOrderAlertAudio(orderId, summary, data)
             startOrderAlertAudio(orderId, summary, latestNew);
             startStaffVibrationLoop();
         }
@@ -2928,6 +3094,9 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
     } catch (e) { }
 
     renderOrders();
+}
+if (typeof window !== 'undefined') {
+    window.mergeLiveOrdersIntoStaff = mergeLiveOrdersIntoStaff;
 }
 
 let isStaffSoundEnabled = true; // Sound switch defaults to active ON, scoped to session
@@ -3460,35 +3629,84 @@ const REJECTED_STAFF_STATUSES = new Set(["rejected", "cancelled", "canceled", "d
 function isPendingStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
+    const s = rawStatus.toLowerCase();
 
-    // If remaining time > 0 and status is active pending/unfulfilled, order MUST stay in status PENDING and render in Pending Orders tab
-    const remMs = getOrderRemainingTimeMs(order);
-    if (remMs > 0 && (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(rawStatus.toLowerCase()))) {
-        return true;
+    // 1. If completed or rejected, it cannot be pending
+    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) {
+        return false;
     }
 
-    // Auto-cancellation boundary: strictly remove only if order is 100 minutes expired
+    // 2. Strict 100-minute boundary for auto-expiry
     if (isOrder100MinsExpired(order)) {
         return false;
     }
-    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && remMs <= 0) {
+    if ((order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') && getOrderRemainingTimeMs(order) <= 0) {
         return false;
     }
-    if (isCompletedStaffOrder(order) || isRejectedStaffOrder(order)) return false;
 
-    if (rawStatus === 'PENDING') {
+    // 3. If remaining time > 0 and status is active pending/unfulfilled, order MUST stay in status PENDING and render in Pending Orders tab
+    if (
+        rawStatus === 'PENDING' || 
+        rawStatus === 'NEW' || 
+        rawStatus === 'PLACED' || 
+        rawStatus === 'PREPARING' || 
+        rawStatus === 'KITCHEN' || 
+        rawStatus === 'READY' || 
+        rawStatus === 'DELIVERY' || 
+        rawStatus === 'OUT_FOR_DELIVERY' || 
+        rawStatus === 'OUT-FOR-DELIVERY' || 
+        rawStatus === 'DISPATCHED' || 
+        rawStatus === 'IN_TRANSIT' || 
+        rawStatus === 'PAID' || 
+        PENDING_STAFF_STATUSES.has(s)
+    ) {
         return true;
     }
-    const s = rawStatus.toLowerCase();
-    return PENDING_STAFF_STATUSES.has(s);
+
+    return false;
 }
 
 function isCompletedStaffOrder(order) {
     if (!order) return false;
     const rawStatus = String(order.status || '').trim().toUpperCase();
-    if (rawStatus === 'PENDING') return false;
     const s = rawStatus.toLowerCase();
-    return COMPLETED_STAFF_STATUSES.has(s);
+
+    // 1. Any pending or active kitchen status can NEVER be in the Completed tab
+    if (
+        rawStatus === 'PENDING' || 
+        rawStatus === 'NEW' || 
+        rawStatus === 'PLACED' || 
+        rawStatus === 'PREPARING' || 
+        rawStatus === 'KITCHEN' || 
+        rawStatus === 'READY' || 
+        rawStatus === 'DELIVERY' || 
+        rawStatus === 'OUT_FOR_DELIVERY' || 
+        rawStatus === 'OUT-FOR-DELIVERY' || 
+        rawStatus === 'DISPATCHED' || 
+        rawStatus === 'IN_TRANSIT' || 
+        rawStatus === 'PAID' || 
+        PENDING_STAFF_STATUSES.has(s)
+    ) {
+        return false;
+    }
+
+    // 2. Rejected/cancelled orders belong in Rejected tab, never Completed
+    if (REJECTED_STAFF_STATUSES.has(s) || order.autoExpired === true || order.isAutoExpired === true || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+        return false;
+    }
+
+    // 3. Must match completed staff statuses ('delivered' or 'completed')
+    if (!COMPLETED_STAFF_STATUSES.has(s)) {
+        return false;
+    }
+
+    // 4. Enforce strict rule: An order can ONLY enter the "Completed" (delivered) tab
+    // IF AND ONLY IF verifyAndCompleteOrderDelivery() successfully verifies the valid 4-digit Delivery OTP or Emergency Master Delivery OTP
+    // (or remote document from Firestore is genuinely delivered with confirmed delivery timestamp)
+    const hasValidDeliveryTimestamp = Boolean(order.deliveredAt || order.completedAt);
+    const isVerifiedDelivery = Boolean(order.deliveryVerified || order.deliveryOtpVerified || order.otpVerified || hasValidDeliveryTimestamp);
+
+    return isVerifiedDelivery;
 }
 
 function isRejectedStaffOrder(order) {
@@ -3867,7 +4085,7 @@ window.addEventListener('storage', (e) => {
     if (e.key && (e.key === 'staff_sound_enabled' || e.key.includes('sound') || e.key.includes('audio') || e.key.includes('dismiss'))) {
         return;
     }
-    if (!e.key || e.key === 'perfettoCustomerOrders' || e.key === STAFF_ORDERS_STORAGE_KEY) {
+    if (!e.key || e.key === STAFF_ORDERS_STORAGE_KEY) {
         syncCustomerOrders();
     }
 });
@@ -4045,7 +4263,7 @@ function applyStaffTabFromUrl() {
     try {
         if (typeof window === 'undefined') return;
         const urlParams = new URLSearchParams(window.location.search);
-        let tab = urlParams.get('tab') || window.location.hash.replace('#', '');
+        let tab = urlParams.get('tab') || (window.location.hash || '').replace('#', '');
         if (tab) {
             tab = String(tab).toLowerCase().trim();
             if (tab === 'rejected' || tab === 'cancelled' || tab === 'canceled' || tab === 'declined') {
@@ -4177,7 +4395,7 @@ function renderOrders() {
                 emptyState.innerHTML = `
                     <i class="fa-solid fa-clipboard-check"></i>
                     <h4>No Completed Orders</h4>
-                    <p>Delivered orders will appear here before 11:59 PM midnight cleanup.</p>
+                    <p>Delivered orders will appear here.</p>
                 `;
             } else {
                 emptyState.innerHTML = `
@@ -4199,8 +4417,8 @@ function renderOrders() {
     const sortedOrders = currentStaffTab === 'pending'
         ? sortOrdersOldestFirst(currentList)
         : [...currentList].sort((a, b) => {
-            const timeA = new Date(a.completedAt || a.deliveredAt || a.rejectedAt || a.cancelledAt || a.updatedAt || a.createdAt || 0).getTime();
-            const timeB = new Date(b.completedAt || b.deliveredAt || b.rejectedAt || b.cancelledAt || b.updatedAt || b.createdAt || 0).getTime();
+            const timeA = new Date(a.deliveredAt || a.completedAt || a.rejectedAt || a.cancelledAt || a.createdAt || 0).getTime();
+            const timeB = new Date(b.deliveredAt || b.completedAt || b.rejectedAt || b.cancelledAt || b.createdAt || 0).getTime();
             return timeB - timeA;
         });
 
@@ -4378,13 +4596,18 @@ function buildCompletedOrderCardHTML(order) {
 
     const totalVal = order.total || order.costs?.total || 0;
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
-    const deliveredTimeStr = formatStaffTimestamp(order.deliveredAt || order.completedAt || order.updatedAt);
+    const createdTimeStr = formatStaffTimestamp(order.createdAt || order.orderDate || order.timestamp || order.date);
+    const deliveredTimeStr = (order.deliveredAt || order.completedAt) ? formatStaffTimestamp(order.deliveredAt || order.completedAt) : '';
 
     return `
         <article class="order-card completed-order-card" id="card-${order.id}">
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                    ${createdTimeStr ? `
+                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-regular fa-clock"></i> <span>Order Placed: ${escapeHtml(createdTimeStr)}</span>
+                    </div>` : ''}
                 </div>
                 <div class="completed-card-status-badge status-delivered">
                     <i class="fa-solid fa-check-double"></i>
@@ -4395,7 +4618,7 @@ function buildCompletedOrderCardHTML(order) {
             <div class="card-body completed-card-body">
                 ${deliveredTimeStr ? `
                 <div style="font-size: 0.78rem; color: #10b981; margin: 4px 0 8px; display: flex; align-items: center; gap: 6px;">
-                    <i class="fa-regular fa-clock"></i> <span>Delivered: ${escapeHtml(deliveredTimeStr)}</span>
+                    <i class="fa-solid fa-check-double"></i> <span>Delivered: ${escapeHtml(deliveredTimeStr)}</span>
                 </div>` : ''}
 
                 <div class="items-list">
@@ -4597,7 +4820,7 @@ function buildOrderCardHTML(order) {
             </div>
         `;
     } else {
-        // Delivered & Completed: Protected (Cleared automatically at 11:59 PM, or manually by Master Admin)
+        // Delivered & Completed: Protected (Cleared manually by Master Admin via Master OTP)
         const isMasterAdminViewer = currentStaffUser && (
             currentStaffUser.role === 'Master Admin' || 
             String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10) === MASTER_ADMIN_PHONE_NUM || 
@@ -4632,6 +4855,7 @@ function buildOrderCardHTML(order) {
     const rawPhone = order.customerPhone || order.phone || (order.customer && order.customer.phone) || (order.deliveryDetails && order.deliveryDetails.phone) || '';
     const cleanPhone = String(rawPhone).replace(/[^0-9+]/g, '');
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
+    const createdTimeStr = formatStaffTimestamp(order.createdAt || order.orderDate || order.timestamp || order.date);
 
     return `
         <article class="order-card" id="card-${order.id}">
@@ -4639,6 +4863,10 @@ function buildOrderCardHTML(order) {
                 <div class="order-id-group">
                     <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                     ${getOrderCountdownPillHTML(order)}
+                    ${createdTimeStr ? `
+                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-regular fa-clock"></i> <span>${escapeHtml(createdTimeStr)}</span>
+                    </div>` : ''}
                 </div>
                 <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
                     <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
@@ -4722,11 +4950,28 @@ async function verifyAndCompleteOrderDelivery(orderId) {
         return;
     }
 
-    const expectedOtp = String(order.deliveryOtp || order.otp || '').trim().replace(/[^0-9]/g, '');
-    const masterOtp = getMasterDeliveryOtp();
+    let expectedOtp = String(order.deliveryOtp || order.otp || order.delivery_otp || order.customerOtp || '').trim().replace(/[^0-9]/g, '');
+    let masterOtp = getMasterDeliveryOtp();
 
-    // Validate OTP match against Customer OTP OR Emergency Master Delivery OTP
-    const isCustomerOtpMatch = expectedOtp ? (enteredOtp === expectedOtp) : (enteredOtp.length === 4);
+    // If expectedOtp is missing on order in memory, query Firestore for fresh document OTP
+    if (!expectedOtp) {
+        const db = getStaffFirestore();
+        if (db) {
+            try {
+                const exactDocId = await resolveExactFirestoreOrderDocId(db, order, rawId);
+                if (exactDocId) {
+                    const snap = await db.collection('orders').doc(exactDocId).get();
+                    if (snap && snap.exists) {
+                        const d = snap.data();
+                        expectedOtp = String(d.deliveryOtp || d.otp || d.delivery_otp || d.customerOtp || '').trim().replace(/[^0-9]/g, '');
+                    }
+                }
+            } catch (e) { }
+        }
+    }
+
+    // Validate OTP match strictly against Customer OTP OR Emergency Master Delivery OTP (No Auto-Delivery)
+    const isCustomerOtpMatch = Boolean(expectedOtp && enteredOtp === expectedOtp);
     const isMasterOtpMatch = Boolean(masterOtp && enteredOtp === masterOtp);
     const isValid = isCustomerOtpMatch || isMasterOtpMatch;
 
@@ -4751,23 +4996,54 @@ async function verifyAndCompleteOrderDelivery(orderId) {
     }
 
     try {
-        // Complete delivery asynchronously with canonical status 'delivered'
-        await updateOrderStatus(order.id, 'delivered', verifyBtn);
+        // Complete delivery asynchronously with canonical status 'DELIVERED'
+        await updateOrderStatus(order.id || rawId, 'DELIVERED', verifyBtn, {
+            deliveryVerified: true,
+            deliveryOtpVerified: true,
+            isMasterOtpMatch: isMasterOtpMatch && !isCustomerOtpMatch
+        });
         if (isMasterOtpMatch && !isCustomerOtpMatch) {
-            regenerateMasterDeliveryOtpOnUse(order.id);
-            showStaffToast(`🎉 Emergency Master OTP Verified! Order #${order.id} marked as Delivered!`);
+            regenerateMasterDeliveryOtpOnUse(order.id || rawId);
+            showStaffToast(`🎉 Emergency Master OTP Verified! Order #${rawId} marked as Delivered!`);
         } else {
-            showStaffToast(`🎉 OTP Verified! Order #${order.id} marked as Delivered successfully!`);
+            showStaffToast(`🎉 OTP Verified! Order #${rawId} marked as Delivered successfully!`);
         }
     } catch (err) {
         console.error('Delivery verification write error:', err);
         showStaffToast(`❌ Delivery update failed: ${err.message || 'Database error'}`);
-        alert(`Delivery Update Failed: Could not update Order #${order.id}.\n\n${err.message || 'Please check your connection and retry.'}`);
+        alert(`Delivery Update Failed: Could not update Order #${rawId}.\n\n${err.message || 'Please check your connection and retry.'}`);
     } finally {
+        // 1. Unconditionally clear in-flight status across all possible order ID variants
+        setOrderActionInFlight(orderId, false);
+        setOrderActionInFlight(rawId, false);
+        if (order) {
+            setOrderActionInFlight(order, false);
+            if (order.firestoreDocId) setOrderActionInFlight(order.firestoreDocId, false);
+        }
+
+        // 2. Unconditionally restore button and input state
         if (verifyBtn) {
             verifyBtn.disabled = false;
-            verifyBtn.classList.remove('btn-loading');
+            if (verifyBtn.classList) verifyBtn.classList.remove('btn-loading');
             verifyBtn.innerHTML = originalBtnHTML;
+        }
+        const liveBtn = document.getElementById(`btn-verify-otp-${order ? order.id : rawId}`) ||
+                        document.getElementById(`btn-verify-otp-${rawId}`);
+        if (liveBtn) {
+            liveBtn.disabled = false;
+            if (liveBtn.classList) liveBtn.classList.remove('btn-loading');
+            liveBtn.innerHTML = originalBtnHTML;
+        }
+
+        // 3. Ensure interactive state on remaining active cards
+        ensureOrderCardInteractive(order?.id || rawId);
+        ensureOrderCardInteractive(orderId);
+        if (Array.isArray(staffOrders)) {
+            staffOrders.forEach(o => {
+                if (o && isPendingStaffOrder(o)) {
+                    ensureOrderCardInteractive(o.id || o.orderId);
+                }
+            });
         }
     }
 }
@@ -4941,9 +5217,10 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         }
         setOrderActionInFlight(order, true);
 
-        const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
-        const isRejected = (newStatus === 'rejected');
-        const effectiveStatus = isDelivered ? 'delivered' : (isRejected ? 'rejected' : newStatus);
+        const normNewStatus = String(newStatus || '').toUpperCase().trim();
+        const isDelivered = (normNewStatus === 'COMPLETED' || normNewStatus === 'DELIVERED' || String(newStatus).toLowerCase() === 'delivered' || String(newStatus).toLowerCase() === 'completed');
+        const isRejected = (normNewStatus === 'REJECTED' || normNewStatus === 'CANCELLED' || normNewStatus === 'CANCELED' || String(newStatus).toLowerCase() === 'rejected');
+        const effectiveStatus = isDelivered ? 'DELIVERED' : (isRejected ? 'REJECTED' : newStatus);
 
         order.status = effectiveStatus;
         const nowIso = new Date().toISOString();
@@ -4957,6 +5234,8 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         if (isDelivered) {
             if (!order.deliveredAt) order.deliveredAt = nowIso;
             if (!order.completedAt) order.completedAt = nowIso;
+            order.deliveryVerified = true;
+            order.deliveryOtpVerified = true;
             const isWalletSystemActive = (staffWalletConfig && staffWalletConfig.enabled !== false);
             if (!isWalletSystemActive) {
                 // When system is disabled, skip rewards entirely
@@ -5002,9 +5281,9 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
 
         if (isRejected) {
             order.rejectedAt = nowIso;
-            if (extraPayload && extraPayload.rejectionReason) {
-                order.rejectionReason = String(extraPayload.rejectionReason).trim();
-            }
+            const finalRejectReason = (extraPayload && extraPayload.rejectionReason) || order.rejectionReason || 'Store cancellation';
+            order.rejectionReason = String(finalRejectReason).trim();
+            order.cancellationReason = String(finalRejectReason).trim();
             order.rewardStatus = 'voided';
             order.wonCashback = 0;
             order.earnedCashback = 0;
@@ -5014,6 +5293,12 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
                 order.scratchCard.amount = 0;
                 order.scratchCard.voided = true;
             }
+
+            // Immediately halt audio alert and dismiss notifications for this rejected order
+            stopOrderAlertAudio();
+            if (typeof dismissIncomingOrderAlert === 'function') {
+                dismissIncomingOrderAlert(rawId);
+            }
         }
 
         if (!extraPayload || typeof extraPayload !== 'object') extraPayload = {};
@@ -5021,26 +5306,42 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             extraPayload.shouldCreditCashbackOnDelivery = true;
         }
 
-        // 1. Save updated staffOrders to staff storage
+        // 1. Ensure order is updated in staffOrders
+        const existingIdx = staffOrders.findIndex(o => 
+            String(o.id) === rawId || 
+            String(o.orderId) === rawId || 
+            String(o.id).replace(/^#/, '') === rawId || 
+            String(o.orderId).replace(/^#/, '') === rawId ||
+            (order.firestoreDocId && (o.firestoreDocId === order.firestoreDocId || o.id === order.firestoreDocId))
+        );
+        if (existingIdx >= 0) {
+            staffOrders[existingIdx] = order;
+        } else {
+            staffOrders.push(order);
+        }
+
+        // 2. Save updated staffOrders to staff storage
         try {
             localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
         } catch (e) {
             console.error('Error saving updated order status:', e);
         }
 
-        // 2. Selectively update order status in customer orders cache without wiping order history
+        // 3. Selectively update order status in customer orders cache without wiping order history
         try {
             const rawCust = localStorage.getItem('perfettoCustomerOrders');
             if (rawCust) {
                 const custOrders = JSON.parse(rawCust);
                 if (Array.isArray(custOrders)) {
-                    const cIdx = custOrders.findIndex(o => String(o.id || o.orderId) === rawId);
+                    const cIdx = custOrders.findIndex(o => String(o.id || o.orderId) === rawId || String(o.id || o.orderId).replace(/^#/, '') === rawId);
                     if (cIdx >= 0) {
                         custOrders[cIdx].status = effectiveStatus;
                         custOrders[cIdx].updatedAt = nowIso;
                         if (isDelivered) {
                             custOrders[cIdx].deliveredAt = nowIso;
                             custOrders[cIdx].completedAt = nowIso;
+                            custOrders[cIdx].deliveryVerified = true;
+                            custOrders[cIdx].deliveryOtpVerified = true;
                             if (shouldCreditCashbackOnDelivery) {
                                 custOrders[cIdx].rewardStatus = 'credited';
                                 custOrders[cIdx].scratchClaimed = true;
@@ -5052,6 +5353,18 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
                                     custOrders[cIdx].scratchCard.claimedAt = nowIso;
                                 }
                             }
+                        } else if (isRejected) {
+                            custOrders[cIdx].rejectedAt = nowIso;
+                            custOrders[cIdx].rejectionReason = order.rejectionReason || 'Store cancellation';
+                            custOrders[cIdx].cancellationReason = order.rejectionReason || 'Store cancellation';
+                            custOrders[cIdx].rewardStatus = 'voided';
+                            custOrders[cIdx].wonCashback = 0;
+                            custOrders[cIdx].earnedCashback = 0;
+                            if (custOrders[cIdx].scratchCard) {
+                                custOrders[cIdx].scratchCard.status = 'voided';
+                                custOrders[cIdx].scratchCard.voided = true;
+                                custOrders[cIdx].scratchCard.wonAmount = 0;
+                            }
                         }
                         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(custOrders));
                     }
@@ -5059,7 +5372,51 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             }
         } catch (e) { }
 
-        // 3. Persist to Firestore & backend API
+        // 3b. Update local customer wallet cache immediately upon rejection if funds were held
+        if (isRejected) {
+            const refundAmount = Math.round(Number(
+                order?.walletDeductedAmount ||
+                order?.walletUsed ||
+                order?.walletDiscount ||
+                order?.usedWalletCash ||
+                order?.appliedWalletDiscount ||
+                order?.usedWallet ||
+                0
+            ));
+            if (refundAmount > 0) {
+                try {
+                    const localWalletStr = localStorage.getItem('perfetto_customer_wallet');
+                    if (localWalletStr) {
+                        const localWallet = JSON.parse(localWalletStr);
+                        localWallet.balance = Math.max(0, (Number(localWallet.balance) || 0) + refundAmount);
+                        if (Array.isArray(localWallet.transactions)) {
+                            localWallet.transactions.unshift({
+                                id: `tx_refund_${rawId}`,
+                                type: 'REFUND',
+                                amount: refundAmount,
+                                orderId: String(rawId),
+                                title: `+₹${refundAmount} Refund`,
+                                description: `+₹${refundAmount} Refund for Order #${rawId}`,
+                                status: 'completed',
+                                createdAt: nowIso
+                            });
+                        }
+                        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(localWallet));
+                    }
+                } catch (e) { }
+                if (typeof releaseWalletHold === 'function') {
+                    try { releaseWalletHold(rawId, refundAmount); } catch (e) { }
+                }
+            }
+        }
+
+        try {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('perfetto:order-updated', { detail: { orderId: rawId, status: effectiveStatus } }));
+            }
+        } catch (e) { }
+
+        // 4. Persist to Firestore & backend API
         await syncOrderStatusToBackend(order.id, effectiveStatus, extraPayload);
 
         let msg = `Order #${order.id} updated to ${effectiveStatus.toUpperCase()}`;
@@ -5075,9 +5432,13 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         showStaffToast(`❌ Status update failed: ${err.message || 'Database error'}`);
         throw err;
     } finally {
-        // 1. Unconditionally clear in-flight status across all order ID variants BEFORE re-rendering
+        // 1. Unconditionally clear in-flight status across all possible order ID variants BEFORE re-rendering
+        setOrderActionInFlight(orderId, false);
         setOrderActionInFlight(rawId, false);
-        if (order) setOrderActionInFlight(order, false);
+        if (order) {
+            setOrderActionInFlight(order, false);
+            if (order.firestoreDocId) setOrderActionInFlight(order.firestoreDocId, false);
+        }
 
         // 2. Restore trigger button if it exists and wasn't detached
         if (triggerBtn) {
@@ -5085,12 +5446,28 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
             if (triggerBtn.classList) triggerBtn.classList.remove('btn-loading');
             if (originalTriggerHTML) triggerBtn.innerHTML = originalTriggerHTML;
         }
+        const liveBtn = document.getElementById(`btn-verify-otp-${order ? order.id : rawId}`) ||
+                        document.getElementById(`btn-dispatch-${order ? order.id : rawId}`) ||
+                        document.getElementById(`btn-verify-otp-${rawId}`) ||
+                        document.getElementById(`btn-dispatch-${rawId}`);
+        if (liveBtn) {
+            liveBtn.disabled = false;
+            if (liveBtn.classList) liveBtn.classList.remove('btn-loading');
+        }
 
         // 3. Re-render orders now that in-flight flags are completely cleared so buildOrderCardHTML generates active controls
         renderOrders();
 
         // 4. Directly guarantee card interactivity and remove any lingering disabled/pointer-events restrictions
         ensureOrderCardInteractive(order?.id || rawId);
+        ensureOrderCardInteractive(orderId);
+        if (Array.isArray(staffOrders)) {
+            staffOrders.forEach(o => {
+                if (o && isPendingStaffOrder(o)) {
+                    ensureOrderCardInteractive(o.id || o.orderId);
+                }
+            });
+        }
     }
 }
 window.updateOrderStatus = updateOrderStatus;
@@ -5168,7 +5545,7 @@ function handleRejectOrder(orderId) {
     if (totalEl) totalEl.textContent = `₹${order.total || order.costs?.total || 0}`;
 
     if (reasonInput) {
-        reasonInput.value = '';
+        reasonInput.value = 'Store cancellation';
         reasonInput.classList.remove('otp-error-shake');
     }
     if (reasonError) {
@@ -5188,12 +5565,21 @@ function handleRejectOrder(orderId) {
     if (modal) {
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
-    }
-
-    if (reasonInput) {
-        setTimeout(() => reasonInput.focus(), 100);
-    } else if (otpInput) {
-        setTimeout(() => otpInput.focus(), 100);
+        if (reasonInput) {
+            setTimeout(() => {
+                reasonInput.focus();
+                reasonInput.select();
+            }, 100);
+        }
+    } else {
+        // Fallback prompt for environments without modal elements
+        let promptReason = 'Store cancellation';
+        if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+            const input = window.prompt(`Reject Order #${order.id}?\n\nEnter cancellation reason:`, 'Store cancellation');
+            if (input === null) return;
+            promptReason = input.trim() || 'Store cancellation';
+        }
+        updateOrderStatus(order.id, 'REJECTED', null, { rejectionReason: promptReason });
     }
 }
 window.handleRejectOrder = handleRejectOrder;
@@ -5240,82 +5626,48 @@ async function confirmRejectOrder() {
 
     const reasonInput = document.getElementById('reject-modal-reason');
     const reasonError = document.getElementById('reject-modal-reason-error');
-    const enteredReason = reasonInput ? reasonInput.value.trim() : '';
+    const reasonVal = reasonInput ? reasonInput.value.trim() : '';
+    const enteredReason = reasonVal || 'Store cancellation';
 
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
     const enteredOtp = otpInput ? otpInput.value.trim().replace(/[^0-9]/g, '') : '';
     let masterOtp = getMasterDeliveryOtp();
 
-    // 1. Strict Validation: Mandatory cancellation reason is required
-    if (!enteredReason) {
-        if (reasonInput) {
-            reasonInput.classList.remove('otp-error-shake');
-            void reasonInput.offsetWidth;
-            reasonInput.classList.add('otp-error-shake');
-            reasonInput.focus();
-        }
-        if (reasonError) {
-            reasonError.style.display = 'block';
-            reasonError.textContent = '⚠️ Mandatory cancellation reason is required to reject order.';
-        }
-        showStaffToast('⚠️ Please enter a cancellation reason.');
-        return;
-    }
-    if (reasonError) {
-        reasonError.style.display = 'none';
-        reasonError.textContent = '';
-    }
-
-    // 2. Strict Validation: Must provide 4-digit Master OTP
-    if (!enteredOtp || enteredOtp.length !== 4) {
-        if (otpInput) {
-            otpInput.classList.remove('otp-error-shake');
-            void otpInput.offsetWidth;
-            otpInput.classList.add('otp-error-shake');
-            otpInput.focus();
-        }
-        if (otpError) {
-            otpError.style.display = 'block';
-            otpError.textContent = '⚠️ 4-Digit Admin Master Delivery OTP is strictly required to authorize rejection.';
-        }
-        showStaffToast('⚠️ Please enter Admin Master Delivery OTP to authorize rejection.');
-        return;
-    }
-
-    // 2.1 Fetch latest Master OTP from Firestore doc if available for fresh check
-    const db = getStaffFirestore();
-    if (db) {
-        try {
-            const snap = await Promise.race([
-                db.collection('settings').doc('storeSettings').get(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-            ]);
-            if (snap && snap.exists && snap.data()) {
-                const data = snap.data();
-                const remoteOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
-                if (remoteOtp) {
-                    masterOtp = String(remoteOtp).replace(/[^0-9]/g, '').slice(0, 4);
-                    try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+    // If Master OTP was provided, validate it. If left blank, allow direct store rejection.
+    if (enteredOtp && enteredOtp.length === 4) {
+        const db = getStaffFirestore();
+        if (db) {
+            try {
+                const snap = await Promise.race([
+                    db.collection('settings').doc('storeSettings').get(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+                ]);
+                if (snap && snap.exists && snap.data()) {
+                    const data = snap.data();
+                    const remoteOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
+                    if (remoteOtp) {
+                        masterOtp = String(remoteOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                        try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+                    }
                 }
-            }
-        } catch (e) { }
-    }
+            } catch (e) { }
+        }
 
-    // 3. Validate against active Master OTP set by Admin
-    if (enteredOtp !== masterOtp) {
-        if (otpInput) {
-            otpInput.classList.remove('otp-error-shake');
-            void otpInput.offsetWidth;
-            otpInput.classList.add('otp-error-shake');
-            otpInput.select();
+        if (enteredOtp !== masterOtp) {
+            if (otpInput) {
+                otpInput.classList.remove('otp-error-shake');
+                void otpInput.offsetWidth;
+                otpInput.classList.add('otp-error-shake');
+                otpInput.select();
+            }
+            if (otpError) {
+                otpError.style.display = 'block';
+                otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
+            }
+            showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
+            return;
         }
-        if (otpError) {
-            otpError.style.display = 'block';
-            otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
-        }
-        showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
-        return;
     }
 
     const confirmBtn = document.getElementById('btn-confirm-order-reject');
@@ -5326,19 +5678,21 @@ async function confirmRejectOrder() {
     }
 
     try {
-        // 4. Valid Master OTP! Update order status to "rejected", store mandatory reason, and void reward
-        await updateOrderStatus(orderIdToReject, 'rejected', confirmBtn, {
+        // Update order status to canonical "REJECTED", store reason, and void reward
+        await updateOrderStatus(orderIdToReject, 'REJECTED', confirmBtn, {
             rejectionReason: enteredReason,
-            masterOtp: enteredOtp
+            masterOtp: enteredOtp || undefined
         });
 
-        // 5. Auto-rotate the Emergency Master Delivery OTP immediately upon authorized rejection!
-        await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
+        // Auto-rotate Master OTP if it was explicitly provided and verified
+        if (enteredOtp && enteredOtp === masterOtp) {
+            await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
+        }
 
         // Close modal after confirmed status update
         closeStaffRejectModal();
 
-        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected. Master OTP rotated.`);
+        showStaffToast(`✅ Order #${orderIdToReject} Rejected (${enteredReason}).`);
     } catch (err) {
         console.error('Error rejecting order:', err);
         showStaffToast(`❌ Rejection failed: ${err.message || 'Database error'}`);
@@ -5355,6 +5709,14 @@ async function confirmRejectOrder() {
     }
 }
 window.confirmRejectOrder = confirmRejectOrder;
+
+async function rejectOrder(orderId, reason = 'Store cancellation') {
+    const finalReason = (typeof reason === 'string' && reason.trim()) ? reason.trim() : 'Store cancellation';
+    return await updateOrderStatus(orderId, 'REJECTED', null, {
+        rejectionReason: finalReason
+    });
+}
+window.rejectOrder = rejectOrder;
 
 async function handleAdminDeleteOrder(orderId) {
     if (!orderId) return;
@@ -5408,14 +5770,15 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
         String(o.orderId).replace(/^#/, '') === rawId
     );
 
-    const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
-    const isRejected = (newStatus === 'rejected');
-    const effectiveStatus = isDelivered ? 'delivered' : (isRejected ? 'rejected' : newStatus);
+    const normNewStatus = String(newStatus || '').toUpperCase().trim();
+    const isDelivered = (normNewStatus === 'COMPLETED' || normNewStatus === 'DELIVERED' || String(newStatus).toLowerCase() === 'delivered' || String(newStatus).toLowerCase() === 'completed');
+    const isRejected = (normNewStatus === 'REJECTED' || normNewStatus === 'CANCELLED' || normNewStatus === 'CANCELED' || String(newStatus).toLowerCase() === 'rejected');
+    const effectiveStatus = isDelivered ? 'DELIVERED' : (isRejected ? 'REJECTED' : newStatus);
 
     const patchPayload = {
         orderId: rawId,
         id: rawId,
-        status: effectiveStatus
+        status: isDelivered ? 'delivered' : (isRejected ? 'rejected' : effectiveStatus)
     };
 
     if (isDelivered) {
@@ -5519,9 +5882,11 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 const expiresAt = new Date(expiresAtMs).toISOString();
                 const creditedAtIso = new Date(nowMs).toISOString();
 
-                fsUpdate.status = 'delivered';
+                fsUpdate.status = 'DELIVERED';
                 fsUpdate.deliveredAt = serverTs;
                 fsUpdate.completedAt = serverTs;
+                fsUpdate.deliveryVerified = true;
+                fsUpdate.deliveryOtpVerified = true;
 
                 if (isWalletSystemActive && cashbackAmount > 0) {
                     fsUpdate.rewardStatus = 'credited';
@@ -5767,8 +6132,9 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     try { commitWalletHold(cleanOrderId); } catch (e) {}
                 }
             } else if (isRejected) {
-                fsUpdate.status = 'rejected';
+                fsUpdate.status = 'REJECTED';
                 fsUpdate.rejectedAt = serverTs;
+                fsUpdate.updatedAt = serverTs;
                 fsUpdate.rewardStatus = 'voided';
                 fsUpdate.wonCashback = 0;
                 fsUpdate.earnedCashback = 0;
@@ -5778,8 +6144,9 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     fsUpdate['scratchCard.wonAmount'] = 0;
                     fsUpdate['scratchCard.amount'] = 0;
                 }
-                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
-                if (rejectReason) fsUpdate.rejectionReason = rejectReason;
+                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || 'Store cancellation';
+                fsUpdate.rejectionReason = rejectReason;
+                fsUpdate.cancellationReason = rejectReason;
 
                 const refundAmount = Math.round(Number(
                     order?.walletDeductedAmount ||
@@ -5955,55 +6322,17 @@ window.showStaffToast = showStaffToast;
 window.showToast = showStaffToast;
 
 // --------------------------------------------------------------------------
-// 11. AUTOMATED 11:59 PM MIDNIGHT CLEANUP ROUTINE (COMPLETED ORDERS ONLY)
+// 11. MIDNIGHT CLEANUP DISABLED (MANUAL MASTER DELIVERY OTP CLEARANCE ONLY)
 // --------------------------------------------------------------------------
+// Automatic 11:59 PM midnight order purge has been decommissioned.
+// Completed and rejected orders persist indefinitely across days until explicitly
+// cleared by an authorized admin via "Clear All Completed" using the Master Delivery OTP.
 function scheduleClientMidnightCleanup() {
-    function getMsUntilNextMidnight() {
-        const now = new Date();
-        const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0); // 11:59:00 PM
-        let diff = target.getTime() - now.getTime();
-        if (diff <= 0) {
-            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 0, 0);
-            diff = tomorrow.getTime() - now.getTime();
-        }
-        return diff;
-    }
-
-    const msUntilRun = getMsUntilNextMidnight();
-    console.log(`🌙 [Staff Portal Midnight Cleanup] Scheduled in ${Math.round(msUntilRun / 1000 / 60)} minutes.`);
-
-    setTimeout(() => {
-        executeStaffMidnightCleanup();
-        // Reschedule for the next night
-        scheduleClientMidnightCleanup();
-    }, msUntilRun);
+    // Intentionally disabled: automatic midnight purge decommissioned
 }
 
 async function executeStaffMidnightCleanup() {
-    const completedOrders = staffOrders.filter(isFinishedStaffOrder);
-    if (completedOrders.length === 0) {
-        console.log('🌙 [Staff Portal] Midnight Routine: No completed orders to purge.');
-        return;
-    }
-
-    console.log(`🌙 [Staff Portal] 11:59 PM Midnight Routine: Purging ${completedOrders.length} completed order(s). Active pending orders remain protected.`);
-
-    // 1. Purge completed orders locally (active pending orders remain untouched)
-    staffOrders = staffOrders.filter(o => !isFinishedStaffOrder(o));
-
-    try {
-        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
-    } catch (e) { }
-
-    renderOrders();
-    showStaffToast('🌙 Midnight Cleanup: Completed orders cleared. Active orders retained.');
-
-    // 2. Synchronously trigger cloud cleanup on backend & Firestore
-    try {
-        await apiCall('/orders?action=midnight_cleanup', { method: 'DELETE' });
-    } catch (err) {
-        console.warn('Backend midnight cleanup notice:', err.message);
-    }
+    // Intentionally disabled: automatic midnight purge decommissioned
 }
 
 window.scheduleClientMidnightCleanup = scheduleClientMidnightCleanup;
@@ -6275,8 +6604,8 @@ function dispatchStaffOrderNotification(orderId, details) {
     try {
         const notif = new Notification(title, {
             body: body,
-            icon: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
-            badge: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
+            icon: 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp',
+            badge: 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp',
             tag: `perfetto-order-${orderNumber}`,
             renotify: true,
             requireInteraction: true

@@ -46,8 +46,8 @@ if (typeof firebase !== 'undefined' && typeof firebase.initializeApp === 'functi
 
                     const title = data.title || `🍕 New Order Alert! (#${orderNumber})`;
                     const body = data.body || (total ? `${customerName} • ${items} • ₹${total}` : `${customerName} • ${items}`);
-                    const icon = data.icon || 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
-                    const badge = data.badge || 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+                    const icon = data.icon || 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
+                    const badge = data.badge || 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
 
                     const notificationOptions = {
                         body: body,

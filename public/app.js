@@ -7,8 +7,8 @@
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
-const LOGO_LIGHT = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
-const LOGO_DARK = 'https://i.ibb.co/BH6TR6dh/perfetto-White.png';
+const LOGO_LIGHT = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
+const LOGO_DARK = 'https://i.ibb.co/XZsGT4Mq/perfetto-White.webp';
 
 // Native App Gesture Constraints: Prevent pinch-to-zoom gestures on iOS Safari / WebKit
 if (typeof document !== 'undefined') {
@@ -5086,9 +5086,10 @@ function reconcileWalletTranches(wallet) {
         if (!oid) return;
         const oStatus = String(o.status || '').toLowerCase().trim();
         const isRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
+        const activeKitchenStatuses = ['pending', 'preparing', 'ready', 'delivery', 'out_for_delivery', 'accepted', 'new', 'placed'];
         if (terminalStatuses.includes(oStatus) || isRefunded) {
             terminalOrderMap.set(oid, { status: oStatus, order: o });
-        } else if (oStatus === 'pending') {
+        } else if (activeKitchenStatuses.includes(oStatus)) {
             activePendingOrderMap.set(oid, o);
         }
     });
@@ -5107,9 +5108,18 @@ function reconcileWalletTranches(wallet) {
         }
     });
 
-    // Reconcile and purge corrupted/orphaned holds in wallet.transactions:
-    // Discard orphaned holds where the corresponding order does not exist in active "PENDING" status.
-    // If an order is already completed, delivered, or deleted, release any lingering "LOCKED" / "LOCKED_HOLD" flag immediately.
+    // Track all orders that have received a refund in wallet.transactions:
+    const refundedOrderIds = new Set();
+    wallet.transactions.forEach(t => {
+        if (!t) return;
+        const tType = String(t.type || '').toLowerCase().trim();
+        const tOid = String(t.orderId || '').replace(/^#/, '').trim();
+        if (tType === 'refund' && tOid) {
+            refundedOrderIds.add(tOid);
+        }
+    });
+
+    // Reconcile holds and completed transactions in wallet.transactions:
     wallet.transactions.forEach(tx => {
         if (!tx) return;
         const tType = String(tx.type || '').toUpperCase().trim();
@@ -5118,9 +5128,19 @@ function reconcileWalletTranches(wallet) {
         const isHoldType = (tType === 'WALLET_HOLD' || tType === 'HOLD' || (tType === 'DEBIT' && (tStat === 'LOCKED' || tStat === 'LOCKED_HOLD')));
         const isHoldLocked = (tStat === 'LOCKED' || tStat === 'LOCKED_HOLD' || tStat === 'PENDING' || hStat === 'LOCKED' || hStat === 'LOCKED_HOLD');
         const isReleased = (tStat === 'RELEASED' || tStat === 'CANCELLED' || tStat === 'COMPLETED' || tStat === 'DEBITED');
+        const rawOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
+
+        // 1. If this hold is for an order that has a refund in wallet.transactions, pair hold as completed debit:
+        // This ensures the refund restores the exact spendable balance without doubling over un-debited credits!
+        if (isHoldType && rawOid && refundedOrderIds.has(rawOid)) {
+            tx.type = 'debit';
+            tx.status = 'COMPLETED';
+            tx.holdStatus = 'COMPLETED';
+            tx.title = `Used for Order #${rawOid}`;
+            return;
+        }
 
         if (isHoldType && isHoldLocked && !isReleased) {
-            const rawOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
             if (rawOid) {
                 const termInfo = terminalOrderMap.get(rawOid);
                 if (termInfo) {
@@ -5130,7 +5150,7 @@ function reconcileWalletTranches(wallet) {
                         tx.holdStatus = 'COMPLETED';
                         tx.title = `Used for Order #${rawOid}`;
                         return;
-                    } else {
+                    } else if (termInfo.status === 'rejected' || termInfo.status === 'cancelled') {
                         tx.status = 'released';
                         tx.holdStatus = 'RELEASED';
                         releasedOrderHolds.add(rawOid);
@@ -5138,11 +5158,12 @@ function reconcileWalletTranches(wallet) {
                     }
                 }
 
-                // Check if order exists in active PENDING status
-                const isPending = activePendingOrderMap.has(rawOid);
-                if (!isPending) {
-                    // Orphaned hold! The corresponding order does not exist in active "PENDING" status
-                    console.warn(`[WALLET] Releasing orphaned hold for Order #${rawOid} (not in active PENDING status)`);
+                // Check if order exists in active kitchen status (pending, preparing, ready, delivery, etc.)
+                // Guard: Only release aged orphaned holds when storedOrders is populated and hold is older than 5 minutes
+                const parsedHoldTime = parseTs(tx.createdAt || tx.timestamp);
+                const holdAgeMs = isNaN(parsedHoldTime) ? 0 : (nowMs - parsedHoldTime);
+                if (storedOrders.length > 0 && !activePendingOrderMap.has(rawOid) && holdAgeMs > 5 * 60 * 1000) {
+                    console.warn(`[WALLET] Releasing aged orphaned hold for Order #${rawOid}`);
                     tx.status = 'released';
                     tx.holdStatus = 'RELEASED';
                     releasedOrderHolds.add(rawOid);
@@ -5172,6 +5193,12 @@ function reconcileWalletTranches(wallet) {
                 }
             }
         } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || txType === 'reward' || txType === 'woncashback' || txStatus === 'unlocked' || txStatus === 'active' || tx.status === 'UNLOCKED' || tx.type === 'CASHBACK_EARNED' || (txType.includes('credit') && !txType.includes('debit'))) {
+            const currentStatusUpper = String(tx.status || '').toUpperCase().trim();
+            // Strictly exclude locked pending delivery cashback from usable balance:
+            if (currentStatusUpper === 'LOCKED_PENDING_DELIVERY' || currentStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || currentStatusUpper === 'VOIDED') {
+                return;
+            }
+
             // Strict 1-to-1 Order Idempotency:
             if (txType === 'refund' && txOrderId) {
                 // Deduplicate redundant refund entries for the same orderId
@@ -5180,15 +5207,6 @@ function reconcileWalletTranches(wallet) {
                 }
                 processedRefundOrderIds.add(txOrderId);
                 if (cleanOrderId) processedRefundOrderIds.add(cleanOrderId);
-
-                // If this order's escrow hold was already released/cancelled, unfreezing the hold
-                // already restored the active credit tranche. Unless this refund is a designated grace credit
-                // (tx.isGraceCredit === true) replacing an expired tranche, skip adding it as a credit tranche:
-                if (releasedOrderHolds.has(txOrderId) || releasedOrderHolds.has(cleanOrderId)) {
-                    if (tx.isGraceCredit !== true) {
-                        return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
-                    }
-                }
             } else if (cleanOrderId && cleanOrderId !== '--' && cleanOrderId !== 'order') {
                 // Strict 1-to-1 Order Idempotency for Earned Cashback & Rewards:
                 // Deduplicate redundant credit tranches for the same orderId so duplicate in-memory or optimistic credits never inflate balance
@@ -5197,6 +5215,19 @@ function reconcileWalletTranches(wallet) {
                 }
                 processedCreditOrderIds.add(cleanOrderId);
                 if (txOrderId) processedCreditOrderIds.add(txOrderId);
+            }
+
+            // Preserve consumed / redeemed credits:
+            if (currentStatusUpper === 'CONSUMED' || currentStatusUpper === 'REDEEMED' || tx.isRedeemed === true) {
+                tx.remainingAmount = 0;
+                tx.status = 'consumed';
+                tx.isRedeemed = true;
+                credits.push({
+                    tx,
+                    createdTime: parseTs(tx.createdAt || tx.timestamp || tx.creditedAt) || 0,
+                    expiresAtMs: parseTs(tx.expiresAt) || Infinity
+                });
+                return;
             }
 
             if (tx.initialAmount === undefined) {
@@ -5209,10 +5240,15 @@ function reconcileWalletTranches(wallet) {
             }
             if (tx.remainingAmount === undefined) {
                 tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
+            } else {
+                tx.remainingAmount = Math.max(0, Number(tx.remainingAmount));
             }
-            const currentStatusUpper = String(tx.status || '').toUpperCase();
-            if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'REDEEMED' && currentStatusUpper !== 'EXPIRED' && currentStatusUpper !== 'USED') {
+
+            if (tx.remainingAmount === 0 && tx.status === 'consumed') {
+                tx.isRedeemed = true;
+            } else if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'EXPIRED' && currentStatusUpper !== 'PARTIALLY_USED') {
                 tx.status = 'active';
+                tx.isRedeemed = false;
             }
 
             const parsedCreated = parseTs(tx.createdAt || tx.timestamp || tx.creditedAt);
@@ -5312,7 +5348,7 @@ function reconcileWalletTranches(wallet) {
         const st = String(t.status || '').toUpperCase();
         const tp = String(t.type || '').toUpperCase();
         const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (t.expiresAt && parseTs(t.expiresAt) <= nowMs);
-        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
+        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
         return (st === "ACTIVE" || st === "UNLOCKED" || tp === "CASHBACK_EARNED" || tp === "CREDIT" || tp === "REFUND") && !isExp && !isRed;
     });
     const totalCredits = activeTranches.reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -5320,7 +5356,7 @@ function reconcileWalletTranches(wallet) {
         const st = String(t.status || '').toUpperCase();
         const tp = String(t.type || '').toUpperCase();
         const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (t.expiresAt && parseTs(t.expiresAt) <= nowMs);
-        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
+        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
         if ((st === "ACTIVE" || st === "UNLOCKED" || tp === "CASHBACK_EARNED" || tp === "CREDIT" || tp === "REFUND") && !isExp && !isRed) {
             const val = Number(t.remainingAmount !== undefined ? t.remainingAmount : (t.amount || 0));
             return sum + (isNaN(val) ? 0 : val);
@@ -5343,7 +5379,7 @@ function reconcileWalletTranches(wallet) {
             if (isHoldType && isHoldLocked && !isReleased) {
                 const oid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
                 // Strictly guard: only active pending orders can hold wallet funds
-                if (oid && activePendingOrderMap.has(oid)) {
+                if (oid && (!storedOrders.length || activePendingOrderMap.has(oid))) {
                     if (seenHoldOrderIds.has(oid)) return;
                     seenHoldOrderIds.add(oid);
                     const amt = Number(tx.amount || 0);
@@ -5402,7 +5438,7 @@ function reconcileWalletTranches(wallet) {
         baseCreditPool = Math.max(0, rawBal);
     }
 
-    const usableBalance = Math.max(0, (totalCredits > 0 ? totalCredits : baseCreditPool) - totalActiveHolds);
+    const usableBalance = Math.max(0, baseCreditPool);
     const finalBalance = Math.min(usableBalance, baseCreditPool);
     const reconciledBalance = Math.max(0, finalBalance);
 
@@ -5458,6 +5494,10 @@ function getActiveCreditTranches() {
     const processedOrderIds = new Set();
     return txList.filter(tx => {
         if (!tx) return false;
+        const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+        if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+            return false;
+        }
         const txType = String(tx.type || '').toLowerCase().trim();
         const isCredit = txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || (txType.includes('credit') && !txType.includes('debit'));
         if (!isCredit) return false;
@@ -5467,7 +5507,7 @@ function getActiveCreditTranches() {
             processedOrderIds.add(cleanOid);
         }
         const remaining = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
-        if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired') return false;
+        if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired' || tx.status === 'consumed' || tx.isRedeemed === true) return false;
         if (tx.expiresAt) {
             const expMs = parseTs(tx.expiresAt);
             if (!isNaN(expMs) && expMs <= nowMs) return false;
@@ -5547,19 +5587,227 @@ function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
 }
 window.getEarliestExpiringWalletBatch = getEarliestExpiringWalletBatch;
 
+/**
+ * Authoritative wallet balance aggregation engine:
+ * Combines all unexpired, active credit entries (valid cashback rewards + order refund credits - active locked holds).
+ * userWalletBalance = activeCashbacksTotal + activeRefundsTotal - activeLockedHolds.
+ * @param {Object} [wallet=currentCustomerWallet]
+ * @returns {{
+ *   activeCashbacksTotal: number,
+ *   activeRefundsTotal: number,
+ *   activeOtherCreditsTotal: number,
+ *   totalCredits: number,
+ *   activeLockedHolds: number,
+ *   userWalletBalance: number,
+ *   totalBalance: number,
+ *   batches: Array<{ amount: number, expiresAtMs: number, remainingMs: number, timeStr: string, countdownText: string }>,
+ *   earliestExpMs: number
+ * }}
+ */
+function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
+    const w = wallet || ((typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet) ? currentCustomerWallet : ((typeof window !== 'undefined' && window.currentCustomerWallet) ? window.currentCustomerWallet : null));
+    if (!w) {
+        return {
+            activeCashbacksTotal: 0,
+            activeRefundsTotal: 0,
+            activeOtherCreditsTotal: 0,
+            totalCredits: 0,
+            activeLockedHolds: 0,
+            userWalletBalance: 0,
+            totalBalance: 0,
+            batches: [],
+            earliestExpMs: Infinity
+        };
+    }
+
+    if (typeof reconcileWalletTranches === 'function') {
+        reconcileWalletTranches(w);
+    }
+
+    const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
+
+    const isHindi = (typeof getAppLanguage === 'function' && getAppLanguage() === 'hi');
+    const txList = Array.isArray(w.transactions) ? w.transactions : [];
+
+    let activeCashbacksTotal = 0;
+    let activeRefundsTotal = 0;
+    let activeOtherCreditsTotal = 0;
+
+    const trancheMap = new Map();
+    const processedOrderIds = new Set();
+
+    txList.forEach(tx => {
+        if (!tx) return;
+        const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+        if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+            return;
+        }
+
+        const txType = String(tx.type || '').toLowerCase().trim();
+        const txStatus = String(tx.status || '').toLowerCase().trim();
+        const cleanOid = String(tx.orderId || '').trim().replace(/^#/, '');
+
+        const isCredit = (
+            txType === 'credit' ||
+            txType === 'refund' ||
+            txType === 'cashback' ||
+            txType === 'cashback_earned' ||
+            txType === 'reward' ||
+            txType === 'woncashback' ||
+            txStatus === 'unlocked' ||
+            txStatus === 'active' ||
+            tx.status === 'UNLOCKED' ||
+            tx.type === 'CASHBACK_EARNED' ||
+            (txType.includes('cashback')) ||
+            (txType.includes('credit') && !txType.includes('debit'))
+        );
+
+        if (!isCredit) return;
+
+        if (txType !== 'refund' && cleanOid && cleanOid !== '--' && cleanOid !== 'order') {
+            if (processedOrderIds.has(cleanOid)) return;
+            processedOrderIds.add(cleanOid);
+        }
+
+        const remaining = Number(
+            tx.remainingAmount !== undefined
+                ? tx.remainingAmount
+                : (tx.initialAmount !== undefined ? tx.initialAmount : (tx.originalAmount !== undefined ? tx.originalAmount : tx.amount))
+        ) || 0;
+
+        if (remaining <= 0) return;
+
+        const isRedeemed = Boolean(tx.isRedeemed) || txStatus === 'redeemed' || txStatus === 'used' || txStatus === 'consumed';
+        if (isRedeemed) return;
+
+        const expMs = tx.expiresAt ? parseTs(tx.expiresAt) : Infinity;
+        const isExp = Boolean(tx.isExpired) || txStatus === 'expired' || (!isNaN(expMs) && expMs <= nowMs);
+        if (isExp) return;
+
+        if (txType === 'refund') {
+            activeRefundsTotal += remaining;
+        } else if (txType === 'cashback' || txType === 'cashback_earned' || txType === 'reward' || txType === 'woncashback' || txType.includes('cashback')) {
+            activeCashbacksTotal += remaining;
+        } else {
+            activeOtherCreditsTotal += remaining;
+        }
+
+        if (expMs < Infinity && expMs > nowMs) {
+            trancheMap.set(expMs, (trancheMap.get(expMs) || 0) + remaining);
+        }
+    });
+
+    if (activeCashbacksTotal === 0 && activeRefundsTotal === 0 && activeOtherCreditsTotal === 0) {
+        const directBal = Number(w.balance) || 0;
+        if (directBal > 0) {
+            const expMs = w.expiresAt ? parseTs(w.expiresAt) : Infinity;
+            if (isNaN(expMs) || expMs > nowMs) {
+                activeCashbacksTotal = directBal;
+                if (expMs < Infinity && expMs > nowMs) {
+                    trancheMap.set(expMs, directBal);
+                }
+            }
+        }
+    }
+
+    const { lockedAmount } = (typeof getActiveLockedWalletInfo === 'function')
+        ? getActiveLockedWalletInfo()
+        : { lockedAmount: 0 };
+
+    const totalCredits = activeCashbacksTotal + activeRefundsTotal + activeOtherCreditsTotal;
+    const reconciledBal = (typeof w.balance === 'number') ? w.balance : totalCredits;
+    const userWalletBalance = Math.max(0, Math.min(totalCredits, reconciledBal));
+
+    const batches = [];
+    trancheMap.forEach((amt, expMs) => {
+        const remainingMs = Math.max(0, expMs - nowMs);
+        let timeStr = '';
+        let countdownText = '';
+        if (remainingMs <= (24 * 60 * 60 * 1000) + 120000) {
+            const hrs = Math.max(1, Math.round(remainingMs / (60 * 60 * 1000)));
+            timeStr = `${hrs}h`;
+            countdownText = isHindi ? `${hrs}h में समाप्त` : `expiring in ${hrs}h`;
+        } else if (typeof formatStepDownExpiryCountdown === 'function') {
+            countdownText = formatStepDownExpiryCountdown(remainingMs, isHindi, false);
+            timeStr = countdownText.toLowerCase().replace(/^expires in\s*/i, '').replace(/^expiring in\s*/i, '');
+        } else {
+            const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+            timeStr = `${days} days`;
+            countdownText = `expiring in ${timeStr}`;
+        }
+
+        batches.push({
+            amount: Math.round(amt),
+            expiresAtMs: expMs,
+            remainingMs,
+            timeStr,
+            countdownText: countdownText.toLowerCase().replace(/^expires in\s*/i, 'expiring in ')
+        });
+    });
+
+    batches.sort((a, b) => a.expiresAtMs - b.expiresAtMs);
+
+    return {
+        activeCashbacksTotal: Math.round(activeCashbacksTotal),
+        activeRefundsTotal: Math.round(activeRefundsTotal),
+        activeOtherCreditsTotal: Math.round(activeOtherCreditsTotal),
+        totalCredits: Math.round(totalCredits),
+        activeLockedHolds: Math.round(lockedAmount),
+        userWalletBalance: Math.round(userWalletBalance),
+        totalBalance: Math.round(userWalletBalance),
+        batches,
+        earliestExpMs: batches.length > 0 ? batches[0].expiresAtMs : Infinity
+    };
+}
+window.calculateCustomerWalletBalance = calculateCustomerWalletBalance;
+
+function refreshCustomerWalletUI() {
+    if (typeof updateProfileWalletUI === 'function') {
+        updateProfileWalletUI();
+    }
+    if (typeof updateCheckoutWalletUI === 'function') {
+        updateCheckoutWalletUI();
+    }
+    if (typeof renderProfileWalletTxList === 'function') {
+        renderProfileWalletTxList();
+    }
+}
+window.refreshCustomerWalletUI = refreshCustomerWalletUI;
+
 function getEffectiveWalletBalance() {
     if (typeof checkAndApplyWalletLedgerReset === 'function') {
         checkAndApplyWalletLedgerReset();
     }
-    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    const verifiedPhone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone()) ? getVerifiedCustomerPhone() : ((typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ? currentUserProfile.phone : null);
     if (!verifiedPhone) {
         return 0;
     }
-    if (currentCustomerWallet) {
-        const walletPhone = currentCustomerWallet.phone || currentCustomerWallet.customerPhone;
+    const walletInstance = (typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet)
+        ? currentCustomerWallet
+        : ((typeof window !== 'undefined' && window.currentCustomerWallet) ? window.currentCustomerWallet : null);
+    if (walletInstance) {
+        const walletPhone = walletInstance.phone || walletInstance.customerPhone;
         const cleanWalletPhone = walletPhone ? String(walletPhone).replace(/[^0-9]/g, '').slice(-10) : null;
         if (!cleanWalletPhone || cleanWalletPhone === verifiedPhone) {
-            return reconcileWalletTranches(currentCustomerWallet);
+            const calc = (typeof calculateCustomerWalletBalance === 'function') ? calculateCustomerWalletBalance(walletInstance) : null; if (!calc) return (typeof reconcileWalletTranches === 'function') ? reconcileWalletTranches(walletInstance) : Number(walletInstance.balance || 0);
+            const bal = Math.max(0, Number(calc.totalBalance) || 0);
+            try {
+                localStorage.setItem('perfetto_wallet_balance', String(bal));
+                localStorage.setItem(`perfetto_wallet_balance_${verifiedPhone}`, String(bal));
+            } catch (e) {}
+            return bal;
         }
     }
     const phoneScopedStored = localStorage.getItem(`perfetto_wallet_balance_${verifiedPhone}`);
@@ -5787,7 +6035,12 @@ function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
 
     const parseTxTimestamp = (item) => {
         if (!item) return 0;
-        const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+        const isCreditType = String(item.type || '').toLowerCase().includes('credit') ||
+                             String(item.type || '').toLowerCase().includes('reward') ||
+                             String(item.type || '').toLowerCase().includes('cashback');
+        const cand = isCreditType
+            ? (item.creditedAt || item.claimedAt || item.timestamp || item.createdAt || item.date)
+            : (item.completedAt || item.creditedAt || item.timestamp || item.createdAt || item.date);
         if (cand?.toDate && typeof cand.toDate === 'function') {
             try { return cand.toDate().getTime(); } catch (e) {}
         }
@@ -5828,12 +6081,19 @@ function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
             const isExCredit = exTypeUpper === 'CREDIT' || exTypeUpper === 'CASHBACK_EARNED' || tx.type === 'credit';
             const isIncDebit = incTypeUpper === 'DEBIT' || incTypeUpper === 'ORDER_PAYMENT';
 
+            const tA = parseTxTimestamp(tx);
+            const tB = parseTxTimestamp(incoming);
+            const freshestCreatedAt = (tB >= tA && incoming.createdAt) ? incoming.createdAt : (tx.createdAt || incoming.createdAt || new Date().toISOString());
+            const freshestTimestamp = (tB >= tA && (incoming.timestamp || incoming.creditedAt)) ? (incoming.timestamp || incoming.creditedAt) : (tx.timestamp || tx.creditedAt || freshestCreatedAt);
+
             map.set(key, {
                 ...incoming,
                 ...tx,
                 // Preserve credit classification against unmerged downgrade
                 type: (isExCredit && isIncDebit) ? tx.type : (incoming.type || tx.type),
-                createdAt: tx.createdAt || incoming.createdAt,
+                createdAt: freshestCreatedAt,
+                timestamp: freshestTimestamp,
+                creditedAt: incoming.creditedAt || tx.creditedAt || freshestTimestamp,
                 description: tx.description || incoming.description || tx.title || incoming.title
             });
         } else {
@@ -5880,7 +6140,7 @@ function applyLiveWalletData(data, source = 'wallets') {
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
         localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
-        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        const verifiedPhone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone()) ? getVerifiedCustomerPhone() : ((typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ? currentUserProfile.phone : null);
         if (verifiedPhone) {
             localStorage.setItem(`perfetto_customer_wallet_${verifiedPhone}`, JSON.stringify(currentCustomerWallet));
             localStorage.setItem(`perfetto_wallet_balance_${verifiedPhone}`, String(currentCustomerWallet.balance));
@@ -6150,12 +6410,16 @@ function getTotalFundedWalletCredit(wallet = currentCustomerWallet) {
         const seenTx = new Set();
         wallet.transactions.forEach(tx => {
             if (!tx) return;
+            const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+            if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+                return;
+            }
             const type = String(tx.type || '').toLowerCase().trim();
             const txId = String(tx.id || '').trim();
             if (txId && seenTx.has(txId)) return;
             if (txId) seenTx.add(txId);
 
-            if (type === 'credit' || type === 'cashback') {
+            if (type === 'credit' || type === 'cashback' || type === 'refund' || type === 'cashback_earned' || type === 'reward' || type === 'woncashback' || (type.includes('credit') && !type.includes('debit'))) {
                 const amt = Number(tx.initialAmount !== undefined ? tx.initialAmount : (tx.originalAmount !== undefined ? tx.originalAmount : tx.amount)) || 0;
                 totalCredit += Math.max(0, amt);
             }
@@ -6266,8 +6530,8 @@ function getActiveLockedWalletInfo(excludeOrderId = null) {
                             isStillPending = orders.some(o => {
                                 if (!o) return false;
                                 const oid = String(o.id || o.orderId || '').replace(/^#/, '').trim();
-                                const ost = String(o.status || '').toLowerCase().trim();
-                                return oid === rawOid && ost === 'pending';
+                                const activeKitchenStatuses = ['pending', 'preparing', 'ready', 'delivery', 'out_for_delivery', 'accepted', 'new', 'placed'];
+                                return oid === rawOid && activeKitchenStatuses.includes(ost);
                             });
                         }
                         if (isStillPending) {
@@ -6386,9 +6650,8 @@ function updateCheckoutWalletUI() {
             checkLabelWrap.style.cursor = 'not-allowed';
         }
         if (labelEl) {
-            labelEl.textContent = typeof t === 'function' 
-                ? t('wallet_use_cash', { amount: formatPrice(0) }) 
-                : 'Use ₹0 Cash';
+            const translated = typeof t === 'function' ? t('wallet_use_cash', { amount: formatPrice(0) }) : '';
+            labelEl.textContent = (translated && translated !== 'wallet_use_cash') ? translated : 'Use ₹0 Cash';
         }
     } else {
         if (checkLabelWrap) {
@@ -6403,9 +6666,9 @@ function updateCheckoutWalletUI() {
             checkbox.checked = isWalletRedemptionSelected;
         }
         if (labelEl) {
-            labelEl.textContent = typeof t === 'function' 
-                ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
-                : `Use ${formatPrice(maxRedeemable)} Cash`;
+            const defaultLabel = `Use ₹${availableBalance} Cash`;
+            const translated = typeof t === 'function' ? t('wallet_use_cash', { amount: formatPrice(availableBalance) }) : '';
+            labelEl.textContent = (translated && translated !== 'wallet_use_cash') ? translated : defaultLabel;
         }
     }
 
@@ -6444,6 +6707,13 @@ function updateCheckoutWalletUI() {
     updateCheckoutCashbackTeaser(subtotal);
 }
 window.updateCheckoutWalletUI = updateCheckoutWalletUI;
+
+function renderCheckoutSummary() {
+    if (typeof updateCheckoutWalletUI === 'function') {
+        updateCheckoutWalletUI();
+    }
+}
+window.renderCheckoutSummary = renderCheckoutSummary;
 
 function updateCheckoutCashbackTeaser(subtotal) {
     const teaserEl = document.getElementById('checkout-cashback-teaser');
@@ -6577,6 +6847,84 @@ async function createWalletHoldRecord(phone, amount, orderId) {
 
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
 
+    // Complete FIFO Multi-Credit Deduction across active, unexpired credits:
+    // Deduct the exact needed amount progressively across credits until total applied wallet amount is fully exhausted (100% deducted, remaining = 0 if fully spent).
+    const nowIso = new Date().toISOString();
+    let remainingToDeduct = finalHoldAmt;
+    const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => new Date(v).getTime();
+
+    const activeCredits = existingTx.filter(tx => {
+        if (!tx) return false;
+        const txType = String(tx.type || '').toLowerCase().trim();
+        const txStatus = String(tx.status || '').toLowerCase().trim();
+        const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+
+        if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+            return false;
+        }
+
+        const isCredit = (
+            txType === 'credit' ||
+            txType === 'refund' ||
+            txType === 'cashback' ||
+            txType === 'cashback_earned' ||
+            txType === 'reward' ||
+            txType === 'woncashback' ||
+            txStatus === 'unlocked' ||
+            txStatus === 'active' ||
+            tx.status === 'UNLOCKED' ||
+            tx.type === 'CASHBACK_EARNED' ||
+            (txType.includes('credit') && !txType.includes('debit'))
+        );
+        if (!isCredit) return false;
+
+        const isConsumed = txStatus === 'consumed' || txStatus === 'redeemed' || txStatus === 'used' || tx.isRedeemed === true;
+        if (isConsumed) return false;
+
+        const expMs = tx.expiresAt ? parseTs(tx.expiresAt) : Infinity;
+        if (!isNaN(expMs) && expMs <= nowMs) return false;
+
+        const rem = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
+        return rem > 0;
+    });
+
+    // Sort credits by earliest expiration timestamp ascending, then createdAt ascending (FIFO)
+    activeCredits.sort((a, b) => {
+        const expA = a.expiresAt ? (parseTs(a.expiresAt) || Infinity) : Infinity;
+        const expB = b.expiresAt ? (parseTs(b.expiresAt) || Infinity) : Infinity;
+        if (expA !== expB) return expA - expB;
+        const crA = parseTs(a.createdAt || a.timestamp || 0) || 0;
+        const crB = parseTs(b.createdAt || b.timestamp || 0) || 0;
+        return crA - crB;
+    });
+
+    const updatedCreditDocs = [];
+    for (const credit of activeCredits) {
+        if (remainingToDeduct <= 0) break;
+        const currentRem = Number(credit.remainingAmount !== undefined ? credit.remainingAmount : (credit.initialAmount !== undefined ? credit.initialAmount : credit.amount)) || 0;
+        if (currentRem <= 0) continue;
+
+        if (currentRem <= remainingToDeduct) {
+            remainingToDeduct -= currentRem;
+            credit.remainingAmount = 0;
+            credit.status = 'consumed';
+            credit.isRedeemed = true;
+            credit.consumedByOrderId = effectiveOrderId;
+            credit.updatedAt = nowIso;
+            updatedCreditDocs.push(credit);
+        } else {
+            credit.remainingAmount = currentRem - remainingToDeduct;
+            credit.status = 'partially_used';
+            credit.isRedeemed = false;
+            credit.partiallyConsumedByOrderId = effectiveOrderId;
+            credit.updatedAt = nowIso;
+            remainingToDeduct = 0;
+            updatedCreditDocs.push(credit);
+            break;
+        }
+    }
+
     // Prepend escrow hold transaction record (funds locked in escrow until delivery or rejection)
     // Note: status: 'LOCKED', holdStatus: 'LOCKED_HOLD' for backwards compatibility
     const holdTxData = {
@@ -6586,7 +6934,9 @@ async function createWalletHoldRecord(phone, amount, orderId) {
         orderId: effectiveOrderId,
         description: `Wallet hold for Order #${effectiveOrderId}`,
         title: `Wallet hold for Order #${effectiveOrderId}`,
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
+        timestamp: nowIso,
+        date: nowIso,
         status: 'LOCKED',
         holdStatus: 'LOCKED_HOLD' // status: 'LOCKED_HOLD'
     };
@@ -6623,6 +6973,21 @@ async function createWalletHoldRecord(phone, amount, orderId) {
 
             await walletRef.collection('transactions').doc(`tx_hold_${effectiveOrderId}`).set(holdTxData, { merge: true }).catch(() => {});
 
+            // Update consumed and partially consumed credit tranche documents in Firestore
+            for (const c of updatedCreditDocs) {
+                if (c && c.id) {
+                    await walletRef.collection('transactions').doc(c.id).set({
+                        remainingAmount: c.remainingAmount,
+                        status: c.status,
+                        isRedeemed: c.isRedeemed,
+                        consumedByOrderId: c.consumedByOrderId || null,
+                        updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                            ? firebase.firestore.FieldValue.serverTimestamp()
+                            : nowIso
+                    }, { merge: true }).catch(() => {});
+                }
+            }
+
             // Also sync to users/phone_{cleanPhone} and users/{cleanPhone}
             const userDocRef = fs.collection('users').doc(`phone_${cleanPhone}`);
             const userDocRefRaw = fs.collection('users').doc(cleanPhone);
@@ -6656,11 +7021,14 @@ function commitWalletHold(orderId) {
         (String(tx.orderId || '').replace(/^#/, '') === effectiveOrderId || String(tx.id || '') === `tx_hold_${effectiveOrderId}`)
     );
     if (holdTx) {
+        const nowIso = new Date().toISOString();
         holdTx.type = 'debit';
         holdTx.status = 'COMPLETED';
         holdTx.title = `Used for Order #${effectiveOrderId}`;
         holdTx.description = `Used for Order #${effectiveOrderId}`;
-        holdTx.completedAt = new Date().toISOString();
+        holdTx.completedAt = nowIso;
+        holdTx.updatedAt = nowIso;
+        holdTx.timestamp = nowIso;
         reconcileWalletTranches(currentCustomerWallet);
         updateProfileWalletUI();
         renderProfileWalletTxList();
@@ -6687,10 +7055,13 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     const cleanOrderId = effectiveOrderId.replace(/^#/, '');
     const refundAmt = Math.round(Number(refundAmount) || 0);
 
-    const holdTx = currentCustomerWallet.transactions.find(tx => 
-        tx && (tx.type === 'hold' || tx.type === 'debit') && 
-        (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId)
-    );
+    const holdTx = currentCustomerWallet.transactions.find(tx => {
+        if (!tx) return false;
+        const tType = String(tx.type || '').toUpperCase().trim();
+        const tOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
+        return (tType === 'HOLD' || tType === 'WALLET_HOLD' || tType === 'DEBIT') && 
+            (tOid === cleanOrderId || tOid === effectiveOrderId);
+    });
 
     const nowMs = Date.now();
     const origExpiry = customExpiresAt || holdTx?.expiresAt || holdTx?.originalExpiresAt || currentCustomerWallet.expiresAt || null;
@@ -6710,9 +7081,14 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     }
 
     const txId = `tx_refund_${effectiveOrderId}`;
-    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => 
-        tx && (tx.id === txId || (tx.type === 'REFUND' && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId)))
-    );
+    const cleanTxId = `tx_refund_${cleanOrderId}`;
+    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => {
+        if (!tx) return false;
+        const tType = String(tx.type || '').toUpperCase().trim();
+        const tId = String(tx.id || '').trim();
+        const tOid = String(tx.orderId || '').replace(/^#/, '').trim();
+        return (tId === txId || tId === cleanTxId) || (tType === 'REFUND' && (tOid === cleanOrderId || tOid === effectiveOrderId));
+    });
 
     if (!alreadyRefunded && refundAmt > 0) {
         const refundTx = {
@@ -6727,7 +7103,10 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
             originalExpiresAt: origExpiry || null,
             graceApplied: hasGraceApplied,
             isGraceCredit: isOrigExpired,
-            createdAt: new Date(nowMs).toISOString()
+            createdAt: new Date(nowMs).toISOString(),
+            timestamp: new Date(nowMs).toISOString(),
+            creditedAt: new Date(nowMs).toISOString(),
+            date: new Date(nowMs).toISOString()
         };
         currentCustomerWallet.transactions.unshift(refundTx);
     }
@@ -6743,6 +7122,31 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     updateProfileWalletUI();
     renderProfileWalletTxList();
     updateCheckoutWalletUI();
+
+    try {
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+    } catch (e) {}
+
+    const cleanPhone = currentCustomerWallet.phone || (currentUserProfile && currentUserProfile.phone) || '';
+    if (cleanPhone && customerFirestore) {
+        const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
+        if (holdTx) {
+            walletRef.collection('transactions').doc(holdTx.id || `tx_hold_${effectiveOrderId}`).set(holdTx, { merge: true }).catch(() => {});
+        }
+        if (!alreadyRefunded && refundAmt > 0) {
+            const refundDoc = currentCustomerWallet.transactions[0];
+            if (refundDoc && refundDoc.id === txId) {
+                walletRef.collection('transactions').doc(txId).set(refundDoc, { merge: true }).catch(() => {});
+            }
+        }
+        walletRef.set({
+            balance: currentCustomerWallet.balance,
+            transactions: currentCustomerWallet.transactions,
+            updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString()
+        }, { merge: true }).catch(() => {});
+    }
 }
 window.releaseWalletHold = releaseWalletHold;
 
@@ -6971,6 +7375,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         ? customExpiryOptions.description
         : (customExpiryOptions && customExpiryOptions.campaign ? `${customExpiryOptions.campaign} (+₹${earnedCashback})` : `credited +₹${earnedCashback} for Order #${effectiveOrderId}`);
 
+    const nowIso = now.toISOString();
     existingTx.unshift({
         type: 'credit',
         amount: earnedCashback,
@@ -6979,9 +7384,12 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         remainingAmount: earnedCashback,
         orderId: effectiveOrderId,
         description: txDesc,
-        createdAt: now.toISOString(),
-        creditedAt: now.toISOString(),
-        claimedAt: now.toISOString(),
+        title: `+₹${earnedCashback} Cashback`,
+        createdAt: nowIso,
+        creditedAt: nowIso,
+        timestamp: nowIso,
+        date: nowIso,
+        claimedAt: nowIso,
         expiresAt: expiresAt,
         expiryDays: activeDays,
         cashbackExpiryDays: activeDays,
@@ -7005,10 +7413,12 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
                 remainingAmount: earnedCashback,
                 orderId: String(orderId),
                 description: txDesc,
-                createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                    ? firebase.firestore.FieldValue.serverTimestamp()
-                    : now.toISOString(),
-                creditedAt: now.toISOString(),
+                title: `+₹${earnedCashback} Cashback`,
+                createdAt: nowIso,
+                timestamp: nowIso,
+                creditedAt: nowIso,
+                date: nowIso,
+                claimedAt: nowIso,
                 expiresAt: expiresAt,
                 expiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
@@ -7059,6 +7469,81 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     }
 }
 window.creditCustomerWallet = creditCustomerWallet;
+
+/**
+ * Real-time credit cashback reward helper.
+ * Always generates real-time timestamps (new Date().toISOString() / Date.now()).
+ */
+async function creditCashbackReward(phone, amount, orderId, options = {}) {
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const earnedAmount = Number(amount) || 0;
+    if (earnedAmount <= 0) return;
+
+    const nowIso = new Date().toISOString();
+    const effectiveOptions = {
+        ...(options || {}),
+        timestamp: nowIso,
+        createdAt: nowIso,
+        creditedAt: nowIso,
+        date: nowIso
+    };
+
+    return creditCustomerWallet(cleanPhone, earnedAmount, orderId, effectiveOptions);
+}
+window.creditCashbackReward = creditCashbackReward;
+
+/**
+ * Adds a new wallet transaction with strict real-time timestamp.
+ * Never uses stale or cached timestamps.
+ */
+function addWalletTransaction(txData, phone = null) {
+    if (!txData || typeof txData !== 'object') return null;
+    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
+
+    const nowIso = new Date().toISOString();
+    const cleanPhone = String(phone || currentCustomerWallet.phone || (currentUserProfile && currentUserProfile.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+
+    const newTx = {
+        id: txData.id || `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        type: txData.type || 'credit',
+        amount: Number(txData.amount) || 0,
+        orderId: txData.orderId ? String(txData.orderId).replace(/^#/, '') : '',
+        title: txData.title || txData.description || 'Wallet Transaction',
+        description: txData.description || txData.title || 'Wallet Transaction',
+        status: txData.status || 'completed',
+        ...txData,
+        // Enforce current real-time timestamp over any cached or stale dates:
+        createdAt: nowIso,
+        timestamp: nowIso,
+        creditedAt: nowIso,
+        date: nowIso
+    };
+
+    currentCustomerWallet.transactions.unshift(newTx);
+    currentCustomerWallet.transactions = currentCustomerWallet.transactions.slice(0, 30);
+
+    reconcileWalletTranches(currentCustomerWallet);
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    updateCheckoutWalletUI();
+
+    try {
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+    } catch (e) {}
+
+    try {
+        const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || customerFirestore;
+        if (fs && cleanPhone) {
+            fs.collection('wallets').doc(cleanPhone).collection('transactions').doc(newTx.id).set(newTx, { merge: true }).catch(() => {});
+        }
+    } catch (err) {
+        console.warn('Error recording wallet transaction:', err);
+    }
+
+    return newTx;
+}
+window.addWalletTransaction = addWalletTransaction;
 
 let walletCountdownInterval = null;
 function startWalletCountdownTimer() {
@@ -7114,7 +7599,9 @@ function updateProfileWalletUI() {
     }
 
     // Read updated cumulative balance dynamically (strictly 0 if unverified)
-    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    const verifiedPhone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone())
+        ? getVerifiedCustomerPhone()
+        : ((typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ? currentUserProfile.phone : null);
     const balance = verifiedPhone ? getEffectiveWalletBalance() : 0;
     valEl.textContent = balance;
 
@@ -7131,44 +7618,58 @@ function updateProfileWalletUI() {
     const expiringAlert = document.getElementById('profile-wallet-expiring-alert');
     const expiringAmountEl = document.getElementById('profile-wallet-expiring-amount');
     const expiringCountdownEl = document.getElementById('profile-wallet-expiring-countdown');
+    const expiringTextWrap = document.getElementById('profile-wallet-expiring-text');
 
-    if (!verifiedPhone || balance <= 0) {
+    const walletCalc = (typeof calculateCustomerWalletBalance === 'function')
+        ? calculateCustomerWalletBalance(currentCustomerWallet)
+        : null;
+
+    if (!verifiedPhone || balance <= 0 || !walletCalc || !walletCalc.batches || walletCalc.batches.length === 0) {
         if (expiryTag) expiryTag.style.display = 'none';
         if (expiringAlert) expiringAlert.style.display = 'none';
     } else {
-        const earliestBatch = getEarliestExpiringWalletBatch();
+        const batches = walletCalc.batches;
+        batches.sort((a, b) => a.expiresAtMs - b.expiresAtMs);
+        const nearestBatch = batches[0];
+        const nowMs = Date.now();
+        const liveRemainingMs = Math.max(0, nearestBatch.expiresAtMs - nowMs);
+        const isUrgent = liveRemainingMs <= (24 * 60 * 60 * 1000);
 
-        if (earliestBatch.hasExpiring && earliestBatch.remainingMs > 0) {
-            const countdownText = formatStepDownExpiryCountdown(earliestBatch.remainingMs, isHindi, false);
-            const isUrgent = earliestBatch.remainingMs <= (24 * 60 * 60 * 1000);
-
-            if (expiryTag && expiryText) {
-                expiryTag.style.display = 'flex';
-                if (isUrgent) {
-                    expiryTag.classList.add('is-urgent');
-                } else {
-                    expiryTag.classList.remove('is-urgent');
-                }
-                expiryText.textContent = countdownText;
+        let liveSnippet = '';
+        if (liveRemainingMs <= (24 * 60 * 60 * 1000) + 120000) {
+            if (liveRemainingMs >= 60 * 60 * 1000) {
+                const hrs = Math.max(1, Math.floor(liveRemainingMs / (60 * 60 * 1000)));
+                liveSnippet = isHindi ? `${hrs}h में समाप्त` : `expiring in ${hrs}h`;
+            } else {
+                const mins = Math.max(1, Math.floor(liveRemainingMs / (60 * 1000)));
+                liveSnippet = isHindi ? `${mins}m में समाप्त` : `expiring in ${mins}m`;
             }
-
-            if (expiringAlert) {
-                expiringAlert.style.display = 'flex';
-                if (expiringAmountEl) {
-                    expiringAmountEl.textContent = `₹${earliestBatch.expiringAmount}`;
-                }
-                if (expiringCountdownEl) {
-                    if (isHindi) {
-                        expiringCountdownEl.textContent = `${countdownText}`;
-                    } else {
-                        const snippet = countdownText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
-                        expiringCountdownEl.textContent = snippet;
-                    }
-                }
-            }
+        } else if (typeof formatStepDownExpiryCountdown === 'function') {
+            const formatted = formatStepDownExpiryCountdown(liveRemainingMs, isHindi, false);
+            liveSnippet = isHindi ? formatted : formatted.toLowerCase().replace(/^expires in\b/i, 'expiring in');
         } else {
-            if (expiryTag) expiryTag.style.display = 'none';
-            if (expiringAlert) expiringAlert.style.display = 'none';
+            const days = Math.ceil(liveRemainingMs / (24 * 60 * 60 * 1000));
+            liveSnippet = isHindi ? `${days} दिनों में समाप्त` : `expiring in ${days} days`;
+        }
+
+        if (expiryTag && expiryText) {
+            expiryTag.style.display = 'flex';
+            if (isUrgent) {
+                expiryTag.classList.add('is-urgent');
+            } else {
+                expiryTag.classList.remove('is-urgent');
+            }
+            expiryText.textContent = liveSnippet;
+        }
+
+        if (expiringAlert) {
+            expiringAlert.style.display = 'flex';
+            if (expiringTextWrap) {
+                expiringTextWrap.innerHTML = `<span class="expiring-amount-red" id="profile-wallet-expiring-amount">₹${nearestBatch.amount}</span> <span class="expiring-countdown-text" id="profile-wallet-expiring-countdown">${liveSnippet}</span>`;
+            } else {
+                if (expiringAmountEl) expiringAmountEl.textContent = `₹${nearestBatch.amount}`;
+                if (expiringCountdownEl) expiringCountdownEl.textContent = liveSnippet;
+            }
         }
     }
 
@@ -7240,7 +7741,12 @@ function renderProfileWalletTxList() {
     const sortedTxList = [...txList].sort((a, b) => {
         const getTxTimestamp = (item) => {
             if (!item) return 0;
-            const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+            const isCreditType = String(item.type || '').toLowerCase().includes('credit') ||
+                                 String(item.type || '').toLowerCase().includes('reward') ||
+                                 String(item.type || '').toLowerCase().includes('cashback');
+            const cand = isCreditType
+                ? (item.creditedAt || item.claimedAt || item.timestamp || item.createdAt || item.date)
+                : (item.completedAt || item.creditedAt || item.timestamp || item.createdAt || item.date);
             if (cand?.toDate && typeof cand.toDate === 'function') {
                 try { return cand.toDate().getTime(); } catch (e) {}
             }
@@ -7309,13 +7815,14 @@ function renderProfileWalletTxList() {
 
         // Robust Date Formatting (Safely resolve Firestore Timestamp, ISO string, or numeric epoch)
         let rawDate;
-        const candDate = tx.createdAt || tx.timestamp || tx.date || tx.creditedAt;
+        const candDate = isCredit 
+            ? (tx.creditedAt || tx.claimedAt || tx.timestamp || tx.createdAt || tx.date)
+            : (tx.completedAt || tx.timestamp || tx.createdAt || tx.date);
+
         if (candDate?.toDate && typeof candDate.toDate === 'function') {
             try { rawDate = candDate.toDate(); } catch (e) { rawDate = new Date(); }
         } else if (candDate && typeof candDate.seconds === 'number') {
             rawDate = new Date(candDate.seconds * 1000 + (candDate.nanoseconds ? Math.round(candDate.nanoseconds / 1e6) : 0));
-        } else if (tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt ? new Date(tx.createdAt) : null)) {
-            rawDate = tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt ? new Date(tx.createdAt) : new Date());
         } else if (candDate) {
             rawDate = (candDate instanceof Date) ? candDate : new Date(candDate);
         } else {
@@ -8645,7 +9152,7 @@ function updateCartUI() {
                 let subItemsHtml = '';
                 subItems.forEach(sub => {
                     const subName = escapeHtml(sub.name || sub.base_name || 'Item');
-                    const subImg = escapeHtml(sub.img || 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png');
+                    const subImg = escapeHtml(sub.img || 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp');
                     const subQty = (sub.quantity || 1) * itemQty;
                     const subAddons = Array.isArray(sub.addons) ? sub.addons : [];
                     let subAddonsHtml = '';
@@ -8661,7 +9168,7 @@ function updateCartUI() {
                         <div class="cart-combo-sub-row">
                             <div class="cart-combo-sub-top">
                                 <div class="cart-combo-sub-left">
-                                    <img src="${subImg}" alt="${subName}" class="cart-combo-sub-thumb" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+                                    <img src="${subImg}" alt="${subName}" class="cart-combo-sub-thumb" onerror="this.src='https://i.ibb.co/wNBDySCg/perfetto-Black.webp'">
                                     <span class="cart-combo-sub-name">${subName}</span>
                                 </div>
                                 <span class="cart-combo-sub-qty">×${subQty}</span>
@@ -9461,6 +9968,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
                 wonAmount: Math.round(earnedCashback),
                 revealed: false,
                 claimed: false,
+                credited: false,
                 status: 'unscratched',
                 claimedAt: null,
                 createdAt: now.toISOString(),
@@ -9553,6 +10061,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         items: orderItems,
         subtotal: Math.round(subtotal),
         deliveryFee: deliveryFee,
+        walletAmountApplied: Math.round(walletDiscountToApply),
         walletDiscount: Math.round(walletDiscountToApply),
         usedWalletCash: Math.round(walletDiscountToApply),
         walletHoldStatus: (walletDiscountToApply > 0 ? 'LOCKED' : null),
@@ -9565,6 +10074,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         rewardStatus: rewardStatus,
         scratchRevealed: false,
         scratchClaimed: false,
+        credited: false,
         scratchExpired: false,
         scratchExpiresAt: scratchExpiresAt,
         scratchExpiryDays: scratchCardObj ? activeDays : 0,
@@ -9896,7 +10406,11 @@ function initClearHistoryModal() {
                 return;
             }
             e.preventDefault();
-            clearCustomerOrderHistory();
+            if (typeof clearFinishedCustomerOrders === 'function') {
+                clearFinishedCustomerOrders();
+            } else if (typeof clearCustomerOrderHistory === 'function') {
+                clearCustomerOrderHistory();
+            }
         }
     });
 }
@@ -10575,18 +11089,20 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
     const activeDays = (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays))) || getClampedCashbackExpiryDays(customerWalletConfig);
     const expiresAt = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeDays * 24 * 60 * 60 * 1000);
 
-    order.rewardStatus = 'pending_delivery';
+    order.rewardStatus = 'LOCKED_PENDING_DELIVERY';
     order.wonCashback = amount;
     order.earnedCashback = amount;
     order.scratchRevealed = true;
     order.scratchClaimed = false;
+    order.credited = false;
     order.scratchCard = {
         ...(order.scratchCard || {}),
         amount: amount,
         wonAmount: amount,
         revealed: true,
         claimed: false,
-        status: 'pending_delivery',
+        credited: false,
+        status: 'LOCKED_PENDING_DELIVERY',
         revealedAt: new Date().toISOString(),
         expiresAt: expiresAt,
         expiresAtISO: new Date(expiresAt).toISOString(),
@@ -10602,11 +11118,12 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
             if (Array.isArray(orders)) {
                 const targetIdx = orders.findIndex(o => String(o.id || o.orderId) === orderId);
                 if (targetIdx >= 0) {
-                    orders[targetIdx].rewardStatus = 'pending_delivery';
+                    orders[targetIdx].rewardStatus = 'LOCKED_PENDING_DELIVERY';
                     orders[targetIdx].wonCashback = amount;
                     orders[targetIdx].earnedCashback = amount;
                     orders[targetIdx].scratchRevealed = true;
                     orders[targetIdx].scratchClaimed = false;
+                    orders[targetIdx].credited = false;
                     orders[targetIdx].scratchCard = order.scratchCard;
                     localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
                 }
@@ -10620,11 +11137,12 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
     try {
         if (customerFirestore && orderId && orderId !== '--') {
             await customerFirestore.collection('orders').doc(orderId).set({
-                rewardStatus: 'pending_delivery',
+                rewardStatus: 'LOCKED_PENDING_DELIVERY',
                 wonCashback: amount,
                 earnedCashback: amount,
                 scratchRevealed: true,
                 scratchClaimed: false,
+                credited: false,
                 scratchExpiresAt: expiresAt,
                 scratchExpiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
@@ -10632,7 +11150,8 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
                 'scratchCard.wonAmount': amount,
                 'scratchCard.revealed': true,
                 'scratchCard.claimed': false,
-                'scratchCard.status': 'pending_delivery',
+                'scratchCard.credited': false,
+                'scratchCard.status': 'LOCKED_PENDING_DELIVERY',
                 'scratchCard.revealedAt': new Date().toISOString(),
                 'scratchCard.expiresAt': expiresAt,
                 'scratchCard.expiresAtISO': new Date(expiresAt).toISOString(),
@@ -10645,10 +11164,11 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
                 const userCardDoc = {
                     lastScratchCard: {
                         orderId: orderId,
-                        rewardStatus: 'pending_delivery',
+                        rewardStatus: 'LOCKED_PENDING_DELIVERY',
                         wonCashback: amount,
                         revealed: true,
                         claimed: false,
+                        credited: false,
                         expiresAt: expiresAt,
                         updatedAt: new Date().toISOString()
                     }
@@ -10668,11 +11188,12 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 orderId: orderId,
-                rewardStatus: 'pending_delivery',
+                rewardStatus: 'LOCKED_PENDING_DELIVERY',
                 wonCashback: amount,
                 earnedCashback: amount,
                 scratchRevealed: true,
                 scratchClaimed: false,
+                credited: false,
                 scratchExpiresAt: expiresAt,
                 scratchExpiryDays: activeDays,
                 cashbackExpiryDays: activeDays
@@ -10950,7 +11471,10 @@ async function handleClaimScratchReward() {
         return;
     }
 
-    // If order is not yet delivered, remind customer and close:
+    // If order is not yet delivered, ensure strictly LOCKED_PENDING_DELIVERY with credited: false, remind customer and close:
+    if (activeScratchOrder) {
+        markScratchRewardPendingDelivery(activeScratchOrder, amount);
+    }
     showToast(isHindi 
         ? `🎁 रिवॉर्ड अनलॉक हो गया! ₹${amount} कैशबैक ऑर्डर डिलीवर होने पर आपके वॉलेट में जोड़ दिया जाएगा।` 
         : `🎁 Reward Unlocked! Cashback of ₹${amount} will be credited to your wallet once your order is delivered.`, 4500);
@@ -11532,6 +12056,10 @@ let otpResendTimerId = null;
 // --------------------------------------------------------------------------
 let customerLeafletMap = null;
 let customerLocationMarker = null;
+let deliveryMap = null;
+let deliveryMapMarker = null;
+window.deliveryMap = null;
+window.deliveryMapMarker = null;
 let customerStoreMarker = null;
 let customerCoverageCircle = null;
 let customerTempCoords = { lat: 29.533736, lng: 73.447895 }; // Raisingh Nagar default
@@ -11815,6 +12343,9 @@ function initCustomerLeafletMap(lat, lng) {
             maxBoundsViscosity: 1.0,
             zoomControl: true
         });
+        deliveryMap = customerLeafletMap;
+        window.deliveryMap = customerLeafletMap;
+        window.customerLeafletMap = customerLeafletMap;
 
         // Compute dynamic minZoom that fits bounding square within viewport
         const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
@@ -11856,6 +12387,9 @@ function initCustomerLeafletMap(lat, lng) {
             icon: customIcon,
             zIndexOffset: 1000
         }).addTo(customerLeafletMap);
+        deliveryMapMarker = customerLocationMarker;
+        window.deliveryMapMarker = customerLocationMarker;
+        window.customerLocationMarker = customerLocationMarker;
 
         customerLocationMarker.bindPopup(`
             <div style="text-align: center; padding: 4px;">
@@ -11940,6 +12474,10 @@ function initCustomerLeafletMap(lat, lng) {
         if (customerLocationMarker) {
             customerLocationMarker.setLatLng([lat, lng]);
         }
+        deliveryMap = customerLeafletMap;
+        deliveryMapMarker = customerLocationMarker;
+        window.deliveryMap = customerLeafletMap;
+        window.deliveryMapMarker = customerLocationMarker;
         if (customerStoreMarker) {
             customerStoreMarker.setLatLng([storeLat, storeLng]);
         }
@@ -11990,24 +12528,33 @@ function clampCoordsToDeliveryRadius(lat, lng) {
 }
 
 function updateMapModalCoordsDisplay(lat, lng) {
-    const banner = document.getElementById('map-zone-status-banner');
+    const banner = document.getElementById('map-zone-status-banner') || document.querySelector('.map-zone-status-banner');
     const icon = document.getElementById('zone-status-icon');
     const text = document.getElementById('zone-status-text');
     const confirmBtn = document.getElementById('btn-confirm-map-location');
 
     const check = isWithinDeliveryRadius(lat, lng);
+    const dist = check.distanceKm;
 
-    if (banner && icon && text) {
-        if (!check.isAllowed) {
-            banner.className = 'map-zone-status-banner out-zone';
-            if (icon) icon.className = 'fa-solid fa-triangle-exclamation';
-            text.textContent = 'Delivery not available at this location. Please select a point within the delivery zone.';
-        } else {
-            banner.className = 'map-zone-status-banner in-zone';
-            if (icon) icon.className = 'fa-solid fa-circle-check';
-            text.textContent = `Within Delivery Zone (${check.distanceKm} km from store)`;
-        }
+    if (banner) {
+        banner.className = !check.isAllowed ? 'map-zone-status-banner out-zone' : 'map-zone-status-banner in-zone';
     }
+    if (icon) {
+        icon.className = !check.isAllowed ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check';
+    }
+    if (text) {
+        text.textContent = !check.isAllowed
+            ? 'Delivery not available at this location. Please select a point within the delivery zone.'
+            : `Within Delivery Zone (${dist} km from store)`;
+    }
+
+    document.querySelectorAll('.delivery-zone-status, #delivery-zone-info, .delivery-zone-info').forEach(el => {
+        if (el) {
+            el.textContent = !check.isAllowed
+                ? `Delivery not available at this location (${dist} km from store).`
+                : `Within Delivery Zone (${dist} km from store)`;
+        }
+    });
 
     if (confirmBtn) {
         confirmBtn.disabled = !check.isAllowed;
@@ -12018,8 +12565,8 @@ function updateMapModalCoordsDisplay(lat, lng) {
 }
 
 function handleDetectLiveGps() {
-    const btn = document.getElementById('btn-detect-live-gps');
-    const btnText = document.getElementById('detect-gps-btn-text');
+    const btn = document.getElementById('btn-detect-live-gps') || document.querySelector('.btn-detect-live-gps');
+    const btnText = document.getElementById('detect-gps-btn-text') || (btn ? btn.querySelector('span') : null);
 
     if (!navigator.geolocation) {
         showToast('⚠️ Geolocation is not supported on this device/browser.');
@@ -12028,6 +12575,7 @@ function handleDetectLiveGps() {
 
     if (btn) {
         btn.disabled = true;
+        btn.classList.add('loading', 'btn-loading', 'is-loading');
         if (btnText) btnText.innerHTML = '<span class="btn-spinner"></span> Detecting GPS...';
     }
 
@@ -12035,63 +12583,136 @@ function handleDetectLiveGps() {
 
     navigator.geolocation.getCurrentPosition(
         (position) => {
-            let lat = parseFloat(position.coords.latitude.toFixed(6));
-            let lng = parseFloat(position.coords.longitude.toFixed(6));
+            const rawLat = position.coords.latitude;
+            const rawLng = position.coords.longitude;
+            let lat = parseFloat(rawLat.toFixed(6));
+            let lng = parseFloat(rawLng.toFixed(6));
             const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
             lastGpsAccuracyMeters = accuracy;
 
-            const radiusCheck = isWithinDeliveryRadius(lat, lng);
-            if (!radiusCheck.isAllowed) {
-                const clamped = clampCoordsToDeliveryRadius(lat, lng);
-                showToast(`⚠️ Location (${radiusCheck.distanceKm} km) is outside our ${radiusCheck.maxRadiusKm} km delivery zone. Marker placed at nearest point.`);
-                lat = clamped.lat;
-                lng = clamped.lng;
-            } else {
-                showToast(`📍 Location detected! Drag marker or tap anywhere to fine-tune.`);
+            // 1. Unconditionally reset the button text back to "Re-detect Live GPS" and remove loading spinner classes.
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('loading', 'btn-loading', 'is-loading');
+                const spinner = btn.querySelector('.btn-spinner, .spinner');
+                if (spinner) spinner.remove();
+            }
+            if (btnText) {
+                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
             }
 
-            customerTempCoords = { lat, lng, isLiveGps: true };
+            // 2. Calculate the fresh distance from store coordinates using calculateDistanceHaversine.
+            const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+            const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
+            const dist = parseFloat(calculateDistanceHaversine(storeLat, storeLng, lat, lng).toFixed(2));
 
-            if (customerLeafletMap) {
-                customerLeafletMap.setView([lat, lng], 16);
-                if (customerLocationMarker) {
-                    customerLocationMarker.setLatLng([lat, lng]);
+            // Sync deliveryMap and deliveryMapMarker references
+            if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap) {
+                deliveryMap = customerLeafletMap;
+                window.deliveryMap = customerLeafletMap;
+            }
+            if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker) {
+                deliveryMapMarker = customerLocationMarker;
+                window.deliveryMapMarker = customerLocationMarker;
+            }
+
+            // 3. Update the active marker position (deliveryMapMarker.setLatLng([lat, lng])) and pan/zoom the map view to the new center (deliveryMap.setView([lat, lng], 16)).
+            if (typeof deliveryMapMarker !== 'undefined' && deliveryMapMarker && typeof deliveryMapMarker.setLatLng === 'function') {
+                deliveryMapMarker.setLatLng([lat, lng]);
+                if (typeof deliveryMapMarker.openPopup === 'function') {
+                    deliveryMapMarker.openPopup();
+                }
+            } else if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker && typeof customerLocationMarker.setLatLng === 'function') {
+                customerLocationMarker.setLatLng([lat, lng]);
+                if (typeof customerLocationMarker.openPopup === 'function') {
                     customerLocationMarker.openPopup();
                 }
             }
 
+            if (typeof deliveryMap !== 'undefined' && deliveryMap && typeof deliveryMap.setView === 'function') {
+                if (typeof deliveryMap.invalidateSize === 'function') {
+                    deliveryMap.invalidateSize();
+                }
+                deliveryMap.setView([lat, lng], 16);
+                if (typeof deliveryMap.panTo === 'function') {
+                    deliveryMap.panTo([lat, lng], { animate: true });
+                }
+            } else if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap && typeof customerLeafletMap.setView === 'function') {
+                if (typeof customerLeafletMap.invalidateSize === 'function') {
+                    customerLeafletMap.invalidateSize();
+                }
+                customerLeafletMap.setView([lat, lng], 16);
+                if (typeof customerLeafletMap.panTo === 'function') {
+                    customerLeafletMap.panTo([lat, lng], { animate: true });
+                }
+            }
+
+            customerTempCoords = { lat, lng, isLiveGps: true };
+
+            // 4. Immediately update the bottom text badge (e.g., .delivery-zone-status / #delivery-zone-info) with the newly calculated distance: "Within Delivery Zone ({dist} km from store)".
+            const banner = document.getElementById('map-zone-status-banner') || document.querySelector('.map-zone-status-banner');
+            const icon = document.getElementById('zone-status-icon');
+            const text = document.getElementById('zone-status-text');
+
+            if (banner) {
+                banner.className = 'map-zone-status-banner in-zone';
+            }
+            if (icon) {
+                icon.className = 'fa-solid fa-circle-check';
+            }
+            if (text) {
+                text.textContent = `Within Delivery Zone (${dist} km from store)`;
+            }
+
+            document.querySelectorAll('.delivery-zone-status, #delivery-zone-info, .delivery-zone-info, #zone-status-text').forEach(el => {
+                if (el) {
+                    el.textContent = `Within Delivery Zone (${dist} km from store)`;
+                }
+            });
+
             updateMapModalCoordsDisplay(lat, lng);
 
-            if (btn) {
-                btn.disabled = false;
-                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
-            }
+            // 5. Update hidden input fields #customer-gps-lat, #customer-gps-lng, and set #customer-gps-is-live to "true".
+            const latHidden = document.getElementById('customer-gps-lat');
+            const lngHidden = document.getElementById('customer-gps-lng');
+            const isLiveHidden = document.getElementById('customer-gps-is-live');
+            if (latHidden) latHidden.value = String(lat);
+            if (lngHidden) lngHidden.value = String(lng);
+            if (isLiveHidden) isLiveHidden.value = 'true';
+
+            currentCustomerGps = { lat, lng, isLiveGps: true };
+
+            showToast(`📍 Live GPS detected (${dist} km from store)!`);
         },
         (error) => {
             console.error('Geolocation Error:', error);
+            // In error/timeout fallback:
+            // Restore button state cleanly and show a helpful toast ("Could not fetch fresh GPS. Please check location permissions.")
             if (btn) {
                 btn.disabled = false;
-                if (btnText) btnText.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Detect My Live GPS';
+                btn.classList.remove('loading', 'btn-loading', 'is-loading');
+                const spinner = btn.querySelector('.btn-spinner, .spinner');
+                if (spinner) spinner.remove();
+            }
+            if (btnText) {
+                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
             }
 
-            let errorMsg = '⚠️ Unable to detect location. You can manually drag the pin to your address.';
-            if (error.code === error.PERMISSION_DENIED) {
-                errorMsg = '⚠️ Location permission not granted. Please drag the map pin manually to set your address.';
-            } else if (error.code === error.POSITION_UNAVAILABLE) {
-                errorMsg = '⚠️ Location unavailable. Please drag the map pin manually.';
-            } else if (error.code === error.TIMEOUT) {
-                errorMsg = '⚠️ Location request timed out. Please drag the map pin manually or tap retry.';
-            }
-
-            showToast(errorMsg);
+            showToast('Could not fetch fresh GPS. Please check location permissions.');
         },
         {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 60000
+            maximumAge: 0
         }
     );
 }
+
+const detectCurrentCustomerLocation = handleDetectLiveGps;
+const reDetectLiveGps = handleDetectLiveGps;
+window.handleDetectLiveGps = handleDetectLiveGps;
+window.detectCurrentCustomerLocation = detectCurrentCustomerLocation;
+window.reDetectLiveGps = reDetectLiveGps;
 
 function handleConfirmMapLocation() {
     if (!customerTempCoords || isNaN(customerTempCoords.lat) || isNaN(customerTempCoords.lng)) {
@@ -13404,20 +14025,22 @@ const isOrderThreeHoursExpired = isOrder100MinsExpired;
 window.isOrder100MinsExpired = isOrder100MinsExpired;
 window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
 
-function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
-    if (!order) return '';
-    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
-    const st = String(order.status || '').toLowerCase().trim();
-    if (terminalStatuses.includes(st)) return '';
-
+function getCustomerOrderRemainingTimeMs(order, nowMs = Date.now()) {
+    if (!order) return 0;
     let createdMs = 0;
-    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    const isKitchenActive = ['PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY'].includes(rawStatus);
+    const raw = (isKitchenActive && (order.prepStartedAt || order.acceptedAt || order.updatedAt))
+        ? (order.prepStartedAt || order.acceptedAt || order.updatedAt)
+        : (order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt || order.acceptedAt);
     if (raw) {
-        if (typeof raw === 'number') createdMs = raw < 1e11 ? raw * 1000 : raw;
-        else if (typeof raw === 'object') {
+        if (typeof raw === 'number') {
+            createdMs = raw < 1e11 ? raw * 1000 : raw;
+        } else if (typeof raw === 'object') {
             if (typeof raw.toMillis === 'function') createdMs = raw.toMillis();
             else if (typeof raw.toDate === 'function') createdMs = raw.toDate().getTime();
             else if (raw.seconds) createdMs = raw.seconds * 1000;
+            else if (raw._seconds) createdMs = raw._seconds * 1000;
         } else {
             const parsed = new Date(raw).getTime();
             if (!isNaN(parsed) && parsed > 0) createdMs = parsed;
@@ -13428,13 +14051,23 @@ function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
         const match = idStr.match(/(\d{10,13})/);
         if (match) {
             const num = parseInt(match[1], 10);
-            if (num > 1500000000 && num < 2500000000000) createdMs = num < 1e11 ? num * 1000 : num;
+            if (num > 1500000000 && num < 2500000000000) {
+                createdMs = num < 1e11 ? num * 1000 : num;
+            }
         }
     }
     if (!createdMs) createdMs = nowMs;
+    return ONE_HUNDRED_MINS_EXPIRATION_MS - (nowMs - createdMs);
+}
+window.getCustomerOrderRemainingTimeMs = getCustomerOrderRemainingTimeMs;
 
-    const elapsedMs = nowMs - createdMs;
-    const remMs = ONE_HUNDRED_MINS_EXPIRATION_MS - elapsedMs;
+function getOrderCountdownPillHTML(order, nowMs = Date.now()) {
+    if (!order) return '';
+    const terminalStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'archived', 'declined'];
+    const st = String(order.status || '').toLowerCase().trim();
+    if (terminalStatuses.includes(st)) return '';
+
+    const remMs = getCustomerOrderRemainingTimeMs(order, nowMs);
     const remMins = Math.max(0, Math.ceil(remMs / 60000));
     const hrs = Math.floor(remMins / 60);
     const mins = remMins % 60;
@@ -13659,9 +14292,24 @@ async function reconcileCustomerActiveOrdersLazySync() {
 }
 window.reconcileCustomerActiveOrdersLazySync = reconcileCustomerActiveOrdersLazySync;
 
+function copyOrderHistoryOtp(code) {
+    if (!code) return;
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(() => {
+            showToast('OTP copied to clipboard: ' + code);
+        }).catch(() => {
+            showToast('Delivery OTP: ' + code);
+        });
+    } else {
+        showToast('Delivery OTP: ' + code);
+    }
+}
+window.copyOrderHistoryOtp = copyOrderHistoryOtp;
+
 function renderOrderHistoryDetails() {
     const listEl = document.getElementById('order-history-list');
-    const clearBtn = document.getElementById('btn-clear-history') || document.getElementById('clear-completed-orders-btn') || document.querySelector('[data-id="clear-completed-orders-btn"]');
+    const headerEl = document.querySelector('.order-history-card-header');
+    let clearBtn = document.getElementById('btn-clear-history') || (headerEl ? headerEl.querySelector('.btn-clear-history') : null) || document.getElementById('clear-completed-orders-btn') || document.querySelector('[data-id="clear-completed-orders-btn"]');
     if (!listEl) return;
 
     const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
@@ -13677,41 +14325,114 @@ function renderOrderHistoryDetails() {
         return;
     }
 
+    // Ensure clear button in header row is re-rendered with the exact requested markup
+    if (headerEl) {
+        const existingBtn = headerEl.querySelector('.btn-clear-history') || document.getElementById('btn-clear-history');
+        const clearBtnHTML = `<button type="button" class="btn-clear-history" id="btn-clear-history" onclick="clearFinishedCustomerOrders()" title="Clear Completed Orders"><i class="fa-solid fa-trash-can"></i> Clear</button>`;
+        if (existingBtn) {
+            existingBtn.outerHTML = clearBtnHTML;
+        } else {
+            headerEl.insertAdjacentHTML('beforeend', clearBtnHTML);
+        }
+        clearBtn = headerEl.querySelector('.btn-clear-history') || document.getElementById('btn-clear-history');
+    }
+
     try {
-        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
-        if (Array.isArray(orders)) {
+        let orders = safeStorage.getJSON('perfettoCustomerOrders', null);
+        if (!orders || !Array.isArray(orders)) {
+            try {
+                const stored = localStorage.getItem('perfettoCustomerOrders');
+                if (stored) orders = JSON.parse(stored);
+            } catch (e) { }
+        }
+        if (!Array.isArray(orders)) orders = [];
+
+        if (verifiedPhone) {
             orders = orders.filter(o => {
-                const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
-                return p === verifiedPhone;
+                if (!o) return false;
+                const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || (o.deliveryAddress && o.deliveryAddress.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                return !p || p === verifiedPhone;
             });
         }
 
+        const nowMs = Date.now();
         const clearedSet = new Set(getClearedOrderIds());
-        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
 
-        // Filter out terminal orders that were explicitly cleared by customer
+        // Standard active kitchen status list
+        const activeKitchenStatuses = ['PENDING', 'PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY', 'ACCEPTED', 'NEW', 'PLACED'];
+
+        // Filter out terminal or expired orders that were explicitly cleared by customer
         if (Array.isArray(orders)) {
             orders = orders.filter(o => {
+                if (!o) return false;
                 const id = String((o && (o.id || o.orderId)) || '');
-                const st = String((o && o.status) || '').trim().toLowerCase();
-                return !(clearedSet.has(id) && terminalStatuses.has(st));
+                const rawSt = String((o && o.status) || '').trim().toUpperCase();
+                const remMs = getCustomerOrderRemainingTimeMs(o, nowMs);
+                const isDelivered = rawSt === 'COMPLETED' || rawSt === 'DELIVERED';
+                const isExplicitlyRejected = rawSt === 'REJECTED' || rawSt === 'CANCELLED' || rawSt === 'CANCELED' || rawSt === 'DECLINED' || rawSt === 'ARCHIVED';
+                const isActiveKitchen = activeKitchenStatuses.includes(rawSt);
+
+                // Keep all active kitchen states in Recent Orders
+                // An order MUST be treated as active and rendered in Recent Orders if status is ANY of:
+                // 'PENDING', 'pending', 'preparing', 'ready', 'delivery', or 'out_for_delivery'
+                // (provided elapsed time < 100 minutes and not cancelled/delivered).
+                if (isActiveKitchen && remMs > 0 && !isDelivered && !isExplicitlyRejected) {
+                    return true;
+                }
+
+                const isExpired = !isDelivered && (remMs <= 0 || (o && (o.autoExpired === true || o.isAutoExpired === true || o.rejectedBy === 'SYSTEM_AUTO_EXPIRE')));
+                return !(clearedSet.has(id) && (isDelivered || isExplicitlyRejected || isExpired));
             });
         }
-
-        const hasClearableOrders = Array.isArray(orders) && orders.some(o => {
-            const st = String((o && o.status) || '').trim().toLowerCase();
-            return terminalStatuses.has(st);
-        });
 
         if (clearBtn) {
-            clearBtn.style.display = hasClearableOrders ? 'inline-flex' : 'none';
+            clearBtn.style.display = (Array.isArray(orders) && orders.length > 0) ? 'inline-flex' : 'none';
         }
 
         if (Array.isArray(orders) && orders.length > 0) {
             listEl.innerHTML = orders.map(o => {
-                const otpCode = o.deliveryOtp || o.otp || '';
-                const isDelivered = o.status === 'completed' || o.status === 'delivered';
-                const isCancelled = o.status === 'cancelled' || o.status === 'rejected';
+                const otpCode = o.deliveryOtp || o.otp || o.deliveryOTP || o.verificationOtp || '';
+                const rawStatus = String(o.status || '').trim().toUpperCase();
+                const timeRemainingMs = getCustomerOrderRemainingTimeMs(o, nowMs);
+
+                const isDelivered = rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED';
+                const isExplicitlyRejected = rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED';
+                const isActiveKitchenState = activeKitchenStatuses.includes(rawStatus);
+                const isExpired = !isDelivered && !isActiveKitchenState && (
+                    timeRemainingMs <= 0 ||
+                    o.autoExpired === true ||
+                    o.isAutoExpired === true ||
+                    o.rejectedBy === 'SYSTEM_AUTO_EXPIRE'
+                );
+                const isRejected = !isDelivered && (isExplicitlyRejected || isExpired);
+                const isCancelled = isRejected; // For backward-compatible wallet refund & scratch voiding
+                const isActivePending = !isDelivered && !isCancelled && !isExpired && (timeRemainingMs > 0) && isActiveKitchenState;
+
+                // Auto-trigger background auto-reject write to Firestore if expired
+                if (isExpired && !isExplicitlyRejected && !isActiveKitchenState && typeof autoRejectExpiredCustomerOrder === 'function') {
+                    autoRejectExpiredCustomerOrder(o).catch(() => {});
+                }
+
+                // Determine bottom status HTML: Expired MUST show EXPIRED (or REJECTED), not PENDING
+                let statusTagHtml = '';
+                if (isExpired) {
+                    statusTagHtml = `<span class="order-status-tag status-rejected">Status: EXPIRED</span>`;
+                } else if (rawStatus === 'REJECTED') {
+                    statusTagHtml = `<span class="order-status-tag status-rejected">Status: REJECTED</span>`;
+                } else if (rawStatus === 'CANCELLED' || rawStatus === 'CANCELED') {
+                    statusTagHtml = `<span class="order-status-tag status-rejected">Status: CANCELLED</span>`;
+                } else if (isDelivered) {
+                    statusTagHtml = `<span class="order-status-tag status-delivered">Status: DELIVERED</span>`;
+                } else if (rawStatus === 'PREPARING') {
+                    statusTagHtml = `<span class="order-status-tag status-preparing">Status: PREPARING (Chef cooking)</span>`;
+                } else if (rawStatus === 'OUT_FOR_DELIVERY' || rawStatus === 'DELIVERY') {
+                    statusTagHtml = `<span class="order-status-tag status-delivery">Status: OUT FOR DELIVERY</span>`;
+                } else if (rawStatus === 'READY') {
+                    statusTagHtml = `<span class="order-status-tag status-ready">Status: READY</span>`;
+                } else {
+                    statusTagHtml = `<span class="order-status-tag status-pending">Status: ${escapeHtml(rawStatus || 'PENDING')}</span>`;
+                }
+
                 const itemsText = (o.items || []).map(i => {
                     if (i.type === 'combo' && Array.isArray(i.items) && i.items.length > 0) {
                         const subNames = i.items.map(s => {
@@ -13771,7 +14492,7 @@ function renderOrderHistoryDetails() {
                         isScratchClaimed = true;
                     }
                 } else if (isCancelled) {
-                    const heldAmount = Math.round(Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0));
+                    const heldAmount = Math.round(Number(o.walletAmountApplied !== undefined ? o.walletAmountApplied : (o.walletDiscount || o.usedWalletCash || o.usedWallet || 0)));
                     const isAlreadyRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
                     if (heldAmount > 0 && !isAlreadyRefunded) {
                         o.walletRefundProcessed = true;
@@ -13787,16 +14508,18 @@ function renderOrderHistoryDetails() {
                         o.rewardStatus = 'voided';
                         o.wonCashback = 0;
                         o.earnedCashback = 0;
+                        o.credited = false;
                         if (o.scratchCard) {
                             o.scratchCard.voided = true;
-                            o.scratchCard.status = 'CANCELLED';
+                            o.scratchCard.status = 'voided';
                             o.scratchCard.wonAmount = 0;
+                            o.scratchCard.credited = false;
                         }
                         safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
                 }
 
-                    return `
+                return `
                     <div style="background: var(--bg-surface); padding: 14px; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border-color);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                             <strong style="color: var(--primary-orange); font-size: 0.95rem;">#${escapeHtml(o.id || o.orderId)}</strong>
@@ -13809,21 +14532,19 @@ function renderOrderHistoryDetails() {
                             ${itemsText}
                         </div>
                         
-                        ${otpCode ? `
-                        <div class="order-history-otp-box ${isDelivered ? 'otp-verified' : isCancelled ? 'otp-cancelled' : ''}">
+                        ${(isActivePending && otpCode) ? `
+                        <div class="order-history-otp-box delivery-verification-otp">
                             <div class="order-history-otp-left">
                                 <span class="order-history-otp-label">
-                                    <i class="fa-solid ${isDelivered ? 'fa-circle-check' : isCancelled ? 'fa-ban' : 'fa-shield-halved'}"></i>
-                                    ${isDelivered ? 'Delivered & Verified' : isCancelled ? 'Cancelled Order' : 'Delivery Verification OTP'}
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                    Delivery Verification OTP
                                 </span>
                                 <span class="order-history-otp-digits">${escapeHtml(otpCode)}</span>
-                                ${!isDelivered && !isCancelled ? `<span class="order-history-otp-note">Share with delivery partner upon arrival</span>` : ''}
+                                <span class="order-history-otp-note">Share with delivery partner upon arrival</span>
                             </div>
-                            ${!isDelivered && !isCancelled ? `
-                                <button type="button" class="order-history-copy-btn" onclick="copyOrderHistoryOtp('${escapeHtml(otpCode)}')" title="Copy Delivery OTP">
-                                    <i class="fa-solid fa-copy"></i> Copy
-                                </button>
-                            ` : ''}
+                            <button type="button" class="order-history-copy-btn" onclick="copyOrderHistoryOtp('${escapeHtml(otpCode)}')" title="Copy Delivery OTP">
+                                <i class="fa-solid fa-copy"></i> Copy
+                            </button>
                         </div>
                         ` : ''}
 
@@ -13866,8 +14587,8 @@ function renderOrderHistoryDetails() {
                             `}
                         ` : ''}
 
-                        <div style="display: flex; justify-content: space-between; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 4px;">
-                            <span>Status: <span class="order-status-val ${isDelivered ? 'status-delivered' : isCancelled ? 'status-cancelled' : 'status-pending'}">${escapeHtml(o.status)}</span></span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; font-weight: 700; border-top: 1px dashed var(--border-color); padding-top: 8px; margin-top: 4px;">
+                            ${statusTagHtml}
                             <span style="color: var(--primary-orange);">₹${o.total || (o.costs && o.costs.total) || 0}</span>
                         </div>
                         ${isCancelled && o.rejectionReason ? `
@@ -13879,10 +14600,13 @@ function renderOrderHistoryDetails() {
                             <i class="fa-solid fa-rotate-left"></i> <span>₹${o.walletRefundAmount || o.walletDiscount || o.usedWalletCash || 0} refunded to your wallet balance</span>
                         </div>` : ''}
                     </div>
-                `}).join('');
-                return;
-            }
-    } catch (e) { }
+                `;
+            }).join('');
+            return;
+        }
+    } catch (e) {
+        console.error('Error rendering customer order history details:', e);
+    }
 
     if (clearBtn) clearBtn.style.display = 'none';
     const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
@@ -13892,15 +14616,95 @@ function renderOrderHistoryDetails() {
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(emptyMsg)}</span>`;
 }
 
-function openClearHistoryModal() {
-    const modal = document.getElementById('clear-history-confirm-modal');
-    if (!modal) {
-        confirmClearCustomerOrderHistory();
-        return;
+function clearFinishedCustomerOrders() {
+    let allOrders = [];
+    try {
+        const stored = localStorage.getItem('perfettoCustomerOrders');
+        if (stored) {
+            allOrders = JSON.parse(stored) || [];
+        }
+    } catch (e) {
+        allOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
     }
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('modal-open');
+    if (!Array.isArray(allOrders)) {
+        allOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+    }
+    if (!Array.isArray(allOrders)) {
+        allOrders = [];
+    }
+
+    const nowMs = Date.now();
+    const isOrderActive = (o) => {
+        if (!o) return false;
+        const rawStatus = String(o.status || '').trim().toUpperCase();
+        const timeRemainingMs = getCustomerOrderRemainingTimeMs(o, nowMs);
+
+        // Terminal, cancelled, or expired orders are NOT active
+        if (rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') return false;
+        if (rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED') return false;
+        if (o.autoExpired === true || o.isAutoExpired === true || o.rejectedBy === 'SYSTEM_AUTO_EXPIRE') return false;
+        if (timeRemainingMs <= 0) return false;
+
+        // Retain ALL active pending orders (status === 'pending', 'preparing', 'delivery', with timeRemainingMs > 0)
+        const activeStatuses = ['PENDING', 'PREPARING', 'DELIVERY', 'OUT_FOR_DELIVERY', 'NEW', 'PLACED', 'READY', 'ACCEPTED'];
+        return activeStatuses.includes(rawStatus) && timeRemainingMs > 0;
+    };
+
+    // Purge ONLY completed, delivered, rejected, and expired orders from the local storage cache
+    const activeOrders = allOrders.filter(o => isOrderActive(o));
+    const removedOrders = allOrders.filter(o => !isOrderActive(o));
+
+    // Remember user-cleared terminal order IDs so background remote sync does not re-add them
+    if (typeof getClearedOrderIds === 'function' && typeof saveClearedOrderIds === 'function') {
+        const clearedSet = new Set(getClearedOrderIds());
+        removedOrders.forEach(o => {
+            const id = String((o && (o.id || o.orderId)) || '');
+            if (id) clearedSet.add(id);
+        });
+        saveClearedOrderIds(Array.from(clearedSet));
+    }
+
+    // Clean up Firestore snapshot listeners for removed orders
+    if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
+        removedOrders.forEach(o => {
+            const orderId = String((o && (o.id || o.orderId)) || '');
+            if (orderId && customerOrdersUnsubscribeMap.has(orderId)) {
+                try {
+                    const unsub = customerOrdersUnsubscribeMap.get(orderId);
+                    if (typeof unsub === 'function') unsub();
+                } catch (unsubErr) { }
+                customerOrdersUnsubscribeMap.delete(orderId);
+            }
+        });
+    }
+
+    // Save filtered active orders back to storage
+    safeStorage.setJSON('perfettoCustomerOrders', activeOrders);
+    try {
+        localStorage.setItem('perfettoCustomerOrders', JSON.stringify(activeOrders));
+    } catch (e) { }
+
+    if (typeof closeClearHistoryModal === 'function') {
+        closeClearHistoryModal();
+    }
+
+    // Re-render the profile/history UI immediately
+    renderOrderHistoryDetails();
+    if (typeof updateProfileTotalsUI === 'function') {
+        updateProfileTotalsUI();
+    }
+
+    showToast("Cleared completed and expired order history.");
+}
+window.clearFinishedCustomerOrders = clearFinishedCustomerOrders;
+
+function renderRecentOrders() {
+    return renderOrderHistoryDetails();
+}
+window.renderRecentOrders = renderRecentOrders;
+
+function openClearHistoryModal() {
+    clearFinishedCustomerOrders();
 }
 
 function closeClearHistoryModal() {
@@ -13912,92 +14716,13 @@ function closeClearHistoryModal() {
 }
 
 function clearCustomerOrderHistory() {
-    openClearHistoryModal();
+    clearFinishedCustomerOrders();
 }
 
 window.openClearHistoryModal = openClearHistoryModal;
 window.closeClearHistoryModal = closeClearHistoryModal;
 window.clearCustomerOrderHistory = clearCustomerOrderHistory;
-
-function confirmClearCustomerOrderHistory() {
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    try {
-        let currentOrders = [];
-        try {
-            const stored = localStorage.getItem('perfettoCustomerOrders');
-            if (stored) {
-                currentOrders = JSON.parse(stored) || [];
-            }
-        } catch (readErr) {
-            currentOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
-        }
-
-        if (!Array.isArray(currentOrders)) {
-            currentOrders = [];
-        }
-
-        // Terminal/finalized statuses: only these may be cleared
-        const terminalStatuses = new Set(['delivered', 'completed', 'cancelled', 'rejected']);
-        const isTerminalOrder = (order) => {
-            const st = String((order && order.status) || '').trim().toLowerCase();
-            return terminalStatuses.has(st);
-        };
-
-        // Strictly protect all active/transitional orders (e.g., pending, accepted, preparing, out_for_delivery)
-        const preservedOrders = currentOrders.filter(o => !isTerminalOrder(o));
-        const removedOrders = currentOrders.filter(o => isTerminalOrder(o));
-        const removedCount = removedOrders.length;
-
-        // Remember user-cleared terminal order IDs so background remote sync does not re-add them
-        const clearedIds = getClearedOrderIds();
-        const clearedSet = new Set(clearedIds);
-        removedOrders.forEach(o => {
-            const id = String((o && (o.id || o.orderId)) || '');
-            if (id) clearedSet.add(id);
-        });
-        saveClearedOrderIds(Array.from(clearedSet));
-
-        // Clean up Firestore snapshot listeners for removed terminal orders only
-        if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
-            removedOrders.forEach(o => {
-                const orderId = String((o && (o.id || o.orderId)) || '');
-                if (orderId && customerOrdersUnsubscribeMap.has(orderId)) {
-                    try {
-                        const unsub = customerOrdersUnsubscribeMap.get(orderId);
-                        if (typeof unsub === 'function') unsub();
-                    } catch (unsubErr) { }
-                    customerOrdersUnsubscribeMap.delete(orderId);
-                }
-            });
-        }
-
-        // Strictly update order list, preserving active orders, tokens, credentials, and session state
-        safeStorage.setJSON('perfettoCustomerOrders', preservedOrders);
-        try {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(preservedOrders));
-        } catch (e) { }
-
-        closeClearHistoryModal();
-        renderOrderHistoryDetails();
-        updateProfileTotalsUI();
-
-        if (removedCount > 0) {
-            showToast(isHindi
-                ? `🧹 ${removedCount} पूरे हुए ऑर्डर हटा दिए गए। सक्रिय ऑर्डर सुरक्षित हैं!`
-                : `🧹 ${removedCount} completed/cancelled order${removedCount > 1 ? 's' : ''} cleared. Active orders preserved!`);
-        } else {
-            showToast(isHindi
-                ? `ℹ️ हटाने के लिए कोई पूरा हुआ ऑर्डर नहीं मिला। आपके सक्रिय ऑर्डर चल रहे हैं!`
-                : `ℹ️ No completed orders to clear. Active orders are still ongoing!`);
-        }
-    } catch (e) {
-        console.error('Error clearing customer order history:', e);
-        closeClearHistoryModal();
-        renderOrderHistoryDetails();
-        updateProfileTotalsUI();
-    }
-}
-window.confirmClearCustomerOrderHistory = confirmClearCustomerOrderHistory;
+window.confirmClearCustomerOrderHistory = clearFinishedCustomerOrders;
 
 // --------------------------------------------------------------------------
 // 7. TOAST NOTIFICATION SYSTEM
@@ -16306,7 +17031,7 @@ function resolveComboItemProduct(slot) {
             size: '',
             size_label: '',
             quantity: 1,
-            img: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
+            img: 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp',
             unit_price: 0,
             total_price: 0
         };
@@ -16348,7 +17073,7 @@ function resolveComboItemProduct(slot) {
         } else if (typeof DEFAULT_FALLBACK_BANNER_LOGO !== 'undefined') {
             resolvedImg = DEFAULT_FALLBACK_BANNER_LOGO;
         } else {
-            resolvedImg = 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png';
+            resolvedImg = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
         }
     }
 
@@ -16762,7 +17487,7 @@ function renderCustomerComboTierDeals(tier) {
             galleryHtml += `
                 <div class="combo-gallery-tile">
                     <div class="combo-tile-media">
-                        <img src="${escapeHtml(item.img)}" alt="${itemName}" class="combo-tile-img" loading="lazy" onerror="this.src='https://i.ibb.co/HfRxNYQv/perfetto-Black.png'">
+                        <img src="${escapeHtml(item.img)}" alt="${itemName}" class="combo-tile-img" loading="lazy" onerror="this.src='https://i.ibb.co/wNBDySCg/perfetto-Black.webp'">
                         <span class="combo-tile-qty-badge">x${item.quantity}</span>
                     </div>
                     <div class="combo-tile-info">
@@ -17666,24 +18391,24 @@ function setupHistoryState() {
 // 11. GLOBAL FUZZY SEARCH SYSTEM (SPACE-INSENSITIVE & RANKED)
 // --------------------------------------------------------------------------
 const CUSTOMER_CATEGORY_META = {
-    "Pizza": { name: "Pizza", img: "https://i.ibb.co/21fs0TqL/pizza.png" },
-    "Bread": { name: "Bread & Sides", img: "https://i.ibb.co/fzBqSJJx/bread.png" },
-    "Burger": { name: "Burgers", img: "https://i.ibb.co/jZDq51b6/burger.png" },
-    "Chinese Food": { name: "Chinese Food", img: "https://i.ibb.co/YFYwbHmV/chinese-food.png" },
-    "Colo Drinks": { name: "Cold Drinks", img: "https://i.ibb.co/dJxnm38L/colo-drinks.png" },
-    "Pasta": { name: "Pasta", img: "https://i.ibb.co/Qvzgv353/pasta.png" },
-    "Desserts": { name: "Desserts", img: "https://i.ibb.co/YBQ73fv2/dasserts.png" },
-    "Shake": { name: "Shakes", img: "https://i.ibb.co/XZpkRRpJ/shake.png" },
-    "Hot Cold Coffee": { name: "Hot Cold Coffee", img: "https://i.ibb.co/1GS88GN6/hot-cold-coffee.png" },
-    "Mojito": { name: "Mojito", img: "https://i.ibb.co/kV2Wvsdq/mojito.png" },
-    "Momos": { name: "Momos", img: "https://i.ibb.co/gbdrfGJK/momos.png" },
-    "Noodles": { name: "Noodles", img: "https://i.ibb.co/v6LTBqFV/noodles.png" },
-    "Rice": { name: "Rice", img: "https://i.ibb.co/gL0Z5F0C/rice.png" },
-    "Salad": { name: "Salad", img: "https://i.ibb.co/W4V8XcNG/salad.png" },
-    "Sandwich": { name: "Sandwich", img: "https://i.ibb.co/DPyPQfsT/sandwich.png" },
-    "Side Orders": { name: "Side Orders", img: "https://i.ibb.co/JwXzvd1f/side-orders.png" },
-    "Spring Rolls": { name: "Spring Rolls", img: "https://i.ibb.co/HLJWTt1D/spring-rolls.png" },
-    "Wrap": { name: "Wrap", img: "https://i.ibb.co/V0c7gf6d/wrap.png" }
+    "Pizza": { name: "Pizza", img: "https://i.ibb.co/674VBRRS/pizza.webp" },
+    "Bread": { name: "Bread & Sides", img: "https://i.ibb.co/dsf6JwtD/bread.webp" },
+    "Burger": { name: "Burgers", img: "https://i.ibb.co/Tx3ynqfB/burger.webp" },
+    "Chinese Food": { name: "Chinese Food", img: "https://i.ibb.co/LdztgKn2/chinese-food.webp" },
+    "Colo Drinks": { name: "Cold Drinks", img: "https://i.ibb.co/MrVfXHs/colo-drinks.webp" },
+    "Pasta": { name: "Pasta", img: "https://i.ibb.co/ns4d7KsB/pasta.webp" },
+    "Desserts": { name: "Desserts", img: "https://i.ibb.co/YTjGw1fb/dasserts.webp" },
+    "Shake": { name: "Shakes", img: "https://i.ibb.co/390xRbgp/shake.webp" },
+    "Hot Cold Coffee": { name: "Hot Cold Coffee", img: "https://i.ibb.co/b5mD98Ww/hot-cold-coffee.webp" },
+    "Mojito": { name: "Mojito", img: "https://i.ibb.co/WNZnjhYd/mojito.webp" },
+    "Momos": { name: "Momos", img: "https://i.ibb.co/PZgP4rmx/momos.webp" },
+    "Noodles": { name: "Noodles", img: "https://i.ibb.co/gLm01Rg3/noodles.webp" },
+    "Rice": { name: "Rice", img: "https://i.ibb.co/j9k4MWmW/rice.webp" },
+    "Salad": { name: "Salad", img: "https://i.ibb.co/CsWQP0hh/salad.webp" },
+    "Sandwich": { name: "Sandwich", img: "https://i.ibb.co/ZRQf89W0/sandwich.webp" },
+    "Side Orders": { name: "Side Orders", img: "https://i.ibb.co/B26R9rky/side-orders.webp" },
+    "Spring Rolls": { name: "Spring Rolls", img: "https://i.ibb.co/1BhjBqp/spring-rolls.webp" },
+    "Wrap": { name: "Wrap", img: "https://i.ibb.co/Zygp8Qp/wrap.webp" }
 };
 
 let isCustomerSearchActive = false;
@@ -18880,7 +19605,10 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
             } else {
                 const remote = map.get(matchedKey);
                 map.set(matchedKey, {
+                    ...o,
                     ...remote,
+                    items: (remote.items && remote.items.length) ? remote.items : (o.items || []),
+                    deliveryOtp: remote.deliveryOtp || o.deliveryOtp || o.otp || '',
                     scratchRevealed: o.scratchRevealed || remote.scratchRevealed,
                     scratchClaimed: o.scratchClaimed || remote.scratchClaimed,
                     rewardStatus: (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited') ? o.rewardStatus : remote.rewardStatus
@@ -18895,6 +19623,9 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
         });
 
         safeStorage.setJSON('perfettoCustomerOrders', merged);
+        try {
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(merged));
+        } catch (e) {}
         renderOrderHistoryDetails();
         updateProfileTotalsUI();
     } catch (e) {
@@ -19026,15 +19757,17 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
         let updated = false;
         let oldStatus = null;
 
-        const target = storedOrders.find(o => String(o.id || o.orderId) === String(orderId));
+        const cleanId = (v) => String(v || '').replace(/^#/, '').trim();
+        const target = storedOrders.find(o => cleanId(o.id || o.orderId) === cleanId(orderId));
         if (target) {
             oldStatus = target.status;
             if (freshOrderData.status && freshOrderData.status !== target.status) {
                 target.status = freshOrderData.status;
                 updated = true;
             }
-            if (freshOrderData.deliveryOtp && freshOrderData.deliveryOtp !== target.deliveryOtp) {
-                target.deliveryOtp = freshOrderData.deliveryOtp;
+            const freshOtp = freshOrderData.deliveryOtp || freshOrderData.otp || freshOrderData.deliveryOTP || freshOrderData.verificationOtp;
+            if (freshOtp && freshOtp !== target.deliveryOtp) {
+                target.deliveryOtp = freshOtp;
                 updated = true;
             }
             if (freshOrderData.paymentStatus && freshOrderData.paymentStatus !== target.paymentStatus) {
@@ -19078,22 +19811,46 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 updated = true;
             }
 
-            // If order transitioned to rejected or cancelled and had held funds, release hold
-            const isNowRejected = (freshOrderData.status === 'rejected' || freshOrderData.status === 'cancelled');
+            // If order transitioned to rejected, cancelled, or expired and had held funds, release hold
+            const isNowRejected = (freshOrderData.status === 'rejected' || freshOrderData.status === 'cancelled' || freshOrderData.status === 'auto_expired' || freshOrderData.status === 'expired' || freshOrderData.status === 'declined');
             if (isNowRejected) {
-                const heldAmount = Math.round(Number(target.walletDiscount || target.usedWalletCash || target.usedWallet || target.walletRefundAmount || 0));
-                if (typeof releaseWalletHold === 'function' && heldAmount > 0) {
+                // Revoke / void any pending locked cashback
+                target.rewardStatus = 'voided';
+                target.wonCashback = 0;
+                target.earnedCashback = 0;
+                target.credited = false;
+                if (target.scratchCard) {
+                    target.scratchCard.status = 'voided';
+                    target.scratchCard.voided = true;
+                    target.scratchCard.wonAmount = 0;
+                    target.scratchCard.credited = false;
+                }
+                const isAlreadyRefunded = Boolean(target.walletRefundProcessed || target.walletRefunded || freshOrderData.walletRefundProcessed || freshOrderData.walletRefunded);
+                const heldAmount = Math.round(Number(
+                    target.walletAmountApplied !== undefined ? target.walletAmountApplied :
+                    (freshOrderData.walletAmountApplied !== undefined ? freshOrderData.walletAmountApplied :
+                    (target.walletDiscount || target.usedWalletCash || target.usedWallet || freshOrderData.walletDiscount || freshOrderData.walletRefundAmount || 0))
+                ));
+                if (typeof releaseWalletHold === 'function' && heldAmount > 0 && !isAlreadyRefunded) {
+                    target.walletRefundProcessed = true;
+                    target.walletRefunded = true;
+                    target.walletRefundAmount = heldAmount;
+                    target.refundTimestamp = new Date().toISOString();
                     releaseWalletHold(orderId, heldAmount);
+                    updated = true;
                 }
             }
 
             // Auto-credit pending delivery cashback if order transitioned to completed/delivered
             const isNowDelivered = (freshOrderData.status === 'completed' || freshOrderData.status === 'delivered');
             if (isNowDelivered) {
+                if (typeof commitWalletHold === 'function') {
+                    commitWalletHold(orderId);
+                }
                 const orderCashback = Number(target.wonCashback || target.earnedCashback || (target.scratchCard && (target.scratchCard.wonAmount || target.scratchCard.amount)) || 0);
                 const isScratchClaimed = !!(target.scratchClaimed || (target.scratchCard && target.scratchCard.claimed));
                 const isCardExpired = typeof isScratchCardExpired === 'function' ? isScratchCardExpired(target) : false;
-                const isPendingDelivery = (target.rewardStatus === 'pending_delivery' || (target.scratchCard && target.scratchCard.status === 'pending_delivery') || target.scratchRevealed);
+                const isPendingDelivery = (target.rewardStatus === 'LOCKED_PENDING_DELIVERY' || target.rewardStatus === 'pending_delivery' || (target.scratchCard && (target.scratchCard.status === 'LOCKED_PENDING_DELIVERY' || target.scratchCard.status === 'pending_delivery')) || target.scratchRevealed);
 
                 const targetOrderId = String(target.id || target.orderId || '');
                 const alreadyCreditedInWallet = typeof isOrderRewardAlreadyCredited === 'function'
@@ -19108,10 +19865,12 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     target.scratchClaimed = true;
                     target.scratchRevealed = true;
                     target.rewardStatus = 'credited';
+                    target.credited = true;
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
                         target.scratchCard.revealed = true;
                         target.scratchCard.status = 'credited';
+                        target.scratchCard.credited = true;
                         target.scratchCard.claimedAt = new Date().toISOString();
                     }
                     const phone = target.customerPhone || target.phone || ((currentUserProfile && currentUserProfile.phone) || '');
@@ -19125,10 +19884,12 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     target.scratchClaimed = true;
                     target.scratchRevealed = true;
                     target.rewardStatus = 'credited';
+                    target.credited = true;
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
                         target.scratchCard.revealed = true;
                         target.scratchCard.status = 'credited';
+                        target.scratchCard.credited = true;
                     }
                     updated = true;
                 }
@@ -19145,7 +19906,10 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
         }
 
         if (updated) {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(storedOrders));
+            safeStorage.setJSON('perfettoCustomerOrders', storedOrders);
+            try {
+                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(storedOrders));
+            } catch (e) {}
             renderOrderHistoryDetails();
             updateProfileTotalsUI();
             updateProfileWalletUI();
@@ -19740,6 +20504,10 @@ window.copyDeliveryOtpToClipboard = copyDeliveryOtpToClipboard;
 window.viewOrderHistoryFromOtpModal = viewOrderHistoryFromOtpModal;
 window.closeOrderOtpSuccessModal = closeOrderOtpSuccessModal;
 window.handleDetectLiveGps = handleDetectLiveGps;
+window.detectCurrentCustomerLocation = handleDetectLiveGps;
+window.reDetectLiveGps = handleDetectLiveGps;
+window.deliveryMap = deliveryMap;
+window.deliveryMapMarker = deliveryMapMarker;
 window.handleConfirmMapLocation = handleConfirmMapLocation;
 window.cleanupAllCustomerListeners = cleanupAllCustomerListeners;
 window.openStoreNoticeModal = openStoreNoticeModal;

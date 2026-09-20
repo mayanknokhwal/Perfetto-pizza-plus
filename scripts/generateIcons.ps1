@@ -11,10 +11,11 @@ function Generate-PwaIcon {
 
     $src = [System.Drawing.Bitmap]::FromFile($SourcePath)
 
-    # Crop rectangle centered on circular emblem (X=516, Y=537, W=980, H=980)
-    $srcCropX = 25
-    $srcCropY = 47
-    $srcCropSize = 980
+    # Dynamically scale crop rectangle to source dimensions (baseline: 1008x1067 with 980 emblem)
+    $scale = [Math]::Min($src.Width / 1008.0, $src.Height / 1067.0)
+    $srcCropSize = [Math]::Max(1, [Math]::Min([int][Math]::Round(980 * $scale), [Math]::Min($src.Width, $src.Height)))
+    $srcCropX = [int][Math]::Max(0, [Math]::Round(($src.Width - $srcCropSize) / 2.0))
+    $srcCropY = [int][Math]::Max(0, [Math]::Round(($src.Height - $srcCropSize) / 2.0))
 
     $dest = New-Object System.Drawing.Bitmap($CanvasSize, $CanvasSize, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g = [System.Drawing.Graphics]::FromImage($dest)

@@ -6604,8 +6604,8 @@ function dispatchStaffOrderNotification(orderId, details) {
     try {
         const notif = new Notification(title, {
             body: body,
-            icon: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
-            badge: 'https://i.ibb.co/HfRxNYQv/perfetto-Black.png',
+            icon: 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp',
+            badge: 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp',
             tag: `perfetto-order-${orderNumber}`,
             renotify: true,
             requireInteraction: true
