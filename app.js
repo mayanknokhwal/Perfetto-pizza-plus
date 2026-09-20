@@ -5108,9 +5108,18 @@ function reconcileWalletTranches(wallet) {
         }
     });
 
-    // Reconcile and purge corrupted/orphaned holds in wallet.transactions:
-    // Discard orphaned holds where the corresponding order does not exist in active "PENDING" status.
-    // If an order is already completed, delivered, or deleted, release any lingering "LOCKED" / "LOCKED_HOLD" flag immediately.
+    // Track all orders that have received a refund in wallet.transactions:
+    const refundedOrderIds = new Set();
+    wallet.transactions.forEach(t => {
+        if (!t) return;
+        const tType = String(t.type || '').toLowerCase().trim();
+        const tOid = String(t.orderId || '').replace(/^#/, '').trim();
+        if (tType === 'refund' && tOid) {
+            refundedOrderIds.add(tOid);
+        }
+    });
+
+    // Reconcile holds and completed transactions in wallet.transactions:
     wallet.transactions.forEach(tx => {
         if (!tx) return;
         const tType = String(tx.type || '').toUpperCase().trim();
@@ -5119,9 +5128,19 @@ function reconcileWalletTranches(wallet) {
         const isHoldType = (tType === 'WALLET_HOLD' || tType === 'HOLD' || (tType === 'DEBIT' && (tStat === 'LOCKED' || tStat === 'LOCKED_HOLD')));
         const isHoldLocked = (tStat === 'LOCKED' || tStat === 'LOCKED_HOLD' || tStat === 'PENDING' || hStat === 'LOCKED' || hStat === 'LOCKED_HOLD');
         const isReleased = (tStat === 'RELEASED' || tStat === 'CANCELLED' || tStat === 'COMPLETED' || tStat === 'DEBITED');
+        const rawOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
+
+        // 1. If this hold is for an order that has a refund in wallet.transactions, pair hold as completed debit:
+        // This ensures the refund restores the exact spendable balance without doubling over un-debited credits!
+        if (isHoldType && rawOid && refundedOrderIds.has(rawOid)) {
+            tx.type = 'debit';
+            tx.status = 'COMPLETED';
+            tx.holdStatus = 'COMPLETED';
+            tx.title = `Used for Order #${rawOid}`;
+            return;
+        }
 
         if (isHoldType && isHoldLocked && !isReleased) {
-            const rawOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
             if (rawOid) {
                 const termInfo = terminalOrderMap.get(rawOid);
                 if (termInfo) {
@@ -5131,20 +5150,7 @@ function reconcileWalletTranches(wallet) {
                         tx.holdStatus = 'COMPLETED';
                         tx.title = `Used for Order #${rawOid}`;
                         return;
-                    } else {
-                        const orderHasRefund = Array.isArray(wallet.transactions) && wallet.transactions.some(t => {
-                            if (!t) return false;
-                            const tType = String(t.type || '').toLowerCase().trim();
-                            const tOid = String(t.orderId || '').replace(/^#/, '').trim();
-                            return tType === 'refund' && (tOid === rawOid);
-                        });
-                        if (orderHasRefund) {
-                            tx.type = 'debit';
-                            tx.status = 'COMPLETED';
-                            tx.holdStatus = 'COMPLETED';
-                            tx.title = `Used for Order #${rawOid}`;
-                            return;
-                        }
+                    } else if (termInfo.status === 'rejected' || termInfo.status === 'cancelled') {
                         tx.status = 'released';
                         tx.holdStatus = 'RELEASED';
                         releasedOrderHolds.add(rawOid);
@@ -5153,10 +5159,11 @@ function reconcileWalletTranches(wallet) {
                 }
 
                 // Check if order exists in active kitchen status (pending, preparing, ready, delivery, etc.)
-                const isPendingOrActive = activePendingOrderMap.has(rawOid);
-                if (!isPendingOrActive) {
-                    // Orphaned hold! The corresponding order does not exist in active order status
-                    console.warn(`[WALLET] Releasing orphaned hold for Order #${rawOid} (not in active kitchen status)`);
+                // Guard: Only release aged orphaned holds when storedOrders is populated and hold is older than 5 minutes
+                const parsedHoldTime = parseTs(tx.createdAt || tx.timestamp);
+                const holdAgeMs = isNaN(parsedHoldTime) ? 0 : (nowMs - parsedHoldTime);
+                if (storedOrders.length > 0 && !activePendingOrderMap.has(rawOid) && holdAgeMs > 5 * 60 * 1000) {
+                    console.warn(`[WALLET] Releasing aged orphaned hold for Order #${rawOid}`);
                     tx.status = 'released';
                     tx.holdStatus = 'RELEASED';
                     releasedOrderHolds.add(rawOid);
@@ -5186,6 +5193,12 @@ function reconcileWalletTranches(wallet) {
                 }
             }
         } else if (txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || txType === 'reward' || txType === 'woncashback' || txStatus === 'unlocked' || txStatus === 'active' || tx.status === 'UNLOCKED' || tx.type === 'CASHBACK_EARNED' || (txType.includes('credit') && !txType.includes('debit'))) {
+            const currentStatusUpper = String(tx.status || '').toUpperCase().trim();
+            // Strictly exclude locked pending delivery cashback from usable balance:
+            if (currentStatusUpper === 'LOCKED_PENDING_DELIVERY' || currentStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || currentStatusUpper === 'VOIDED') {
+                return;
+            }
+
             // Strict 1-to-1 Order Idempotency:
             if (txType === 'refund' && txOrderId) {
                 // Deduplicate redundant refund entries for the same orderId
@@ -5204,6 +5217,19 @@ function reconcileWalletTranches(wallet) {
                 if (txOrderId) processedCreditOrderIds.add(txOrderId);
             }
 
+            // Preserve consumed / redeemed credits:
+            if (currentStatusUpper === 'CONSUMED' || currentStatusUpper === 'REDEEMED' || tx.isRedeemed === true) {
+                tx.remainingAmount = 0;
+                tx.status = 'consumed';
+                tx.isRedeemed = true;
+                credits.push({
+                    tx,
+                    createdTime: parseTs(tx.createdAt || tx.timestamp || tx.creditedAt) || 0,
+                    expiresAtMs: parseTs(tx.expiresAt) || Infinity
+                });
+                return;
+            }
+
             if (tx.initialAmount === undefined) {
                 tx.initialAmount = (tx.originalAmount !== undefined)
                     ? Number(tx.originalAmount)
@@ -5212,9 +5238,15 @@ function reconcileWalletTranches(wallet) {
             if (tx.originalAmount === undefined) {
                 tx.originalAmount = tx.initialAmount;
             }
-            tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
-            const currentStatusUpper = String(tx.status || '').toUpperCase();
-            if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'EXPIRED') {
+            if (tx.remainingAmount === undefined) {
+                tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
+            } else {
+                tx.remainingAmount = Math.max(0, Number(tx.remainingAmount));
+            }
+
+            if (tx.remainingAmount === 0 && tx.status === 'consumed') {
+                tx.isRedeemed = true;
+            } else if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'EXPIRED' && currentStatusUpper !== 'PARTIALLY_USED') {
                 tx.status = 'active';
                 tx.isRedeemed = false;
             }
@@ -5316,7 +5348,7 @@ function reconcileWalletTranches(wallet) {
         const st = String(t.status || '').toUpperCase();
         const tp = String(t.type || '').toUpperCase();
         const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (t.expiresAt && parseTs(t.expiresAt) <= nowMs);
-        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
+        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
         return (st === "ACTIVE" || st === "UNLOCKED" || tp === "CASHBACK_EARNED" || tp === "CREDIT" || tp === "REFUND") && !isExp && !isRed;
     });
     const totalCredits = activeTranches.reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -5324,7 +5356,7 @@ function reconcileWalletTranches(wallet) {
         const st = String(t.status || '').toUpperCase();
         const tp = String(t.type || '').toUpperCase();
         const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (t.expiresAt && parseTs(t.expiresAt) <= nowMs);
-        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
+        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
         if ((st === "ACTIVE" || st === "UNLOCKED" || tp === "CASHBACK_EARNED" || tp === "CREDIT" || tp === "REFUND") && !isExp && !isRed) {
             const val = Number(t.remainingAmount !== undefined ? t.remainingAmount : (t.amount || 0));
             return sum + (isNaN(val) ? 0 : val);
@@ -5347,7 +5379,7 @@ function reconcileWalletTranches(wallet) {
             if (isHoldType && isHoldLocked && !isReleased) {
                 const oid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
                 // Strictly guard: only active pending orders can hold wallet funds
-                if (oid && activePendingOrderMap.has(oid)) {
+                if (oid && (!storedOrders.length || activePendingOrderMap.has(oid))) {
                     if (seenHoldOrderIds.has(oid)) return;
                     seenHoldOrderIds.add(oid);
                     const amt = Number(tx.amount || 0);
@@ -5406,7 +5438,7 @@ function reconcileWalletTranches(wallet) {
         baseCreditPool = Math.max(0, rawBal);
     }
 
-    const usableBalance = Math.max(0, Math.max(baseCreditPool, totalCredits - totalActiveHolds));
+    const usableBalance = Math.max(0, baseCreditPool);
     const finalBalance = Math.min(usableBalance, baseCreditPool);
     const reconciledBalance = Math.max(0, finalBalance);
 
@@ -5462,6 +5494,10 @@ function getActiveCreditTranches() {
     const processedOrderIds = new Set();
     return txList.filter(tx => {
         if (!tx) return false;
+        const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+        if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+            return false;
+        }
         const txType = String(tx.type || '').toLowerCase().trim();
         const isCredit = txType === 'credit' || txType === 'refund' || txType === 'cashback' || txType === 'cashback_earned' || txType.includes('cashback') || (txType.includes('credit') && !txType.includes('debit'));
         if (!isCredit) return false;
@@ -5471,7 +5507,7 @@ function getActiveCreditTranches() {
             processedOrderIds.add(cleanOid);
         }
         const remaining = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
-        if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired') return false;
+        if (remaining <= 0 || tx.status === 'redeemed' || tx.status === 'used' || tx.status === 'expired' || tx.status === 'consumed' || tx.isRedeemed === true) return false;
         if (tx.expiresAt) {
             const expMs = parseTs(tx.expiresAt);
             if (!isNaN(expMs) && expMs <= nowMs) return false;
@@ -5614,6 +5650,11 @@ function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
 
     txList.forEach(tx => {
         if (!tx) return;
+        const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+        if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+            return;
+        }
+
         const txType = String(tx.type || '').toLowerCase().trim();
         const txStatus = String(tx.status || '').toLowerCase().trim();
         const cleanOid = String(tx.orderId || '').trim().replace(/^#/, '');
@@ -5648,7 +5689,7 @@ function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
 
         if (remaining <= 0) return;
 
-        const isRedeemed = Boolean(tx.isRedeemed) || txStatus === 'redeemed' || txStatus === 'used';
+        const isRedeemed = Boolean(tx.isRedeemed) || txStatus === 'redeemed' || txStatus === 'used' || txStatus === 'consumed';
         if (isRedeemed) return;
 
         const expMs = tx.expiresAt ? parseTs(tx.expiresAt) : Infinity;
@@ -6369,6 +6410,10 @@ function getTotalFundedWalletCredit(wallet = currentCustomerWallet) {
         const seenTx = new Set();
         wallet.transactions.forEach(tx => {
             if (!tx) return;
+            const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+            if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+                return;
+            }
             const type = String(tx.type || '').toLowerCase().trim();
             const txId = String(tx.id || '').trim();
             if (txId && seenTx.has(txId)) return;
@@ -6802,9 +6847,86 @@ async function createWalletHoldRecord(phone, amount, orderId) {
 
     currentCustomerWallet.phone = cleanPhone || currentCustomerWallet.phone || '';
 
+    // Complete FIFO Multi-Credit Deduction across active, unexpired credits:
+    // Deduct the exact needed amount progressively across credits until total applied wallet amount is fully exhausted (100% deducted, remaining = 0 if fully spent).
+    const nowIso = new Date().toISOString();
+    let remainingToDeduct = finalHoldAmt;
+    const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => new Date(v).getTime();
+
+    const activeCredits = existingTx.filter(tx => {
+        if (!tx) return false;
+        const txType = String(tx.type || '').toLowerCase().trim();
+        const txStatus = String(tx.status || '').toLowerCase().trim();
+        const txStatusUpper = String(tx.status || '').toUpperCase().trim();
+
+        if (txStatusUpper === 'LOCKED_PENDING_DELIVERY' || txStatusUpper === 'PENDING_DELIVERY' || tx.credited === false || txStatusUpper === 'VOIDED') {
+            return false;
+        }
+
+        const isCredit = (
+            txType === 'credit' ||
+            txType === 'refund' ||
+            txType === 'cashback' ||
+            txType === 'cashback_earned' ||
+            txType === 'reward' ||
+            txType === 'woncashback' ||
+            txStatus === 'unlocked' ||
+            txStatus === 'active' ||
+            tx.status === 'UNLOCKED' ||
+            tx.type === 'CASHBACK_EARNED' ||
+            (txType.includes('credit') && !txType.includes('debit'))
+        );
+        if (!isCredit) return false;
+
+        const isConsumed = txStatus === 'consumed' || txStatus === 'redeemed' || txStatus === 'used' || tx.isRedeemed === true;
+        if (isConsumed) return false;
+
+        const expMs = tx.expiresAt ? parseTs(tx.expiresAt) : Infinity;
+        if (!isNaN(expMs) && expMs <= nowMs) return false;
+
+        const rem = Number(tx.remainingAmount !== undefined ? tx.remainingAmount : (tx.initialAmount !== undefined ? tx.initialAmount : tx.amount)) || 0;
+        return rem > 0;
+    });
+
+    // Sort credits by earliest expiration timestamp ascending, then createdAt ascending (FIFO)
+    activeCredits.sort((a, b) => {
+        const expA = a.expiresAt ? (parseTs(a.expiresAt) || Infinity) : Infinity;
+        const expB = b.expiresAt ? (parseTs(b.expiresAt) || Infinity) : Infinity;
+        if (expA !== expB) return expA - expB;
+        const crA = parseTs(a.createdAt || a.timestamp || 0) || 0;
+        const crB = parseTs(b.createdAt || b.timestamp || 0) || 0;
+        return crA - crB;
+    });
+
+    const updatedCreditDocs = [];
+    for (const credit of activeCredits) {
+        if (remainingToDeduct <= 0) break;
+        const currentRem = Number(credit.remainingAmount !== undefined ? credit.remainingAmount : (credit.initialAmount !== undefined ? credit.initialAmount : credit.amount)) || 0;
+        if (currentRem <= 0) continue;
+
+        if (currentRem <= remainingToDeduct) {
+            remainingToDeduct -= currentRem;
+            credit.remainingAmount = 0;
+            credit.status = 'consumed';
+            credit.isRedeemed = true;
+            credit.consumedByOrderId = effectiveOrderId;
+            credit.updatedAt = nowIso;
+            updatedCreditDocs.push(credit);
+        } else {
+            credit.remainingAmount = currentRem - remainingToDeduct;
+            credit.status = 'partially_used';
+            credit.isRedeemed = false;
+            credit.partiallyConsumedByOrderId = effectiveOrderId;
+            credit.updatedAt = nowIso;
+            remainingToDeduct = 0;
+            updatedCreditDocs.push(credit);
+            break;
+        }
+    }
+
     // Prepend escrow hold transaction record (funds locked in escrow until delivery or rejection)
     // Note: status: 'LOCKED', holdStatus: 'LOCKED_HOLD' for backwards compatibility
-    const nowIso = new Date().toISOString();
     const holdTxData = {
         id: `tx_hold_${effectiveOrderId}`,
         type: 'WALLET_HOLD',
@@ -6850,6 +6972,21 @@ async function createWalletHoldRecord(phone, amount, orderId) {
             }, { merge: true }).catch(() => {});
 
             await walletRef.collection('transactions').doc(`tx_hold_${effectiveOrderId}`).set(holdTxData, { merge: true }).catch(() => {});
+
+            // Update consumed and partially consumed credit tranche documents in Firestore
+            for (const c of updatedCreditDocs) {
+                if (c && c.id) {
+                    await walletRef.collection('transactions').doc(c.id).set({
+                        remainingAmount: c.remainingAmount,
+                        status: c.status,
+                        isRedeemed: c.isRedeemed,
+                        consumedByOrderId: c.consumedByOrderId || null,
+                        updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                            ? firebase.firestore.FieldValue.serverTimestamp()
+                            : nowIso
+                    }, { merge: true }).catch(() => {});
+                }
+            }
 
             // Also sync to users/phone_{cleanPhone} and users/{cleanPhone}
             const userDocRef = fs.collection('users').doc(`phone_${cleanPhone}`);
@@ -6918,10 +7055,13 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     const cleanOrderId = effectiveOrderId.replace(/^#/, '');
     const refundAmt = Math.round(Number(refundAmount) || 0);
 
-    const holdTx = currentCustomerWallet.transactions.find(tx => 
-        tx && (tx.type === 'hold' || tx.type === 'debit') && 
-        (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId)
-    );
+    const holdTx = currentCustomerWallet.transactions.find(tx => {
+        if (!tx) return false;
+        const tType = String(tx.type || '').toUpperCase().trim();
+        const tOid = String(tx.orderId || tx.id || '').replace(/^tx_hold_/, '').replace(/^#/, '').trim();
+        return (tType === 'HOLD' || tType === 'WALLET_HOLD' || tType === 'DEBIT') && 
+            (tOid === cleanOrderId || tOid === effectiveOrderId);
+    });
 
     const nowMs = Date.now();
     const origExpiry = customExpiresAt || holdTx?.expiresAt || holdTx?.originalExpiresAt || currentCustomerWallet.expiresAt || null;
@@ -6941,9 +7081,14 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     }
 
     const txId = `tx_refund_${effectiveOrderId}`;
-    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => 
-        tx && (tx.id === txId || (tx.type === 'REFUND' && (String(tx.orderId) === effectiveOrderId || String(tx.orderId) === cleanOrderId)))
-    );
+    const cleanTxId = `tx_refund_${cleanOrderId}`;
+    const alreadyRefunded = currentCustomerWallet.transactions.some(tx => {
+        if (!tx) return false;
+        const tType = String(tx.type || '').toUpperCase().trim();
+        const tId = String(tx.id || '').trim();
+        const tOid = String(tx.orderId || '').replace(/^#/, '').trim();
+        return (tId === txId || tId === cleanTxId) || (tType === 'REFUND' && (tOid === cleanOrderId || tOid === effectiveOrderId));
+    });
 
     if (!alreadyRefunded && refundAmt > 0) {
         const refundTx = {
@@ -6977,6 +7122,31 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
     updateProfileWalletUI();
     renderProfileWalletTxList();
     updateCheckoutWalletUI();
+
+    try {
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+    } catch (e) {}
+
+    const cleanPhone = currentCustomerWallet.phone || (currentUserProfile && currentUserProfile.phone) || '';
+    if (cleanPhone && customerFirestore) {
+        const walletRef = customerFirestore.collection('wallets').doc(cleanPhone);
+        if (holdTx) {
+            walletRef.collection('transactions').doc(holdTx.id || `tx_hold_${effectiveOrderId}`).set(holdTx, { merge: true }).catch(() => {});
+        }
+        if (!alreadyRefunded && refundAmt > 0) {
+            const refundDoc = currentCustomerWallet.transactions[0];
+            if (refundDoc && refundDoc.id === txId) {
+                walletRef.collection('transactions').doc(txId).set(refundDoc, { merge: true }).catch(() => {});
+            }
+        }
+        walletRef.set({
+            balance: currentCustomerWallet.balance,
+            transactions: currentCustomerWallet.transactions,
+            updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString()
+        }, { merge: true }).catch(() => {});
+    }
 }
 window.releaseWalletHold = releaseWalletHold;
 
@@ -9798,6 +9968,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
                 wonAmount: Math.round(earnedCashback),
                 revealed: false,
                 claimed: false,
+                credited: false,
                 status: 'unscratched',
                 claimedAt: null,
                 createdAt: now.toISOString(),
@@ -9890,6 +10061,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         items: orderItems,
         subtotal: Math.round(subtotal),
         deliveryFee: deliveryFee,
+        walletAmountApplied: Math.round(walletDiscountToApply),
         walletDiscount: Math.round(walletDiscountToApply),
         usedWalletCash: Math.round(walletDiscountToApply),
         walletHoldStatus: (walletDiscountToApply > 0 ? 'LOCKED' : null),
@@ -9902,6 +10074,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         rewardStatus: rewardStatus,
         scratchRevealed: false,
         scratchClaimed: false,
+        credited: false,
         scratchExpired: false,
         scratchExpiresAt: scratchExpiresAt,
         scratchExpiryDays: scratchCardObj ? activeDays : 0,
@@ -10916,18 +11089,20 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
     const activeDays = (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays))) || getClampedCashbackExpiryDays(customerWalletConfig);
     const expiresAt = order.scratchExpiresAt || (order.scratchCard && order.scratchCard.expiresAt) || (Date.now() + activeDays * 24 * 60 * 60 * 1000);
 
-    order.rewardStatus = 'pending_delivery';
+    order.rewardStatus = 'LOCKED_PENDING_DELIVERY';
     order.wonCashback = amount;
     order.earnedCashback = amount;
     order.scratchRevealed = true;
     order.scratchClaimed = false;
+    order.credited = false;
     order.scratchCard = {
         ...(order.scratchCard || {}),
         amount: amount,
         wonAmount: amount,
         revealed: true,
         claimed: false,
-        status: 'pending_delivery',
+        credited: false,
+        status: 'LOCKED_PENDING_DELIVERY',
         revealedAt: new Date().toISOString(),
         expiresAt: expiresAt,
         expiresAtISO: new Date(expiresAt).toISOString(),
@@ -10943,11 +11118,12 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
             if (Array.isArray(orders)) {
                 const targetIdx = orders.findIndex(o => String(o.id || o.orderId) === orderId);
                 if (targetIdx >= 0) {
-                    orders[targetIdx].rewardStatus = 'pending_delivery';
+                    orders[targetIdx].rewardStatus = 'LOCKED_PENDING_DELIVERY';
                     orders[targetIdx].wonCashback = amount;
                     orders[targetIdx].earnedCashback = amount;
                     orders[targetIdx].scratchRevealed = true;
                     orders[targetIdx].scratchClaimed = false;
+                    orders[targetIdx].credited = false;
                     orders[targetIdx].scratchCard = order.scratchCard;
                     localStorage.setItem('perfettoCustomerOrders', JSON.stringify(orders));
                 }
@@ -10961,11 +11137,12 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
     try {
         if (customerFirestore && orderId && orderId !== '--') {
             await customerFirestore.collection('orders').doc(orderId).set({
-                rewardStatus: 'pending_delivery',
+                rewardStatus: 'LOCKED_PENDING_DELIVERY',
                 wonCashback: amount,
                 earnedCashback: amount,
                 scratchRevealed: true,
                 scratchClaimed: false,
+                credited: false,
                 scratchExpiresAt: expiresAt,
                 scratchExpiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
@@ -10973,7 +11150,8 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
                 'scratchCard.wonAmount': amount,
                 'scratchCard.revealed': true,
                 'scratchCard.claimed': false,
-                'scratchCard.status': 'pending_delivery',
+                'scratchCard.credited': false,
+                'scratchCard.status': 'LOCKED_PENDING_DELIVERY',
                 'scratchCard.revealedAt': new Date().toISOString(),
                 'scratchCard.expiresAt': expiresAt,
                 'scratchCard.expiresAtISO': new Date(expiresAt).toISOString(),
@@ -10986,10 +11164,11 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
                 const userCardDoc = {
                     lastScratchCard: {
                         orderId: orderId,
-                        rewardStatus: 'pending_delivery',
+                        rewardStatus: 'LOCKED_PENDING_DELIVERY',
                         wonCashback: amount,
                         revealed: true,
                         claimed: false,
+                        credited: false,
                         expiresAt: expiresAt,
                         updatedAt: new Date().toISOString()
                     }
@@ -11009,11 +11188,12 @@ async function markScratchRewardPendingDelivery(order, wonAmount) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 orderId: orderId,
-                rewardStatus: 'pending_delivery',
+                rewardStatus: 'LOCKED_PENDING_DELIVERY',
                 wonCashback: amount,
                 earnedCashback: amount,
                 scratchRevealed: true,
                 scratchClaimed: false,
+                credited: false,
                 scratchExpiresAt: expiresAt,
                 scratchExpiryDays: activeDays,
                 cashbackExpiryDays: activeDays
@@ -11291,7 +11471,10 @@ async function handleClaimScratchReward() {
         return;
     }
 
-    // If order is not yet delivered, remind customer and close:
+    // If order is not yet delivered, ensure strictly LOCKED_PENDING_DELIVERY with credited: false, remind customer and close:
+    if (activeScratchOrder) {
+        markScratchRewardPendingDelivery(activeScratchOrder, amount);
+    }
     showToast(isHindi 
         ? `🎁 रिवॉर्ड अनलॉक हो गया! ₹${amount} कैशबैक ऑर्डर डिलीवर होने पर आपके वॉलेट में जोड़ दिया जाएगा।` 
         : `🎁 Reward Unlocked! Cashback of ₹${amount} will be credited to your wallet once your order is delivered.`, 4500);
@@ -14309,7 +14492,7 @@ function renderOrderHistoryDetails() {
                         isScratchClaimed = true;
                     }
                 } else if (isCancelled) {
-                    const heldAmount = Math.round(Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0));
+                    const heldAmount = Math.round(Number(o.walletAmountApplied !== undefined ? o.walletAmountApplied : (o.walletDiscount || o.usedWalletCash || o.usedWallet || 0)));
                     const isAlreadyRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
                     if (heldAmount > 0 && !isAlreadyRefunded) {
                         o.walletRefundProcessed = true;
@@ -14325,10 +14508,12 @@ function renderOrderHistoryDetails() {
                         o.rewardStatus = 'voided';
                         o.wonCashback = 0;
                         o.earnedCashback = 0;
+                        o.credited = false;
                         if (o.scratchCard) {
                             o.scratchCard.voided = true;
-                            o.scratchCard.status = 'CANCELLED';
+                            o.scratchCard.status = 'voided';
                             o.scratchCard.wonAmount = 0;
+                            o.scratchCard.credited = false;
                         }
                         safeStorage.setJSON('perfettoCustomerOrders', orders);
                     }
@@ -19626,22 +19811,46 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                 updated = true;
             }
 
-            // If order transitioned to rejected or cancelled and had held funds, release hold
-            const isNowRejected = (freshOrderData.status === 'rejected' || freshOrderData.status === 'cancelled');
+            // If order transitioned to rejected, cancelled, or expired and had held funds, release hold
+            const isNowRejected = (freshOrderData.status === 'rejected' || freshOrderData.status === 'cancelled' || freshOrderData.status === 'auto_expired' || freshOrderData.status === 'expired' || freshOrderData.status === 'declined');
             if (isNowRejected) {
-                const heldAmount = Math.round(Number(target.walletDiscount || target.usedWalletCash || target.usedWallet || target.walletRefundAmount || 0));
-                if (typeof releaseWalletHold === 'function' && heldAmount > 0) {
+                // Revoke / void any pending locked cashback
+                target.rewardStatus = 'voided';
+                target.wonCashback = 0;
+                target.earnedCashback = 0;
+                target.credited = false;
+                if (target.scratchCard) {
+                    target.scratchCard.status = 'voided';
+                    target.scratchCard.voided = true;
+                    target.scratchCard.wonAmount = 0;
+                    target.scratchCard.credited = false;
+                }
+                const isAlreadyRefunded = Boolean(target.walletRefundProcessed || target.walletRefunded || freshOrderData.walletRefundProcessed || freshOrderData.walletRefunded);
+                const heldAmount = Math.round(Number(
+                    target.walletAmountApplied !== undefined ? target.walletAmountApplied :
+                    (freshOrderData.walletAmountApplied !== undefined ? freshOrderData.walletAmountApplied :
+                    (target.walletDiscount || target.usedWalletCash || target.usedWallet || freshOrderData.walletDiscount || freshOrderData.walletRefundAmount || 0))
+                ));
+                if (typeof releaseWalletHold === 'function' && heldAmount > 0 && !isAlreadyRefunded) {
+                    target.walletRefundProcessed = true;
+                    target.walletRefunded = true;
+                    target.walletRefundAmount = heldAmount;
+                    target.refundTimestamp = new Date().toISOString();
                     releaseWalletHold(orderId, heldAmount);
+                    updated = true;
                 }
             }
 
             // Auto-credit pending delivery cashback if order transitioned to completed/delivered
             const isNowDelivered = (freshOrderData.status === 'completed' || freshOrderData.status === 'delivered');
             if (isNowDelivered) {
+                if (typeof commitWalletHold === 'function') {
+                    commitWalletHold(orderId);
+                }
                 const orderCashback = Number(target.wonCashback || target.earnedCashback || (target.scratchCard && (target.scratchCard.wonAmount || target.scratchCard.amount)) || 0);
                 const isScratchClaimed = !!(target.scratchClaimed || (target.scratchCard && target.scratchCard.claimed));
                 const isCardExpired = typeof isScratchCardExpired === 'function' ? isScratchCardExpired(target) : false;
-                const isPendingDelivery = (target.rewardStatus === 'pending_delivery' || (target.scratchCard && target.scratchCard.status === 'pending_delivery') || target.scratchRevealed);
+                const isPendingDelivery = (target.rewardStatus === 'LOCKED_PENDING_DELIVERY' || target.rewardStatus === 'pending_delivery' || (target.scratchCard && (target.scratchCard.status === 'LOCKED_PENDING_DELIVERY' || target.scratchCard.status === 'pending_delivery')) || target.scratchRevealed);
 
                 const targetOrderId = String(target.id || target.orderId || '');
                 const alreadyCreditedInWallet = typeof isOrderRewardAlreadyCredited === 'function'
@@ -19656,10 +19865,12 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     target.scratchClaimed = true;
                     target.scratchRevealed = true;
                     target.rewardStatus = 'credited';
+                    target.credited = true;
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
                         target.scratchCard.revealed = true;
                         target.scratchCard.status = 'credited';
+                        target.scratchCard.credited = true;
                         target.scratchCard.claimedAt = new Date().toISOString();
                     }
                     const phone = target.customerPhone || target.phone || ((currentUserProfile && currentUserProfile.phone) || '');
@@ -19673,10 +19884,12 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     target.scratchClaimed = true;
                     target.scratchRevealed = true;
                     target.rewardStatus = 'credited';
+                    target.credited = true;
                     if (target.scratchCard) {
                         target.scratchCard.claimed = true;
                         target.scratchCard.revealed = true;
                         target.scratchCard.status = 'credited';
+                        target.scratchCard.credited = true;
                     }
                     updated = true;
                 }
