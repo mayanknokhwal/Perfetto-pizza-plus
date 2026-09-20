@@ -5132,6 +5132,19 @@ function reconcileWalletTranches(wallet) {
                         tx.title = `Used for Order #${rawOid}`;
                         return;
                     } else {
+                        const orderHasRefund = Array.isArray(wallet.transactions) && wallet.transactions.some(t => {
+                            if (!t) return false;
+                            const tType = String(t.type || '').toLowerCase().trim();
+                            const tOid = String(t.orderId || '').replace(/^#/, '').trim();
+                            return tType === 'refund' && (tOid === rawOid);
+                        });
+                        if (orderHasRefund) {
+                            tx.type = 'debit';
+                            tx.status = 'COMPLETED';
+                            tx.holdStatus = 'COMPLETED';
+                            tx.title = `Used for Order #${rawOid}`;
+                            return;
+                        }
                         tx.status = 'released';
                         tx.holdStatus = 'RELEASED';
                         releasedOrderHolds.add(rawOid);
@@ -5181,15 +5194,6 @@ function reconcileWalletTranches(wallet) {
                 }
                 processedRefundOrderIds.add(txOrderId);
                 if (cleanOrderId) processedRefundOrderIds.add(cleanOrderId);
-
-                // If this order's escrow hold was already released/cancelled, unfreezing the hold
-                // already restored the active credit tranche. Unless this refund is a designated grace credit
-                // (tx.isGraceCredit === true) replacing an expired tranche, skip adding it as a credit tranche:
-                if (releasedOrderHolds.has(txOrderId) || releasedOrderHolds.has(cleanOrderId)) {
-                    if (tx.isGraceCredit !== true) {
-                        return; // Retained in wallet transactions for receipt history, but not double-counted in credit tranches
-                    }
-                }
             } else if (cleanOrderId && cleanOrderId !== '--' && cleanOrderId !== 'order') {
                 // Strict 1-to-1 Order Idempotency for Earned Cashback & Rewards:
                 // Deduplicate redundant credit tranches for the same orderId so duplicate in-memory or optimistic credits never inflate balance
@@ -5208,12 +5212,11 @@ function reconcileWalletTranches(wallet) {
             if (tx.originalAmount === undefined) {
                 tx.originalAmount = tx.initialAmount;
             }
-            if (tx.remainingAmount === undefined) {
-                tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
-            }
+            tx.remainingAmount = Math.max(0, Number(tx.initialAmount));
             const currentStatusUpper = String(tx.status || '').toUpperCase();
-            if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'REDEEMED' && currentStatusUpper !== 'EXPIRED' && currentStatusUpper !== 'USED') {
+            if (currentStatusUpper !== 'UNLOCKED' && currentStatusUpper !== 'EXPIRED') {
                 tx.status = 'active';
+                tx.isRedeemed = false;
             }
 
             const parsedCreated = parseTs(tx.createdAt || tx.timestamp || tx.creditedAt);
@@ -5403,7 +5406,7 @@ function reconcileWalletTranches(wallet) {
         baseCreditPool = Math.max(0, rawBal);
     }
 
-    const usableBalance = Math.max(0, (totalCredits > 0 ? totalCredits : baseCreditPool) - totalActiveHolds);
+    const usableBalance = Math.max(0, Math.max(baseCreditPool, totalCredits - totalActiveHolds));
     const finalBalance = Math.min(usableBalance, baseCreditPool);
     const reconciledBalance = Math.max(0, finalBalance);
 
@@ -5548,19 +5551,222 @@ function getEarliestExpiringWalletBatch(wallet = currentCustomerWallet) {
 }
 window.getEarliestExpiringWalletBatch = getEarliestExpiringWalletBatch;
 
+/**
+ * Authoritative wallet balance aggregation engine:
+ * Combines all unexpired, active credit entries (valid cashback rewards + order refund credits - active locked holds).
+ * userWalletBalance = activeCashbacksTotal + activeRefundsTotal - activeLockedHolds.
+ * @param {Object} [wallet=currentCustomerWallet]
+ * @returns {{
+ *   activeCashbacksTotal: number,
+ *   activeRefundsTotal: number,
+ *   activeOtherCreditsTotal: number,
+ *   totalCredits: number,
+ *   activeLockedHolds: number,
+ *   userWalletBalance: number,
+ *   totalBalance: number,
+ *   batches: Array<{ amount: number, expiresAtMs: number, remainingMs: number, timeStr: string, countdownText: string }>,
+ *   earliestExpMs: number
+ * }}
+ */
+function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
+    const w = wallet || ((typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet) ? currentCustomerWallet : ((typeof window !== 'undefined' && window.currentCustomerWallet) ? window.currentCustomerWallet : null));
+    if (!w) {
+        return {
+            activeCashbacksTotal: 0,
+            activeRefundsTotal: 0,
+            activeOtherCreditsTotal: 0,
+            totalCredits: 0,
+            activeLockedHolds: 0,
+            userWalletBalance: 0,
+            totalBalance: 0,
+            batches: [],
+            earliestExpMs: Infinity
+        };
+    }
+
+    if (typeof reconcileWalletTranches === 'function') {
+        reconcileWalletTranches(w);
+    }
+
+    const nowMs = Date.now();
+    const parseTs = (typeof parseTimestampMs === 'function') ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
+
+    const isHindi = (typeof getAppLanguage === 'function' && getAppLanguage() === 'hi');
+    const txList = Array.isArray(w.transactions) ? w.transactions : [];
+
+    let activeCashbacksTotal = 0;
+    let activeRefundsTotal = 0;
+    let activeOtherCreditsTotal = 0;
+
+    const trancheMap = new Map();
+    const processedOrderIds = new Set();
+
+    txList.forEach(tx => {
+        if (!tx) return;
+        const txType = String(tx.type || '').toLowerCase().trim();
+        const txStatus = String(tx.status || '').toLowerCase().trim();
+        const cleanOid = String(tx.orderId || '').trim().replace(/^#/, '');
+
+        const isCredit = (
+            txType === 'credit' ||
+            txType === 'refund' ||
+            txType === 'cashback' ||
+            txType === 'cashback_earned' ||
+            txType === 'reward' ||
+            txType === 'woncashback' ||
+            txStatus === 'unlocked' ||
+            txStatus === 'active' ||
+            tx.status === 'UNLOCKED' ||
+            tx.type === 'CASHBACK_EARNED' ||
+            (txType.includes('cashback')) ||
+            (txType.includes('credit') && !txType.includes('debit'))
+        );
+
+        if (!isCredit) return;
+
+        if (txType !== 'refund' && cleanOid && cleanOid !== '--' && cleanOid !== 'order') {
+            if (processedOrderIds.has(cleanOid)) return;
+            processedOrderIds.add(cleanOid);
+        }
+
+        const remaining = Number(
+            tx.remainingAmount !== undefined
+                ? tx.remainingAmount
+                : (tx.initialAmount !== undefined ? tx.initialAmount : (tx.originalAmount !== undefined ? tx.originalAmount : tx.amount))
+        ) || 0;
+
+        if (remaining <= 0) return;
+
+        const isRedeemed = Boolean(tx.isRedeemed) || txStatus === 'redeemed' || txStatus === 'used';
+        if (isRedeemed) return;
+
+        const expMs = tx.expiresAt ? parseTs(tx.expiresAt) : Infinity;
+        const isExp = Boolean(tx.isExpired) || txStatus === 'expired' || (!isNaN(expMs) && expMs <= nowMs);
+        if (isExp) return;
+
+        if (txType === 'refund') {
+            activeRefundsTotal += remaining;
+        } else if (txType === 'cashback' || txType === 'cashback_earned' || txType === 'reward' || txType === 'woncashback' || txType.includes('cashback')) {
+            activeCashbacksTotal += remaining;
+        } else {
+            activeOtherCreditsTotal += remaining;
+        }
+
+        if (expMs < Infinity && expMs > nowMs) {
+            trancheMap.set(expMs, (trancheMap.get(expMs) || 0) + remaining);
+        }
+    });
+
+    if (activeCashbacksTotal === 0 && activeRefundsTotal === 0 && activeOtherCreditsTotal === 0) {
+        const directBal = Number(w.balance) || 0;
+        if (directBal > 0) {
+            const expMs = w.expiresAt ? parseTs(w.expiresAt) : Infinity;
+            if (isNaN(expMs) || expMs > nowMs) {
+                activeCashbacksTotal = directBal;
+                if (expMs < Infinity && expMs > nowMs) {
+                    trancheMap.set(expMs, directBal);
+                }
+            }
+        }
+    }
+
+    const { lockedAmount } = (typeof getActiveLockedWalletInfo === 'function')
+        ? getActiveLockedWalletInfo()
+        : { lockedAmount: 0 };
+
+    const totalCredits = activeCashbacksTotal + activeRefundsTotal + activeOtherCreditsTotal;
+    const reconciledBal = (typeof w.balance === 'number') ? w.balance : totalCredits;
+    const userWalletBalance = Math.max(0, Math.min(totalCredits, reconciledBal));
+
+    const batches = [];
+    trancheMap.forEach((amt, expMs) => {
+        const remainingMs = Math.max(0, expMs - nowMs);
+        let timeStr = '';
+        let countdownText = '';
+        if (remainingMs <= (24 * 60 * 60 * 1000) + 120000) {
+            const hrs = Math.max(1, Math.round(remainingMs / (60 * 60 * 1000)));
+            timeStr = `${hrs}h`;
+            countdownText = isHindi ? `${hrs}h में समाप्त` : `expiring in ${hrs}h`;
+        } else if (typeof formatStepDownExpiryCountdown === 'function') {
+            countdownText = formatStepDownExpiryCountdown(remainingMs, isHindi, false);
+            timeStr = countdownText.toLowerCase().replace(/^expires in\s*/i, '').replace(/^expiring in\s*/i, '');
+        } else {
+            const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+            timeStr = `${days} days`;
+            countdownText = `expiring in ${timeStr}`;
+        }
+
+        batches.push({
+            amount: Math.round(amt),
+            expiresAtMs: expMs,
+            remainingMs,
+            timeStr,
+            countdownText: countdownText.toLowerCase().replace(/^expires in\s*/i, 'expiring in ')
+        });
+    });
+
+    batches.sort((a, b) => a.expiresAtMs - b.expiresAtMs);
+
+    return {
+        activeCashbacksTotal: Math.round(activeCashbacksTotal),
+        activeRefundsTotal: Math.round(activeRefundsTotal),
+        activeOtherCreditsTotal: Math.round(activeOtherCreditsTotal),
+        totalCredits: Math.round(totalCredits),
+        activeLockedHolds: Math.round(lockedAmount),
+        userWalletBalance: Math.round(userWalletBalance),
+        totalBalance: Math.round(userWalletBalance),
+        batches,
+        earliestExpMs: batches.length > 0 ? batches[0].expiresAtMs : Infinity
+    };
+}
+window.calculateCustomerWalletBalance = calculateCustomerWalletBalance;
+
+function refreshCustomerWalletUI() {
+    if (typeof updateProfileWalletUI === 'function') {
+        updateProfileWalletUI();
+    }
+    if (typeof updateCheckoutWalletUI === 'function') {
+        updateCheckoutWalletUI();
+    }
+    if (typeof renderProfileWalletTxList === 'function') {
+        renderProfileWalletTxList();
+    }
+}
+window.refreshCustomerWalletUI = refreshCustomerWalletUI;
+
 function getEffectiveWalletBalance() {
     if (typeof checkAndApplyWalletLedgerReset === 'function') {
         checkAndApplyWalletLedgerReset();
     }
-    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    const verifiedPhone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone()) ? getVerifiedCustomerPhone() : ((typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ? currentUserProfile.phone : null);
     if (!verifiedPhone) {
         return 0;
     }
-    if (currentCustomerWallet) {
-        const walletPhone = currentCustomerWallet.phone || currentCustomerWallet.customerPhone;
+    const walletInstance = (typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet)
+        ? currentCustomerWallet
+        : ((typeof window !== 'undefined' && window.currentCustomerWallet) ? window.currentCustomerWallet : null);
+    if (walletInstance) {
+        const walletPhone = walletInstance.phone || walletInstance.customerPhone;
         const cleanWalletPhone = walletPhone ? String(walletPhone).replace(/[^0-9]/g, '').slice(-10) : null;
         if (!cleanWalletPhone || cleanWalletPhone === verifiedPhone) {
-            return reconcileWalletTranches(currentCustomerWallet);
+            const calc = (typeof calculateCustomerWalletBalance === 'function') ? calculateCustomerWalletBalance(walletInstance) : null; if (!calc) return (typeof reconcileWalletTranches === 'function') ? reconcileWalletTranches(walletInstance) : Number(walletInstance.balance || 0);
+            const bal = Math.max(0, Number(calc.totalBalance) || 0);
+            try {
+                localStorage.setItem('perfetto_wallet_balance', String(bal));
+                localStorage.setItem(`perfetto_wallet_balance_${verifiedPhone}`, String(bal));
+            } catch (e) {}
+            return bal;
         }
     }
     const phoneScopedStored = localStorage.getItem(`perfetto_wallet_balance_${verifiedPhone}`);
@@ -5893,7 +6099,7 @@ function applyLiveWalletData(data, source = 'wallets') {
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
         localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
-        const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        const verifiedPhone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone()) ? getVerifiedCustomerPhone() : ((typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ? currentUserProfile.phone : null);
         if (verifiedPhone) {
             localStorage.setItem(`perfetto_customer_wallet_${verifiedPhone}`, JSON.stringify(currentCustomerWallet));
             localStorage.setItem(`perfetto_wallet_balance_${verifiedPhone}`, String(currentCustomerWallet.balance));
@@ -6168,7 +6374,7 @@ function getTotalFundedWalletCredit(wallet = currentCustomerWallet) {
             if (txId && seenTx.has(txId)) return;
             if (txId) seenTx.add(txId);
 
-            if (type === 'credit' || type === 'cashback') {
+            if (type === 'credit' || type === 'cashback' || type === 'refund' || type === 'cashback_earned' || type === 'reward' || type === 'woncashback' || (type.includes('credit') && !type.includes('debit'))) {
                 const amt = Number(tx.initialAmount !== undefined ? tx.initialAmount : (tx.originalAmount !== undefined ? tx.originalAmount : tx.amount)) || 0;
                 totalCredit += Math.max(0, amt);
             }
@@ -6399,9 +6605,8 @@ function updateCheckoutWalletUI() {
             checkLabelWrap.style.cursor = 'not-allowed';
         }
         if (labelEl) {
-            labelEl.textContent = typeof t === 'function' 
-                ? t('wallet_use_cash', { amount: formatPrice(0) }) 
-                : 'Use ₹0 Cash';
+            const translated = typeof t === 'function' ? t('wallet_use_cash', { amount: formatPrice(0) }) : '';
+            labelEl.textContent = (translated && translated !== 'wallet_use_cash') ? translated : 'Use ₹0 Cash';
         }
     } else {
         if (checkLabelWrap) {
@@ -6416,9 +6621,9 @@ function updateCheckoutWalletUI() {
             checkbox.checked = isWalletRedemptionSelected;
         }
         if (labelEl) {
-            labelEl.textContent = typeof t === 'function' 
-                ? t('wallet_use_cash', { amount: formatPrice(maxRedeemable) }) 
-                : `Use ${formatPrice(maxRedeemable)} Cash`;
+            const defaultLabel = `Use ₹${availableBalance} Cash`;
+            const translated = typeof t === 'function' ? t('wallet_use_cash', { amount: formatPrice(availableBalance) }) : '';
+            labelEl.textContent = (translated && translated !== 'wallet_use_cash') ? translated : defaultLabel;
         }
     }
 
@@ -6457,6 +6662,13 @@ function updateCheckoutWalletUI() {
     updateCheckoutCashbackTeaser(subtotal);
 }
 window.updateCheckoutWalletUI = updateCheckoutWalletUI;
+
+function renderCheckoutSummary() {
+    if (typeof updateCheckoutWalletUI === 'function') {
+        updateCheckoutWalletUI();
+    }
+}
+window.renderCheckoutSummary = renderCheckoutSummary;
 
 function updateCheckoutCashbackTeaser(subtotal) {
     const teaserEl = document.getElementById('checkout-cashback-teaser');
@@ -7217,7 +7429,9 @@ function updateProfileWalletUI() {
     }
 
     // Read updated cumulative balance dynamically (strictly 0 if unverified)
-    const verifiedPhone = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+    const verifiedPhone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone())
+        ? getVerifiedCustomerPhone()
+        : ((typeof currentUserProfile !== 'undefined' && currentUserProfile && currentUserProfile.phone) ? currentUserProfile.phone : null);
     const balance = verifiedPhone ? getEffectiveWalletBalance() : 0;
     valEl.textContent = balance;
 
@@ -7234,44 +7448,62 @@ function updateProfileWalletUI() {
     const expiringAlert = document.getElementById('profile-wallet-expiring-alert');
     const expiringAmountEl = document.getElementById('profile-wallet-expiring-amount');
     const expiringCountdownEl = document.getElementById('profile-wallet-expiring-countdown');
+    const expiringTextWrap = document.getElementById('profile-wallet-expiring-text');
 
-    if (!verifiedPhone || balance <= 0) {
+    const walletCalc = (typeof calculateCustomerWalletBalance === 'function')
+        ? calculateCustomerWalletBalance(currentCustomerWallet)
+        : null;
+
+    if (!verifiedPhone || balance <= 0 || !walletCalc || !walletCalc.batches || walletCalc.batches.length === 0) {
         if (expiryTag) expiryTag.style.display = 'none';
         if (expiringAlert) expiringAlert.style.display = 'none';
     } else {
-        const earliestBatch = getEarliestExpiringWalletBatch();
+        const batches = walletCalc.batches;
+        const nearestBatch = batches[0];
+        const isUrgent = nearestBatch.remainingMs <= (24 * 60 * 60 * 1000);
+        const nearestCountdownText = nearestBatch.countdownText || ((typeof formatStepDownExpiryCountdown === 'function')
+            ? formatStepDownExpiryCountdown(nearestBatch.remainingMs, isHindi, false)
+            : `expiring in ${nearestBatch.timeStr}`);
 
-        if (earliestBatch.hasExpiring && earliestBatch.remainingMs > 0) {
-            const countdownText = formatStepDownExpiryCountdown(earliestBatch.remainingMs, isHindi, false);
-            const isUrgent = earliestBatch.remainingMs <= (24 * 60 * 60 * 1000);
+        if (expiryTag && expiryText) {
+            expiryTag.style.display = 'flex';
+            if (isUrgent) {
+                expiryTag.classList.add('is-urgent');
+            } else {
+                expiryTag.classList.remove('is-urgent');
+            }
+            expiryText.textContent = nearestCountdownText;
+        }
 
-            if (expiryTag && expiryText) {
-                expiryTag.style.display = 'flex';
-                if (isUrgent) {
-                    expiryTag.classList.add('is-urgent');
+        if (expiringAlert) {
+            expiringAlert.style.display = 'flex';
+            if (batches.length > 1) {
+                // Multiple active credits with different expiry times:
+                // Format: "₹60 expiring in 23h • ₹14 expiring in 24h"
+                if (expiringTextWrap) {
+                    expiringTextWrap.innerHTML = batches.map((b, idx) => {
+                        const idAmt = idx === 0 ? ' id="profile-wallet-expiring-amount"' : '';
+                        const idCd = idx === 0 ? ' id="profile-wallet-expiring-countdown"' : '';
+                        const cdText = b.countdownText || ((typeof formatStepDownExpiryCountdown === 'function')
+                            ? formatStepDownExpiryCountdown(b.remainingMs, isHindi, false)
+                            : `expiring in ${b.timeStr}`);
+                        const snippet = isHindi ? cdText : cdText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
+                        return `<span class="expiring-amount-red"${idAmt}>₹${b.amount}</span> <span class="expiring-countdown-text"${idCd}>${snippet}</span>`;
+                    }).join(' • ');
                 } else {
-                    expiryTag.classList.remove('is-urgent');
+                    if (expiringAmountEl) expiringAmountEl.textContent = `₹${nearestBatch.amount}`;
+                    if (expiringCountdownEl) expiringCountdownEl.textContent = batches.map(b => `₹${b.amount} ${b.countdownText}`).join(' • ');
                 }
-                expiryText.textContent = countdownText;
-            }
-
-            if (expiringAlert) {
-                expiringAlert.style.display = 'flex';
-                if (expiringAmountEl) {
-                    expiringAmountEl.textContent = `₹${earliestBatch.expiringAmount}`;
-                }
-                if (expiringCountdownEl) {
-                    if (isHindi) {
-                        expiringCountdownEl.textContent = `${countdownText}`;
-                    } else {
-                        const snippet = countdownText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
-                        expiringCountdownEl.textContent = snippet;
-                    }
+            } else {
+                // Single active batch
+                const snippet = isHindi ? nearestCountdownText : nearestCountdownText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
+                if (expiringTextWrap) {
+                    expiringTextWrap.innerHTML = `<span class="expiring-amount-red" id="profile-wallet-expiring-amount">₹${nearestBatch.amount}</span> <span class="expiring-countdown-text" id="profile-wallet-expiring-countdown">${snippet}</span>`;
+                } else {
+                    if (expiringAmountEl) expiringAmountEl.textContent = `₹${nearestBatch.amount}`;
+                    if (expiringCountdownEl) expiringCountdownEl.textContent = snippet;
                 }
             }
-        } else {
-            if (expiryTag) expiryTag.style.display = 'none';
-            if (expiringAlert) expiringAlert.style.display = 'none';
         }
     }
 
