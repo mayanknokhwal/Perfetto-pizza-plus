@@ -1360,18 +1360,6 @@ img {
     }
 }
 
-@media (min-width: 481px) {
-    .staff-modal-overlay {
-        align-items: center;
-        padding: 16px;
-    }
-    .staff-modal-card {
-        border-radius: 20px;
-        border-bottom: 1.5px solid rgba(239, 68, 68, 0.4);
-        padding-bottom: 0;
-        animation: staffModalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-}
 
 .staff-modal-header.reject-header {
     background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(15, 23, 42, 0.95));
@@ -1550,91 +1538,6 @@ img {
     flex-shrink: 0;
 }
 
-/* ==========================================================================
-   RESPONSIVE MEDIA QUERIES (TABLET, SPLIT-SCREEN & SMARTPHONES)
-   ========================================================================== */
-@media screen and (max-width: 768px) {
-    .staff-app {
-        border-left: none;
-        border-right: none;
-    }
-
-    .orders-cards-container {
-        grid-template-columns: 1fr;
-        gap: 14px;
-    }
-
-    .staff-tabs-nav {
-        padding: 6px 12px 10px 12px;
-    }
-
-    .staff-tab-btn {
-        font-size: 0.85rem;
-    }
-}
-
-@media screen and (max-width: 480px) {
-    .staff-main {
-        padding: 12px 10px;
-    }
-
-    .section-title-bar h3 {
-        font-size: 1.05rem;
-    }
-
-    .order-id {
-        font-size: 1.08rem;
-    }
-
-    .customer-name-inline {
-        font-size: 0.92rem;
-    }
-}
-
-@media screen and (max-width: 380px) {
-    .staff-main {
-        padding: 10px 8px;
-    }
-
-    .card-head {
-        padding: 10px 12px;
-    }
-
-    .order-id {
-        font-size: 1.02rem;
-    }
-
-    .elapsed-timer-badge {
-        font-size: 0.82rem;
-        padding: 4px 8px;
-    }
-
-    .customer-address-box {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-
-    .address-actions-group {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .btn-customer-call,
-    .btn-auto-gps {
-        flex: 1;
-        justify-content: center;
-    }
-
-    .staff-otp-input-group {
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .btn-verify-delivery {
-        width: 100%;
-    }
-}
 
 /* --------------------------------------------------------------------------
    INITIAL AUTH SPLASH / NEUTRAL LOADER (PREVENTS FLASHING ON RELOAD)
@@ -1854,21 +1757,6 @@ img {
     box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.85), 0 0 35px rgba(239, 68, 68, 0.2);
 }
 
-@media (min-width: 481px) {
-    .custom-confirm-overlay {
-        align-items: center;
-        padding: 16px;
-    }
-    .custom-confirm-card {
-        border-radius: 20px;
-        border-bottom: 1.5px solid rgba(255, 107, 0, 0.35);
-        animation: staffConfirmPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    #staff-master-otp-card {
-        border-bottom: 1.5px solid rgba(239, 68, 68, 0.45);
-        box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(239, 68, 68, 0.2);
-    }
-}
 
 @keyframes staffConfirmPop {
     0% { transform: scale(0.92) translateY(16px); opacity: 0; }
@@ -1951,21 +1839,6 @@ img {
     animation: staffSheetSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@media (min-width: 481px) {
-    .incoming-order-overlay {
-        align-items: center;
-        padding: 16px;
-    }
-    .incoming-order-card {
-        border-radius: 20px;
-        border-bottom: 2px solid var(--primary-orange);
-        animation: incomingCardPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-@keyframes incomingCardPop {
-    0% { transform: scale(0.85) translateY(20px); opacity: 0; }
-    100% { transform: scale(1) translateY(0); opacity: 1; }
-}
 
 .incoming-pulse-ring {
     position: relative;
@@ -2739,159 +2612,130 @@ img {
     align-items: center;
 }
 
-/* Compact Mobile Screens (< 540px) */
-@media (max-width: 539px) {
-    .tab-label-suffix {
-        display: none !important;
-    }
-
-    .staff-tabs-nav {
-        padding: 6px 8px 10px 8px;
-        gap: 6px;
-    }
-
-    .staff-tab-btn {
-        padding: 6px 6px;
-        font-size: 0.82rem;
-        min-height: 46px;
-        gap: 5px;
-    }
-
-    .staff-tab-btn i {
-        font-size: 0.85rem;
-    }
-
-    .tab-count-badge {
-        min-width: 20px;
-        height: 20px;
-        font-size: 0.72rem;
-        padding: 0 4px;
-    }
-
-    .customer-address-box {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-    }
-
-    .address-actions-group {
-        width: 100%;
-        display: flex;
-        gap: 8px;
-    }
-
-    .btn-customer-call,
-    .btn-auto-gps {
-        flex: 1;
-        justify-content: center;
-        min-height: 44px;
-    }
-
-    .cod-action-group {
-        gap: 8px;
-    }
-
-    .btn-touch {
-        min-height: 48px;
-        font-size: 0.94rem;
-    }
-}
-
-/* Mobile Handheld Devices (< 768px) */
-@media (max-width: 767px) {
-    .staff-app {
-        width: 100%;
-        max-width: 100%;
-        border-left: none;
-        border-right: none;
-        box-shadow: none;
-    }
-
-    .orders-cards-container {
-        grid-template-columns: 1fr;
-        gap: 14px;
-    }
-
-    .header-top {
-        padding: 10px 14px;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .header-actions {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .btn-staff-sound-toggle {
-        flex: 1;
-        justify-content: center;
-        padding: 8px 12px;
-        min-height: 44px;
-        font-size: 0.76rem;
-    }
-
-    .btn-staff-lock {
-        flex-shrink: 0;
-        min-height: 44px;
-        padding: 8px 14px;
-    }
-
-    .role-bar {
-        padding: 8px 14px;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-
-    .user-email-pill {
-        max-width: 100%;
-    }
-
-    .staff-main {
-        padding: 12px 10px;
-    }
-
-    .order-card {
-        border-radius: var(--radius-lg, 16px);
-    }
-
-    .card-head {
-        padding: 12px 14px;
-    }
-
-    .card-body {
-        padding: 12px 14px;
-    }
-
-    /* Comfortable touch targets on mobile */
-    .btn-touch {
-        min-height: 48px;
-        padding: 10px 14px;
-    }
-
-    .btn-dismiss-incoming {
-        min-height: 52px;
-    }
-}
-
 /* ==========================================================================
-   PURE MOBILE-FIRST ARCHITECTURE (CONSTRAINED VIEWPORT & VERTICAL STACK)
+   15. 100% DEDICATED NATIVE MOBILE WEB APP BASE RULES (360px - 430px VIEWPORT)
    ========================================================================== */
-@media (min-width: 481px) {
-    .staff-app {
-        max-width: 480px;
-        margin: 0 auto;
-        border-left: 1px solid rgba(255, 255, 255, 0.08);
-        border-right: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 0 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
-    }
+.tab-label-suffix {
+    display: none !important;
+}
 
-    .orders-cards-container {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 14px !important;
-        width: 100% !important;
-    }
+.staff-tabs-nav {
+    padding: 6px 8px 10px 8px;
+    gap: 6px;
+}
+
+.staff-tab-btn {
+    padding: 6px 4px;
+    font-size: 0.82rem;
+    min-height: 46px;
+    gap: 5px;
+}
+
+.staff-tab-btn i {
+    font-size: 0.85rem;
+}
+
+.tab-count-badge {
+    min-width: 20px;
+    height: 20px;
+    font-size: 0.72rem;
+    padding: 0 4px;
+}
+
+.customer-address-box {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.address-actions-group {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+}
+
+.btn-customer-call,
+.btn-auto-gps {
+    flex: 1;
+    justify-content: center;
+    min-height: 46px;
+}
+
+.cod-action-group {
+    gap: 8px;
+}
+
+.btn-touch {
+    min-height: 48px;
+    font-size: 0.94rem;
+}
+
+.header-top {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.header-actions {
+    width: 100%;
+    justify-content: space-between;
+}
+
+.btn-staff-sound-toggle {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 12px;
+    min-height: 44px;
+    font-size: 0.76rem;
+}
+
+.btn-staff-lock {
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 8px 14px;
+}
+
+.role-bar {
+    padding: 8px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.user-email-pill {
+    max-width: 100%;
+}
+
+.staff-main {
+    padding: 12px 10px;
+}
+
+.order-card {
+    border-radius: var(--radius-lg, 16px);
+}
+
+.card-head {
+    padding: 12px 14px;
+}
+
+.card-body {
+    padding: 12px 14px;
+}
+
+.btn-dismiss-incoming {
+    min-height: 52px;
+}
+
+.staff-app {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.orders-cards-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    width: 100% !important;
 }
 
 /* ==========================================================================
