@@ -6828,7 +6828,7 @@ function getActiveLockedWalletInfo(excludeOrderId = null) {
                     allKeys.forEach(k => seenOrderIds.add(k));
                     seenOrderIds.add(idClean);
 
-                    const held = Number(o.walletDiscount || o.usedWalletCash || o.usedWallet || 0);
+                    const held = Number(o.walletAmountApplied !== undefined ? o.walletAmountApplied : (o.walletDiscount || o.usedWalletCash || o.usedWallet || 0));
                     if (held > 0) {
                         // Verify that the wallet transaction ledger hasn't marked this order's hold released
                         const isReleasedInWallet = currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) &&
@@ -10454,6 +10454,9 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         } else {
             ordersList.unshift(newOrder);
         }
+        if (typeof pruneCustomerOrdersList === 'function') {
+            ordersList = pruneCustomerOrdersList(ordersList, 12);
+        }
         safeStorage.setJSON('perfettoCustomerOrders', ordersList);
         try {
             localStorage.setItem('perfettoCustomerOrders', JSON.stringify(ordersList));
@@ -13881,7 +13884,10 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                             const timeB = new Date(b.createdAt || 0).getTime();
                             return timeB - timeA;
                         });
-                        safeStorage.setJSON('perfettoCustomerOrders', merged);
+                        const prunedMerged = (typeof pruneCustomerOrdersList === 'function')
+                            ? pruneCustomerOrdersList(merged, 12)
+                            : merged;
+                        safeStorage.setJSON('perfettoCustomerOrders', prunedMerged);
                         if (typeof listenToCustomerActiveOrders === 'function') {
                             listenToCustomerActiveOrders();
                         }
@@ -13893,7 +13899,10 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                             const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
                             return !p || (targetClean && p === targetClean);
                         });
-                        safeStorage.setJSON('perfettoCustomerOrders', filteredLocal);
+                        const prunedLocal = (typeof pruneCustomerOrdersList === 'function')
+                            ? pruneCustomerOrdersList(filteredLocal, 12)
+                            : filteredLocal;
+                        safeStorage.setJSON('perfettoCustomerOrders', prunedLocal);
                         if (typeof listenToCustomerActiveOrders === 'function') {
                             listenToCustomerActiveOrders();
                         }
@@ -14783,7 +14792,7 @@ function renderOrderHistoryDetails() {
                 const isDelivered = rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED';
                 const isExplicitlyRejected = rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED';
                 const isActiveKitchenState = activeKitchenStatuses.includes(rawStatus);
-                const isExpired = !isDelivered && !isActiveKitchenState && (
+                const isExpired = !isDelivered && (
                     timeRemainingMs <= 0 ||
                     o.autoExpired === true ||
                     o.isAutoExpired === true ||
@@ -14794,7 +14803,7 @@ function renderOrderHistoryDetails() {
                 const isActivePending = !isDelivered && !isCancelled && !isExpired && (timeRemainingMs > 0) && isActiveKitchenState;
 
                 // Auto-trigger background auto-reject write to Firestore if expired
-                if (isExpired && !isExplicitlyRejected && !isActiveKitchenState && typeof autoRejectExpiredCustomerOrder === 'function') {
+                if (isExpired && !isExplicitlyRejected && typeof autoRejectExpiredCustomerOrder === 'function') {
                     autoRejectExpiredCustomerOrder(o).catch(() => {});
                 }
 
@@ -14840,7 +14849,7 @@ function renderOrderHistoryDetails() {
 
                 const isScratchRevealed = Boolean(o.scratchRevealed || (o.scratchCard && o.scratchCard.revealed));
 
-                // Auto-credit pending delivery cashback only if order was delivered AND card was already revealed
+                // Auto-credit pending delivery cashback only if order was delivered
                 const targetOrderId = String(o.id || o.orderId || '');
                 const alreadyCreditedInWallet = typeof isOrderRewardAlreadyCredited === 'function'
                     ? isOrderRewardAlreadyCredited(targetOrderId, o)
@@ -14853,13 +14862,17 @@ function renderOrderHistoryDetails() {
                     if (typeof commitWalletHold === 'function') {
                         commitWalletHold(targetOrderId);
                     }
-                    if (isScratchRevealed && !isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet) {
+                    if (!isScratchClaimed && !isCardExpired && !isAlreadyCredited && !alreadyCreditedInWallet) {
                         if (orderCashback > 0) {
                             o.scratchClaimed = true;
+                            o.scratchRevealed = true;
                             o.rewardStatus = 'credited';
+                            o.credited = true;
                             if (o.scratchCard) {
                                 o.scratchCard.claimed = true;
+                                o.scratchCard.revealed = true;
                                 o.scratchCard.status = 'credited';
+                                o.scratchCard.credited = true;
                                 o.scratchCard.claimedAt = new Date().toISOString();
                             }
                             const phone = o.customerPhone || o.phone || ((currentUserProfile && currentUserProfile.phone) || '');
@@ -14869,10 +14882,14 @@ function renderOrderHistoryDetails() {
                         }
                     } else if (alreadyCreditedInWallet || isAlreadyCredited) {
                         o.scratchClaimed = true;
+                        o.scratchRevealed = true;
                         o.rewardStatus = 'credited';
+                        o.credited = true;
                         if (o.scratchCard) {
                             o.scratchCard.claimed = true;
+                            o.scratchCard.revealed = true;
                             o.scratchCard.status = 'credited';
+                            o.scratchCard.credited = true;
                         }
                         isScratchClaimed = true;
                     }
@@ -15001,6 +15018,119 @@ function renderOrderHistoryDetails() {
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(emptyMsg)}</span>`;
 }
 
+function pruneCustomerOrdersList(ordersList, maxLimit = 12) {
+    if (!Array.isArray(ordersList) || ordersList.length <= maxLimit) {
+        return Array.isArray(ordersList) ? ordersList : [];
+    }
+
+    const nowMs = Date.now();
+    const isOrderTerminal = (o) => {
+        if (!o) return true;
+        const rawStatus = String(o.status || '').trim().toUpperCase();
+        if (rawStatus === 'DELIVERED' || rawStatus === 'COMPLETED' || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED') {
+            return true;
+        }
+        if (o.autoExpired === true || o.isAutoExpired === true || o.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
+            return true;
+        }
+        const remMs = typeof getCustomerOrderRemainingTimeMs === 'function' ? getCustomerOrderRemainingTimeMs(o, nowMs) : 0;
+        if (remMs <= 0) return true;
+        return false;
+    };
+
+    let excessCount = ordersList.length - maxLimit;
+    if (excessCount <= 0) return ordersList;
+
+    const activeOrders = [];
+    const terminalOrders = [];
+
+    ordersList.forEach(o => {
+        if (isOrderTerminal(o)) {
+            terminalOrders.push(o);
+        } else {
+            activeOrders.push(o);
+        }
+    });
+
+    // Sort terminal orders oldest first: oldest terminal order gets pruned first
+    terminalOrders.sort((a, b) => {
+        const timeA = new Date(a.deliveredAt || a.completedAt || a.rejectedAt || a.cancelledAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.deliveredAt || b.completedAt || b.rejectedAt || b.cancelledAt || b.createdAt || 0).getTime();
+        return timeA - timeB;
+    });
+
+    const prunedTerminalOrders = [];
+    while (excessCount > 0 && terminalOrders.length > 0) {
+        const oldest = terminalOrders.shift();
+        prunedTerminalOrders.push(oldest);
+        excessCount--;
+    }
+
+    if (prunedTerminalOrders.length > 0) {
+        if (typeof getClearedOrderIds === 'function' && typeof saveClearedOrderIds === 'function') {
+            const clearedSet = new Set(getClearedOrderIds());
+            prunedTerminalOrders.forEach(o => {
+                const id = String((o && (o.id || o.orderId)) || '');
+                if (id) clearedSet.add(id);
+            });
+            saveClearedOrderIds(Array.from(clearedSet));
+        }
+
+        // Firebase Spark Plan quota safeguard: delete pruned orders from Firestore collection
+        const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) ||
+                   (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+        if (fs) {
+            prunedTerminalOrders.forEach(o => {
+                const id = String((o && (o.id || o.orderId)) || '');
+                if (id && id !== '--') {
+                    fs.collection('orders').doc(id).delete().catch(() => {});
+                }
+            });
+        }
+
+        if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap) {
+            prunedTerminalOrders.forEach(o => {
+                const id = String((o && (o.id || o.orderId)) || '');
+                if (id && customerOrdersUnsubscribeMap.has(id)) {
+                    try {
+                        const unsub = customerOrdersUnsubscribeMap.get(id);
+                        if (typeof unsub === 'function') unsub();
+                    } catch (e) {}
+                    customerOrdersUnsubscribeMap.delete(id);
+                }
+            });
+        }
+    }
+
+    const result = [...activeOrders, ...terminalOrders].sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
+    });
+
+    return result;
+}
+window.pruneCustomerOrdersList = pruneCustomerOrdersList;
+
+function pruneCustomerOrdersHistory(maxLimit = 12) {
+    try {
+        let storedOrders = safeStorage.getJSON('perfettoCustomerOrders', []);
+        if (!Array.isArray(storedOrders)) storedOrders = [];
+        if (storedOrders.length > maxLimit) {
+            const pruned = pruneCustomerOrdersList(storedOrders, maxLimit);
+            safeStorage.setJSON('perfettoCustomerOrders', pruned);
+            try {
+                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(pruned));
+            } catch (e) {}
+            return pruned;
+        }
+        return storedOrders;
+    } catch (e) {
+        return [];
+    }
+}
+window.pruneCustomerOrdersHistory = pruneCustomerOrdersHistory;
+
 function clearFinishedCustomerOrders() {
     let allOrders = [];
     try {
@@ -15063,6 +15193,18 @@ function clearFinishedCustomerOrders() {
         });
     }
 
+    // Firebase Spark Plan quota safeguard: delete removed terminal orders from Firestore
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) ||
+               (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+    if (fs) {
+        removedOrders.forEach(o => {
+            const id = String((o && (o.id || o.orderId)) || '');
+            if (id && id !== '--') {
+                fs.collection('orders').doc(id).delete().catch(() => {});
+            }
+        });
+    }
+
     // Save filtered active orders back to storage
     safeStorage.setJSON('perfettoCustomerOrders', activeOrders);
     try {
@@ -15086,7 +15228,7 @@ window.clearFinishedCustomerOrders = clearFinishedCustomerOrders;
 function renderRecentOrders() {
     return renderOrderHistoryDetails();
 }
-window.renderRecentOrders = renderRecentOrders;
+window.renderRecentOrders = renderOrderHistoryDetails;
 
 function openClearHistoryModal() {
     clearFinishedCustomerOrders();
@@ -20007,9 +20149,13 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
             return timeB - timeA;
         });
 
-        safeStorage.setJSON('perfettoCustomerOrders', merged);
+        const pruned = (typeof pruneCustomerOrdersList === 'function')
+            ? pruneCustomerOrdersList(merged, 12)
+            : merged;
+
+        safeStorage.setJSON('perfettoCustomerOrders', pruned);
         try {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(merged));
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(pruned));
         } catch (e) {}
         renderOrderHistoryDetails();
         updateProfileTotalsUI();
@@ -20291,9 +20437,12 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
         }
 
         if (updated) {
-            safeStorage.setJSON('perfettoCustomerOrders', storedOrders);
+            const prunedOrders = (typeof pruneCustomerOrdersList === 'function')
+                ? pruneCustomerOrdersList(storedOrders, 12)
+                : storedOrders;
+            safeStorage.setJSON('perfettoCustomerOrders', prunedOrders);
             try {
-                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(storedOrders));
+                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(prunedOrders));
             } catch (e) {}
             renderOrderHistoryDetails();
             updateProfileTotalsUI();
