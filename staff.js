@@ -1586,7 +1586,6 @@ function unlockStaffDashboard(user) {
     loadCustomerOrders();
     renderOrders();
     applyStaffTabFromUrl();
-    scheduleClientMidnightCleanup();
     stopStaffOrderAlertSound();
 
     // Register & persist staff FCM push token upon authentication
@@ -4394,7 +4393,7 @@ function renderOrders() {
                 emptyState.innerHTML = `
                     <i class="fa-solid fa-clipboard-check"></i>
                     <h4>No Completed Orders</h4>
-                    <p>Delivered orders will appear here before 11:59 PM midnight cleanup.</p>
+                    <p>Delivered orders will appear here.</p>
                 `;
             } else {
                 emptyState.innerHTML = `
@@ -4819,7 +4818,7 @@ function buildOrderCardHTML(order) {
             </div>
         `;
     } else {
-        // Delivered & Completed: Protected (Cleared automatically at 11:59 PM, or manually by Master Admin)
+        // Delivered & Completed: Protected (Cleared manually by Master Admin via Master OTP)
         const isMasterAdminViewer = currentStaffUser && (
             currentStaffUser.role === 'Master Admin' || 
             String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10) === MASTER_ADMIN_PHONE_NUM || 
@@ -6243,55 +6242,17 @@ window.showStaffToast = showStaffToast;
 window.showToast = showStaffToast;
 
 // --------------------------------------------------------------------------
-// 11. AUTOMATED 11:59 PM MIDNIGHT CLEANUP ROUTINE (COMPLETED ORDERS ONLY)
+// 11. MIDNIGHT CLEANUP DISABLED (MANUAL MASTER DELIVERY OTP CLEARANCE ONLY)
 // --------------------------------------------------------------------------
+// Automatic 11:59 PM midnight order purge has been decommissioned.
+// Completed and rejected orders persist indefinitely across days until explicitly
+// cleared by an authorized admin via "Clear All Completed" using the Master Delivery OTP.
 function scheduleClientMidnightCleanup() {
-    function getMsUntilNextMidnight() {
-        const now = new Date();
-        const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0); // 11:59:00 PM
-        let diff = target.getTime() - now.getTime();
-        if (diff <= 0) {
-            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 0, 0);
-            diff = tomorrow.getTime() - now.getTime();
-        }
-        return diff;
-    }
-
-    const msUntilRun = getMsUntilNextMidnight();
-    console.log(`🌙 [Staff Portal Midnight Cleanup] Scheduled in ${Math.round(msUntilRun / 1000 / 60)} minutes.`);
-
-    setTimeout(() => {
-        executeStaffMidnightCleanup();
-        // Reschedule for the next night
-        scheduleClientMidnightCleanup();
-    }, msUntilRun);
+    // Intentionally disabled: automatic midnight purge decommissioned
 }
 
 async function executeStaffMidnightCleanup() {
-    const completedOrders = staffOrders.filter(isFinishedStaffOrder);
-    if (completedOrders.length === 0) {
-        console.log('🌙 [Staff Portal] Midnight Routine: No completed orders to purge.');
-        return;
-    }
-
-    console.log(`🌙 [Staff Portal] 11:59 PM Midnight Routine: Purging ${completedOrders.length} completed order(s). Active pending orders remain protected.`);
-
-    // 1. Purge completed orders locally (active pending orders remain untouched)
-    staffOrders = staffOrders.filter(o => !isFinishedStaffOrder(o));
-
-    try {
-        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
-    } catch (e) { }
-
-    renderOrders();
-    showStaffToast('🌙 Midnight Cleanup: Completed orders cleared. Active orders retained.');
-
-    // 2. Synchronously trigger cloud cleanup on backend & Firestore
-    try {
-        await apiCall('/orders?action=midnight_cleanup', { method: 'DELETE' });
-    } catch (err) {
-        console.warn('Backend midnight cleanup notice:', err.message);
-    }
+    // Intentionally disabled: automatic midnight purge decommissioned
 }
 
 window.scheduleClientMidnightCleanup = scheduleClientMidnightCleanup;
