@@ -7459,11 +7459,28 @@ function updateProfileWalletUI() {
         if (expiringAlert) expiringAlert.style.display = 'none';
     } else {
         const batches = walletCalc.batches;
+        batches.sort((a, b) => a.expiresAtMs - b.expiresAtMs);
         const nearestBatch = batches[0];
-        const isUrgent = nearestBatch.remainingMs <= (24 * 60 * 60 * 1000);
-        const nearestCountdownText = nearestBatch.countdownText || ((typeof formatStepDownExpiryCountdown === 'function')
-            ? formatStepDownExpiryCountdown(nearestBatch.remainingMs, isHindi, false)
-            : `expiring in ${nearestBatch.timeStr}`);
+        const nowMs = Date.now();
+        const liveRemainingMs = Math.max(0, nearestBatch.expiresAtMs - nowMs);
+        const isUrgent = liveRemainingMs <= (24 * 60 * 60 * 1000);
+
+        let liveSnippet = '';
+        if (liveRemainingMs <= (24 * 60 * 60 * 1000) + 120000) {
+            if (liveRemainingMs >= 60 * 60 * 1000) {
+                const hrs = Math.max(1, Math.floor(liveRemainingMs / (60 * 60 * 1000)));
+                liveSnippet = isHindi ? `${hrs}h में समाप्त` : `expiring in ${hrs}h`;
+            } else {
+                const mins = Math.max(1, Math.floor(liveRemainingMs / (60 * 1000)));
+                liveSnippet = isHindi ? `${mins}m में समाप्त` : `expiring in ${mins}m`;
+            }
+        } else if (typeof formatStepDownExpiryCountdown === 'function') {
+            const formatted = formatStepDownExpiryCountdown(liveRemainingMs, isHindi, false);
+            liveSnippet = isHindi ? formatted : formatted.toLowerCase().replace(/^expires in\b/i, 'expiring in');
+        } else {
+            const days = Math.ceil(liveRemainingMs / (24 * 60 * 60 * 1000));
+            liveSnippet = isHindi ? `${days} दिनों में समाप्त` : `expiring in ${days} days`;
+        }
 
         if (expiryTag && expiryText) {
             expiryTag.style.display = 'flex';
@@ -7472,37 +7489,16 @@ function updateProfileWalletUI() {
             } else {
                 expiryTag.classList.remove('is-urgent');
             }
-            expiryText.textContent = nearestCountdownText;
+            expiryText.textContent = liveSnippet;
         }
 
         if (expiringAlert) {
             expiringAlert.style.display = 'flex';
-            if (batches.length > 1) {
-                // Multiple active credits with different expiry times:
-                // Format: "₹60 expiring in 23h • ₹14 expiring in 24h"
-                if (expiringTextWrap) {
-                    expiringTextWrap.innerHTML = batches.map((b, idx) => {
-                        const idAmt = idx === 0 ? ' id="profile-wallet-expiring-amount"' : '';
-                        const idCd = idx === 0 ? ' id="profile-wallet-expiring-countdown"' : '';
-                        const cdText = b.countdownText || ((typeof formatStepDownExpiryCountdown === 'function')
-                            ? formatStepDownExpiryCountdown(b.remainingMs, isHindi, false)
-                            : `expiring in ${b.timeStr}`);
-                        const snippet = isHindi ? cdText : cdText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
-                        return `<span class="expiring-amount-red"${idAmt}>₹${b.amount}</span> <span class="expiring-countdown-text"${idCd}>${snippet}</span>`;
-                    }).join(' • ');
-                } else {
-                    if (expiringAmountEl) expiringAmountEl.textContent = `₹${nearestBatch.amount}`;
-                    if (expiringCountdownEl) expiringCountdownEl.textContent = batches.map(b => `₹${b.amount} ${b.countdownText}`).join(' • ');
-                }
+            if (expiringTextWrap) {
+                expiringTextWrap.innerHTML = `<span class="expiring-amount-red" id="profile-wallet-expiring-amount">₹${nearestBatch.amount}</span> <span class="expiring-countdown-text" id="profile-wallet-expiring-countdown">${liveSnippet}</span>`;
             } else {
-                // Single active batch
-                const snippet = isHindi ? nearestCountdownText : nearestCountdownText.toLowerCase().replace(/^expires in\b/i, 'expiring in');
-                if (expiringTextWrap) {
-                    expiringTextWrap.innerHTML = `<span class="expiring-amount-red" id="profile-wallet-expiring-amount">₹${nearestBatch.amount}</span> <span class="expiring-countdown-text" id="profile-wallet-expiring-countdown">${snippet}</span>`;
-                } else {
-                    if (expiringAmountEl) expiringAmountEl.textContent = `₹${nearestBatch.amount}`;
-                    if (expiringCountdownEl) expiringCountdownEl.textContent = snippet;
-                }
+                if (expiringAmountEl) expiringAmountEl.textContent = `₹${nearestBatch.amount}`;
+                if (expiringCountdownEl) expiringCountdownEl.textContent = liveSnippet;
             }
         }
     }
