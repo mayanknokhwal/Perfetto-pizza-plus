@@ -5086,9 +5086,10 @@ function reconcileWalletTranches(wallet) {
         if (!oid) return;
         const oStatus = String(o.status || '').toLowerCase().trim();
         const isRefunded = Boolean(o.walletRefundProcessed || o.walletRefunded);
+        const activeKitchenStatuses = ['pending', 'preparing', 'ready', 'delivery', 'out_for_delivery', 'accepted', 'new', 'placed'];
         if (terminalStatuses.includes(oStatus) || isRefunded) {
             terminalOrderMap.set(oid, { status: oStatus, order: o });
-        } else if (oStatus === 'pending') {
+        } else if (activeKitchenStatuses.includes(oStatus)) {
             activePendingOrderMap.set(oid, o);
         }
     });
@@ -5138,11 +5139,11 @@ function reconcileWalletTranches(wallet) {
                     }
                 }
 
-                // Check if order exists in active PENDING status
-                const isPending = activePendingOrderMap.has(rawOid);
-                if (!isPending) {
-                    // Orphaned hold! The corresponding order does not exist in active "PENDING" status
-                    console.warn(`[WALLET] Releasing orphaned hold for Order #${rawOid} (not in active PENDING status)`);
+                // Check if order exists in active kitchen status (pending, preparing, ready, delivery, etc.)
+                const isPendingOrActive = activePendingOrderMap.has(rawOid);
+                if (!isPendingOrActive) {
+                    // Orphaned hold! The corresponding order does not exist in active order status
+                    console.warn(`[WALLET] Releasing orphaned hold for Order #${rawOid} (not in active kitchen status)`);
                     tx.status = 'released';
                     tx.holdStatus = 'RELEASED';
                     releasedOrderHolds.add(rawOid);
@@ -5787,7 +5788,12 @@ function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
 
     const parseTxTimestamp = (item) => {
         if (!item) return 0;
-        const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+        const isCreditType = String(item.type || '').toLowerCase().includes('credit') ||
+                             String(item.type || '').toLowerCase().includes('reward') ||
+                             String(item.type || '').toLowerCase().includes('cashback');
+        const cand = isCreditType
+            ? (item.creditedAt || item.claimedAt || item.timestamp || item.createdAt || item.date)
+            : (item.completedAt || item.creditedAt || item.timestamp || item.createdAt || item.date);
         if (cand?.toDate && typeof cand.toDate === 'function') {
             try { return cand.toDate().getTime(); } catch (e) {}
         }
@@ -5828,12 +5834,19 @@ function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
             const isExCredit = exTypeUpper === 'CREDIT' || exTypeUpper === 'CASHBACK_EARNED' || tx.type === 'credit';
             const isIncDebit = incTypeUpper === 'DEBIT' || incTypeUpper === 'ORDER_PAYMENT';
 
+            const tA = parseTxTimestamp(tx);
+            const tB = parseTxTimestamp(incoming);
+            const freshestCreatedAt = (tB >= tA && incoming.createdAt) ? incoming.createdAt : (tx.createdAt || incoming.createdAt || new Date().toISOString());
+            const freshestTimestamp = (tB >= tA && (incoming.timestamp || incoming.creditedAt)) ? (incoming.timestamp || incoming.creditedAt) : (tx.timestamp || tx.creditedAt || freshestCreatedAt);
+
             map.set(key, {
                 ...incoming,
                 ...tx,
                 // Preserve credit classification against unmerged downgrade
                 type: (isExCredit && isIncDebit) ? tx.type : (incoming.type || tx.type),
-                createdAt: tx.createdAt || incoming.createdAt,
+                createdAt: freshestCreatedAt,
+                timestamp: freshestTimestamp,
+                creditedAt: incoming.creditedAt || tx.creditedAt || freshestTimestamp,
                 description: tx.description || incoming.description || tx.title || incoming.title
             });
         } else {
@@ -6266,8 +6279,8 @@ function getActiveLockedWalletInfo(excludeOrderId = null) {
                             isStillPending = orders.some(o => {
                                 if (!o) return false;
                                 const oid = String(o.id || o.orderId || '').replace(/^#/, '').trim();
-                                const ost = String(o.status || '').toLowerCase().trim();
-                                return oid === rawOid && ost === 'pending';
+                                const activeKitchenStatuses = ['pending', 'preparing', 'ready', 'delivery', 'out_for_delivery', 'accepted', 'new', 'placed'];
+                                return oid === rawOid && activeKitchenStatuses.includes(ost);
                             });
                         }
                         if (isStillPending) {
@@ -6579,6 +6592,7 @@ async function createWalletHoldRecord(phone, amount, orderId) {
 
     // Prepend escrow hold transaction record (funds locked in escrow until delivery or rejection)
     // Note: status: 'LOCKED', holdStatus: 'LOCKED_HOLD' for backwards compatibility
+    const nowIso = new Date().toISOString();
     const holdTxData = {
         id: `tx_hold_${effectiveOrderId}`,
         type: 'WALLET_HOLD',
@@ -6586,7 +6600,9 @@ async function createWalletHoldRecord(phone, amount, orderId) {
         orderId: effectiveOrderId,
         description: `Wallet hold for Order #${effectiveOrderId}`,
         title: `Wallet hold for Order #${effectiveOrderId}`,
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
+        timestamp: nowIso,
+        date: nowIso,
         status: 'LOCKED',
         holdStatus: 'LOCKED_HOLD' // status: 'LOCKED_HOLD'
     };
@@ -6656,11 +6672,14 @@ function commitWalletHold(orderId) {
         (String(tx.orderId || '').replace(/^#/, '') === effectiveOrderId || String(tx.id || '') === `tx_hold_${effectiveOrderId}`)
     );
     if (holdTx) {
+        const nowIso = new Date().toISOString();
         holdTx.type = 'debit';
         holdTx.status = 'COMPLETED';
         holdTx.title = `Used for Order #${effectiveOrderId}`;
         holdTx.description = `Used for Order #${effectiveOrderId}`;
-        holdTx.completedAt = new Date().toISOString();
+        holdTx.completedAt = nowIso;
+        holdTx.updatedAt = nowIso;
+        holdTx.timestamp = nowIso;
         reconcileWalletTranches(currentCustomerWallet);
         updateProfileWalletUI();
         renderProfileWalletTxList();
@@ -6727,7 +6746,10 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
             originalExpiresAt: origExpiry || null,
             graceApplied: hasGraceApplied,
             isGraceCredit: isOrigExpired,
-            createdAt: new Date(nowMs).toISOString()
+            createdAt: new Date(nowMs).toISOString(),
+            timestamp: new Date(nowMs).toISOString(),
+            creditedAt: new Date(nowMs).toISOString(),
+            date: new Date(nowMs).toISOString()
         };
         currentCustomerWallet.transactions.unshift(refundTx);
     }
@@ -6971,6 +6993,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         ? customExpiryOptions.description
         : (customExpiryOptions && customExpiryOptions.campaign ? `${customExpiryOptions.campaign} (+₹${earnedCashback})` : `credited +₹${earnedCashback} for Order #${effectiveOrderId}`);
 
+    const nowIso = now.toISOString();
     existingTx.unshift({
         type: 'credit',
         amount: earnedCashback,
@@ -6979,9 +7002,12 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         remainingAmount: earnedCashback,
         orderId: effectiveOrderId,
         description: txDesc,
-        createdAt: now.toISOString(),
-        creditedAt: now.toISOString(),
-        claimedAt: now.toISOString(),
+        title: `+₹${earnedCashback} Cashback`,
+        createdAt: nowIso,
+        creditedAt: nowIso,
+        timestamp: nowIso,
+        date: nowIso,
+        claimedAt: nowIso,
         expiresAt: expiresAt,
         expiryDays: activeDays,
         cashbackExpiryDays: activeDays,
@@ -7005,10 +7031,12 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
                 remainingAmount: earnedCashback,
                 orderId: String(orderId),
                 description: txDesc,
-                createdAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                    ? firebase.firestore.FieldValue.serverTimestamp()
-                    : now.toISOString(),
-                creditedAt: now.toISOString(),
+                title: `+₹${earnedCashback} Cashback`,
+                createdAt: nowIso,
+                timestamp: nowIso,
+                creditedAt: nowIso,
+                date: nowIso,
+                claimedAt: nowIso,
                 expiresAt: expiresAt,
                 expiryDays: activeDays,
                 cashbackExpiryDays: activeDays,
@@ -7059,6 +7087,81 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
     }
 }
 window.creditCustomerWallet = creditCustomerWallet;
+
+/**
+ * Real-time credit cashback reward helper.
+ * Always generates real-time timestamps (new Date().toISOString() / Date.now()).
+ */
+async function creditCashbackReward(phone, amount, orderId, options = {}) {
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const earnedAmount = Number(amount) || 0;
+    if (earnedAmount <= 0) return;
+
+    const nowIso = new Date().toISOString();
+    const effectiveOptions = {
+        ...(options || {}),
+        timestamp: nowIso,
+        createdAt: nowIso,
+        creditedAt: nowIso,
+        date: nowIso
+    };
+
+    return creditCustomerWallet(cleanPhone, earnedAmount, orderId, effectiveOptions);
+}
+window.creditCashbackReward = creditCashbackReward;
+
+/**
+ * Adds a new wallet transaction with strict real-time timestamp.
+ * Never uses stale or cached timestamps.
+ */
+function addWalletTransaction(txData, phone = null) {
+    if (!txData || typeof txData !== 'object') return null;
+    if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    if (!Array.isArray(currentCustomerWallet.transactions)) currentCustomerWallet.transactions = [];
+
+    const nowIso = new Date().toISOString();
+    const cleanPhone = String(phone || currentCustomerWallet.phone || (currentUserProfile && currentUserProfile.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+
+    const newTx = {
+        id: txData.id || `tx_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        type: txData.type || 'credit',
+        amount: Number(txData.amount) || 0,
+        orderId: txData.orderId ? String(txData.orderId).replace(/^#/, '') : '',
+        title: txData.title || txData.description || 'Wallet Transaction',
+        description: txData.description || txData.title || 'Wallet Transaction',
+        status: txData.status || 'completed',
+        ...txData,
+        // Enforce current real-time timestamp over any cached or stale dates:
+        createdAt: nowIso,
+        timestamp: nowIso,
+        creditedAt: nowIso,
+        date: nowIso
+    };
+
+    currentCustomerWallet.transactions.unshift(newTx);
+    currentCustomerWallet.transactions = currentCustomerWallet.transactions.slice(0, 30);
+
+    reconcileWalletTranches(currentCustomerWallet);
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    updateCheckoutWalletUI();
+
+    try {
+        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+    } catch (e) {}
+
+    try {
+        const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || customerFirestore;
+        if (fs && cleanPhone) {
+            fs.collection('wallets').doc(cleanPhone).collection('transactions').doc(newTx.id).set(newTx, { merge: true }).catch(() => {});
+        }
+    } catch (err) {
+        console.warn('Error recording wallet transaction:', err);
+    }
+
+    return newTx;
+}
+window.addWalletTransaction = addWalletTransaction;
 
 let walletCountdownInterval = null;
 function startWalletCountdownTimer() {
@@ -7240,7 +7343,12 @@ function renderProfileWalletTxList() {
     const sortedTxList = [...txList].sort((a, b) => {
         const getTxTimestamp = (item) => {
             if (!item) return 0;
-            const cand = item.createdAt || item.timestamp || item.date || item.creditedAt;
+            const isCreditType = String(item.type || '').toLowerCase().includes('credit') ||
+                                 String(item.type || '').toLowerCase().includes('reward') ||
+                                 String(item.type || '').toLowerCase().includes('cashback');
+            const cand = isCreditType
+                ? (item.creditedAt || item.claimedAt || item.timestamp || item.createdAt || item.date)
+                : (item.completedAt || item.creditedAt || item.timestamp || item.createdAt || item.date);
             if (cand?.toDate && typeof cand.toDate === 'function') {
                 try { return cand.toDate().getTime(); } catch (e) {}
             }
@@ -7309,13 +7417,14 @@ function renderProfileWalletTxList() {
 
         // Robust Date Formatting (Safely resolve Firestore Timestamp, ISO string, or numeric epoch)
         let rawDate;
-        const candDate = tx.createdAt || tx.timestamp || tx.date || tx.creditedAt;
+        const candDate = isCredit 
+            ? (tx.creditedAt || tx.claimedAt || tx.timestamp || tx.createdAt || tx.date)
+            : (tx.completedAt || tx.timestamp || tx.createdAt || tx.date);
+
         if (candDate?.toDate && typeof candDate.toDate === 'function') {
             try { rawDate = candDate.toDate(); } catch (e) { rawDate = new Date(); }
         } else if (candDate && typeof candDate.seconds === 'number') {
             rawDate = new Date(candDate.seconds * 1000 + (candDate.nanoseconds ? Math.round(candDate.nanoseconds / 1e6) : 0));
-        } else if (tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt ? new Date(tx.createdAt) : null)) {
-            rawDate = tx.createdAt?.toDate ? tx.createdAt.toDate() : (tx.createdAt ? new Date(tx.createdAt) : new Date());
         } else if (candDate) {
             rawDate = (candDate instanceof Date) ? candDate : new Date(candDate);
         } else {
@@ -13508,7 +13617,11 @@ window.isOrderThreeHoursExpired = isOrderThreeHoursExpired;
 function getCustomerOrderRemainingTimeMs(order, nowMs = Date.now()) {
     if (!order) return 0;
     let createdMs = 0;
-    const raw = order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt;
+    const rawStatus = String(order.status || '').toUpperCase().trim();
+    const isKitchenActive = ['PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY'].includes(rawStatus);
+    const raw = (isKitchenActive && (order.prepStartedAt || order.acceptedAt || order.updatedAt))
+        ? (order.prepStartedAt || order.acceptedAt || order.updatedAt)
+        : (order.createdAt || order.created_at || order.timestamp || order.date || order.prepStartedAt || order.acceptedAt);
     if (raw) {
         if (typeof raw === 'number') {
             createdMs = raw < 1e11 ? raw * 1000 : raw;
@@ -13814,27 +13927,50 @@ function renderOrderHistoryDetails() {
     }
 
     try {
-        let orders = safeStorage.getJSON('perfettoCustomerOrders', []);
-        if (Array.isArray(orders)) {
+        let orders = safeStorage.getJSON('perfettoCustomerOrders', null);
+        if (!orders || !Array.isArray(orders)) {
+            try {
+                const stored = localStorage.getItem('perfettoCustomerOrders');
+                if (stored) orders = JSON.parse(stored);
+            } catch (e) { }
+        }
+        if (!Array.isArray(orders)) orders = [];
+
+        if (verifiedPhone) {
             orders = orders.filter(o => {
-                const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || '').replace(/[^0-9]/g, '').slice(-10);
-                return p === verifiedPhone;
+                if (!o) return false;
+                const p = String(o.customerPhone || o.phone || (o.customer && o.customer.phone) || (o.deliveryAddress && o.deliveryAddress.phone) || '').replace(/[^0-9]/g, '').slice(-10);
+                return !p || p === verifiedPhone;
             });
         }
 
         const nowMs = Date.now();
         const clearedSet = new Set(getClearedOrderIds());
 
+        // Standard active kitchen status list
+        const activeKitchenStatuses = ['PENDING', 'PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY', 'ACCEPTED', 'NEW', 'PLACED'];
+
         // Filter out terminal or expired orders that were explicitly cleared by customer
         if (Array.isArray(orders)) {
             orders = orders.filter(o => {
+                if (!o) return false;
                 const id = String((o && (o.id || o.orderId)) || '');
                 const rawSt = String((o && o.status) || '').trim().toUpperCase();
                 const remMs = getCustomerOrderRemainingTimeMs(o, nowMs);
                 const isDelivered = rawSt === 'COMPLETED' || rawSt === 'DELIVERED';
-                const isRejected = rawSt === 'REJECTED' || rawSt === 'CANCELLED' || rawSt === 'CANCELED' || rawSt === 'DECLINED' || rawSt === 'ARCHIVED';
+                const isExplicitlyRejected = rawSt === 'REJECTED' || rawSt === 'CANCELLED' || rawSt === 'CANCELED' || rawSt === 'DECLINED' || rawSt === 'ARCHIVED';
+                const isActiveKitchen = activeKitchenStatuses.includes(rawSt);
+
+                // Keep all active kitchen states in Recent Orders
+                // An order MUST be treated as active and rendered in Recent Orders if status is ANY of:
+                // 'PENDING', 'pending', 'preparing', 'ready', 'delivery', or 'out_for_delivery'
+                // (provided elapsed time < 100 minutes and not cancelled/delivered).
+                if (isActiveKitchen && remMs > 0 && !isDelivered && !isExplicitlyRejected) {
+                    return true;
+                }
+
                 const isExpired = !isDelivered && (remMs <= 0 || (o && (o.autoExpired === true || o.isAutoExpired === true || o.rejectedBy === 'SYSTEM_AUTO_EXPIRE')));
-                return !(clearedSet.has(id) && (isDelivered || isRejected || isExpired));
+                return !(clearedSet.has(id) && (isDelivered || isExplicitlyRejected || isExpired));
             });
         }
 
@@ -13844,13 +13980,14 @@ function renderOrderHistoryDetails() {
 
         if (Array.isArray(orders) && orders.length > 0) {
             listEl.innerHTML = orders.map(o => {
-                const otpCode = o.deliveryOtp || o.otp || '';
+                const otpCode = o.deliveryOtp || o.otp || o.deliveryOTP || o.verificationOtp || '';
                 const rawStatus = String(o.status || '').trim().toUpperCase();
                 const timeRemainingMs = getCustomerOrderRemainingTimeMs(o, nowMs);
 
                 const isDelivered = rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED';
                 const isExplicitlyRejected = rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'DECLINED' || rawStatus === 'ARCHIVED';
-                const isExpired = !isDelivered && (
+                const isActiveKitchenState = activeKitchenStatuses.includes(rawStatus);
+                const isExpired = !isDelivered && !isActiveKitchenState && (
                     timeRemainingMs <= 0 ||
                     o.autoExpired === true ||
                     o.isAutoExpired === true ||
@@ -13858,10 +13995,10 @@ function renderOrderHistoryDetails() {
                 );
                 const isRejected = !isDelivered && (isExplicitlyRejected || isExpired);
                 const isCancelled = isRejected; // For backward-compatible wallet refund & scratch voiding
-                const isActivePending = !isDelivered && !isCancelled && !isExpired && (timeRemainingMs > 0) && ['PENDING', 'NEW', 'PLACED', 'PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY', 'ACCEPTED'].includes(rawStatus);
+                const isActivePending = !isDelivered && !isCancelled && !isExpired && (timeRemainingMs > 0) && isActiveKitchenState;
 
                 // Auto-trigger background auto-reject write to Firestore if expired
-                if (isExpired && !isExplicitlyRejected && typeof autoRejectExpiredCustomerOrder === 'function') {
+                if (isExpired && !isExplicitlyRejected && !isActiveKitchenState && typeof autoRejectExpiredCustomerOrder === 'function') {
                     autoRejectExpiredCustomerOrder(o).catch(() => {});
                 }
 
@@ -13875,6 +14012,12 @@ function renderOrderHistoryDetails() {
                     statusTagHtml = `<span class="order-status-tag status-rejected">Status: CANCELLED</span>`;
                 } else if (isDelivered) {
                     statusTagHtml = `<span class="order-status-tag status-delivered">Status: DELIVERED</span>`;
+                } else if (rawStatus === 'PREPARING') {
+                    statusTagHtml = `<span class="order-status-tag status-preparing">Status: PREPARING (Chef cooking)</span>`;
+                } else if (rawStatus === 'OUT_FOR_DELIVERY' || rawStatus === 'DELIVERY') {
+                    statusTagHtml = `<span class="order-status-tag status-delivery">Status: OUT FOR DELIVERY</span>`;
+                } else if (rawStatus === 'READY') {
+                    statusTagHtml = `<span class="order-status-tag status-ready">Status: READY</span>`;
                 } else {
                     statusTagHtml = `<span class="order-status-tag status-pending">Status: ${escapeHtml(rawStatus || 'PENDING')}</span>`;
                 }
@@ -14141,7 +14284,11 @@ function clearFinishedCustomerOrders() {
     showToast("Cleared completed and expired order history.");
 }
 window.clearFinishedCustomerOrders = clearFinishedCustomerOrders;
-window.renderRecentOrders = renderOrderHistoryDetails;
+
+function renderRecentOrders() {
+    return renderOrderHistoryDetails();
+}
+window.renderRecentOrders = renderRecentOrders;
 
 function openClearHistoryModal() {
     clearFinishedCustomerOrders();
@@ -19045,7 +19192,10 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
             } else {
                 const remote = map.get(matchedKey);
                 map.set(matchedKey, {
+                    ...o,
                     ...remote,
+                    items: (remote.items && remote.items.length) ? remote.items : (o.items || []),
+                    deliveryOtp: remote.deliveryOtp || o.deliveryOtp || o.otp || '',
                     scratchRevealed: o.scratchRevealed || remote.scratchRevealed,
                     scratchClaimed: o.scratchClaimed || remote.scratchClaimed,
                     rewardStatus: (o.rewardStatus === 'active_credited' || o.rewardStatus === 'credited') ? o.rewardStatus : remote.rewardStatus
@@ -19060,6 +19210,9 @@ function syncCustomerPhoneOrders(remoteOrders, verifiedPhone) {
         });
 
         safeStorage.setJSON('perfettoCustomerOrders', merged);
+        try {
+            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(merged));
+        } catch (e) {}
         renderOrderHistoryDetails();
         updateProfileTotalsUI();
     } catch (e) {
@@ -19191,15 +19344,17 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
         let updated = false;
         let oldStatus = null;
 
-        const target = storedOrders.find(o => String(o.id || o.orderId) === String(orderId));
+        const cleanId = (v) => String(v || '').replace(/^#/, '').trim();
+        const target = storedOrders.find(o => cleanId(o.id || o.orderId) === cleanId(orderId));
         if (target) {
             oldStatus = target.status;
             if (freshOrderData.status && freshOrderData.status !== target.status) {
                 target.status = freshOrderData.status;
                 updated = true;
             }
-            if (freshOrderData.deliveryOtp && freshOrderData.deliveryOtp !== target.deliveryOtp) {
-                target.deliveryOtp = freshOrderData.deliveryOtp;
+            const freshOtp = freshOrderData.deliveryOtp || freshOrderData.otp || freshOrderData.deliveryOTP || freshOrderData.verificationOtp;
+            if (freshOtp && freshOtp !== target.deliveryOtp) {
+                target.deliveryOtp = freshOtp;
                 updated = true;
             }
             if (freshOrderData.paymentStatus && freshOrderData.paymentStatus !== target.paymentStatus) {
@@ -19310,7 +19465,10 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
         }
 
         if (updated) {
-            localStorage.setItem('perfettoCustomerOrders', JSON.stringify(storedOrders));
+            safeStorage.setJSON('perfettoCustomerOrders', storedOrders);
+            try {
+                localStorage.setItem('perfettoCustomerOrders', JSON.stringify(storedOrders));
+            } catch (e) {}
             renderOrderHistoryDetails();
             updateProfileTotalsUI();
             updateProfileWalletUI();
