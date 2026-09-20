@@ -19,6 +19,74 @@ export const DEFAULT_WALLET_CONFIG = {
     ]
 };
 
+export const TOTAL_WALLET_SLABS = 5;
+export const MIN_ORDER_GAP = 100;
+export const CASHBACK_GAP = 5;
+export const MIN_EXPIRY_DAYS = 1;
+export const MAX_EXPIRY_DAYS = 30;
+
+/**
+ * Strictly validates wallet configuration according to business constraints:
+ * - Expiry Days: 1 <= expiryDays <= 30 (disallows 0, negative, or > 30)
+ * - Slabs: Exactly 5 slabs (or at least 5)
+ * - Min Order: Slab[i].minAmount >= Slab[i-1].minAmount + 100 (Slab 1 < Slab 2 < Slab 3 < Slab 4 < Slab 5)
+ * - Cashback: Slab[i].cashback >= Slab[i-1].cashback + 5 (Slab 1 < Slab 2 < Slab 3 < Slab 4 < Slab 5)
+ * - Cashback cannot exceed Min Order for any slab
+ * @param {Object} config 
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+export function validateWalletConfig(config) {
+    const errors = [];
+    if (!config || typeof config !== 'object') {
+        return { valid: false, errors: ['Configuration object is required.'] };
+    }
+
+    const rawExpiry = config.cashbackExpiryDays !== undefined ? config.cashbackExpiryDays : config.expiryDays;
+    const expiryDays = parseInt(rawExpiry, 10);
+    if (isNaN(expiryDays) || expiryDays < MIN_EXPIRY_DAYS || expiryDays > MAX_EXPIRY_DAYS) {
+        errors.push(`Cashback expiry days must be strictly between ${MIN_EXPIRY_DAYS} and ${MAX_EXPIRY_DAYS} days.`);
+    }
+
+    const slabs = Array.isArray(config.slabs) ? config.slabs : [];
+    if (slabs.length < TOTAL_WALLET_SLABS) {
+        errors.push(`At least ${TOTAL_WALLET_SLABS} slabs are required.`);
+    }
+
+    for (let i = 0; i < Math.min(slabs.length, TOTAL_WALLET_SLABS); i++) {
+        const s = slabs[i] || {};
+        const minOrder = Number(s.minOrder !== undefined ? s.minOrder : (s.minAmount !== undefined ? s.minAmount : s.min));
+        const cashback = Number(s.cashback !== undefined ? s.cashback : (s.cashbackAmount !== undefined ? s.cashbackAmount : s.reward));
+
+        if (isNaN(minOrder) || minOrder <= 0) {
+            errors.push(`Slab ${i + 1} Min Order must be a positive number.`);
+        }
+        if (isNaN(cashback) || cashback <= 0) {
+            errors.push(`Slab ${i + 1} Cashback must be a positive number.`);
+        }
+        if (!isNaN(minOrder) && !isNaN(cashback) && cashback > minOrder) {
+            errors.push(`Slab ${i + 1} Cashback (₹${cashback}) cannot exceed Min Order (₹${minOrder}).`);
+        }
+
+        if (i > 0) {
+            const prevSlab = slabs[i - 1] || {};
+            const prevMin = Number(prevSlab.minOrder !== undefined ? prevSlab.minOrder : (prevSlab.minAmount !== undefined ? prevSlab.minAmount : prevSlab.min));
+            const prevCb = Number(prevSlab.cashback !== undefined ? prevSlab.cashback : (prevSlab.cashbackAmount !== undefined ? prevSlab.cashbackAmount : prevSlab.reward));
+
+            if (!isNaN(minOrder) && !isNaN(prevMin) && minOrder < prevMin + MIN_ORDER_GAP) {
+                errors.push(`Slab ${i + 1} Min Order (₹${minOrder}) must be at least ₹${prevMin + MIN_ORDER_GAP} (≥ ₹100 gap above Slab ${i}).`);
+            }
+            if (!isNaN(cashback) && !isNaN(prevCb) && cashback < prevCb + CASHBACK_GAP) {
+                errors.push(`Slab ${i + 1} Cashback (₹${cashback}) must be at least ₹${prevCb + CASHBACK_GAP} (≥ ₹5 gap above Slab ${i}).`);
+            }
+        }
+    }
+
+    return {
+        valid: errors.length === 0,
+        errors
+    };
+}
+
 /**
  * Validates and normalizes wallet configuration
  * @param {Object} raw 
@@ -32,31 +100,44 @@ export function normalizeWalletConfig(raw) {
     // System Enable/Disable Toggle: defaults to true unless explicitly toggled false
     const enabled = raw.enabled !== false;
     const rawExpiry = raw.cashbackExpiryDays !== undefined ? raw.cashbackExpiryDays : raw.expiryDays;
-    const expiryDays = Math.min(30, Math.max(1, parseInt(rawExpiry, 10) || DEFAULT_WALLET_CONFIG.expiryDays));
+    const expiryDays = Math.min(MAX_EXPIRY_DAYS, Math.max(MIN_EXPIRY_DAYS, parseInt(rawExpiry, 10) || DEFAULT_WALLET_CONFIG.expiryDays));
     const minRedemptionOrder = 0;
     const minOrderToRedeem = 0;
 
     let slabs = Array.isArray(raw.slabs) ? [...raw.slabs] : [];
-    if (slabs.length < 5) {
-        for (let i = slabs.length; i < 5; i++) {
+    if (slabs.length < TOTAL_WALLET_SLABS) {
+        for (let i = slabs.length; i < TOTAL_WALLET_SLABS; i++) {
             const prevMin = i > 0 ? (slabs[i - 1].minOrder || 0) : 0;
             const prevCb = i > 0 ? (slabs[i - 1].cashback || 0) : 0;
             const def = DEFAULT_WALLET_CONFIG.slabs[i];
             slabs.push({
-                minOrder: Math.max(def.minOrder, prevMin + 1000),
-                cashback: Math.max(def.cashback, prevCb + 100)
+                minOrder: Math.max(def.minOrder, prevMin + MIN_ORDER_GAP),
+                cashback: Math.max(def.cashback, prevCb + CASHBACK_GAP)
             });
         }
     }
 
-    slabs = slabs.slice(0, 5).map((s, idx) => ({
+    slabs = slabs.slice(0, TOTAL_WALLET_SLABS).map((s, idx) => ({
         minOrder: (s.minOrder !== undefined && !isNaN(parseFloat(s.minOrder)))
-            ? Math.max(0, parseFloat(s.minOrder))
+            ? Math.max(0, Math.round(parseFloat(s.minOrder)))
             : (DEFAULT_WALLET_CONFIG.slabs[idx] ? DEFAULT_WALLET_CONFIG.slabs[idx].minOrder : 0),
         cashback: (s.cashback !== undefined && !isNaN(parseFloat(s.cashback)))
-            ? Math.max(0, parseFloat(s.cashback))
+            ? Math.max(0, Math.round(parseFloat(s.cashback)))
             : (DEFAULT_WALLET_CONFIG.slabs[idx] ? DEFAULT_WALLET_CONFIG.slabs[idx].cashback : 0)
     }));
+
+    // Strictly enforce ascending order, gap constraints, and cashback <= minOrder
+    for (let i = 1; i < slabs.length; i++) {
+        if (slabs[i].minOrder < slabs[i - 1].minOrder + MIN_ORDER_GAP) {
+            slabs[i].minOrder = slabs[i - 1].minOrder + MIN_ORDER_GAP;
+        }
+        if (slabs[i].cashback < slabs[i - 1].cashback + CASHBACK_GAP) {
+            slabs[i].cashback = slabs[i - 1].cashback + CASHBACK_GAP;
+        }
+        if (slabs[i].cashback > slabs[i].minOrder) {
+            slabs[i].cashback = slabs[i].minOrder;
+        }
+    }
 
     return {
         key: 'wallet_config',
@@ -72,14 +153,19 @@ export function normalizeWalletConfig(raw) {
 /**
  * Calculates exact eligible cashback reward for a given order total based on active slabs.
  * If generateRandom is true, generates a fair uniformly distributed random integer:
- * - Slab 1: between ₹1 and Slab 1 max inclusive.
- * - Slabs 2-5: between previous slab max and current slab max inclusive.
+ * - Rule A: orderAmount < Slab 1 minOrder -> 0
+ * - Rule B: isWalletUsed -> pure uniform random integer between 1 and 10 (Thanks Card)
+ * - Rule C: Full external payment ->
+ *     * Slab 1: between 1 and Slab 1 max inclusive (e.g. 1 to 10).
+ *     * Slabs 2-5: between (Slab[i-1] max + 1) and Slab[i] max inclusive (e.g. 11 to 45).
+ * Pure equal probability across the range (no probability skewing).
  * @param {number} orderAmount 
- * @param {Object} walletConfig 
+ * @param {Object} [walletConfig=DEFAULT_WALLET_CONFIG] 
  * @param {boolean} [generateRandom=false] 
+ * @param {boolean} [isWalletUsed=false]
  * @returns {number}
  */
-export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG, generateRandom = false) {
+export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG, generateRandom = false, isWalletUsed = false) {
     if (!walletConfig || walletConfig.enabled === false || orderAmount <= 0) return 0;
     const rawSlabs = walletConfig.slabs || walletConfig.rewardTiers || walletConfig.cashbackTiers || walletConfig.rewards || DEFAULT_WALLET_CONFIG.slabs;
     
@@ -89,6 +175,18 @@ export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WA
         cashback: Number(s.cashback !== undefined ? s.cashback : (s.reward !== undefined ? s.reward : (s.amount !== undefined ? s.amount : s.wonAmount))) || 0
     })).sort((a, b) => a.minOrder - b.minOrder);
 
+    if (sorted.length === 0 || orderAmount < sorted[0].minOrder) {
+        // Rule A (Sub-Slab 1): Order value < Slab 1 minimum -> No reward
+        return 0;
+    }
+
+    // Rule B (Wallet Payment Used -> "Thanks Scratch Card"):
+    if (isWalletUsed) {
+        if (!generateRandom) return 10;
+        return Math.floor(Math.random() * 10) + 1; // Pure uniform random integer between 1 and 10
+    }
+
+    // Rule C (Non-Wallet / Full External Payment): Highest eligible slab
     let qualifiedIndex = -1;
     for (let i = 0; i < sorted.length; i++) {
         if (orderAmount >= sorted[i].minOrder) {
@@ -102,48 +200,63 @@ export function calculateEligibleCashback(orderAmount, walletConfig = DEFAULT_WA
         return currentMax;
     }
 
-    if (qualifiedIndex === 0) {
-        const min = 1;
-        const max = Math.max(1, currentMax);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    } else {
-        const prevMax = Number(sorted[qualifiedIndex - 1].cashback) || 1;
-        const min = Math.min(prevMax, currentMax);
-        const max = Math.max(prevMax, currentMax);
-        return Math.floor(Math.random() * (max - min + 1)) + min;
+    let min = 1;
+    let max = currentMax;
+    if (qualifiedIndex > 0) {
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback) || 0;
+        min = prevMax + 1;
+        max = currentMax;
     }
+    if (min > max) {
+        min = Math.min(min, max);
+        max = Math.max(min, max);
+    }
+
+    return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 /**
  * Returns boundaries [min, max] for a given order total
  * - Slab 1: [1, Slab 1 max]
- * - Slabs 2-5: [Slab(i-1) max, Slab(i) max]
+ * - Slabs 2-5: [Slab(i-1) max + 1, Slab(i) max]
+ * - Wallet Used: [1, 10] (Thanks Card)
  * @param {number} orderAmount 
- * @param {Object} walletConfig 
- * @returns {{ qualified: boolean, min: number, max: number, tierIndex: number }}
+ * @param {Object} [walletConfig=DEFAULT_WALLET_CONFIG] 
+ * @param {boolean} [isWalletUsed=false]
+ * @returns {{ qualified: boolean, min: number, max: number, tierIndex: number, isThanksCard: boolean }}
  */
-export function getCashbackTierBoundaries(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG) {
+export function getCashbackTierBoundaries(orderAmount, walletConfig = DEFAULT_WALLET_CONFIG, isWalletUsed = false) {
     if (!walletConfig || walletConfig.enabled === false || orderAmount <= 0) {
-        return { qualified: false, min: 0, max: 0, tierIndex: -1 };
+        return { qualified: false, min: 0, max: 0, tierIndex: -1, isThanksCard: false };
     }
     const rawSlabs = walletConfig.slabs || DEFAULT_WALLET_CONFIG.slabs;
     const sorted = [...rawSlabs].sort((a, b) => (Number(a.minOrder) || 0) - (Number(b.minOrder) || 0));
+
+    if (sorted.length === 0 || orderAmount < (Number(sorted[0].minOrder) || 0)) {
+        return { qualified: false, min: 0, max: 0, tierIndex: -1, isThanksCard: false };
+    }
+
+    if (isWalletUsed) {
+        return { qualified: true, min: 1, max: 10, tierIndex: -1, isThanksCard: true };
+    }
+
     let qualifiedIndex = -1;
     for (let i = 0; i < sorted.length; i++) {
         if (orderAmount >= (Number(sorted[i].minOrder) || 0)) {
             qualifiedIndex = i;
         }
     }
-    if (qualifiedIndex === -1) return { qualified: false, min: 0, max: 0, tierIndex: -1 };
+    if (qualifiedIndex === -1) return { qualified: false, min: 0, max: 0, tierIndex: -1, isThanksCard: false };
 
     const max = Number(sorted[qualifiedIndex].cashback) || 0;
     let min = 1;
     if (qualifiedIndex > 0) {
-        min = Number(sorted[qualifiedIndex - 1].cashback) || 1;
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback) || 0;
+        min = prevMax + 1;
     }
     if (max < min) min = Math.max(1, Math.min(min, max));
 
-    return { qualified: true, min, max, tierIndex: qualifiedIndex };
+    return { qualified: true, min, max, tierIndex: qualifiedIndex, isThanksCard: false };
 }
 
 // --------------------------------------------------------------------------

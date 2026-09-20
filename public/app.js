@@ -6204,17 +6204,134 @@ function listenToCustomerWalletRealtime(phone) {
 window.listenToCustomerWalletRealtime = listenToCustomerWalletRealtime;
 
 /**
+ * Consolidated Single Source of Truth for Dynamic Scratch Card & Cashback Generation.
+ *
+ * Rules:
+ * - Master Toggle: If walletConfig.enabled === false, block any new cashback or scratch card generation.
+ * - Rule A (Sub-Slab 1): If order value < Slab 1 minimum order amount, NO scratch card is unlocked/eligible.
+ * - Rule B (Wallet Payment Used -> "Thanks Scratch Card"):
+ *     If customer uses ANY amount of wallet cash for the order (even ₹1), override higher tiers
+ *     and issue ONLY a "Thanks Scratch Card" with pure uniform random integer between 1 and 10 (inclusive: ₹1 to ₹10).
+ * - Rule C (Non-Wallet / Full External Payment):
+ *     If wallet cash was NOT used, determine highest eligible slab based on order amount:
+ *       * Slab 1: Pure random integer between 1 and Slab 1 max cashback (e.g. 1 to 10).
+ *       * Slab 2: Pure random integer between (Slab 1 max + 1) and Slab 2 max cashback (e.g. 11 to 45).
+ *       * Slab 3: Pure random integer between (Slab 2 max + 1) and Slab 3 max cashback (e.g. 46 to 60).
+ *       * Slab 4: Pure random integer between (Slab 3 max + 1) and Slab 4 max cashback (e.g. 61 to 90).
+ *       * Slab 5: Pure random integer between (Slab 4 max + 1) and Slab 5 max cashback (e.g. 91 to 120).
+ *     Pure equal probability across the range (no probability skewing/weighting).
+ *
+ * @param {number} orderAmount - Cart subtotal / order amount
+ * @param {boolean} [isWalletUsed=false] - Whether any wallet cash was applied (discount > 0)
+ * @param {Object} [walletConfig=customerWalletConfig] - Active wallet configuration
+ * @returns {{ eligible: boolean, rewardAmount: number, rewardTitle: string, isThanksCard: boolean, slabIndex: number, min: number, max: number, slab: Object|null }}
+ */
+function calculateDynamicScratchReward(orderAmount, isWalletUsed = false, walletConfig = customerWalletConfig) {
+    if (!walletConfig || walletConfig.enabled === false || orderAmount <= 0) {
+        return { eligible: false, rewardAmount: 0, rewardTitle: '', isThanksCard: false, slabIndex: -1, min: 0, max: 0, slab: null };
+    }
+
+    const rawSlabs = (Array.isArray(walletConfig.slabs) && walletConfig.slabs.length > 0)
+        ? walletConfig.slabs
+        : ((Array.isArray(walletConfig.rewardTiers) && walletConfig.rewardTiers.length > 0)
+            ? walletConfig.rewardTiers
+            : ((Array.isArray(walletConfig.cashbackTiers) && walletConfig.cashbackTiers.length > 0)
+                ? walletConfig.cashbackTiers
+                : ((Array.isArray(walletConfig.rewards) && walletConfig.rewards.length > 0)
+                    ? walletConfig.rewards
+                    : DEFAULT_WALLET_CONFIG.slabs)));
+
+    const sorted = [...rawSlabs].map(s => {
+        if (!s || typeof s !== 'object') return { minOrder: 0, cashback: 0, cashback_amount: 0 };
+        const minOrder = Number(s.minOrder ?? s.min_order ?? s.minAmount ?? s.min ?? s.threshold ?? 0);
+        const cashback = Number(s.cashback_amount ?? s.cashbackAmount ?? s.cashback ?? s.reward ?? s.amount ?? s.wonAmount ?? 0);
+        return { ...s, minOrder, cashback, cashback_amount: cashback };
+    }).sort((a, b) => a.minOrder - b.minOrder);
+
+    if (sorted.length === 0) {
+        return { eligible: false, rewardAmount: 0, rewardTitle: '', isThanksCard: false, slabIndex: -1, min: 0, max: 0, slab: null };
+    }
+
+    // Rule A (Sub-Slab 1): If order value < Slab 1 minimum order amount, NO scratch card is unlocked/eligible
+    const slab1Min = sorted[0].minOrder;
+    if (orderAmount < slab1Min) {
+        return { eligible: false, rewardAmount: 0, rewardTitle: '', isThanksCard: false, slabIndex: -1, min: 0, max: 0, slab: null };
+    }
+
+    // Rule B (Wallet Payment Used -> "Thanks Scratch Card"):
+    if (isWalletUsed) {
+        // Pure uniform random integer between 1 and 10 inclusive
+        const rewardAmount = Math.floor(Math.random() * 10) + 1;
+        return {
+            eligible: true,
+            rewardAmount,
+            rewardTitle: 'Thank You Cashback Reward',
+            isThanksCard: true,
+            slabIndex: -1,
+            min: 1,
+            max: 10,
+            slab: null
+        };
+    }
+
+    // Rule C (Non-Wallet / Full External Payment): Highest eligible slab
+    let qualifiedIndex = -1;
+    for (let i = 0; i < sorted.length; i++) {
+        if (orderAmount >= sorted[i].minOrder) {
+            qualifiedIndex = i;
+        }
+    }
+
+    if (qualifiedIndex === -1) {
+        return { eligible: false, rewardAmount: 0, rewardTitle: '', isThanksCard: false, slabIndex: -1, min: 0, max: 0, slab: null };
+    }
+
+    const currentSlab = sorted[qualifiedIndex];
+    const currentMax = Number(currentSlab.cashback_amount ?? currentSlab.cashback ?? 0);
+    let min = 1;
+    let max = currentMax;
+
+    if (qualifiedIndex > 0) {
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback_amount ?? sorted[qualifiedIndex - 1].cashback ?? 0);
+        min = prevMax + 1;
+        max = currentMax;
+    }
+
+    if (min > max) {
+        min = Math.min(min, max);
+        max = Math.max(min, max);
+    }
+
+    // Pure equal probability across the range
+    const rewardAmount = Math.floor(Math.random() * (max - min + 1)) + min;
+
+    return {
+        eligible: true,
+        rewardAmount,
+        rewardTitle: 'Cashback Reward',
+        isThanksCard: false,
+        slabIndex: qualifiedIndex,
+        min,
+        max,
+        slab: currentSlab
+    };
+}
+window.calculateDynamicScratchReward = calculateDynamicScratchReward;
+
+/**
  * Resolves the qualified cashback slab and its fair [min, max] reward boundaries for a given subtotal.
  * Boundaries:
- * - Minimum bound: Previous tier's configured cashback amount + 1 (for Slab 1, minimum bound is 1)
- * - Maximum bound: Current qualified tier's configured cashback amount
+ * - Slab 1: [1, Slab 1 max]
+ * - Slabs 2-5: [Slab(i-1) max + 1, Slab(i) max]
+ * - Wallet Used: [1, 10] (Thanks Card)
  * @param {number} subtotal
  * @param {Object} [walletConfig]
- * @returns {{ qualified: boolean, min: number, max: number, tierIndex: number, slab: Object|null, nextSlab: Object|null }}
+ * @param {boolean} [isWalletUsed=false]
+ * @returns {{ qualified: boolean, min: number, max: number, tierIndex: number, slab: Object|null, nextSlab: Object|null, isThanksCard: boolean }}
  */
-function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConfig) {
+function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConfig, isWalletUsed = false) {
     if (!walletConfig || walletConfig.enabled === false || subtotal <= 0) {
-        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: null };
+        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: null, isThanksCard: false };
     }
 
     const rawSlabs = (Array.isArray(walletConfig.slabs) && walletConfig.slabs.length > 0)
@@ -6236,7 +6353,15 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
     }).sort((a, b) => a.minOrder - b.minOrder);
 
     if (sorted.length === 0) {
-        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: null };
+        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: null, isThanksCard: false };
+    }
+
+    if (subtotal < sorted[0].minOrder) {
+        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: sorted[0] || null, isThanksCard: false };
+    }
+
+    if (isWalletUsed) {
+        return { qualified: true, min: 1, max: 10, tierIndex: -1, slab: null, nextSlab: null, isThanksCard: true };
     }
 
     let qualifiedIndex = -1;
@@ -6252,7 +6377,7 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
     }
 
     if (qualifiedIndex === -1) {
-        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: sorted[0] || null };
+        return { qualified: false, min: 0, max: 0, tierIndex: -1, slab: null, nextSlab: sorted[0] || null, isThanksCard: false };
     }
 
     const currentSlab = sorted[qualifiedIndex];
@@ -6261,9 +6386,14 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
     let max = Math.max(1, currentMax);
 
     if (qualifiedIndex > 0) {
-        const prevMax = Number(sorted[qualifiedIndex - 1].cashback_amount ?? sorted[qualifiedIndex - 1].cashback ?? 1);
-        min = Math.min(prevMax, currentMax);
-        max = Math.max(prevMax, currentMax);
+        const prevMax = Number(sorted[qualifiedIndex - 1].cashback_amount ?? sorted[qualifiedIndex - 1].cashback ?? 0);
+        min = prevMax + 1;
+        max = currentMax;
+    }
+
+    if (min > max) {
+        min = Math.min(min, max);
+        max = Math.max(min, max);
     }
 
     return {
@@ -6272,25 +6402,24 @@ function getCashbackRewardBoundaries(subtotal, walletConfig = customerWalletConf
         max,
         tierIndex: qualifiedIndex,
         slab: currentSlab,
-        nextSlab
+        nextSlab,
+        isThanksCard: false
     };
 }
 window.getCashbackRewardBoundaries = getCashbackRewardBoundaries;
 
 /**
  * Generates a fair uniformly distributed random integer reward for a qualifying order subtotal:
- * - Slab 1: random integer between ₹1 and Slab 1 max amount inclusive.
- * - Slabs 2 to 5: fair uniformly distributed random integer between previous slab max and current slab max inclusive.
+ * - Slab 1: random integer between 1 and Slab 1 max amount inclusive.
+ * - Slabs 2 to 5: fair uniformly distributed random integer between (previous slab max + 1) and current slab max inclusive.
  * @param {number} subtotal
  * @param {Object} [walletConfig]
+ * @param {boolean} [isWalletUsed=false]
  * @returns {number}
  */
-function generateSlabRewardAmount(subtotal, walletConfig = customerWalletConfig) {
-    const boundaries = getCashbackRewardBoundaries(subtotal, walletConfig);
-    if (!boundaries.qualified || boundaries.max <= 0) return 0;
-    const min = boundaries.min;
-    const max = boundaries.max;
-    return Math.floor(Math.random() * (max - min + 1)) + min;
+function generateSlabRewardAmount(subtotal, walletConfig = customerWalletConfig, isWalletUsed = false) {
+    const res = calculateDynamicScratchReward(subtotal, isWalletUsed, walletConfig);
+    return res.eligible ? res.rewardAmount : 0;
 }
 window.generateSlabRewardAmount = generateSlabRewardAmount;
 
@@ -7157,7 +7286,10 @@ window.releaseWalletHold = releaseWalletHold;
  * @param {Object} [walletConfig]
  * @returns {number}
  */
-function calculateOrderCashback(subtotal, walletConfig = customerWalletConfig) {
+function calculateOrderCashback(subtotal, walletConfig = customerWalletConfig, isWalletUsed = false) {
+    if (isWalletUsed) {
+        return 10;
+    }
     const boundaries = getCashbackRewardBoundaries(subtotal, walletConfig);
     if (!boundaries.qualified || !boundaries.slab || boundaries.max <= 0) return 0;
 
@@ -9925,59 +10057,43 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         ? Math.min(appliedWalletDiscountAmount, currentAvailableFunds, baseGrandTotal)
         : 0;
     const grandTotal = Math.max(0, baseGrandTotal - walletDiscountToApply);
-    // Hybrid Reward System & Minimum Milestone Qualification Engine:
-    // Minimum Qualification Check:
-    // Cart Subtotal < Slab 1 Threshold: Do not issue any scratch card. (earnedCashback = 0, scratchCard = null, rewardStatus = 'none')
-    // Qualifying Orders (Subtotal >= Slab 1 Threshold):
-    //   - SCENARIO A: Wallet Cash UNCHECKED -> full dynamic tier reward matching reached milestone.
-    //   - SCENARIO B: Wallet Cash APPLIED (any amount from ₹1 up to 100%) -> guaranteed flat ₹10 "Thank You Cashback Reward" scratch card.
-    const slab1Threshold = getSlab1Threshold(customerWalletConfig);
-    const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0 && customerWalletConfig && customerWalletConfig.enabled !== false);
+    // Dynamic Scratch Card & Reward Engine:
+    // Rule A: Cart Subtotal < Slab 1 Threshold -> No scratch card (earnedCashback = 0, scratchCard = null, rewardStatus = 'none')
+    // Rule B: Wallet Cash APPLIED (any amount > 0) -> "Thanks Scratch Card" (uniform random integer between 1 and 10)
+    // Rule C: Non-Wallet Payment -> Highest eligible slab (Slab 1: 1 to max; Slabs 2-5: (prevMax + 1) to max; pure equal probability)
     const isWalletApplied = (walletDiscountToApply > 0);
+    const rewardResult = calculateDynamicScratchReward(subtotal, isWalletApplied, customerWalletConfig);
 
     const now = new Date();
     const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    let earnedCashback = 0;
-    let wonCashback = 0;
-    let rewardTitle = '';
-    let rewardStatus = 'none';
+    let earnedCashback = rewardResult.eligible ? rewardResult.rewardAmount : 0;
+    let wonCashback = earnedCashback;
+    let rewardTitle = rewardResult.rewardTitle || (isWalletApplied ? 'Thank You Cashback Reward' : 'Cashback Reward');
+    let rewardStatus = earnedCashback > 0 ? 'unscratched' : 'none';
     let scratchCardObj = null;
     let scratchExpiresAt = null;
     const activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
 
-    if (isSlab1Qualified) {
-        if (isWalletApplied) {
-            earnedCashback = 10;
-            wonCashback = 10;
-            rewardTitle = 'Thank You Cashback Reward';
-            rewardStatus = 'unscratched';
-        } else {
-            earnedCashback = generateSlabRewardAmount(subtotal, customerWalletConfig);
-            wonCashback = earnedCashback;
-            rewardTitle = 'Cashback Reward';
-            rewardStatus = earnedCashback > 0 ? 'unscratched' : 'none';
-        }
-
-        if (earnedCashback > 0) {
-            const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
-            scratchExpiresAt = expMs;
-            scratchCardObj = {
-                title: rewardTitle,
-                amount: Math.round(earnedCashback),
-                wonAmount: Math.round(earnedCashback),
-                revealed: false,
-                claimed: false,
-                credited: false,
-                status: 'unscratched',
-                claimedAt: null,
-                createdAt: now.toISOString(),
-                expiresAt: expMs,
-                expiresAtISO: new Date(expMs).toISOString(),
-                expiryDays: activeDays,
-                cashbackExpiryDays: activeDays
-            };
-        }
+    if (rewardResult.eligible && earnedCashback > 0) {
+        const expMs = Date.now() + activeDays * 24 * 60 * 60 * 1000;
+        scratchExpiresAt = expMs;
+        scratchCardObj = {
+            title: rewardTitle,
+            amount: Math.round(earnedCashback),
+            wonAmount: Math.round(earnedCashback),
+            isThankYouReward: rewardResult.isThanksCard,
+            revealed: false,
+            claimed: false,
+            credited: false,
+            status: 'unscratched',
+            claimedAt: null,
+            createdAt: now.toISOString(),
+            expiresAt: expMs,
+            expiresAtISO: new Date(expMs).toISOString(),
+            expiryDays: activeDays,
+            cashbackExpiryDays: activeDays
+        };
     }
 
     const resolvedPaymentMethod = (grandTotal === 0 && walletDiscountToApply > 0) ? 'Wallet Cash' : paymentMethod;
@@ -11678,15 +11794,28 @@ function openScratchCardModal(order, demoAmount) {
 
     let rewardAmount = Number(activeScratchOrder.earnedCashback || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.wonAmount || activeScratchOrder.scratchCard.amount)) || activeScratchOrder.wonCashback || 0);
 
-    if (isWalletUsedOnOrder && isSlab1Qualified) {
-        rewardAmount = 10;
-        activeScratchOrder.earnedCashback = 10;
-        activeScratchOrder.wonCashback = 10;
-        activeScratchOrder.rewardTitle = 'Thank You Cashback Reward';
-    } else if (rewardAmount <= 0 && isSlab1Qualified) {
-        rewardAmount = orderSubtotal > 0 ? generateSlabRewardAmount(orderSubtotal, customerWalletConfig) : (demoAmount !== undefined ? demoAmount : generateSlabRewardAmount(500, customerWalletConfig));
+    if (rewardAmount <= 0 && demoAmount !== undefined) {
+        rewardAmount = demoAmount;
         activeScratchOrder.earnedCashback = rewardAmount;
         activeScratchOrder.wonCashback = rewardAmount;
+    } else if (rewardAmount <= 0 && isSlab1Qualified) {
+        const dynamicRes = calculateDynamicScratchReward(orderSubtotal > 0 ? orderSubtotal : 500, isWalletUsedOnOrder, customerWalletConfig);
+        if (dynamicRes.eligible) {
+            rewardAmount = dynamicRes.rewardAmount;
+            activeScratchOrder.earnedCashback = rewardAmount;
+            activeScratchOrder.wonCashback = rewardAmount;
+            activeScratchOrder.rewardTitle = dynamicRes.rewardTitle;
+            if (activeScratchOrder.scratchCard) {
+                activeScratchOrder.scratchCard.amount = rewardAmount;
+                activeScratchOrder.scratchCard.wonAmount = rewardAmount;
+                activeScratchOrder.scratchCard.title = dynamicRes.rewardTitle;
+                activeScratchOrder.scratchCard.isThankYouReward = dynamicRes.isThanksCard;
+            }
+        } else {
+            rewardAmount = 0;
+            activeScratchOrder.earnedCashback = 0;
+            activeScratchOrder.wonCashback = 0;
+        }
     } else if (!isSlab1Qualified && demoAmount === undefined) {
         rewardAmount = 0;
         activeScratchOrder.earnedCashback = 0;
