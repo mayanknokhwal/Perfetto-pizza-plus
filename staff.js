@@ -424,41 +424,33 @@ function getMasterDeliveryOtp() {
 async function getOrFetchEmergencyMasterOtp() {
     // 1. Check local cache first
     const cached = getMasterDeliveryOtp();
-    if (cached && cached !== '9999') {
+    if (cached && cached !== '9999' && cached.length === 4) {
         return cached;
     }
 
-    // 2. Fetch fresh from Cloud Firestore
+    // 2. Fetch fresh from Cloud Firestore (checking store_settings, storeSettings, and store_config)
     try {
         const db = getStaffFirestore();
         if (db) {
-            // Check settings/store_config
-            const configDoc = await db.collection('settings').doc('store_config').get();
-            if (configDoc && configDoc.exists) {
-                const data = configDoc.data() || {};
-                const otp = data.emergencyMasterDeliveryOtp || data.masterDeliveryOtp || data.emergency_master_otp;
-                if (otp) {
-                    const cleanOtp = String(otp).replace(/[^0-9]/g, '').slice(0, 4);
-                    if (cleanOtp) {
-                        localStorage.setItem('emergencyMasterDeliveryOtp', cleanOtp);
-                        localStorage.setItem('masterDeliveryOtp', cleanOtp);
-                        return cleanOtp;
+            const docsToCheck = ['store_settings', 'storeSettings', 'store_config'];
+            for (const docId of docsToCheck) {
+                try {
+                    const snap = await db.collection('settings').doc(docId).get();
+                    if (snap && snap.exists) {
+                        const data = snap.data() || {};
+                        const otp = data.emergencyMasterDeliveryOtp || data.masterDeliveryOtp || data.emergency_master_otp;
+                        if (otp) {
+                            const cleanOtp = String(otp).replace(/[^0-9]/g, '').slice(0, 4);
+                            if (cleanOtp && cleanOtp.length === 4) {
+                                try {
+                                    localStorage.setItem('emergencyMasterDeliveryOtp', cleanOtp);
+                                    localStorage.setItem('masterDeliveryOtp', cleanOtp);
+                                } catch (e) { }
+                                return cleanOtp;
+                            }
+                        }
                     }
-                }
-            }
-            // Check settings/storeSettings
-            const settingsDoc = await db.collection('settings').doc('storeSettings').get();
-            if (settingsDoc && settingsDoc.exists) {
-                const data = settingsDoc.data() || {};
-                const otp = data.emergencyMasterDeliveryOtp || data.masterDeliveryOtp || data.emergency_master_otp;
-                if (otp) {
-                    const cleanOtp = String(otp).replace(/[^0-9]/g, '').slice(0, 4);
-                    if (cleanOtp) {
-                        localStorage.setItem('emergencyMasterDeliveryOtp', cleanOtp);
-                        localStorage.setItem('masterDeliveryOtp', cleanOtp);
-                        return cleanOtp;
-                    }
-                }
+                } catch (dErr) { }
             }
         }
     } catch (err) {
@@ -466,10 +458,46 @@ async function getOrFetchEmergencyMasterOtp() {
     }
 
     // 3. Fallback to cached value or default
-    return cached || '9999';
+    return (cached && cached.length === 4) ? cached : '9999';
 }
 window.getMasterDeliveryOtp = getMasterDeliveryOtp;
 window.getOrFetchEmergencyMasterOtp = getOrFetchEmergencyMasterOtp;
+
+/**
+ * Normalizes global order sequence number strictly between #1 and #9999.
+ * Wraps back monotonically (1 -> 2 -> ... -> 9999 -> 1).
+ */
+function getStaffGlobalOrderSequence(order) {
+    if (!order) return '1';
+    let seq = order.sequenceNumber || order.orderSequence || order.orderNumber || order.sequence;
+    if (seq !== undefined && seq !== null) {
+        const parsed = parseInt(String(seq).replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(parsed) && parsed >= 1) {
+            return String(((parsed - 1) % 9999) + 1);
+        }
+    }
+    const rawId = String(order.orderId || order.id || '').replace(/^#/, '').trim();
+    const digitsOnly = rawId.replace(/[^0-9]/g, '');
+    if (digitsOnly) {
+        const num = parseInt(digitsOnly, 10);
+        if (!isNaN(num) && num >= 1) {
+            return String(((num - 1) % 9999) + 1);
+        }
+    }
+    if (Array.isArray(staffOrders) && staffOrders.length > 0) {
+        const sorted = [...staffOrders].sort((a, b) => {
+            const timeA = new Date(a.createdAt || a.orderDate || a.timestamp || 0).getTime();
+            const timeB = new Date(b.createdAt || b.orderDate || b.timestamp || 0).getTime();
+            return timeA - timeB;
+        });
+        const idx = sorted.findIndex(o => (o.id === order.id || o.orderId === order.orderId));
+        if (idx >= 0) {
+            return String((idx % 9999) + 1);
+        }
+    }
+    return '1';
+}
+window.getStaffGlobalOrderSequence = getStaffGlobalOrderSequence;
 
 let staffOrdersReconnectTimeout = null;
 let isFirestoreInitialHydrationDone = false;
@@ -999,9 +1027,9 @@ async function autoRejectExpiredOrder(order) {
     if (isOrderAlreadyEvaluatedForExpiry(order) || isOrderActionInFlight(order)) return;
 
     // Guard Auto-Expiry with Atomic Status Checks:
-    // Only execute an expiration write IF doc has an active pending status. Never run auto-expiry logic against documents that already have status "REJECTED", "CANCELLED", or "COMPLETED".
+    // Only execute an expiration write IF doc has an active pending/preparing status.
     const rawStatus = String(order.status || '').toUpperCase().trim();
-    const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING']);
+    const ACTIVE_PENDING_STATUSES = new Set(['PENDING', 'NEW', 'PLACED', 'PREPARING', 'READY', 'DELIVERY', 'OUT_FOR_DELIVERY', 'DISPATCHED', 'IN_TRANSIT']);
     if (!ACTIVE_PENDING_STATUSES.has(rawStatus) || rawStatus === 'REJECTED' || rawStatus === 'CANCELLED' || rawStatus === 'CANCELED' || rawStatus === 'COMPLETED' || rawStatus === 'DELIVERED') {
         markOrderEvaluatedForExpiry(order);
         return;
@@ -1014,8 +1042,6 @@ async function autoRejectExpiredOrder(order) {
     const remainingMs = getOrderRemainingTimeMs(order, nowMs);
 
     if (remainingMs > 0 || elapsedMs < ONE_HUNDRED_MINS_EXPIRATION_MS) {
-        console.log(`[STAFF SWEEPER] Order #${order.id || order.orderId} is fresh (Remaining: ${Math.round(remainingMs / 60000)}m, Elapsed: ${Math.round(elapsedMs / 60000)}m). Auto-expiry strictly skipped.`);
-        order.status = 'PENDING';
         order.autoExpired = false;
         order.isAutoExpired = false;
         if (order.rejectedBy === 'SYSTEM_AUTO_EXPIRE') {
@@ -1047,8 +1073,8 @@ async function autoRejectExpiredOrder(order) {
         ));
 
         const nowIso = new Date().toISOString();
-        const autoExpiryReason = 'Auto-expired: 100 minutes timeout'; // 100-minute fulfillment timeout
-        const autoExpiryDetailed = 'Auto-expired: 100 minutes timeout';
+        const autoExpiryReason = 'Kitchen timed out'; // Strict <= 25 chars requirement
+        const autoExpiryDetailed = 'Kitchen timed out';
 
         order.status = 'REJECTED';
         order.cancellationReason = autoExpiryDetailed;
@@ -2618,7 +2644,13 @@ async function handleStaffMasterOtpSubmit() {
             return;
         }
 
-        // OTP Verified successfully!
+        // OTP Verified successfully! Immediately rotate Master OTP to a new random 4-digit number
+        try {
+            await regenerateMasterDeliveryOtpOnUse('SECURITY_MODAL_AUTH', 'security_modal');
+        } catch (rotErr) {
+            console.warn('Master OTP auto-rotation notice:', rotErr.message);
+        }
+
         const modal = document.getElementById('staff-master-otp-modal');
         if (modal) {
             modal.style.opacity = '0';
@@ -2869,7 +2901,10 @@ function sortOrdersOldestFirst(orders) {
     return orders.slice().sort((a, b) => {
         const timeA = getOrderCreationTimeMs(a);
         const timeB = getOrderCreationTimeMs(b);
-        return timeA - timeB; // Ascending: oldest/earliest orders at top, new orders at bottom
+        if (timeA !== timeB) return timeA - timeB; // Ascending: oldest/earliest orders at top
+        const seqA = parseInt(typeof getStaffGlobalOrderSequence === 'function' ? getStaffGlobalOrderSequence(a) : (a.id || 0), 10) || 0;
+        const seqB = parseInt(typeof getStaffGlobalOrderSequence === 'function' ? getStaffGlobalOrderSequence(b) : (b.id || 0), 10) || 0;
+        return seqA - seqB;
     });
 }
 
@@ -3758,13 +3793,25 @@ function formatStaffTimestamp(raw) {
     }
 }
 
+function formatAscendingDuration(totalSeconds) {
+    const sec = Math.max(0, Math.floor(totalSeconds));
+    const mins = Math.floor(sec / 60);
+    const remSec = sec % 60;
+    if (mins >= 60) {
+        const hrs = Math.floor(mins / 60);
+        const remMins = mins % 60;
+        return `${hrs}h ${remMins}m ${remSec}s`;
+    }
+    return `${mins}m ${remSec}s`;
+}
+
 function getOrderElapsedData(order) {
     const isCompleted = order.status === 'completed' || order.status === 'delivered';
     const isRejected = order.status === 'rejected' || order.status === 'cancelled' || order.status === 'declined' || isRejectedStaffOrder(order);
     const createdMs = getOrderCreationTimeMs(order);
 
     let elapsedSec = 0;
-    let formatted = '';
+    let elapsedFormatted = '';
     let stageTitle = '';
     let isExpired = false;
 
@@ -3778,55 +3825,51 @@ function getOrderElapsedData(order) {
             elapsedSec = Math.max(0, Math.floor((endMs - createdMs) / 1000));
             order.completedDurationSec = elapsedSec;
         }
-        const elapsedMins = Math.floor(elapsedSec / 60);
-        const remSecs = elapsedSec % 60;
-        if (elapsedMins < 60) {
-            formatted = `${String(elapsedMins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
-        } else {
-            const hrs = Math.floor(elapsedMins / 60);
-            const mins = elapsedMins % 60;
-            formatted = `${hrs}h ${String(mins).padStart(2, '0')}m`;
-        }
+        elapsedFormatted = formatAscendingDuration(elapsedSec);
         if (isCompleted) {
-            stageTitle = `Final Duration: ${formatted} (Completed & Frozen)`;
+            stageTitle = `Final Duration: ${elapsedFormatted} (Delivered)`;
         } else {
             stageTitle = (order.autoExpired || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE')
                 ? `Auto-Expired: 100 minutes timeout`
-                : `Order Declined (${formatted})`;
+                : `Order Declined (${elapsedFormatted})`;
         }
     } else {
-        // COUNTDOWN FROM 100 MINUTES STRICTLY FOR ACTIVE / PENDING ORDERS
+        // Ascending elapsed duration strictly for active kitchen orders (e.g., "1m 15s", "5m 30s")
+        elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
+        elapsedFormatted = formatAscendingDuration(elapsedSec);
         const timeRemainingMs = getOrderRemainingTimeMs(order);
-        formatted = format100MinCountdown(timeRemainingMs);
         if (timeRemainingMs <= 0) {
             isExpired = true;
-            stageTitle = 'Auto-expired: 100 minutes timeout';
+            stageTitle = 'Auto-expired: 100 minutes timeout reached';
         } else {
-            stageTitle = `Expires in: ${formatted} (100m Timeout)`;
+            stageTitle = `Elapsed: ${elapsedFormatted} (Cutoff: 1h 40m)`;
         }
-        elapsedSec = Math.max(0, Math.floor((Date.now() - createdMs) / 1000));
     }
 
     let color;
+    let badgeClass = 'pill-active';
     if (isCompleted) {
         color = { textColor: '#10b981', borderColor: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', shadowColor: 'rgba(16, 185, 129, 0.2)', isCritical: false };
     } else if (isRejected || isExpired) {
         color = { textColor: '#ef4444', borderColor: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.12)', shadowColor: 'rgba(239, 68, 68, 0.3)', isCritical: true };
+        badgeClass = 'pill-expired';
+    } else if (elapsedSec >= 80 * 60) {
+        color = { textColor: '#ef4444', borderColor: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.12)', shadowColor: 'rgba(239, 68, 68, 0.3)', isCritical: true };
+        badgeClass = 'pill-expired';
+    } else if (elapsedSec >= 50 * 60) {
+        color = { textColor: '#f59e0b', borderColor: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.12)', shadowColor: 'rgba(245, 158, 11, 0.3)', isCritical: false };
+        badgeClass = 'pill-urgent';
     } else {
-        const timeRemainingMs = getOrderRemainingTimeMs(order);
-        if (timeRemainingMs <= 10 * 60 * 1000) {
-            color = { textColor: '#ef4444', borderColor: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.12)', shadowColor: 'rgba(239, 68, 68, 0.3)', isCritical: true };
-        } else if (timeRemainingMs <= 20 * 60 * 1000) {
-            color = { textColor: '#f59e0b', borderColor: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.12)', shadowColor: 'rgba(245, 158, 11, 0.3)', isCritical: false };
-        } else {
-            color = { textColor: '#10b981', borderColor: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', shadowColor: 'rgba(16, 185, 129, 0.2)', isCritical: false };
-        }
+        color = { textColor: '#10b981', borderColor: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)', shadowColor: 'rgba(16, 185, 129, 0.2)', isCritical: false };
+        badgeClass = 'pill-active';
     }
 
     return {
         elapsedSec,
-        formatted,
+        elapsedFormatted,
+        formatted: elapsedFormatted,
         color,
+        badgeClass,
         isCompleted,
         isRejected,
         isExpired,
@@ -4288,6 +4331,42 @@ if (typeof window !== 'undefined') {
     window.addEventListener('hashchange', applyStaffTabFromUrl);
 }
 
+function getDateDividerLabel(dateInput) {
+    if (!dateInput) return 'Earlier';
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return 'Earlier';
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.round((today.getTime() - targetDay.getTime()) / (24 * 60 * 60 * 1000));
+
+    if (diffDays === 0) {
+        return 'Today';
+    } else if (diffDays === 1) {
+        return 'Yesterday';
+    } else {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+}
+window.getDateDividerLabel = getDateDividerLabel;
+
+function buildStaffDateDividerHTML(label, count) {
+    return `
+        <div class="staff-date-divider" style="display: flex; align-items: center; gap: 12px; margin: 18px 0 10px 0; width: 100%;">
+            <div style="flex: 1; height: 1px; background: rgba(148, 163, 184, 0.2);"></div>
+            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: rgba(30, 41, 59, 0.75); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 9999px; font-size: 0.78rem; font-weight: 700; color: #94a3b8; letter-spacing: 0.03em;">
+                <i class="fa-regular fa-calendar" style="color: #38bdf8; font-size: 0.78rem;"></i>
+                <span>${escapeHtml(label)}</span>
+                ${count !== undefined ? `<span style="color: #64748b; font-size: 0.72rem; margin-left: 2px;">(${count})</span>` : ''}
+            </div>
+            <div style="flex: 1; height: 1px; background: rgba(148, 163, 184, 0.2);"></div>
+        </div>
+    `;
+}
+window.buildStaffDateDividerHTML = buildStaffDateDividerHTML;
+
 function renderOrders() {
     const container = document.getElementById('orders-list-container');
     const emptyState = document.getElementById('empty-state');
@@ -4425,10 +4504,31 @@ function renderOrders() {
     let newHtml = '';
     if (currentStaffTab === 'pending') {
         newHtml = sortedOrders.map(order => buildOrderCardHTML(order)).join('');
-    } else if (currentStaffTab === 'completed') {
-        newHtml = sortedOrders.map(order => buildCompletedOrderCardHTML(order)).join('');
     } else {
-        newHtml = sortedOrders.map(order => buildRejectedOrderCardHTML(order)).join('');
+        const cardBuilder = (currentStaffTab === 'completed') ? buildCompletedOrderCardHTML : buildRejectedOrderCardHTML;
+        const dateCounts = {};
+        sortedOrders.forEach(o => {
+            const ts = (currentStaffTab === 'completed')
+                ? (o.deliveredAt || o.completedAt || o.createdAt)
+                : (o.rejectedAt || o.cancelledAt || o.createdAt);
+            const lbl = getDateDividerLabel(ts);
+            dateCounts[lbl] = (dateCounts[lbl] || 0) + 1;
+        });
+
+        let lastDateLabel = null;
+        const parts = [];
+        sortedOrders.forEach(order => {
+            const ts = (currentStaffTab === 'completed')
+                ? (order.deliveredAt || order.completedAt || order.createdAt)
+                : (order.rejectedAt || order.cancelledAt || order.createdAt);
+            const currentLabel = getDateDividerLabel(ts);
+            if (currentLabel !== lastDateLabel) {
+                lastDateLabel = currentLabel;
+                parts.push(buildStaffDateDividerHTML(currentLabel, dateCounts[currentLabel]));
+            }
+            parts.push(cardBuilder(order));
+        });
+        newHtml = parts.join('');
     }
 
     // If an OTP input is currently focused by the user:
@@ -4589,6 +4689,7 @@ function formatStaffOrderItem(item) {
 // --------------------------------------------------------------------------
 function buildCompletedOrderCardHTML(order) {
     const isAdminViewer = isStaffAdminUser(currentStaffUser);
+    const seqTag = getStaffGlobalOrderSequence(order);
 
     // Build Purchased Items List with clean formatting
     const rawItems = order.items || order.cart || order.orderItems || [];
@@ -4603,7 +4704,7 @@ function buildCompletedOrderCardHTML(order) {
         <article class="order-card completed-order-card" id="card-${order.id}">
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                    <span class="order-id">#${seqTag} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                     ${createdTimeStr ? `
                     <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
                         <i class="fa-regular fa-clock"></i> <span>Order Placed: ${escapeHtml(createdTimeStr)}</span>
@@ -4649,6 +4750,7 @@ function buildCompletedOrderCardHTML(order) {
 // --------------------------------------------------------------------------
 function buildRejectedOrderCardHTML(order) {
     const isAdminViewer = isStaffAdminUser(currentStaffUser);
+    const seqTag = getStaffGlobalOrderSequence(order);
 
     // Build Purchased Items List with clean formatting
     const rawItems = order.items || order.cart || order.orderItems || [];
@@ -4657,7 +4759,7 @@ function buildRejectedOrderCardHTML(order) {
     const totalVal = order.total || order.costs?.total || 0;
     const customerName = order.customerName || order.customer?.name || order.deliveryDetails?.name || 'Customer';
     const isAutoExp = order.autoExpired || order.isAutoExpired || order.rejectedBy === 'SYSTEM_AUTO_EXPIRE' || (typeof isOrder100MinsExpired === 'function' && isOrder100MinsExpired(order));
-    const reason = order.cancellationReason || order.rejectionReason || (isAutoExp ? 'Order timed out (>100 minutes) - automatically cancelled by system' : (order.cancelReason || order.reason || 'Not specified by kitchen'));
+    const reason = order.cancellationReason || order.rejectionReason || (isAutoExp ? 'Kitchen timed out' : (order.cancelReason || order.reason || 'Not specified by kitchen'));
     const statusText = (order.status === 'cancelled' || order.status === 'canceled') ? 'Cancelled' : 'Rejected';
     const rejectedTimeStr = formatStaffTimestamp(order.rejectedAt || order.cancelledAt || order.updatedAt || order.createdAt);
 
@@ -4665,7 +4767,7 @@ function buildRejectedOrderCardHTML(order) {
         <article class="order-card completed-order-card rejected-order-card" id="card-${order.id}" style="border-color: rgba(239, 68, 68, 0.35);">
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                    <span class="order-id">#${seqTag} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
                 </div>
                 <div class="completed-card-status-badge status-declined" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">
                     <i class="fa-solid fa-ban"></i>
@@ -4718,6 +4820,7 @@ function buildRejectedOrderCardHTML(order) {
 // 8B. BUILD ACTIVE / PENDING ORDER CARD HTML
 // --------------------------------------------------------------------------
 function buildOrderCardHTML(order) {
+    const seqTag = getStaffGlobalOrderSequence(order);
     const isOnline = isOnlinePaymentOrder(order);
     const isInFlight = isOrderActionInFlight(order);
 
@@ -4772,30 +4875,24 @@ function buildOrderCardHTML(order) {
             </div>
         `;
     } else if (normalizedStatus === 'preparing' || normalizedStatus === 'kitchen') {
-        // Preparing state: Dispatch Driver button + Direct OTP verification option + Reject Order
+        // Preparing state: Reject button + Direct OTP verification option (Dummy "Dispatch Driver" removed)
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
-                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
-                    <button type="button" class="btn-touch btn-dispatch" id="btn-dispatch-${order.id}" onclick="updateOrderStatus('${order.id}', 'delivery', this)" ${isInFlight ? 'disabled' : ''} style="flex: 1; padding: 10px 16px; border-radius: 10px; font-size: 0.88rem;">
-                        <i class="fa-solid fa-motorcycle"></i> Dispatch Driver
-                    </button>
-                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 10px 14px; font-size: 0.82rem; border-radius: 10px; width: auto;">
-                        <i class="fa-solid fa-ban"></i> Reject
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;">
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 8px 14px; font-size: 0.82rem; border-radius: 8px; width: auto;">
+                        <i class="fa-solid fa-ban"></i> Reject Order
                     </button>
                 </div>
                 ${otpVerificationBoxHTML}
             </div>
         `;
     } else if (normalizedStatus === 'ready' || normalizedStatus === 'delivery' || normalizedStatus === 'out_for_delivery' || normalizedStatus === 'out-for-delivery' || normalizedStatus === 'dispatched' || normalizedStatus === 'in_transit') {
-        // Out for Delivery state: Dispatched Badge + Direct OTP verification + Reject Order
+        // Delivery in progress: Reject button + Direct OTP verification
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <div class="order-status-dispatched-badge">
-                        <i class="fa-solid fa-motorcycle fa-bounce"></i> Out for Delivery
-                    </div>
-                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; width: auto;">
-                        <i class="fa-solid fa-ban"></i> Reject
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;">
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 8px 14px; font-size: 0.82rem; border-radius: 8px; width: auto;">
+                        <i class="fa-solid fa-ban"></i> Reject Order
                     </button>
                 </div>
                 ${otpVerificationBoxHTML}
@@ -4859,18 +4956,23 @@ function buildOrderCardHTML(order) {
 
     return `
         <article class="order-card" id="card-${order.id}">
-            <div class="card-head">
-                <div class="order-id-group">
-                    <span class="order-id">#${order.id} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
-                    ${getOrderCountdownPillHTML(order)}
+            <div class="card-head" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                <div class="order-id-group" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0;">
+                    <span class="order-id">#${seqTag} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
+                    <!-- Left Badge: Ascending elapsed duration from placement -->
+                    <span class="elapsed-duration-badge ${timerData.badgeClass}" id="timer-val-${order.id}" title="Elapsed duration since order placement" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 9999px; font-size: 0.78rem; font-weight: 700; color: ${timerData.color.textColor}; border: 1px solid ${timerData.color.borderColor}; background: ${timerData.color.bgColor}; white-space: nowrap;">
+                        <i class="fa-solid fa-stopwatch"></i>
+                        <span>${timerData.elapsedFormatted}</span>
+                    </span>
                     ${createdTimeStr ? `
-                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
-                        <i class="fa-regular fa-clock"></i> <span>${escapeHtml(createdTimeStr)}</span>
+                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; width: 100%; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-regular fa-clock"></i> <span>Placed: ${escapeHtml(createdTimeStr)}</span>
                     </div>` : ''}
                 </div>
-                <div class="elapsed-timer-badge ${timerData.color.isCritical ? 'timer-critical' : ''} ${timerData.isCompleted ? 'completed-frozen' : ''}" id="timer-badge-${order.id}" style="${timerData.styleAttr}" title="${timerData.stageTitle}">
-                    <i class="fa-solid ${timerData.isCompleted ? 'fa-circle-check' : 'fa-stopwatch'}"></i>
-                    <span class="timer-value" id="timer-val-${order.id}">${timerData.formatted}</span>
+                <!-- Right Badge: Static cutoff threshold display -->
+                <div class="order-cutoff-badge" id="cutoff-badge-${order.id}" title="100-Minute Kitchen Auto-Timeout Cutoff" style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); white-space: nowrap; flex-shrink: 0;">
+                    <i class="fa-solid fa-hourglass-half" style="color: #f59e0b;"></i>
+                    <span>1h 40m limit</span>
                 </div>
             </div>
 
@@ -4890,7 +4992,7 @@ function buildOrderCardHTML(order) {
                                     <span class="call-action-pill">Call</span>
                                 </a>
                             ` : ''}
-                            <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-auto-gps" onclick="event.stopPropagation();" title="Start Turn-by-Turn GPS Navigation to Customer">
+                            <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-auto-gps" onclick="openOrderGpsNavigation('${order.id}');" title="Start Turn-by-Turn GPS Navigation to Customer">
                                 <i class="fa-solid fa-location-arrow"></i>
                                 <span>Auto GPS</span>
                             </a>
@@ -5003,7 +5105,7 @@ async function verifyAndCompleteOrderDelivery(orderId) {
             isMasterOtpMatch: isMasterOtpMatch && !isCustomerOtpMatch
         });
         if (isMasterOtpMatch && !isCustomerOtpMatch) {
-            regenerateMasterDeliveryOtpOnUse(order.id || rawId);
+            await regenerateMasterDeliveryOtpOnUse(order.id || rawId, 'delivered');
             showStaffToast(`🎉 Emergency Master OTP Verified! Order #${rawId} marked as Delivered!`);
         } else {
             showStaffToast(`🎉 OTP Verified! Order #${rawId} marked as Delivered successfully!`);
@@ -5054,20 +5156,27 @@ async function regenerateMasterDeliveryOtpOnUse(orderId, actionType = 'delivered
 
     // 1. Immediately overwrite local cache to invalidate used OTP
     try {
+        localStorage.setItem('emergencyMasterDeliveryOtp', newMasterOtp);
         localStorage.setItem('masterDeliveryOtp', newMasterOtp);
     } catch (e) { }
 
-    // 2. Sync updated masterDeliveryOtp to Firebase Firestore (both storeSettings and store_config)
+    // 2. Sync updated emergencyMasterDeliveryOtp to Firebase Firestore (store_settings, storeSettings, store_config)
     const db = getStaffFirestore();
+    const serverTs = (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+        ? firebase.firestore.FieldValue.serverTimestamp()
+        : new Date().toISOString();
+
     const updatePayload = {
+        emergencyMasterDeliveryOtp: newMasterOtp,
         masterDeliveryOtp: newMasterOtp,
         emergency_master_otp: newMasterOtp,
-        updatedAt: (typeof firebase !== 'undefined' && firebase.firestore) ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+        updatedAt: serverTs
     };
 
     if (db) {
         try {
             await Promise.allSettled([
+                db.collection('settings').doc('store_settings').set(updatePayload, { merge: true }),
                 db.collection('settings').doc('storeSettings').set(updatePayload, { merge: true }),
                 db.collection('settings').doc('store_config').set(updatePayload, { merge: true })
             ]);
@@ -5546,6 +5655,12 @@ function handleRejectOrder(orderId) {
 
     if (reasonInput) {
         reasonInput.value = 'Store cancellation';
+        reasonInput.setAttribute('maxlength', '25');
+        reasonInput.oninput = function() {
+            if (this.value.length > 25) {
+                this.value = this.value.slice(0, 25);
+            }
+        };
         reasonInput.classList.remove('otp-error-shake');
     }
     if (reasonError) {
@@ -5575,9 +5690,9 @@ function handleRejectOrder(orderId) {
         // Fallback prompt for environments without modal elements
         let promptReason = 'Store cancellation';
         if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-            const input = window.prompt(`Reject Order #${order.id}?\n\nEnter cancellation reason:`, 'Store cancellation');
+            const input = window.prompt(`Reject Order #${order.id}?\n\nEnter cancellation reason (max 25 chars):`, 'Store cancellation');
             if (input === null) return;
-            promptReason = input.trim() || 'Store cancellation';
+            promptReason = (input.trim() || 'Store cancellation').slice(0, 25);
         }
         updateOrderStatus(order.id, 'REJECTED', null, { rejectionReason: promptReason });
     }
@@ -5626,48 +5741,49 @@ async function confirmRejectOrder() {
 
     const reasonInput = document.getElementById('reject-modal-reason');
     const reasonError = document.getElementById('reject-modal-reason-error');
-    const reasonVal = reasonInput ? reasonInput.value.trim() : '';
-    const enteredReason = reasonVal || 'Store cancellation';
+    let enteredReason = (reasonInput ? reasonInput.value.trim() : '') || 'Store cancellation';
+
+    // Strict 25-character boundary enforcement
+    if (enteredReason.length > 25) {
+        enteredReason = enteredReason.slice(0, 25);
+        if (reasonInput) reasonInput.value = enteredReason;
+    }
 
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
     const enteredOtp = otpInput ? otpInput.value.trim().replace(/[^0-9]/g, '') : '';
-    let masterOtp = getMasterDeliveryOtp();
 
-    // If Master OTP was provided, validate it. If left blank, allow direct store rejection.
-    if (enteredOtp && enteredOtp.length === 4) {
-        const db = getStaffFirestore();
-        if (db) {
-            try {
-                const snap = await Promise.race([
-                    db.collection('settings').doc('storeSettings').get(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-                ]);
-                if (snap && snap.exists && snap.data()) {
-                    const data = snap.data();
-                    const remoteOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
-                    if (remoteOtp) {
-                        masterOtp = String(remoteOtp).replace(/[^0-9]/g, '').slice(0, 4);
-                        try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
-                    }
-                }
-            } catch (e) { }
+    // Emergency Master Delivery OTP Verification: Require Master OTP to authorize manual rejection
+    if (!enteredOtp || enteredOtp.length !== 4) {
+        if (otpInput) {
+            otpInput.classList.remove('otp-error-shake');
+            void otpInput.offsetWidth;
+            otpInput.classList.add('otp-error-shake');
+            otpInput.focus();
         }
+        if (otpError) {
+            otpError.style.display = 'block';
+            otpError.textContent = '❌ 4-Digit Emergency Master Delivery OTP is required to authorize rejection.';
+        }
+        showStaffToast('⚠️ Please enter the 4-digit Emergency Master Delivery OTP.');
+        return;
+    }
 
-        if (enteredOtp !== masterOtp) {
-            if (otpInput) {
-                otpInput.classList.remove('otp-error-shake');
-                void otpInput.offsetWidth;
-                otpInput.classList.add('otp-error-shake');
-                otpInput.select();
-            }
-            if (otpError) {
-                otpError.style.display = 'block';
-                otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
-            }
-            showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
-            return;
+    let masterOtp = await getOrFetchEmergencyMasterOtp();
+
+    if (enteredOtp !== masterOtp) {
+        if (otpInput) {
+            otpInput.classList.remove('otp-error-shake');
+            void otpInput.offsetWidth;
+            otpInput.classList.add('otp-error-shake');
+            otpInput.select();
         }
+        if (otpError) {
+            otpError.style.display = 'block';
+            otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
+        }
+        showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
+        return;
     }
 
     const confirmBtn = document.getElementById('btn-confirm-order-reject');
@@ -5681,13 +5797,11 @@ async function confirmRejectOrder() {
         // Update order status to canonical "REJECTED", store reason, and void reward
         await updateOrderStatus(orderIdToReject, 'REJECTED', confirmBtn, {
             rejectionReason: enteredReason,
-            masterOtp: enteredOtp || undefined
+            masterOtp: enteredOtp
         });
 
-        // Auto-rotate Master OTP if it was explicitly provided and verified
-        if (enteredOtp && enteredOtp === masterOtp) {
-            await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
-        }
+        // Auto-rotate Master OTP immediately upon authorized rejection
+        await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
 
         // Close modal after confirmed status update
         closeStaffRejectModal();
