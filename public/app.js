@@ -7,6 +7,9 @@
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
+const APP_STORAGE_VERSION = 'v2.1_clean';
+window.APP_STORAGE_VERSION = APP_STORAGE_VERSION;
+
 const LOGO_LIGHT = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
 const LOGO_DARK = 'https://i.ibb.co/XZsGT4Mq/perfetto-White.webp';
 
@@ -498,6 +501,97 @@ function checkAndApplyClientStateReset() {
     }
 }
 window.checkAndApplyClientStateReset = checkAndApplyClientStateReset;
+
+/**
+ * Checks whether client-side localStorage needs a clean-slate purge based on APP_STORAGE_VERSION.
+ * Automatically clears lingering perfetto keys across returning devices without manual user actions.
+ */
+function checkAndApplyAppStorageVersion() {
+    try {
+        if (typeof localStorage === 'undefined') return;
+        const storedVersion = localStorage.getItem('perfetto_app_version');
+        if (storedVersion !== APP_STORAGE_VERSION) {
+            // Clear all lingering perfetto storage keys: perfettoWalletLedger, perfettoCustomerOrders, perfetto_cart, stale user snapshots, etc.
+            const lingeringKeys = [
+                'perfettoWalletLedger',
+                'perfettoCustomerOrders',
+                'perfetto_cart',
+                'perfetto_pizza_cart',
+                'perfetto_customer_wallet',
+                'perfetto_wallet_balance',
+                'perfetto_wallet_hold',
+                'perfettoCustomerProfile',
+                'customerDeliveryProfile',
+                'perfettoSavedProfile',
+                'perfetto_verified_phone',
+                'perfetto_phone_verification_state',
+                'perfettoClearedOrderIds',
+                'clearedOrderIds',
+                'RESET_WALLET_LEDGER',
+                'PERFETTO_STATE_EPOCH'
+            ];
+
+            lingeringKeys.forEach(k => {
+                try { localStorage.removeItem(k); } catch (e) {}
+                try { sessionStorage.removeItem(k); } catch (e) {}
+                if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
+                    safeStorage.removeItem(k);
+                }
+            });
+
+            // Dynamically scan and purge any keys starting with 'perfetto' or 'customerDeliveryProfile' or containing 'wallet'
+            try {
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const k = localStorage.key(i);
+                    if (k && k !== 'perfetto_app_version' && (k.startsWith('perfetto') || k.startsWith('customerDeliveryProfile') || k.includes('wallet'))) {
+                        localStorage.removeItem(k);
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                for (let i = sessionStorage.length - 1; i >= 0; i--) {
+                    const k = sessionStorage.key(i);
+                    if (k && (k.startsWith('perfetto') || k.startsWith('customerDeliveryProfile') || k.includes('wallet'))) {
+                        sessionStorage.removeItem(k);
+                    }
+                }
+            } catch (e) {}
+
+            // Clear in-memory fallbacks
+            if (typeof memoryStorageFallback !== 'undefined') {
+                for (const k in memoryStorageFallback) {
+                    delete memoryStorageFallback[k];
+                }
+            }
+            if (typeof memorySessionFallback !== 'undefined') {
+                for (const k in memorySessionFallback) {
+                    delete memorySessionFallback[k];
+                }
+            }
+            if (typeof currentCustomerWallet !== 'undefined') {
+                currentCustomerWallet = null;
+            }
+            if (typeof window !== 'undefined' && window.currentCustomerWallet) {
+                window.currentCustomerWallet = null;
+            }
+            if (typeof cart !== 'undefined' && Array.isArray(cart)) {
+                cart.length = 0;
+            }
+
+            localStorage.setItem('perfetto_app_version', APP_STORAGE_VERSION);
+            console.log(`[App] Storage upgraded to ${APP_STORAGE_VERSION}, stale cache purged.`);
+        }
+    } catch (err) {
+        console.warn('[App] Error in checkAndApplyAppStorageVersion:', err);
+    }
+}
+window.checkAndApplyAppStorageVersion = checkAndApplyAppStorageVersion;
+
+// Proactively execute client app storage version check on script load
+try {
+    checkAndApplyAppStorageVersion();
+} catch (e) {}
 
 // Proactively execute one-time state reset check on script load
 try {
@@ -6198,13 +6292,28 @@ async function fetchCustomerWallet(phone) {
         try {
             const doc = await fs.collection('wallets').doc(cleanPhone).get();
             if (doc.exists && doc.data()) {
-                const valid = calculateValidWalletBalance(doc.data());
                 const docData = doc.data();
-                const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
+                const valid = calculateValidWalletBalance(docData);
+                const serverTx = Array.isArray(docData.transactions) ? docData.transactions : (Array.isArray(docData.walletTransactions) ? docData.walletTransactions : []);
+
+                // Database-First Ledger Sync: Discard orphan local transactions if active Firestore record shows balance = 0 or empty transactions array
+                const isServerZeroOrEmpty = (valid.balance === 0) ||
+                                            (Array.isArray(docData.transactions) && docData.transactions.length === 0) ||
+                                            (Array.isArray(docData.walletTransactions) && docData.walletTransactions.length === 0);
+
+                let resolvedTx = [];
+                if (!isServerZeroOrEmpty && currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) && currentCustomerWallet.transactions.length > 0) {
+                    resolvedTx = currentCustomerWallet.transactions;
+                } else if (serverTx.length > 0) {
+                    resolvedTx = serverTx;
+                } else {
+                    resolvedTx = [];
+                }
+
                 currentCustomerWallet = {
                     ...docData,
                     ...valid,
-                    transactions: existingTx.length > 0 ? existingTx : (docData.transactions || [])
+                    transactions: resolvedTx
                 };
             }
 
@@ -6340,12 +6449,27 @@ function applyLiveWalletData(data, source = 'wallets') {
     }
 
     const valid = calculateValidWalletBalance({ ...data, balance: rawBalance });
-    const incomingTx = Array.isArray(data.walletTransactions) && data.walletTransactions.length > 0
-        ? data.walletTransactions
-        : (Array.isArray(data.transactions) && data.transactions.length > 0 ? data.transactions : (currentCustomerWallet?.transactions || []));
+    
+    // Database-First Ledger Sync: Discard orphan local transactions if user's active Firestore record shows balance = 0 or empty transactions array
+    const hasServerExplicitEmptyTx = (Array.isArray(data.transactions) && data.transactions.length === 0) ||
+                                     (Array.isArray(data.walletTransactions) && data.walletTransactions.length === 0);
+    const isServerZeroOrEmpty = (valid.balance === 0) || hasServerExplicitEmptyTx;
 
-    const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
-    const mergedTx = mergeAndPreserveWalletTransactions(existingTx, incomingTx);
+    let incomingTx = Array.isArray(data.walletTransactions) && data.walletTransactions.length > 0
+        ? data.walletTransactions
+        : (Array.isArray(data.transactions) && data.transactions.length > 0 ? data.transactions : []);
+
+    let existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
+
+    if (isServerZeroOrEmpty) {
+        // Discard orphan local transactions and strictly adhere to server state
+        existingTx = [];
+        if (valid.balance === 0 && incomingTx.length === 0) {
+            incomingTx = [];
+        }
+    }
+
+    const mergedTx = (valid.balance === 0 && incomingTx.length === 0) ? [] : mergeAndPreserveWalletTransactions(existingTx, incomingTx);
 
     currentCustomerWallet = {
         ...(currentCustomerWallet || {}),
@@ -6355,6 +6479,9 @@ function applyLiveWalletData(data, source = 'wallets') {
         nonExpiredBalance: valid.nonExpiredBalance,
         transactions: mergedTx
     };
+    if (valid.balance === 0 && mergedTx.length === 0) {
+        currentCustomerWallet.transactions = [];
+    }
     reconcileWalletTranches(currentCustomerWallet);
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
@@ -8074,13 +8201,19 @@ function renderProfileWalletTxList() {
     const container = document.getElementById('profile-wallet-tx-list');
     if (!container) return;
 
+    // Database-First Ledger Sync: Only fall back to local storage if currentCustomerWallet has active non-zero balance and transactions aren't explicitly empty
     try {
-        const stored = localStorage.getItem('perfetto_customer_wallet');
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed.transactions) && (!currentCustomerWallet.transactions || currentCustomerWallet.transactions.length === 0)) {
-                currentCustomerWallet.transactions = parsed.transactions;
+        if (currentCustomerWallet && Number(currentCustomerWallet.balance || 0) > 0 && (!currentCustomerWallet.transactions || currentCustomerWallet.transactions.length === 0)) {
+            const stored = localStorage.getItem('perfetto_customer_wallet');
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
+                    currentCustomerWallet.transactions = parsed.transactions;
+                }
             }
+        } else if (currentCustomerWallet && Number(currentCustomerWallet.balance || 0) === 0) {
+            // Server balance is 0: discard any orphan local transactions
+            currentCustomerWallet.transactions = [];
         }
     } catch (e) {}
 
@@ -13823,7 +13956,11 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             const uTxs = (Array.isArray(u.walletTransactions) && u.walletTransactions.length > 0)
                 ? u.walletTransactions
                 : (Array.isArray(u.transactions) && u.transactions.length > 0 ? u.transactions : []);
-            if (uTxs.length > 0) {
+            
+            // Database-First Ledger Sync: Discard orphan local transactions if active record shows balance = 0 or empty transactions
+            if (restoredBalance === 0 || uTxs.length === 0) {
+                currentCustomerWallet.transactions = [];
+            } else {
                 const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
                 currentCustomerWallet.transactions = mergeAndPreserveWalletTransactions(existingTx, uTxs);
             }
@@ -20745,7 +20882,8 @@ if (typeof window !== 'undefined') {
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
-    // 0. Clean-slate customer state check and sequence counter initialization
+    // 0. Clean-slate client storage version check, state reset check, and sequence counter initialization
+    if (typeof checkAndApplyAppStorageVersion === 'function') checkAndApplyAppStorageVersion();
     if (typeof checkAndApplyClientStateReset === 'function') checkAndApplyClientStateReset();
     if (typeof listenToOrderCounterRealtime === 'function') listenToOrderCounterRealtime();
 
