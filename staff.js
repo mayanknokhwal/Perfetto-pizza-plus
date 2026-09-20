@@ -1047,7 +1047,7 @@ async function autoRejectExpiredOrder(order) {
         ));
 
         const nowIso = new Date().toISOString();
-        const autoExpiryReason = 'Auto-expired: 100 minutes timeout';
+        const autoExpiryReason = 'Auto-expired: 100 minutes timeout'; // 100-minute fulfillment timeout
         const autoExpiryDetailed = 'Auto-expired: 100 minutes timeout';
 
         order.status = 'REJECTED';
@@ -3072,7 +3072,9 @@ function mergeLiveOrdersIntoStaff(serverOrders) {
             const summary = total ? `${customerName} • ₹${total}` : customerName;
 
             showStaffToast('🔔 New Customer Order Received in Real-Time!');
+            // showIncomingOrderModal(orderId, summary, data)
             showIncomingOrderModal(orderId, summary, latestNew);
+            // startOrderAlertAudio(orderId, summary, data)
             startOrderAlertAudio(orderId, summary, latestNew);
             startStaffVibrationLoop();
         }
@@ -4261,7 +4263,7 @@ function applyStaffTabFromUrl() {
     try {
         if (typeof window === 'undefined') return;
         const urlParams = new URLSearchParams(window.location.search);
-        let tab = urlParams.get('tab') || window.location.hash.replace('#', '');
+        let tab = urlParams.get('tab') || (window.location.hash || '').replace('#', '');
         if (tab) {
             tab = String(tab).toLowerCase().trim();
             if (tab === 'rejected' || tab === 'cancelled' || tab === 'canceled' || tab === 'declined') {
@@ -4948,11 +4950,28 @@ async function verifyAndCompleteOrderDelivery(orderId) {
         return;
     }
 
-    const expectedOtp = String(order.deliveryOtp || order.otp || '').trim().replace(/[^0-9]/g, '');
-    const masterOtp = getMasterDeliveryOtp();
+    let expectedOtp = String(order.deliveryOtp || order.otp || order.delivery_otp || order.customerOtp || '').trim().replace(/[^0-9]/g, '');
+    let masterOtp = getMasterDeliveryOtp();
 
-    // Validate OTP match against Customer OTP OR Emergency Master Delivery OTP
-    const isCustomerOtpMatch = expectedOtp ? (enteredOtp === expectedOtp) : (enteredOtp.length === 4);
+    // If expectedOtp is missing on order in memory, query Firestore for fresh document OTP
+    if (!expectedOtp) {
+        const db = getStaffFirestore();
+        if (db) {
+            try {
+                const exactDocId = await resolveExactFirestoreOrderDocId(db, order, rawId);
+                if (exactDocId) {
+                    const snap = await db.collection('orders').doc(exactDocId).get();
+                    if (snap && snap.exists) {
+                        const d = snap.data();
+                        expectedOtp = String(d.deliveryOtp || d.otp || d.delivery_otp || d.customerOtp || '').trim().replace(/[^0-9]/g, '');
+                    }
+                }
+            } catch (e) { }
+        }
+    }
+
+    // Validate OTP match strictly against Customer OTP OR Emergency Master Delivery OTP (No Auto-Delivery)
+    const isCustomerOtpMatch = Boolean(expectedOtp && enteredOtp === expectedOtp);
     const isMasterOtpMatch = Boolean(masterOtp && enteredOtp === masterOtp);
     const isValid = isCustomerOtpMatch || isMasterOtpMatch;
 
@@ -4977,8 +4996,12 @@ async function verifyAndCompleteOrderDelivery(orderId) {
     }
 
     try {
-        // Complete delivery asynchronously with canonical status 'delivered'
-        await updateOrderStatus(order.id || rawId, 'delivered', verifyBtn);
+        // Complete delivery asynchronously with canonical status 'DELIVERED'
+        await updateOrderStatus(order.id || rawId, 'DELIVERED', verifyBtn, {
+            deliveryVerified: true,
+            deliveryOtpVerified: true,
+            isMasterOtpMatch: isMasterOtpMatch && !isCustomerOtpMatch
+        });
         if (isMasterOtpMatch && !isCustomerOtpMatch) {
             regenerateMasterDeliveryOtpOnUse(order.id || rawId);
             showStaffToast(`🎉 Emergency Master OTP Verified! Order #${rawId} marked as Delivered!`);
@@ -5194,9 +5217,10 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         }
         setOrderActionInFlight(order, true);
 
-        const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
-        const isRejected = (newStatus === 'rejected');
-        const effectiveStatus = isDelivered ? 'delivered' : (isRejected ? 'rejected' : newStatus);
+        const normNewStatus = String(newStatus || '').toUpperCase().trim();
+        const isDelivered = (normNewStatus === 'COMPLETED' || normNewStatus === 'DELIVERED' || String(newStatus).toLowerCase() === 'delivered' || String(newStatus).toLowerCase() === 'completed');
+        const isRejected = (normNewStatus === 'REJECTED' || normNewStatus === 'CANCELLED' || normNewStatus === 'CANCELED' || String(newStatus).toLowerCase() === 'rejected');
+        const effectiveStatus = isDelivered ? 'DELIVERED' : (isRejected ? 'REJECTED' : newStatus);
 
         order.status = effectiveStatus;
         const nowIso = new Date().toISOString();
@@ -5210,6 +5234,8 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
         if (isDelivered) {
             if (!order.deliveredAt) order.deliveredAt = nowIso;
             if (!order.completedAt) order.completedAt = nowIso;
+            order.deliveryVerified = true;
+            order.deliveryOtpVerified = true;
             const isWalletSystemActive = (staffWalletConfig && staffWalletConfig.enabled !== false);
             if (!isWalletSystemActive) {
                 // When system is disabled, skip rewards entirely
@@ -5255,9 +5281,9 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
 
         if (isRejected) {
             order.rejectedAt = nowIso;
-            if (extraPayload && extraPayload.rejectionReason) {
-                order.rejectionReason = String(extraPayload.rejectionReason).trim();
-            }
+            const finalRejectReason = (extraPayload && extraPayload.rejectionReason) || order.rejectionReason || 'Store cancellation';
+            order.rejectionReason = String(finalRejectReason).trim();
+            order.cancellationReason = String(finalRejectReason).trim();
             order.rewardStatus = 'voided';
             order.wonCashback = 0;
             order.earnedCashback = 0;
@@ -5266,6 +5292,12 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
                 order.scratchCard.wonAmount = 0;
                 order.scratchCard.amount = 0;
                 order.scratchCard.voided = true;
+            }
+
+            // Immediately halt audio alert and dismiss notifications for this rejected order
+            stopOrderAlertAudio();
+            if (typeof dismissIncomingOrderAlert === 'function') {
+                dismissIncomingOrderAlert(rawId);
             }
         }
 
@@ -5308,6 +5340,8 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
                         if (isDelivered) {
                             custOrders[cIdx].deliveredAt = nowIso;
                             custOrders[cIdx].completedAt = nowIso;
+                            custOrders[cIdx].deliveryVerified = true;
+                            custOrders[cIdx].deliveryOtpVerified = true;
                             if (shouldCreditCashbackOnDelivery) {
                                 custOrders[cIdx].rewardStatus = 'credited';
                                 custOrders[cIdx].scratchClaimed = true;
@@ -5319,10 +5353,66 @@ async function updateOrderStatus(orderId, newStatus, triggerBtn = null, extraPay
                                     custOrders[cIdx].scratchCard.claimedAt = nowIso;
                                 }
                             }
+                        } else if (isRejected) {
+                            custOrders[cIdx].rejectedAt = nowIso;
+                            custOrders[cIdx].rejectionReason = order.rejectionReason || 'Store cancellation';
+                            custOrders[cIdx].cancellationReason = order.rejectionReason || 'Store cancellation';
+                            custOrders[cIdx].rewardStatus = 'voided';
+                            custOrders[cIdx].wonCashback = 0;
+                            custOrders[cIdx].earnedCashback = 0;
+                            if (custOrders[cIdx].scratchCard) {
+                                custOrders[cIdx].scratchCard.status = 'voided';
+                                custOrders[cIdx].scratchCard.voided = true;
+                                custOrders[cIdx].scratchCard.wonAmount = 0;
+                            }
                         }
                         localStorage.setItem('perfettoCustomerOrders', JSON.stringify(custOrders));
                     }
                 }
+            }
+        } catch (e) { }
+
+        // 3b. Update local customer wallet cache immediately upon rejection if funds were held
+        if (isRejected) {
+            const refundAmount = Math.round(Number(
+                order?.walletDeductedAmount ||
+                order?.walletUsed ||
+                order?.walletDiscount ||
+                order?.usedWalletCash ||
+                order?.appliedWalletDiscount ||
+                order?.usedWallet ||
+                0
+            ));
+            if (refundAmount > 0) {
+                try {
+                    const localWalletStr = localStorage.getItem('perfetto_customer_wallet');
+                    if (localWalletStr) {
+                        const localWallet = JSON.parse(localWalletStr);
+                        localWallet.balance = Math.max(0, (Number(localWallet.balance) || 0) + refundAmount);
+                        if (Array.isArray(localWallet.transactions)) {
+                            localWallet.transactions.unshift({
+                                id: `tx_refund_${rawId}`,
+                                type: 'REFUND',
+                                amount: refundAmount,
+                                orderId: String(rawId),
+                                title: `+₹${refundAmount} Refund`,
+                                description: `+₹${refundAmount} Refund for Order #${rawId}`,
+                                status: 'completed',
+                                createdAt: nowIso
+                            });
+                        }
+                        localStorage.setItem('perfetto_customer_wallet', JSON.stringify(localWallet));
+                    }
+                } catch (e) { }
+                if (typeof releaseWalletHold === 'function') {
+                    try { releaseWalletHold(rawId, refundAmount); } catch (e) { }
+                }
+            }
+        }
+
+        try {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('perfetto:order-updated', { detail: { orderId: rawId, status: effectiveStatus } }));
             }
         } catch (e) { }
 
@@ -5455,7 +5545,7 @@ function handleRejectOrder(orderId) {
     if (totalEl) totalEl.textContent = `₹${order.total || order.costs?.total || 0}`;
 
     if (reasonInput) {
-        reasonInput.value = '';
+        reasonInput.value = 'Store cancellation';
         reasonInput.classList.remove('otp-error-shake');
     }
     if (reasonError) {
@@ -5475,12 +5565,21 @@ function handleRejectOrder(orderId) {
     if (modal) {
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
-    }
-
-    if (reasonInput) {
-        setTimeout(() => reasonInput.focus(), 100);
-    } else if (otpInput) {
-        setTimeout(() => otpInput.focus(), 100);
+        if (reasonInput) {
+            setTimeout(() => {
+                reasonInput.focus();
+                reasonInput.select();
+            }, 100);
+        }
+    } else {
+        // Fallback prompt for environments without modal elements
+        let promptReason = 'Store cancellation';
+        if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+            const input = window.prompt(`Reject Order #${order.id}?\n\nEnter cancellation reason:`, 'Store cancellation');
+            if (input === null) return;
+            promptReason = input.trim() || 'Store cancellation';
+        }
+        updateOrderStatus(order.id, 'REJECTED', null, { rejectionReason: promptReason });
     }
 }
 window.handleRejectOrder = handleRejectOrder;
@@ -5527,82 +5626,48 @@ async function confirmRejectOrder() {
 
     const reasonInput = document.getElementById('reject-modal-reason');
     const reasonError = document.getElementById('reject-modal-reason-error');
-    const enteredReason = reasonInput ? reasonInput.value.trim() : '';
+    const reasonVal = reasonInput ? reasonInput.value.trim() : '';
+    const enteredReason = reasonVal || 'Store cancellation';
 
     const otpInput = document.getElementById('reject-modal-master-otp');
     const otpError = document.getElementById('reject-modal-otp-error');
     const enteredOtp = otpInput ? otpInput.value.trim().replace(/[^0-9]/g, '') : '';
     let masterOtp = getMasterDeliveryOtp();
 
-    // 1. Strict Validation: Mandatory cancellation reason is required
-    if (!enteredReason) {
-        if (reasonInput) {
-            reasonInput.classList.remove('otp-error-shake');
-            void reasonInput.offsetWidth;
-            reasonInput.classList.add('otp-error-shake');
-            reasonInput.focus();
-        }
-        if (reasonError) {
-            reasonError.style.display = 'block';
-            reasonError.textContent = '⚠️ Mandatory cancellation reason is required to reject order.';
-        }
-        showStaffToast('⚠️ Please enter a cancellation reason.');
-        return;
-    }
-    if (reasonError) {
-        reasonError.style.display = 'none';
-        reasonError.textContent = '';
-    }
-
-    // 2. Strict Validation: Must provide 4-digit Master OTP
-    if (!enteredOtp || enteredOtp.length !== 4) {
-        if (otpInput) {
-            otpInput.classList.remove('otp-error-shake');
-            void otpInput.offsetWidth;
-            otpInput.classList.add('otp-error-shake');
-            otpInput.focus();
-        }
-        if (otpError) {
-            otpError.style.display = 'block';
-            otpError.textContent = '⚠️ 4-Digit Admin Master Delivery OTP is strictly required to authorize rejection.';
-        }
-        showStaffToast('⚠️ Please enter Admin Master Delivery OTP to authorize rejection.');
-        return;
-    }
-
-    // 2.1 Fetch latest Master OTP from Firestore doc if available for fresh check
-    const db = getStaffFirestore();
-    if (db) {
-        try {
-            const snap = await Promise.race([
-                db.collection('settings').doc('storeSettings').get(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
-            ]);
-            if (snap && snap.exists && snap.data()) {
-                const data = snap.data();
-                const remoteOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
-                if (remoteOtp) {
-                    masterOtp = String(remoteOtp).replace(/[^0-9]/g, '').slice(0, 4);
-                    try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+    // If Master OTP was provided, validate it. If left blank, allow direct store rejection.
+    if (enteredOtp && enteredOtp.length === 4) {
+        const db = getStaffFirestore();
+        if (db) {
+            try {
+                const snap = await Promise.race([
+                    db.collection('settings').doc('storeSettings').get(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+                ]);
+                if (snap && snap.exists && snap.data()) {
+                    const data = snap.data();
+                    const remoteOtp = data.masterDeliveryOtp !== undefined ? data.masterDeliveryOtp : data.emergency_master_otp;
+                    if (remoteOtp) {
+                        masterOtp = String(remoteOtp).replace(/[^0-9]/g, '').slice(0, 4);
+                        try { localStorage.setItem('masterDeliveryOtp', masterOtp); } catch (e) { }
+                    }
                 }
-            }
-        } catch (e) { }
-    }
+            } catch (e) { }
+        }
 
-    // 3. Validate against active Master OTP set by Admin
-    if (enteredOtp !== masterOtp) {
-        if (otpInput) {
-            otpInput.classList.remove('otp-error-shake');
-            void otpInput.offsetWidth;
-            otpInput.classList.add('otp-error-shake');
-            otpInput.select();
+        if (enteredOtp !== masterOtp) {
+            if (otpInput) {
+                otpInput.classList.remove('otp-error-shake');
+                void otpInput.offsetWidth;
+                otpInput.classList.add('otp-error-shake');
+                otpInput.select();
+            }
+            if (otpError) {
+                otpError.style.display = 'block';
+                otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
+            }
+            showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
+            return;
         }
-        if (otpError) {
-            otpError.style.display = 'block';
-            otpError.textContent = `❌ Invalid Master Admin OTP "${enteredOtp}". Authorization denied.`;
-        }
-        showStaffToast(`❌ Invalid Master Delivery OTP "${enteredOtp}"! Rejection denied.`);
-        return;
     }
 
     const confirmBtn = document.getElementById('btn-confirm-order-reject');
@@ -5613,19 +5678,21 @@ async function confirmRejectOrder() {
     }
 
     try {
-        // 4. Valid Master OTP! Update order status to "rejected", store mandatory reason, and void reward
-        await updateOrderStatus(orderIdToReject, 'rejected', confirmBtn, {
+        // Update order status to canonical "REJECTED", store reason, and void reward
+        await updateOrderStatus(orderIdToReject, 'REJECTED', confirmBtn, {
             rejectionReason: enteredReason,
-            masterOtp: enteredOtp
+            masterOtp: enteredOtp || undefined
         });
 
-        // 5. Auto-rotate the Emergency Master Delivery OTP immediately upon authorized rejection!
-        await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
+        // Auto-rotate Master OTP if it was explicitly provided and verified
+        if (enteredOtp && enteredOtp === masterOtp) {
+            await regenerateMasterDeliveryOtpOnUse(orderIdToReject, 'rejected');
+        }
 
         // Close modal after confirmed status update
         closeStaffRejectModal();
 
-        showStaffToast(`✅ Master OTP Authorized! Order #${orderIdToReject} Rejected. Master OTP rotated.`);
+        showStaffToast(`✅ Order #${orderIdToReject} Rejected (${enteredReason}).`);
     } catch (err) {
         console.error('Error rejecting order:', err);
         showStaffToast(`❌ Rejection failed: ${err.message || 'Database error'}`);
@@ -5642,6 +5709,14 @@ async function confirmRejectOrder() {
     }
 }
 window.confirmRejectOrder = confirmRejectOrder;
+
+async function rejectOrder(orderId, reason = 'Store cancellation') {
+    const finalReason = (typeof reason === 'string' && reason.trim()) ? reason.trim() : 'Store cancellation';
+    return await updateOrderStatus(orderId, 'REJECTED', null, {
+        rejectionReason: finalReason
+    });
+}
+window.rejectOrder = rejectOrder;
 
 async function handleAdminDeleteOrder(orderId) {
     if (!orderId) return;
@@ -5695,14 +5770,15 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
         String(o.orderId).replace(/^#/, '') === rawId
     );
 
-    const isDelivered = (newStatus === 'completed' || newStatus === 'delivered');
-    const isRejected = (newStatus === 'rejected');
-    const effectiveStatus = isDelivered ? 'delivered' : (isRejected ? 'rejected' : newStatus);
+    const normNewStatus = String(newStatus || '').toUpperCase().trim();
+    const isDelivered = (normNewStatus === 'COMPLETED' || normNewStatus === 'DELIVERED' || String(newStatus).toLowerCase() === 'delivered' || String(newStatus).toLowerCase() === 'completed');
+    const isRejected = (normNewStatus === 'REJECTED' || normNewStatus === 'CANCELLED' || normNewStatus === 'CANCELED' || String(newStatus).toLowerCase() === 'rejected');
+    const effectiveStatus = isDelivered ? 'DELIVERED' : (isRejected ? 'REJECTED' : newStatus);
 
     const patchPayload = {
         orderId: rawId,
         id: rawId,
-        status: effectiveStatus
+        status: isDelivered ? 'delivered' : (isRejected ? 'rejected' : effectiveStatus)
     };
 
     if (isDelivered) {
@@ -5806,9 +5882,11 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                 const expiresAt = new Date(expiresAtMs).toISOString();
                 const creditedAtIso = new Date(nowMs).toISOString();
 
-                fsUpdate.status = 'delivered';
+                fsUpdate.status = 'DELIVERED';
                 fsUpdate.deliveredAt = serverTs;
                 fsUpdate.completedAt = serverTs;
+                fsUpdate.deliveryVerified = true;
+                fsUpdate.deliveryOtpVerified = true;
 
                 if (isWalletSystemActive && cashbackAmount > 0) {
                     fsUpdate.rewardStatus = 'credited';
@@ -6054,8 +6132,9 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     try { commitWalletHold(cleanOrderId); } catch (e) {}
                 }
             } else if (isRejected) {
-                fsUpdate.status = 'rejected';
+                fsUpdate.status = 'REJECTED';
                 fsUpdate.rejectedAt = serverTs;
+                fsUpdate.updatedAt = serverTs;
                 fsUpdate.rewardStatus = 'voided';
                 fsUpdate.wonCashback = 0;
                 fsUpdate.earnedCashback = 0;
@@ -6065,8 +6144,9 @@ async function syncOrderStatusToBackend(orderId, newStatus, extraPayload = {}) {
                     fsUpdate['scratchCard.wonAmount'] = 0;
                     fsUpdate['scratchCard.amount'] = 0;
                 }
-                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || '';
-                if (rejectReason) fsUpdate.rejectionReason = rejectReason;
+                const rejectReason = (extraPayload && extraPayload.rejectionReason) || order?.rejectionReason || 'Store cancellation';
+                fsUpdate.rejectionReason = rejectReason;
+                fsUpdate.cancellationReason = rejectReason;
 
                 const refundAmount = Math.round(Number(
                     order?.walletDeductedAmount ||
