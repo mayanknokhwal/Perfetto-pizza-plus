@@ -4866,10 +4866,10 @@ function buildOrderCardHTML(order) {
     if (isInitialOrderState) {
         actionButtonsHTML = `
             <div class="cod-action-group">
-                <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''}>
+                <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="min-height: 48px;">
                     <i class="fa-solid fa-ban"></i> Reject Order
                 </button>
-                <button type="button" class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)" ${isInFlight ? 'disabled' : ''}>
+                <button type="button" class="btn-touch btn-accept" onclick="updateOrderStatus('${order.id}', 'preparing', this)" ${isInFlight ? 'disabled' : ''} style="min-height: 48px;">
                     <i class="fa-solid fa-fire-burner"></i> Accept Order
                 </button>
             </div>
@@ -4878,8 +4878,8 @@ function buildOrderCardHTML(order) {
         // Preparing state: Reject button + Direct OTP verification option (Dummy "Dispatch Driver" removed)
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
-                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;">
-                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 8px 14px; font-size: 0.82rem; border-radius: 8px; width: auto;">
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 8px;">
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="min-height: 44px; padding: 8px 16px; font-size: 0.85rem; border-radius: 10px; width: auto;">
                         <i class="fa-solid fa-ban"></i> Reject Order
                     </button>
                 </div>
@@ -4890,8 +4890,8 @@ function buildOrderCardHTML(order) {
         // Delivery in progress: Reject button + Direct OTP verification
         actionButtonsHTML = `
             <div class="in-progress-action-stack">
-                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 10px;">
-                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="padding: 8px 14px; font-size: 0.82rem; border-radius: 8px; width: auto;">
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 8px;">
+                    <button type="button" class="btn-touch btn-reject" onclick="handleRejectOrder('${order.id}')" ${isInFlight ? 'disabled' : ''} style="min-height: 44px; padding: 8px 16px; font-size: 0.85rem; border-radius: 10px; width: auto;">
                         <i class="fa-solid fa-ban"></i> Reject Order
                     </button>
                 </div>

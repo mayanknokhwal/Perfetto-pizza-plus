@@ -239,10 +239,10 @@
             <h3 class="custom-confirm-title" id="staff-confirm-title">Confirm Action</h3>
             <p class="custom-confirm-message" id="staff-confirm-message">Are you sure you want to proceed?</p>
             <div class="custom-confirm-actions">
-                <button type="button" class="btn-touch btn-secondary" id="staff-confirm-cancel-btn" onclick="handleStaffConfirmResolve(false)" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.92rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(148, 163, 184, 0.25); color: #cbd5e1; cursor: pointer;">
+                <button type="button" class="btn-touch btn-secondary" id="staff-confirm-cancel-btn" onclick="handleStaffConfirmResolve(false)" style="flex: 1; min-height: 48px; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.92rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(148, 163, 184, 0.25); color: #cbd5e1; cursor: pointer;">
                     Cancel
                 </button>
-                <button type="button" class="btn-touch btn-primary" id="staff-confirm-ok-btn" onclick="handleStaffConfirmResolve(true)" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; border: none; color: #ffffff; cursor: pointer;">
+                <button type="button" class="btn-touch btn-primary" id="staff-confirm-ok-btn" onclick="handleStaffConfirmResolve(true)" style="flex: 1; min-height: 48px; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; border: none; color: #ffffff; cursor: pointer;">
                     Confirm
                 </button>
             </div>
@@ -253,7 +253,7 @@
          STAFF EMERGENCY MASTER OTP VERIFICATION MODAL
          ========================================================================== -->
     <div id="staff-master-otp-modal" class="custom-confirm-overlay" style="display: none; opacity: 0;">
-        <div class="custom-confirm-card" id="staff-master-otp-card" style="border-color: rgba(239, 68, 68, 0.45); box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.85), 0 0 35px rgba(239, 68, 68, 0.2);">
+        <div class="custom-confirm-card" id="staff-master-otp-card">
             <div class="custom-confirm-icon-ring" id="staff-master-otp-icon" style="background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">
                 <i class="fa-solid fa-shield-halved"></i>
             </div>
@@ -265,16 +265,16 @@
                 Permanently delete order record(s)
             </div>
             <div style="margin: 0 0 16px;">
-                <input type="password" maxlength="4" pattern="[0-9]*" inputmode="numeric" id="staff-master-otp-input" placeholder="••••" autocomplete="off" style="width: 160px; height: 50px; text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: 12px; border-radius: 12px; background: rgba(15, 23, 42, 0.8); border: 2px solid rgba(148, 163, 184, 0.3); color: #ffffff; outline: none; transition: all 0.2s ease; padding-left: 12px;" />
+                <input type="password" maxlength="4" pattern="[0-9]*" inputmode="numeric" id="staff-master-otp-input" placeholder="••••" autocomplete="off" style="width: 160px; height: 50px; min-height: 48px; text-align: center; font-size: 1.8rem; font-weight: 700; letter-spacing: 12px; border-radius: 12px; background: rgba(15, 23, 42, 0.8); border: 2px solid rgba(148, 163, 184, 0.3); color: #ffffff; outline: none; transition: all 0.2s ease; padding-left: 12px;" />
                 <div id="staff-master-otp-error" style="display: none; color: #ef4444; font-size: 0.82rem; font-weight: 600; margin-top: 8px;">
                     Invalid Master OTP. Unauthorized action.
                 </div>
             </div>
             <div class="custom-confirm-actions">
-                <button type="button" class="btn-touch btn-secondary" id="staff-master-otp-cancel-btn" onclick="handleStaffMasterOtpCancel()" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.92rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(148, 163, 184, 0.25); color: #cbd5e1; cursor: pointer;">
+                <button type="button" class="btn-touch btn-secondary" id="staff-master-otp-cancel-btn" onclick="handleStaffMasterOtpCancel()" style="flex: 1; min-height: 48px; padding: 12px; border-radius: 12px; font-weight: 600; font-size: 0.92rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(148, 163, 184, 0.25); color: #cbd5e1; cursor: pointer;">
                     Cancel
                 </button>
-                <button type="button" class="btn-touch btn-primary" id="staff-master-otp-confirm-btn" onclick="handleStaffMasterOtpSubmit()" style="flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; border: none; color: #ffffff; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4); cursor: pointer;">
+                <button type="button" class="btn-touch btn-primary" id="staff-master-otp-confirm-btn" onclick="handleStaffMasterOtpSubmit()" style="flex: 1; min-height: 48px; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.92rem; border: none; color: #ffffff; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4); cursor: pointer;">
                     Authorize &amp; Delete
                 </button>
             </div>
@@ -488,7 +488,7 @@
                             id="reject-modal-reason" 
                             rows="2" 
                             placeholder="State mandatory reason for rejecting this order..." 
-                            style="width: 100%; border: 1.5px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); border-radius: 8px; padding: 8px 10px; color: #ffffff; font-size: 0.85rem; resize: none; font-family: inherit; box-sizing: border-box;"
+                            style="width: 100%; min-height: 60px; border: 1.5px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); border-radius: 8px; padding: 10px 12px; color: #ffffff; font-size: 0.92rem; resize: none; font-family: inherit; box-sizing: border-box;"
                         ></textarea>
                         <div id="reject-modal-reason-error" style="display: none; color: #ef4444; font-size: 0.78rem; font-weight: 600; margin-top: 4px;"></div>
                     </div>
@@ -505,7 +505,7 @@
                             placeholder="Enter 4-Digit Master OTP" 
                             maxlength="4" 
                             autocomplete="off"
-                            style="width: 100%; text-align: center; font-size: 1.25rem; letter-spacing: 6px; font-weight: 800; border: 1.5px solid rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1); border-radius: 10px; padding: 10px; color: #ffffff;"
+                            style="width: 100%; min-height: 48px; text-align: center; font-size: 1.3rem; letter-spacing: 6px; font-weight: 800; border: 1.5px solid rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1); border-radius: 10px; padding: 10px; color: #ffffff; box-sizing: border-box;"
                             oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4)"
                             onkeydown="if(event.key === 'Enter') confirmRejectOrder()"
                         >
@@ -514,10 +514,10 @@
                 </div>
 
                 <div class="staff-modal-footer">
-                    <button type="button" class="btn-touch btn-modal-cancel" onclick="closeStaffRejectModal()">
+                    <button type="button" class="btn-touch btn-modal-cancel" onclick="closeStaffRejectModal()" style="min-height: 48px;">
                         <i class="fa-solid fa-arrow-left"></i> Keep Order
                     </button>
-                    <button type="button" class="btn-touch btn-modal-confirm-reject" id="btn-confirm-order-reject" onclick="confirmRejectOrder()">
+                    <button type="button" class="btn-touch btn-modal-confirm-reject" id="btn-confirm-order-reject" onclick="confirmRejectOrder()" style="min-height: 48px;">
                         <i class="fa-solid fa-ban"></i> Confirm Reject
                     </button>
                 </div>
