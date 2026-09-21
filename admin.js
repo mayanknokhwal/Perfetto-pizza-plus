@@ -3,6 +3,8 @@
  * Provides modular helpers for Admin Wallet & Cashback Slabs management
  */
 
+export const ADMIN_ORDERS_STORAGE_KEY = 'admin_perfetto_state';
+
 export const DEFAULT_WALLET_CONFIG = {
     key: 'wallet_config',
     enabled: true,
@@ -1183,7 +1185,7 @@ export function updateDashboardKPIsDOM(kpis) {
 export function listenToAdminTodayOrders(options = {}) {
     const db = options.db || (typeof window !== 'undefined' && (window.adminFirestore || window.db || (typeof getAdminFirestore === 'function' ? getAdminFirestore() : null)));
     const onUpdate = typeof options.onUpdate === 'function' ? options.onUpdate : null;
-    const limitCount = options.limit || 50;
+    const limitCount = options.limit || 100;
 
     // Resilient fallback to backend API if Firestore is not directly reachable
     const fetchApiFallback = () => {
@@ -1195,8 +1197,7 @@ export function listenToAdminTodayOrders(options = {}) {
                     if (data && data.success && Array.isArray(data.orders)) {
                         if (data.orders.length === 0) {
                             try {
-                                localStorage.removeItem('perfetto_staff_orders');
-                                localStorage.removeItem('perfettoCustomerOrders');
+                                localStorage.removeItem(ADMIN_ORDERS_STORAGE_KEY);
                             } catch (e) { }
                             const pEl = document.getElementById('stat-pending-orders') || document.getElementById('pending-orders-count');
                             const cEl = document.getElementById('stat-delivered-orders') || document.getElementById('completed-orders-count');
@@ -1204,6 +1205,10 @@ export function listenToAdminTodayOrders(options = {}) {
                             if (pEl) pEl.textContent = '0';
                             if (cEl) cEl.textContent = '0';
                             if (rEl) rEl.textContent = '0';
+                        } else {
+                            try {
+                                localStorage.setItem(ADMIN_ORDERS_STORAGE_KEY, JSON.stringify(data.orders));
+                            } catch (e) { }
                         }
                         const kpis = calculateDashboardKPIs(data.orders);
                         updateDashboardKPIsDOM(kpis);
@@ -1349,11 +1354,15 @@ export function listenToAdminTodayOrders(options = {}) {
                 }
             }
 
-            // Client-Side Auto-Purge Helper: If orders collection is empty, clear local caches and reset badges to 0
+            // Prevent Race Condition Wipe:
+            // If snapshot is empty from cache (offline initial probe) while we have existing state, do not zero out.
+            const isFromCache = Boolean(snapshot && snapshot.metadata && snapshot.metadata.fromCache);
             if (orders.length === 0) {
+                if (isFromCache) {
+                    return;
+                }
                 try {
-                    localStorage.removeItem('perfetto_staff_orders');
-                    localStorage.removeItem('perfettoCustomerOrders');
+                    localStorage.removeItem(ADMIN_ORDERS_STORAGE_KEY);
                 } catch (e) { }
                 const pEl = document.getElementById('stat-pending-orders') || document.getElementById('pending-orders-count');
                 const cEl = document.getElementById('stat-delivered-orders') || document.getElementById('completed-orders-count');
@@ -1361,9 +1370,13 @@ export function listenToAdminTodayOrders(options = {}) {
                 if (pEl) pEl.textContent = '0';
                 if (cEl) cEl.textContent = '0';
                 if (rEl) rEl.textContent = '0';
+            } else {
+                try {
+                    localStorage.setItem(ADMIN_ORDERS_STORAGE_KEY, JSON.stringify(orders));
+                } catch (e) { }
             }
 
-            // In-memory pure calculation with zero Firestore writes
+            // In-memory pure calculation with zero Firestore writes and zero window.staffOrders cross-talk
             const kpis = calculateDashboardKPIs(orders);
             updateDashboardKPIsDOM(kpis);
             if (onUpdate) onUpdate(kpis, orders);
@@ -1795,8 +1808,25 @@ export function dismissAdminOrderAlert() {
     console.log('🔇 [Admin Alert] Dismissed incoming order alert banner and stopped chime in-memory.');
 }
 
+let activeAdminOrdersUnsubscribe = null;
+
+export function initAdminKPIListener() {
+    if (typeof window === 'undefined') return null;
+    if (activeAdminOrdersUnsubscribe) return activeAdminOrdersUnsubscribe;
+
+    const db = window.adminFirestore || window.db || (typeof getAdminFirestore === 'function' ? getAdminFirestore() : null);
+    if (!db || typeof db.collection !== 'function') {
+        setTimeout(initAdminKPIListener, 1000);
+        return null;
+    }
+    activeAdminOrdersUnsubscribe = listenToAdminTodayOrders({ limit: 100 });
+    return activeAdminOrdersUnsubscribe;
+}
+
 // Global browser window bindings
 if (typeof window !== 'undefined') {
+    window.ADMIN_ORDERS_STORAGE_KEY = ADMIN_ORDERS_STORAGE_KEY;
+    window.initAdminKPIListener = initAdminKPIListener;
     window.initAdminAudio = initAdminAudio;
     window.unlockAdminAudioContext = unlockAdminAudioContext;
     window.attachAdminAudioUnlockListeners = attachAdminAudioUnlockListeners;
@@ -1824,9 +1854,11 @@ if (typeof window !== 'undefined') {
             document.addEventListener('DOMContentLoaded', () => {
                 attachAdminAudioUnlockListeners();
                 try { initAdminAudio(); } catch (e) { }
+                try { initAdminKPIListener(); } catch (e) { }
             }, { once: true });
         } else {
             try { initAdminAudio(); } catch (e) { }
+            try { initAdminKPIListener(); } catch (e) { }
         }
     }
 }

@@ -39,7 +39,7 @@ async function apiCall(endpoint, options = {}) {
 const STAFF_SESSION_STORAGE_KEY = 'perfetto_staff_session_user';
 const STAFF_LOCAL_STORAGE_KEY = 'perfetto_staff_user_session';
 const STAFF_VERIFIED_PHONE_KEY = 'perfetto_staff_verified_phone';
-const STAFF_ORDERS_STORAGE_KEY = 'perfetto_staff_orders';
+const STAFF_ORDERS_STORAGE_KEY = 'staff_perfetto_state';
 const MASTER_ADMIN_PHONE_NUM = '9414503886';
 const STAFF_MSG91_CONFIG = {
     widgetId: "3668716b4f68313937363038",
@@ -714,13 +714,18 @@ function listenToFirestoreStaffOrders() {
             });
         }
 
-        // Client-Side Auto-Purge Helper: When orders collection is empty, clear local caches and reset badges to 0
+        // Prevent Race Condition Wipe:
+        // When Firestore initial hydration occurs from cache or connection is establishing,
+        // do not wipe active in-memory orders if snapshot is from cache and empty.
+        const isFromCache = Boolean(snapshot && snapshot.metadata && snapshot.metadata.fromCache);
         if (liveOrders.length === 0) {
+            if (isFromCache && staffOrders.length > 0) {
+                console.log('📡 [Staff Orders] Cached snapshot empty; preserving existing in-memory orders until live server response.');
+                return;
+            }
             staffOrders = [];
             try {
-                localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
-                localStorage.removeItem('perfetto_staff_orders');
-                localStorage.removeItem('perfettoCustomerOrders');
+                localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify([]));
             } catch (e) { }
             renderOrders();
             const pendingCountEl = document.getElementById('pending-orders-count');
@@ -2727,9 +2732,6 @@ async function handleStaffLogout() {
             sessionStorage.removeItem('perfetto_staff_verified_phone');
             sessionStorage.removeItem('staff_user');
             sessionStorage.removeItem('perfetto_staff_session');
-            sessionStorage.removeItem('perfetto_admin_session_user');
-            sessionStorage.removeItem('perfetto_admin_user_session');
-            sessionStorage.clear();
 
             localStorage.removeItem(STAFF_SESSION_STORAGE_KEY);
             localStorage.removeItem(STAFF_LOCAL_STORAGE_KEY);
@@ -2742,7 +2744,6 @@ async function handleStaffLogout() {
             localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
 
             sessionStorage.setItem('perfetto_staff_logged_out', 'true');
-            localStorage.setItem('perfetto_staff_logged_out', 'true');
         } catch (e) { }
 
         if (typeof firebase !== 'undefined' && firebase.auth) {
@@ -2922,14 +2923,14 @@ function isValidStaffOrder(order) {
 }
 
 function loadCustomerOrders() {
-    // 1. Instant load from LocalStorage strictly using STAFF_ORDERS_STORAGE_KEY (never poll customer app keys)
+    // 1. Instant load from LocalStorage strictly using STAFF_ORDERS_STORAGE_KEY
     try {
-        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY);
+        const stored = localStorage.getItem(STAFF_ORDERS_STORAGE_KEY) || localStorage.getItem('perfetto_staff_orders');
         if (stored) {
             const customerOrders = JSON.parse(stored);
-            if (Array.isArray(customerOrders)) {
+            if (Array.isArray(customerOrders) && customerOrders.length > 0) {
                 // Sanitize loaded orders: ensure pending orders never carry fabricated delivery status or timestamps
-                staffOrders = sortOrdersOldestFirst(customerOrders.filter(isValidStaffOrder).map(o => {
+                const sanitized = sortOrdersOldestFirst(customerOrders.filter(isValidStaffOrder).map(o => {
                     const rawStatus = String(o.status || '').trim().toUpperCase();
                     const s = rawStatus.toLowerCase();
                     if (rawStatus === 'PENDING' || rawStatus === 'NEW' || rawStatus === 'PLACED' || rawStatus === 'PREPARING' || PENDING_STAFF_STATUSES.has(s) || s === 'paid') {
@@ -2940,22 +2941,24 @@ function loadCustomerOrders() {
                     }
                     return o;
                 }));
-            } else {
-                staffOrders = [];
+                if (staffOrders.length === 0) {
+                    staffOrders = sanitized;
+                } else {
+                    mergeLiveOrdersIntoStaff(sanitized);
+                }
             }
-        } else {
-            staffOrders = [];
         }
     } catch (e) {
         console.error('Error loading customer orders from localStorage:', e);
-        staffOrders = [];
     }
 
     // Auto-accept any online payment orders (at most transitions to 'preparing', never 'delivered')
     processAutoAcceptanceForOnlineOrders();
 
-    // 2. Asynchronously sync with backend API
-    fetchOrdersFromBackend();
+    // 2. Asynchronously sync with backend API only if real-time listener isn't populated
+    if (!staffOrdersUnsubscribe || staffOrders.length === 0) {
+        fetchOrdersFromBackend();
+    }
 }
 
 async function fetchOrdersFromBackend(force = false) {
@@ -2971,19 +2974,19 @@ async function fetchOrdersFromBackend(force = false) {
         const data = await response.json();
         if (data && data.success && Array.isArray(data.orders)) {
             if (data.orders.length === 0) {
-                staffOrders = [];
-                try {
-                    localStorage.removeItem(STAFF_ORDERS_STORAGE_KEY);
-                    localStorage.removeItem('perfetto_staff_orders');
-                    localStorage.removeItem('perfettoCustomerOrders');
-                } catch (e) { }
-                renderOrders();
-                const pendingCountEl = document.getElementById('pending-orders-count');
-                const completedCountEl = document.getElementById('completed-orders-count');
-                const rejectedCountEl = document.getElementById('rejected-orders-count');
-                if (pendingCountEl) pendingCountEl.textContent = '0';
-                if (completedCountEl) completedCountEl.textContent = '0';
-                if (rejectedCountEl) rejectedCountEl.textContent = '0';
+                if (!staffOrdersUnsubscribe && staffOrders.length === 0) {
+                    staffOrders = [];
+                    try {
+                        localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify([]));
+                    } catch (e) { }
+                    renderOrders();
+                    const pendingCountEl = document.getElementById('pending-orders-count');
+                    const completedCountEl = document.getElementById('completed-orders-count');
+                    const rejectedCountEl = document.getElementById('rejected-orders-count');
+                    if (pendingCountEl) pendingCountEl.textContent = '0';
+                    if (completedCountEl) completedCountEl.textContent = '0';
+                    if (rejectedCountEl) rejectedCountEl.textContent = '0';
+                }
             } else {
                 mergeLiveOrdersIntoStaff(data.orders);
             }
@@ -4128,9 +4131,15 @@ window.addEventListener('storage', (e) => {
     if (e.key && (e.key === 'staff_sound_enabled' || e.key.includes('sound') || e.key.includes('audio') || e.key.includes('dismiss'))) {
         return;
     }
-    if (!e.key || e.key === STAFF_ORDERS_STORAGE_KEY) {
-        syncCustomerOrders();
+    // Only react to staff-scoped orders key to eliminate cross-talk with Admin or Customer tabs
+    if (e.key !== STAFF_ORDERS_STORAGE_KEY) {
+        return;
     }
+    // If the storage key was removed or cleared by another tab, never wipe active in-memory staff orders
+    if (!e.newValue || e.newValue === '[]' || e.newValue === 'null') {
+        return;
+    }
+    syncCustomerOrders();
 });
 
 // --------------------------------------------------------------------------
