@@ -180,46 +180,69 @@ window.safeSessionStorage = safeSessionStorage;
     }
 })();
 
-// Centralized Localization Helper Bridge
-function t(key, params) {
-    if (typeof window !== 'undefined' && typeof window.perfettoTranslate === 'function') {
-        return window.perfettoTranslate(key, params);
+// Centralized Localization Helper Bridge (Enforced Clean English UI)
+const ENGLISH_STRINGS = {
+    search_placeholder: "Search pizza, burger, pasta...",
+    options_available: "options available",
+    product_not_available: "This time product is not available",
+    add_to_cart: "ADD TO CART",
+    out_of_stock: "OUT OF STOCK",
+    addons_label: "ADD-ONS:",
+    size_label: "Size:",
+    price_label: "Price:",
+    off: "OFF",
+    copy_otp: "Copy OTP",
+    wallet_active: "Active",
+    wallet_system_paused: "SYSTEM PAUSED",
+    wallet_rules_default: "Auto-cashback on eligible orders • 100% usable on any order",
+    wallet_paused: "Cashback rewards system is currently paused.",
+    wallet_legacy_balance_notice: "Using existing wallet balance. New cashback rewards are currently paused.",
+    wallet_system_paused_modal_toast: "Wallet cashback rewards are currently paused.",
+    wallet_no_transactions: "No wallet transactions yet. Place an order to earn cashback!",
+    scratch_claimed_status: "Claimed (+₹{amount} in wallet)",
+    scratch_card_title: "🎉 Mystery Reward Unlocked!",
+    scratch_card_subtitle: "Scratch the card to reveal your cashback reward",
+    scratch_won_banner: "You won ₹{amount} Cashback!",
+    no_recent_active_orders: "No recent active orders"
+};
+
+function t(key, params, fallback = '') {
+    let str = ENGLISH_STRINGS[key] || fallback || key;
+    if (params && typeof params === 'object' && typeof str === 'string') {
+        for (const [k, v] of Object.entries(params)) {
+            str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+        }
     }
-    return key;
+    return str;
 }
 function tItem(name) {
-    if (typeof window !== 'undefined' && typeof window.perfettoTranslateItem === 'function') {
-        return window.perfettoTranslateItem(name);
-    }
-    return name;
+    return name || '';
 }
 function tCategory(cat) {
-    if (typeof window !== 'undefined' && typeof window.perfettoTranslateCategory === 'function') {
-        return window.perfettoTranslateCategory(cat);
-    }
-    return cat;
+    return cat || '';
 }
 function tAddon(addon) {
-    if (typeof window !== 'undefined' && typeof window.perfettoTranslateAddon === 'function') {
-        return window.perfettoTranslateAddon(addon);
-    }
-    return addon;
+    return addon || '';
 }
+function getAppLanguage() {
+    return 'en';
+}
+window.t = t;
+window.tItem = tItem;
+window.tCategory = tCategory;
+window.tAddon = tAddon;
+window.getAppLanguage = getAppLanguage;
 
 /**
  * Strips redundant category suffixes for display card titles in category grid view.
  * Applies strictly across the 7 selected categories: Noodles, Pasta, Salad, Shakes, Coffee, Rice, and Momos.
- * E.g., render "Green" instead of "Green Salad", "Paneer" instead of "Paneer Noodles",
- * "Vanilla" instead of "Vanilla Shake", "Red" instead of "Red Pasta", "Haka" instead of "Haka Rice",
- * "Cold" instead of "Cold Coffee", "Veg" instead of "Veg Momos".
- *
  * Preserves the complete item name for search matching, search results, cart, orders, and dispatch.
  */
 function getCategoryDisplayTitle(itemOrName, category) {
     let name = '';
     let cat = '';
     if (itemOrName && typeof itemOrName === 'object') {
-        name = typeof tItem === 'function' ? tItem(itemOrName.name || '') : (itemOrName.name || '');
+        name = itemOrName.name || '';
         cat = category || itemOrName.category || '';
     } else {
         name = String(itemOrName || '');
@@ -236,7 +259,7 @@ function getCategoryDisplayTitle(itemOrName, category) {
     const isRice = normCat === 'rice';
     const isMomos = normCat === 'momos' || normCat === 'momo';
     const isPizza = normCat === 'pizza' || normCat === 'pizzas';
-    const isRolls = normCat === 'spring rolls' || normCat === 'spring roll' || normCat === 'rolls' || normCat === 'roll' || normCat.includes('roll') || normCat.includes('रोल');
+    const isRolls = normCat === 'spring rolls' || normCat === 'spring roll' || normCat === 'rolls' || normCat === 'roll' || normCat.includes('roll');
 
     if (!isNoodles && !isPasta && !isSalad && !isShake && !isCoffee && !isRice && !isMomos && !isPizza && !isRolls) {
         return name;
@@ -244,23 +267,23 @@ function getCategoryDisplayTitle(itemOrName, category) {
 
     let title = name.trim();
     if (isNoodles) {
-        title = title.replace(/\s+(noodles|नूडल्स)$/i, '');
+        title = title.replace(/\s+noodles$/i, '');
     } else if (isPasta) {
-        title = title.replace(/\s+(pasta|पास्ता)$/i, '');
+        title = title.replace(/\s+pasta$/i, '');
     } else if (isSalad) {
-        title = title.replace(/\s+(salad|सलाद)$/i, '');
+        title = title.replace(/\s+salad$/i, '');
     } else if (isShake) {
-        title = title.replace(/\s+(shakes?|शेक)$/i, '');
+        title = title.replace(/\s+shakes?$/i, '');
     } else if (isCoffee) {
-        title = title.replace(/\s+(coffee|कॉफ़ी|कॉफी)$/i, '');
+        title = title.replace(/\s+coffee$/i, '');
     } else if (isRice) {
-        title = title.replace(/\s+(rice|राइस)$/i, '');
+        title = title.replace(/\s+rice$/i, '');
     } else if (isMomos) {
-        title = title.replace(/\s+(momos?|मोमोज़|मोमो)$/i, '');
+        title = title.replace(/\s+momos?$/i, '');
     } else if (isPizza) {
-        title = title.replace(/\s+(pizza|पिज़्ज़ा|पिज्जा)$/i, '');
+        title = title.replace(/\s+pizza$/i, '');
     } else if (isRolls) {
-        title = title.replace(/\s+(rolls?|रोल्स|रोल)$/i, '');
+        title = title.replace(/\s+rolls?$/i, '');
     }
 
     return title || name;
@@ -268,73 +291,6 @@ function getCategoryDisplayTitle(itemOrName, category) {
 if (typeof window !== 'undefined') {
     window.getCategoryDisplayTitle = getCategoryDisplayTitle;
 }
-
-// Global hook for instant reactive re-rendering across the app when language changes
-window.onAppLanguageChanged = function (newLang) {
-    // 1. Re-render Category Detail if open
-    if (activeTabName === 'category-detail' && lastCategoryState.categoryName) {
-        openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
-    }
-    // 2. Refresh Cart UI
-    if (typeof updateCartUI === 'function') {
-        updateCartUI();
-    }
-    // 3. Refresh Profile UI, Name Fallback & Wallet
-    if (typeof updateProfileWalletUI === 'function') {
-        updateProfileWalletUI();
-    }
-    if (typeof updateProfileTotalsUI === 'function') {
-        updateProfileTotalsUI();
-    }
-    if (typeof loadSavedProfile === 'function') {
-        loadSavedProfile();
-    }
-    // 4. Refresh Customer Care Modal UI
-    if (typeof updateCustomerCareModalUI === 'function') {
-        updateCustomerCareModalUI();
-    }
-    // 5. Refresh Order History & Scratch Card Badges
-    if (typeof renderOrderHistoryDetails === 'function') {
-        renderOrderHistoryDetails();
-    }
-    // 6. Refresh Store Notice UI (preserving raw dynamic admin notice)
-    if (typeof updateStoreNoticeUI === 'function') {
-        updateStoreNoticeUI();
-    }
-    // 7. Refresh Checkout Wallet UI if modal is open
-    const checkoutModal = document.getElementById('checkout-modal');
-    if (checkoutModal && checkoutModal.style.display !== 'none' && typeof updateCheckoutWalletUI === 'function') {
-        updateCheckoutWalletUI();
-    }
-    // 8. Update header search input placeholder
-    const searchInput = document.getElementById('customer-search-input');
-    if (searchInput && typeof t === 'function') {
-        searchInput.placeholder = t('search_placeholder');
-    }
-    // 9. Update Sticky Floating Cart Bar
-    if (typeof updateFloatingCartBar === 'function') {
-        updateFloatingCartBar();
-    }
-    // 10. Update Profile Language Pills & Subtitle
-    const pillEn = document.getElementById('profile-pill-en');
-    if (pillEn) pillEn.classList.toggle('active', newLang === 'en');
-    const pillHi = document.getElementById('profile-pill-hi');
-    if (pillHi) pillHi.classList.toggle('active', newLang === 'hi');
-    const profSub = document.getElementById('profile-lang-subtitle');
-    if (profSub) {
-        profSub.textContent = newLang === 'hi' ? 'हिंदी (सक्रिय)' : 'English (Active)';
-    }
-    // 11. Update Notice preview chip if using default
-    const noticePreview = document.getElementById('home-notice-chip-preview');
-    if (noticePreview) {
-        const rawSaved = localStorage.getItem('perfetto_store_notice');
-        if (!rawSaved || !rawSaved.trim()) {
-            noticePreview.textContent = newLang === 'hi'
-                ? 'स्टोर घोषणाएं और जानकारी देखने के लिए क्लिक करें'
-                : 'Click to view store announcements & info';
-        }
-    }
-};
 
 // Cart State & Persistence
 const CART_STORAGE_KEY = 'perfetto_pizza_cart';
@@ -490,7 +446,9 @@ window.purgeClientAppState = purgeClientAppState;
 function checkAndApplyClientStateReset() {
     try {
         if (typeof localStorage === 'undefined') return;
-        const recordedEpoch = localStorage.getItem('PERFETTO_STATE_EPOCH');
+        const recordedEpoch = localStorage.getItem('PERFETTO_STATE_EPOCH',
+                'app_language',
+                'preferred_language');
         if (recordedEpoch !== CLIENT_STATE_RESET_EPOCH) {
             console.warn(`🧹 [STATE RESET] Applying state reset epoch '${CLIENT_STATE_RESET_EPOCH}' (previous: '${recordedEpoch}')...`);
             purgeClientAppState({ resetAuth: true, resetCart: true });
@@ -3243,14 +3201,10 @@ function openCategoryDetail(categoryName, categoryImg, isRestoringState = false,
         items.sort(compareCustomerMenuItemsTieredPriority);
     }
 
-    const translatedCat = typeof tCategory === 'function' ? tCategory(categoryName) : categoryName;
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    const titleText = isHindi
-        ? (categoryName.toLowerCase().includes('menu') ? translatedCat : `${translatedCat} मेन्यू`)
-        : (categoryName.toLowerCase().includes('menu') ? categoryName : `${categoryName} Menu`);
+    const titleText = categoryName.toLowerCase().includes('menu') ? categoryName : `${categoryName} Menu`;
     if (heroTitleEl) heroTitleEl.textContent = titleText;
     if (heroImgEl) heroImgEl.src = categoryImg;
-    if (heroCountEl) heroCountEl.textContent = `${items.length} ${typeof t === 'function' ? t('options_available') : 'options available'}`;
+    if (heroCountEl) heroCountEl.textContent = `${items.length} options available`;
 
     if (subItemsGrid) {
         if (categoryName === "Pizza") {
@@ -4854,15 +4808,13 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
     const storeStatus = evaluateCustomerStoreStatus();
     const isShopClosed = !storeStatus.isOpen;
 
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-
     if (subtotal < minOrderVal) {
         // CONDITION A: Below Minimum Order Value
         const diff = (minOrderVal - subtotal).toFixed(2);
         banner.className = 'cart-threshold-banner status-below-min';
         content.innerHTML = `
             <i class="fa-solid fa-triangle-exclamation"></i>
-            <span>${isHindi ? `न्यूनतम ऑर्डर मूल्य: ${formatPrice(minOrderVal)}` : `Minimum order value: ${formatPrice(minOrderVal)}`}</span>
+            <span>Minimum order value: ${formatPrice(minOrderVal)}</span>
         `;
         if (checkoutBtn) {
             checkoutBtn.setAttribute('disabled', 'true');
@@ -4873,7 +4825,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         banner.className = 'cart-threshold-banner status-upsell-free';
         content.innerHTML = `
             <i class="fa-solid fa-truck-arrow-right"></i>
-            <span>${isHindi ? `मुफ्त होम डिलीवरी के लिए ${formatPrice(diff)} और जोड़ें!` : `Add ${formatPrice(diff)} more to get FREE Home Delivery!`}</span>
+            <span>Add ${formatPrice(diff)} more to get FREE Home Delivery!</span>
         `;
         if (checkoutBtn) {
             if (isShopClosed) {
@@ -4893,7 +4845,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
         banner.className = 'cart-threshold-banner status-unlocked-free';
         content.innerHTML = `
             <i class="fa-solid fa-circle-check"></i>
-            <span>${isHindi ? `बधाई हो! आपको मुफ़्त डिलीवरी मिल गई है।` : `Congratulations! You have unlocked FREE Delivery.`}</span>
+            <span>Congratulations! You have unlocked FREE Delivery.</span>
         `;
         if (checkoutBtn) {
             if (isShopClosed) {
@@ -4938,35 +4890,23 @@ function getClampedCashbackExpiryDays(config) {
 }
 window.getClampedCashbackExpiryDays = getClampedCashbackExpiryDays;
 
-function formatExpiryDaysLabel(days, isHindi) {
+function formatExpiryDaysLabel(days) {
     const d = Math.max(1, parseInt(days, 10) || 1);
-    if (isHindi) {
-        return `${d} दिनों में समाप्त`;
-    }
     return d === 1 ? 'Expires in 1 day' : `Expires in ${d} days`;
 }
 window.formatExpiryDaysLabel = formatExpiryDaysLabel;
 
 /**
- * Computes step-down countdown text from milliseconds remaining:
- * - Greater than 24 hours remaining:
- *     Displays standard day threshold (e.g., "Expires in 2 days", "Expires in 1 day")
- * - Between 24 hours and 1 hour remaining:
- *     Switches to an hourly countdown descending from 23 hours down to 1 hour (e.g., "Expires in 23h", "Expires in 18h", "Expires in 1h")
- *     Does not render minutes during this multi-hour phase.
- * - Less than 1 hour remaining (final 60 minutes):
- *     Transitions countdown to minute-level resolution descending from 59 minutes (e.g., "Expires in 59m", "Expires in 42m", "Expires in 1m")
- * - Expired:
- *     Returns "Expired" or Hindi equivalent.
- *
- * @param {number} remainingMs 
- * @param {boolean} [isHindi=false] 
- * @param {boolean} [compact=false] 
- * @returns {string}
+ * Computes step-down countdown text from milliseconds remaining in clean English:
+ * - Greater than 24 hours remaining: "Expires in X days"
+ * - Between 24 hours and 1 hour remaining: "Expires in Xh"
+ * - Less than 1 hour remaining: "Expires in Xm"
+ * - Expired: "Expired"
  */
-function formatStepDownExpiryCountdown(remainingMs, isHindi = false, compact = false) {
+function formatStepDownExpiryCountdown(remainingMs, compact = false) {
+    if (arguments.length >= 3) compact = arguments[2];
     if (remainingMs <= 0) {
-        return isHindi ? 'समाप्त हो गया' : 'Expired';
+        return 'Expired';
     }
 
     const MS_IN_MINUTE = 60 * 1000;
@@ -4976,21 +4916,18 @@ function formatStepDownExpiryCountdown(remainingMs, isHindi = false, compact = f
     if (remainingMs > MS_IN_DAY) {
         const days = Math.ceil(remainingMs / MS_IN_DAY);
         if (compact) {
-            return isHindi ? `${days}d में समाप्त` : `Expires in ${days}d`;
-        }
-        if (isHindi) {
-            return days === 1 ? '1 दिन में समाप्त' : `${days} दिनों में समाप्त`;
+            return `Expires in ${days}d`;
         }
         return days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
     }
 
     if (remainingMs >= MS_IN_HOUR) {
         const hours = Math.min(23, Math.floor(remainingMs / MS_IN_HOUR));
-        return isHindi ? `${hours}h में समाप्त` : `Expires in ${hours}h`;
+        return `Expires in ${hours}h`;
     }
 
     const minutes = Math.min(59, Math.max(1, Math.floor(remainingMs / MS_IN_MINUTE)));
-    return isHindi ? `${minutes}m में समाप्त` : `Expires in ${minutes}m`;
+    return `Expires in ${minutes}m`;
 }
 window.formatStepDownExpiryCountdown = formatStepDownExpiryCountdown;
 
@@ -5951,7 +5888,6 @@ function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
         return isNaN(parsed) ? NaN : parsed;
     };
 
-    const isHindi = (typeof getAppLanguage === 'function' && getAppLanguage() === 'hi');
     const txList = Array.isArray(w.transactions) ? w.transactions : [];
 
     let activeCashbacksTotal = 0;
@@ -6051,9 +5987,9 @@ function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
         if (remainingMs <= (24 * 60 * 60 * 1000) + 120000) {
             const hrs = Math.max(1, Math.round(remainingMs / (60 * 60 * 1000)));
             timeStr = `${hrs}h`;
-            countdownText = isHindi ? `${hrs}h में समाप्त` : `expiring in ${hrs}h`;
+            countdownText = `expiring in ${hrs}h`;
         } else if (typeof formatStepDownExpiryCountdown === 'function') {
-            countdownText = formatStepDownExpiryCountdown(remainingMs, isHindi, false);
+            countdownText = formatStepDownExpiryCountdown(remainingMs, false, false);
             timeStr = countdownText.toLowerCase().replace(/^expires in\s*/i, '').replace(/^expiring in\s*/i, '');
         } else {
             const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
@@ -6821,8 +6757,6 @@ function updateCartCashbackIncentiveBar(subtotal) {
     const slab1Threshold = getSlab1Threshold(customerWalletConfig);
     const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0);
     const boundaries = getCashbackRewardBoundaries(subtotal);
-    const isHindiCashback = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-
     bar.style.display = 'block';
 
     if (!isSlab1Qualified) {
@@ -6834,18 +6768,14 @@ function updateCartCashbackIncentiveBar(subtotal) {
             <div class="cashback-bar-left">
                 <i class="fa-solid fa-gift"></i>
                 <span class="cashback-bar-text">
-                    ${isHindiCashback 
-                        ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए <strong>${formatPrice(diff)}</strong> और जोड़ें! | न्यूनतम ₹${slab1Threshold}` 
-                        : `Add <strong>${formatPrice(diff)}</strong> more to unlock a cashback scratch card! | Min ₹${slab1Threshold}`}
+                    Add <strong>${formatPrice(diff)}</strong> more to unlock a cashback scratch card! | Min ₹${slab1Threshold}
                 </span>
             </div>
-            <span class="cashback-current-badge badge-locked"><i class="fa-solid fa-lock"></i> ${isHindiCashback ? `न्यूनतम ₹${slab1Threshold}` : `Min ₹${slab1Threshold}`}</span>
+            <span class="cashback-current-badge badge-locked"><i class="fa-solid fa-lock"></i> Min ₹${slab1Threshold}</span>
         `;
     } else if (boundaries.qualified && boundaries.max > 0) {
         const reward = boundaries.max;
-        const scratchText = isHindiCashback
-            ? `₹${reward} कैशबैक अनलॉक`
-            : `₹${reward} Cashback Unlocked`;
+        const scratchText = `₹${reward} Cashback Unlocked`;
 
         if (boundaries.nextSlab) {
             const nextMin = Number(boundaries.nextSlab.minOrder ?? boundaries.nextSlab.min_order ?? 0) || 0;
@@ -6857,10 +6787,10 @@ function updateCartCashbackIncentiveBar(subtotal) {
                 <div class="cashback-bar-left">
                     <i class="fa-solid fa-gift"></i>
                     <span class="cashback-bar-text">
-                        <strong>${scratchText}</strong> • ${isHindiCashback ? `<strong>${formatPrice(diff)}</strong> और जोड़ें (₹${nextReward} रिवॉर्ड पाएं)` : `Add <strong>${formatPrice(diff)}</strong> more for <strong>${formatPrice(nextReward)}</strong> Cashback!`}
+                        <strong>${scratchText}</strong> • Add <strong>${formatPrice(diff)}</strong> more for <strong>${formatPrice(nextReward)}</strong> Cashback!
                     </span>
                 </div>
-                <span class="cashback-current-badge"><i class="fa-solid fa-ticket"></i> ${isHindiCashback ? 'स्क्रैच कार्ड' : 'Scratch Card'}</span>
+                <span class="cashback-current-badge"><i class="fa-solid fa-ticket"></i> Scratch Card</span>
             `;
         } else {
             bar.classList.add('cashback-max-unlocked');
@@ -6869,7 +6799,7 @@ function updateCartCashbackIncentiveBar(subtotal) {
                     <i class="fa-solid fa-crown"></i>
                     <span class="cashback-bar-text">🎉 <strong>${scratchText}</strong></span>
                 </div>
-                <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> ${isHindiCashback ? 'स्क्रैच कार्ड' : 'Scratch Card'}</span>
+                <span class="cashback-current-badge"><i class="fa-solid fa-crown"></i> Scratch Card</span>
             `;
         }
     } else {
@@ -7154,10 +7084,7 @@ function updateCheckoutWalletUI() {
             hintEl.classList.add('wallet-legacy-notice');
         }
         if (hintTextEl) {
-            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-            hintTextEl.textContent = typeof t === 'function'
-                ? t('wallet_legacy_balance_notice')
-                : (isHindi ? 'मौजूदा वॉलेट बैलेंस का उपयोग कर रहे हैं। नए कैशबैक रिवॉर्ड अभी रुके हुए हैं।' : 'Using existing wallet balance. New cashback rewards are currently paused.');
+            hintTextEl.textContent = 'Using existing wallet balance. New cashback rewards are currently paused.';
         }
     } else {
         if (hintEl) {
@@ -7205,8 +7132,6 @@ function updateCheckoutCashbackTeaser(subtotal) {
     const isSlab1Qualified = Boolean(subtotal >= slab1Threshold && subtotal > 0);
     const isWalletApplied = Boolean(isWalletRedemptionSelected && appliedWalletDiscountAmount > 0);
     const boundaries = getCashbackRewardBoundaries(subtotal);
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-
     teaserEl.style.display = 'block';
 
     if (!isSlab1Qualified) {
@@ -7215,40 +7140,28 @@ function updateCheckoutCashbackTeaser(subtotal) {
         const slab1Reward = boundaries.nextSlab ? Number(boundaries.nextSlab.cashback) : 10;
         teaserEl.classList.remove('teaser-wallet-applied');
         if (teaserText) {
-            teaserText.textContent = isHindi
-                ? `कैशबैक स्क्रैच कार्ड अनलॉक करने के लिए ${formatPrice(diff)} और जोड़ें! | न्यूनतम ₹${slab1Threshold}`
-                : `Add ${formatPrice(diff)} more to unlock a cashback scratch card! | Min ₹${slab1Threshold}`;
+            teaserText.textContent = `Add ${formatPrice(diff)} more to unlock a cashback scratch card! | Min ₹${slab1Threshold}`;
         }
         if (teaserSub) {
-            teaserSub.textContent = isHindi
-                ? `न्यूनतम ₹${slab1Threshold} ऑर्डर पर ₹${slab1Reward} स्क्रैच कार्ड रिवॉर्ड अनलॉक होगा ✨`
-                : `Reach minimum order milestone of ₹${slab1Threshold} to unlock scratch card reward ✨`;
+            teaserSub.textContent = `Reach minimum order milestone of ₹${slab1Threshold} to unlock scratch card reward ✨`;
         }
     } else if (isWalletApplied) {
         // Qualifying order (Slab 1+) + Wallet Applied: flat ₹10 Thank You scratch card confirmation
         teaserEl.classList.add('teaser-wallet-applied');
         if (teaserText) {
-            teaserText.textContent = isHindi 
-                ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' 
-                : '🎉 Mystery Reward Unlocked!';
+            teaserText.textContent = '🎉 Mystery Reward Unlocked!';
         }
         if (teaserSub) {
-            teaserSub.textContent = isHindi 
-                ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' 
-                : 'Scratch the card to reveal your cashback reward';
+            teaserSub.textContent = 'Scratch the card to reveal your cashback reward';
         }
     } else {
         // Qualifying order (Slab 1+) + Wallet Unchecked: dynamic unlocked milestone reward banner
         teaserEl.classList.remove('teaser-wallet-applied');
         if (teaserText) {
-            teaserText.textContent = isHindi
-                ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!'
-                : '🎉 Mystery Reward Unlocked!';
+            teaserText.textContent = '🎉 Mystery Reward Unlocked!';
         }
         if (teaserSub) {
-            teaserSub.textContent = isHindi
-                ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें'
-                : 'Scratch the card to reveal your cashback reward';
+            teaserSub.textContent = 'Scratch the card to reveal your cashback reward';
         }
     }
 }
@@ -8052,7 +7965,6 @@ function updateProfileWalletUI() {
     if (!valEl) return;
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     // Toggle card visual aesthetic: Muted grayscale when disabled
     if (cardEl) {
@@ -8067,11 +7979,11 @@ function updateProfileWalletUI() {
     if (statusPill) {
         if (!isSystemEnabled) {
             statusPill.classList.add('is-paused');
-            statusPill.textContent = typeof t === 'function' ? t('wallet_system_paused') : (isHindi ? 'सिस्टम बंद है' : 'SYSTEM PAUSED');
+            statusPill.textContent = 'SYSTEM PAUSED';
             statusPill.setAttribute('data-i18n', 'wallet_system_paused');
         } else {
             statusPill.classList.remove('is-paused');
-            statusPill.textContent = typeof t === 'function' ? t('wallet_active') : (isHindi ? 'एक्टिव' : 'Active');
+            statusPill.textContent = 'Active';
             statusPill.setAttribute('data-i18n', 'wallet_active');
         }
     }
@@ -8117,17 +8029,17 @@ function updateProfileWalletUI() {
         if (liveRemainingMs <= (24 * 60 * 60 * 1000) + 120000) {
             if (liveRemainingMs >= 60 * 60 * 1000) {
                 const hrs = Math.max(1, Math.floor(liveRemainingMs / (60 * 60 * 1000)));
-                liveSnippet = isHindi ? `${hrs}h में समाप्त` : `expiring in ${hrs}h`;
+                liveSnippet = `expiring in ${hrs}h`;
             } else {
                 const mins = Math.max(1, Math.floor(liveRemainingMs / (60 * 1000)));
-                liveSnippet = isHindi ? `${mins}m में समाप्त` : `expiring in ${mins}m`;
+                liveSnippet = `expiring in ${mins}m`;
             }
         } else if (typeof formatStepDownExpiryCountdown === 'function') {
-            const formatted = formatStepDownExpiryCountdown(liveRemainingMs, isHindi, false);
-            liveSnippet = isHindi ? formatted : formatted.toLowerCase().replace(/^expires in\b/i, 'expiring in');
+            const formatted = formatStepDownExpiryCountdown(liveRemainingMs, false, false);
+            liveSnippet = formatted.toLowerCase().replace(/^expires in\b/i, 'expiring in');
         } else {
             const days = Math.ceil(liveRemainingMs / (24 * 60 * 60 * 1000));
-            liveSnippet = isHindi ? `${days} दिनों में समाप्त` : `expiring in ${days} days`;
+            liveSnippet = `expiring in ${days} days`;
         }
 
         if (expiryTag && expiryText) {
@@ -8162,8 +8074,8 @@ function updateProfileWalletUI() {
                 unclaimedBanner.style.display = 'flex';
                 const bannerTitle = document.getElementById('profile-scratch-banner-title');
                 const bannerSub = document.getElementById('profile-scratch-banner-sub');
-                if (bannerTitle) bannerTitle.textContent = isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!';
-                if (bannerSub) bannerSub.textContent = isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' : 'Scratch the card to reveal your cashback reward';
+                if (bannerTitle) bannerTitle.textContent = '🎉 Mystery Reward Unlocked!';
+                if (bannerSub) bannerSub.textContent = 'Scratch the card to reveal your cashback reward';
             } else {
                 unclaimedBanner.style.display = 'none';
             }
@@ -8219,7 +8131,6 @@ function renderProfileWalletTxList() {
 
     const txList = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
     const now = Date.now();
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     // Enforce strict reverse chronological order by creation timestamp and cap to 15 entries
     const sortedTxList = [...txList].sort((a, b) => {
@@ -8346,7 +8257,7 @@ function renderProfileWalletTxList() {
                 if (remainingMs <= 0) {
                     expiryNotice = '<span class="tx-badge-expired"><i class="fa-solid fa-clock"></i> Expired</span>';
                 } else {
-                    const countdownStr = formatStepDownExpiryCountdown(remainingMs, isHindi, true);
+                    const countdownStr = formatStepDownExpiryCountdown(remainingMs, false, true);
                     const amtLabel = (remaining < amt) ? ` (₹${remaining} active)` : '';
                     const isUrgent = remainingMs <= (24 * 60 * 60 * 1000);
                     const urgentClass = isUrgent ? 'is-urgent' : '';
@@ -9876,8 +9787,7 @@ function updateFloatingCartBar() {
     if (totalCount > 0 && isApplicableTab) {
         floatingBar.style.display = 'flex';
         if (countBadge) {
-            const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-            countBadge.textContent = isHindi ? `${totalCount} सामान` : `${totalCount} ITEM${totalCount !== 1 ? 'S' : ''}`;
+            countBadge.textContent = `${totalCount} ITEM${totalCount !== 1 ? 'S' : ''}`;
         }
         if (priceDisplay) {
             priceDisplay.textContent = formatPrice(subtotal);
@@ -9969,8 +9879,7 @@ async function processCheckout() {
     const minOrderVal = getMinOrderValue();
     const currentSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     if (currentSubtotal < minOrderVal) {
-        const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-        showToast(isHindi ? `न्यूनतम ऑर्डर मूल्य: ${formatPrice(minOrderVal)}` : `Minimum order value: ${formatPrice(minOrderVal)}`);
+        showToast(`Minimum order value: ${formatPrice(minOrderVal)}`);
         return;
     }
 
@@ -11025,17 +10934,16 @@ function openOrderOtpSuccessModal(order) {
     const totalAmountEl = document.getElementById('otp-modal-total-amount');
     const copyBtnText = document.getElementById('copy-otp-btn-text');
 
-    const isHindiModal = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     if (orderIdEl) orderIdEl.textContent = `#${orderId}`;
     if (paymentModeEl) {
         if (order.total === 0 && (order.walletDiscount > 0 || order.usedWalletCash > 0)) {
-            paymentModeEl.textContent = isHindiModal ? 'वॉलेट कैश (भुगतान हो चुका)' : 'Wallet Cash (Fully Paid)';
+            paymentModeEl.textContent = 'Wallet Cash (Fully Paid)';
         } else {
-            paymentModeEl.textContent = isHindiModal ? 'कैश ऑन डिलीवरी (COD)' : (order.paymentMethod || order.paymentStatus || 'Cash on Delivery');
+            paymentModeEl.textContent = (order.paymentMethod || order.paymentStatus || 'Cash on Delivery');
         }
     }
     if (totalAmountEl) totalAmountEl.textContent = `₹${order.total || 0}`;
-    if (copyBtnText) copyBtnText.textContent = typeof t === 'function' ? t('copy_otp') : 'Copy OTP';
+    if (copyBtnText) copyBtnText.textContent = 'Copy OTP';
 
     // Render individual glowing digit boxes
     if (digitsContainer) {
@@ -11049,7 +10957,7 @@ function openOrderOtpSuccessModal(order) {
     const earnedCashback = (order && (order.earnedCashback || order.wonCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)))) ? Number(order.earnedCashback || order.wonCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount))) : 0;
     const isCardRevealed = Boolean(order && (order.scratchRevealed || (order.scratchCard && order.scratchCard.revealed)));
     const activeOrderDays = (order && (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
-    const expiryLabel = formatExpiryDaysLabel(activeOrderDays, isHindiModal);
+    const expiryLabel = formatExpiryDaysLabel(activeOrderDays);
 
     if (cashbackCard) {
         const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
@@ -11057,30 +10965,20 @@ function openOrderOtpSuccessModal(order) {
             cashbackCard.style.display = 'flex';
             if (isCardRevealed) {
                 if (cashbackText) {
-                    cashbackText.textContent = isHindiModal
-                        ? `🎉 आपने ₹${earnedCashback} कैशबैक जीता!`
-                        : `🎉 You Won ₹${earnedCashback} Cashback!`;
+                    cashbackText.textContent = `🎉 You Won ₹${earnedCashback} Cashback!`;
                 }
                 if (cashbackExpiry) {
-                    cashbackExpiry.textContent = isHindiModal
-                        ? `ऑर्डर सफलतापूर्वक डिलीवर होने पर वॉलेट में जुड़ेगा • ${expiryLabel} ✨`
-                        : `Credited to wallet upon successful delivery • ${expiryLabel} ✨`;
+                    cashbackExpiry.textContent = `Credited to wallet upon successful delivery • ${expiryLabel} ✨`;
                 }
             } else {
                 // Strict suspense pre-scratch: never leak numerical amount
                 if (cashbackText) {
-                    cashbackText.textContent = isHindiModal 
-                        ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' 
-                        : '🎉 Mystery Reward Unlocked!';
+                    cashbackText.textContent = '🎉 Mystery Reward Unlocked!';
                 }
                 if (cashbackExpiry) {
-                    cashbackExpiry.textContent = isHindiModal 
-                        ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' 
-                        : 'Scratch the card to reveal your cashback reward';
+                    cashbackExpiry.textContent = 'Scratch the card to reveal your cashback reward';
                 }
-                showToast(isHindiModal 
-                    ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ! रिवॉर्ड देखने के लिए स्क्रैच करें!' 
-                    : '🎉 Mystery Reward Unlocked! Scratch the card to reveal your cashback reward', 5000);
+                showToast('🎉 Mystery Reward Unlocked! Scratch the card to reveal your cashback reward', 5000);
             }
         } else {
             cashbackCard.style.display = 'none';
@@ -11135,7 +11033,7 @@ function closeOrderOtpSuccessModal() {
     }
     document.body.classList.remove('modal-open');
 
-    // High-priority interactive Scratch Card modal triggered as soon as user taps "Got It & Continue / ठीक है, आगे बढ़ें"
+    // High-priority interactive Scratch Card modal triggered as soon as user taps "Got It & Continue"
     if (activeOrderForScratch && Number(activeOrderForScratch.earnedCashback) > 0 && !activeOrderForScratch.scratchClaimed) {
         const targetOrder = activeOrderForScratch;
         activeOrderForScratch = null;
@@ -11725,7 +11623,6 @@ function revealScratchCardReward() {
     const hintIcon = document.getElementById('scratch-hint-icon');
     const titleEl = document.getElementById('scratch-modal-title');
     const subtitleEl = document.getElementById('scratch-modal-subtitle');
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
 
     if (canvas) {
         canvas.style.transition = 'opacity 0.35s ease-out';
@@ -11748,28 +11645,24 @@ function revealScratchCardReward() {
 
     // Update modal celebration banner with revealed cashback amount
     if (titleEl) {
-        titleEl.textContent = isHindi 
-            ? `🎉 बधाई हो! आपने ₹${activeScratchRewardAmount} कैशबैक जीता!`
-            : `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
+        titleEl.textContent = `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
     }
     if (subtitleEl) {
         subtitleEl.textContent = isDelivered
-            ? (isHindi ? 'यह कैशबैक आपके वॉलेट में जोड़ दिया गया है!' : 'Cashback credited directly to your active wallet!')
-            : (isHindi ? 'यह कैशबैक डिलीवरी पर आपके वॉलेट में जोड़ दिया जाएगा।' : 'This will be credited to your wallet upon successful delivery');
+            ? 'Cashback credited directly to your active wallet!'
+            : 'This will be credited to your wallet upon successful delivery';
     }
 
     // Synchronize OTP success modal cards if open
     const otpCashbackText = document.getElementById('otp-modal-cashback-text');
     const otpCashbackExpiry = document.getElementById('otp-modal-cashback-expiry');
     if (otpCashbackText) {
-        otpCashbackText.textContent = isHindi 
-            ? `🎉 आपने ₹${activeScratchRewardAmount} कैशबैक जीता!` 
-            : `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
+        otpCashbackText.textContent = `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
     }
     if (otpCashbackExpiry) {
         otpCashbackExpiry.textContent = isDelivered
-            ? (isHindi ? 'वॉलेट में जुड़ गया ✨' : 'Credited to your wallet ✨')
-            : (isHindi ? 'ऑर्डर सफलतापूर्वक डिलीवर होने पर वॉलेट में जुड़ेगा ✨' : 'Will be credited to your wallet upon successful delivery ✨');
+            ? 'Credited to your wallet ✨'
+            : 'Will be credited to your wallet upon successful delivery ✨';
     }
 
     if (isDelivered) {
@@ -11839,9 +11732,7 @@ function revealScratchCardReward() {
         } catch (e) {}
 
         if (hintText) {
-            hintText.textContent = isHindi
-                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक आपके वॉलेट में जोड़ दिया गया है!`
-                : `Congratulations! You won ₹${activeScratchRewardAmount}. Cashback credited to your active wallet!`;
+            hintText.textContent = `Congratulations! You won ₹${activeScratchRewardAmount}. Cashback credited to your active wallet!`;
         }
         if (hintIcon) {
             hintIcon.className = 'fa-solid fa-circle-check';
@@ -11851,9 +11742,7 @@ function revealScratchCardReward() {
             claimBtn.className = 'btn-scratch-claim claimed-success';
             const claimText = document.getElementById('scratch-claim-btn-text');
             if (claimText) {
-                claimText.innerHTML = isHindi
-                    ? `<i class="fa-solid fa-circle-check"></i> वॉलेट में जुड़ गया (कन्फर्म)`
-                    : `<i class="fa-solid fa-circle-check"></i> Credited to Wallet`;
+                claimText.innerHTML = '<i class="fa-solid fa-circle-check"></i> Credited to Wallet';
             }
         }
         updateProfileWalletUI();
@@ -11870,25 +11759,21 @@ function revealScratchCardReward() {
         activeScratchOrder.scratchCard.wonAmount = 0;
 
         if (hintText) {
-            hintText.textContent = isHindi
-                ? 'यह ऑर्डर रद्द/अस्वीकार कर दिया गया है। स्क्रैच कार्ड अमान्य (Voided) है।'
-                : 'This order was cancelled or rejected. Scratch card is voided.';
+            hintText.textContent = 'This order was cancelled or rejected. Scratch card is voided.';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-ban';
         if (claimBtn) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim expired-btn';
             const claimText = document.getElementById('scratch-claim-btn-text');
-            if (claimText) claimText.innerHTML = '<i class="fa-solid fa-ban"></i> Voided / अमान्य';
+            if (claimText) claimText.innerHTML = '<i class="fa-solid fa-ban"></i> Voided';
         }
         renderOrderHistoryDetails();
     } else {
         // Order is still pending delivery:
         // Render explicit deferred status message
         if (hintText) {
-            hintText.textContent = isHindi
-                ? `रिवॉर्ड अनलॉक हो गया! ऑर्डर डिलीवर होने पर कैशबैक आपके वॉलेट में जोड़ दिया जाएगा।`
-                : `Reward Unlocked! Cashback will be credited to your wallet once your order is delivered.`;
+            hintText.textContent = 'Reward Unlocked! Cashback will be credited to your wallet once your order is delivered.';
         }
         if (hintIcon) {
             hintIcon.className = 'fa-solid fa-truck-fast fa-bounce';
@@ -11904,9 +11789,7 @@ function revealScratchCardReward() {
             claimBtn.className = 'btn-scratch-claim btn-pending-delivery';
             const claimText = document.getElementById('scratch-claim-btn-text');
             if (claimText) {
-                claimText.innerHTML = isHindi 
-                    ? `<i class="fa-solid fa-circle-check"></i> ठीक है, समझ गया (डिलीवरी पर जुड़ेगा)` 
-                    : `<i class="fa-solid fa-circle-check"></i> Got It (Credited on Delivery)`;
+                claimText.innerHTML = '<i class="fa-solid fa-circle-check"></i> Got It (Credited on Delivery)';
             }
         }
     }
@@ -11918,13 +11801,9 @@ async function handleClaimScratchReward() {
         return;
     }
 
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-
     // System Toggle Check: When disabled, customers cannot claim new scratch cards
     if (customerWalletConfig && customerWalletConfig.enabled === false) {
-        showToast(isHindi 
-            ? 'कैशबैक व रिवॉर्ड सिस्टम वर्तमान में बंद है। स्क्रैच कार्ड क्लेम नहीं किया जा सकता।' 
-            : 'The Wallet & Cashback Rewards system is currently paused. Scratch cards cannot be claimed at this time.');
+        showToast('The Wallet & Cashback Rewards system is currently paused. Scratch cards cannot be claimed at this time.');
         closeScratchCardModal();
         return;
     }
@@ -11940,7 +11819,7 @@ async function handleClaimScratchReward() {
 
     // Anti-Abuse Double Claim Prevention Check:
     if (activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed) || activeScratchOrder.rewardStatus === 'active_credited' || activeScratchOrder.rewardStatus === 'credited' || alreadyCreditedInWallet) {
-        showToast(isHindi ? `🎉 ₹${amount} कैशबैक आपके वॉलेट में जुड़ चुका है!` : `🎉 ₹${amount} Cashback credited to your wallet!`);
+        showToast(`🎉 ₹${amount} Cashback credited to your wallet!`);
         closeScratchCardModal();
         return;
     }
@@ -11949,7 +11828,7 @@ async function handleClaimScratchReward() {
     if (isScratchCardExpired(activeScratchOrder)) {
         permanentlyInvalidateScratchCard(activeScratchOrder);
         const orderDays = (activeScratchOrder && (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.expiryDays || activeScratchOrder.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
-        showToast(isHindi ? `यह स्क्रैच कार्ड ${orderDays} दिनों के बाद समाप्त हो चुका है और क्लेम नहीं किया जा सकता।` : `This scratch card has expired after ${orderDays} days and cannot be claimed.`);
+        showToast(`This scratch card has expired after ${orderDays} days and cannot be claimed.`);
         closeScratchCardModal();
         return;
     }
@@ -11972,7 +11851,7 @@ async function handleClaimScratchReward() {
             activeScratchOrder.scratchCard.status = 'active_credited';
             activeScratchOrder.scratchCard.claimedAt = new Date().toISOString();
         }
-        showToast(isHindi ? `🎉 ₹${amount} कैशबैक आपके वॉलेट में जोड़ दिया गया!` : `🎉 ₹${amount} Cashback credited to your wallet!`);
+        showToast(`🎉 ₹${amount} Cashback credited to your wallet!`);
         updateProfileWalletUI();
         renderOrderHistoryDetails();
         closeScratchCardModal();
@@ -11983,9 +11862,7 @@ async function handleClaimScratchReward() {
     if (activeScratchOrder) {
         markScratchRewardPendingDelivery(activeScratchOrder, amount);
     }
-    showToast(isHindi 
-        ? `🎁 रिवॉर्ड अनलॉक हो गया! ₹${amount} कैशबैक ऑर्डर डिलीवर होने पर आपके वॉलेट में जोड़ दिया जाएगा।` 
-        : `🎁 Reward Unlocked! Cashback of ₹${amount} will be credited to your wallet once your order is delivered.`, 4500);
+    showToast(`🎁 Reward Unlocked! Cashback of ₹${amount} will be credited to your wallet once your order is delivered.`, 4500);
     closeScratchCardModal();
 }
 
@@ -12022,9 +11899,7 @@ function openFirstUnclaimedScratchCard() {
     if (order) {
         openScratchCardModal(order);
     } else {
-        showToast(typeof getAppLanguage === 'function' && getAppLanguage() === 'hi' 
-            ? 'कोई अनक्लेम्ड स्क्रैच कार्ड उपलब्ध नहीं है।' 
-            : 'No unclaimed scratch cards available right now.');
+        showToast('No unclaimed scratch cards available right now.');
     }
 }
 
@@ -12055,28 +11930,27 @@ function isScratchCardExpired(order) {
 }
 
 function getScratchExpiryCountdownText(order) {
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const activeOrderDays = (order && (order.scratchExpiryDays || order.cashbackExpiryDays || (order.scratchCard && (order.scratchCard.expiryDays || order.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
-    if (!order) return formatExpiryDaysLabel(activeOrderDays, isHindi);
+    if (!order) return formatExpiryDaysLabel(activeOrderDays);
     let expiresAt = order.scratchExpiresAt || (order.scratchCard && (order.scratchCard.expiresAt || order.scratchCard.expiresAtISO));
     if (!expiresAt) {
         const createdMs = order.createdAt ? new Date(order.createdAt).getTime() : 0;
         if (createdMs > 0) {
             expiresAt = createdMs + activeOrderDays * 24 * 60 * 60 * 1000;
         } else {
-            return formatExpiryDaysLabel(activeOrderDays, isHindi);
+            return formatExpiryDaysLabel(activeOrderDays);
         }
     }
     const expiresAtMs = typeof expiresAt === 'number' ? expiresAt : new Date(expiresAt).getTime();
     if (isNaN(expiresAtMs) || expiresAtMs <= 0) {
-        return formatExpiryDaysLabel(activeOrderDays, isHindi);
+        return formatExpiryDaysLabel(activeOrderDays);
     }
     const remainingDays = Math.ceil((expiresAtMs - Date.now()) / (24 * 60 * 60 * 1000));
     if (remainingDays <= 0) {
         permanentlyInvalidateScratchCard(order);
-        return isHindi ? 'समाप्त (Expired)' : 'Expired';
+        return 'Expired';
     }
-    return formatExpiryDaysLabel(remainingDays, isHindi);
+    return formatExpiryDaysLabel(remainingDays);
 }
 
 function permanentlyInvalidateScratchCard(order) {
@@ -12152,10 +12026,7 @@ function openScratchCardModal(order, demoAmount) {
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
     if (!isSystemEnabled && demoAmount === undefined) {
-        const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-        showToast(typeof t === 'function'
-            ? t('wallet_system_paused_modal_toast')
-            : (isHindi ? 'वॉलेट कैशबैक रिवॉर्ड अभी रोक दिए गए हैं।' : 'Wallet cashback rewards are currently paused.'));
+        showToast('Wallet cashback rewards are currently paused.');
         return;
     }
 
@@ -12164,9 +12035,7 @@ function openScratchCardModal(order, demoAmount) {
         const orderSubtotal = Number(order.subtotal || 0);
         const orderCashback = Number(order.wonCashback || order.earnedCashback || (order.scratchCard && (order.scratchCard.wonAmount || order.scratchCard.amount)) || 0);
         if (orderSubtotal > 0 && orderSubtotal < slab1Threshold && orderCashback <= 0 && demoAmount === undefined) {
-            showToast(typeof getAppLanguage === 'function' && getAppLanguage() === 'hi' 
-                ? `यह ऑर्डर न्यूनतम रिवॉर्ड सीमा (₹${slab1Threshold}) से कम है। कोई स्क्रैच कार्ड उपलब्ध नहीं है।` 
-                : `This order does not meet the minimum milestone of ₹${slab1Threshold}. No scratch card available.`);
+            showToast(`This order does not meet the minimum milestone of ₹${slab1Threshold}. No scratch card available.`);
             return;
         }
     }
@@ -12217,13 +12086,10 @@ function openScratchCardModal(order, demoAmount) {
     activeScratchRewardAmount = Math.max(0, Math.round(rewardAmount));
 
     if (activeScratchRewardAmount <= 0 && demoAmount === undefined) {
-        showToast(typeof getAppLanguage === 'function' && getAppLanguage() === 'hi' 
-            ? 'इस ऑर्डर के लिए कोई स्क्रैच कार्ड उपलब्ध नहीं है।' 
-            : 'No scratch card available for this order.');
+        showToast('No scratch card available for this order.');
         return;
     }
 
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
     const isAlreadyClaimed = !!(activeScratchOrder.scratchClaimed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.claimed));
     const isCardExpired = isScratchCardExpired(activeScratchOrder);
 
@@ -12241,23 +12107,19 @@ function openScratchCardModal(order, demoAmount) {
     const isCardAlreadyRevealed = Boolean(activeScratchOrder && (activeScratchOrder.scratchRevealed || (activeScratchOrder.scratchCard && activeScratchOrder.scratchCard.revealed)));
     if (titleEl) {
         if (isCardAlreadyRevealed) {
-            titleEl.textContent = isHindi 
-                ? `🎉 बधाई हो! आपने ₹${activeScratchRewardAmount} कैशबैक जीता!` 
-                : `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
+            titleEl.textContent = `🎉 You Won ₹${activeScratchRewardAmount} Cashback!`;
         } else {
-            titleEl.textContent = isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!';
+            titleEl.textContent = '🎉 Mystery Reward Unlocked!';
         }
     }
     if (subtitleEl) {
         if (isCardAlreadyRevealed) {
             const isDeliveredOrder = Boolean(activeScratchOrder && (activeScratchOrder.status === 'completed' || activeScratchOrder.status === 'delivered'));
             subtitleEl.textContent = isDeliveredOrder
-                ? (isHindi ? 'यह कैशबैक आपके वॉलेट में जोड़ दिया गया है!' : 'Cashback credited directly to your active wallet!')
-                : (isHindi ? 'यह कैशबैक डिलीवरी पर आपके वॉलेट में जोड़ दिया जाएगा।' : 'This will be credited to your wallet upon successful delivery');
+                ? 'Cashback credited directly to your active wallet!'
+                : 'This will be credited to your wallet upon successful delivery';
         } else {
-            subtitleEl.textContent = isHindi 
-                ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड को स्क्रैच करें' 
-                : 'Scratch the card to reveal your cashback reward';
+            subtitleEl.textContent = 'Scratch the card to reveal your cashback reward';
         }
     }
 
@@ -12267,9 +12129,7 @@ function openScratchCardModal(order, demoAmount) {
 
     const activeOrderDays = (activeScratchOrder && (activeScratchOrder.scratchExpiryDays || activeScratchOrder.cashbackExpiryDays || (activeScratchOrder.scratchCard && (activeScratchOrder.scratchCard.expiryDays || activeScratchOrder.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
     if (validityEl) {
-        validityEl.textContent = isHindi 
-            ? `आपके वॉलेट में ${activeOrderDays} दिनों के लिए मान्य` 
-            : `Valid for ${activeOrderDays} days in your wallet`;
+        validityEl.textContent = `Valid for ${activeOrderDays} days in your wallet`;
     }
 
     modal.style.display = 'flex';
@@ -12288,23 +12148,21 @@ function openScratchCardModal(order, demoAmount) {
             canvas.style.pointerEvents = 'none';
         }
         if (titleEl) {
-            titleEl.textContent = isHindi ? 'स्क्रैच कार्ड समाप्त' : 'Scratch Card Expired';
+            titleEl.textContent = 'Scratch Card Expired';
         }
         if (subtitleEl) {
-            subtitleEl.textContent = isHindi ? `${activeOrderDays} दिनों की वैधता समाप्त हो चुकी है` : `${activeOrderDays}-day validity period has expired`;
+            subtitleEl.textContent = `${activeOrderDays}-day validity period has expired`;
         }
         if (claimBtn) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim expired-btn';
-            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> ${isHindi ? 'कार्ड समाप्त (Expired)' : 'Card Expired'}`;
+            if (claimText) claimText.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> Card Expired';
         }
         if (hintText) {
-            hintText.textContent = isHindi 
-                ? `यह स्क्रैच कार्ड ${activeOrderDays} दिनों की समय सीमा समाप्त होने के कारण अमान्य हो गया है।` 
-                : `This scratch card expired after ${activeOrderDays} days and can no longer be revealed or claimed.`;
+            hintText.textContent = `This scratch card expired after ${activeOrderDays} days and can no longer be revealed or claimed.`;
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-clock-rotate-left';
-        showToast(isHindi ? `यह स्क्रैच कार्ड ${activeOrderDays} दिनों के बाद समाप्त हो चुका है।` : `This scratch card has expired after ${activeOrderDays} days.`);
+        showToast(`This scratch card has expired after ${activeOrderDays} days.`);
         renderOrderHistoryDetails();
         return;
     } else if (isAlreadyClaimed) {
@@ -12318,12 +12176,10 @@ function openScratchCardModal(order, demoAmount) {
         if (claimBtn) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim claimed-success';
-            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${isHindi ? 'पहले ही क्लेम हो चुका है' : 'Already Claimed'}`;
+            if (claimText) claimText.innerHTML = '<i class="fa-solid fa-circle-check"></i> Already Claimed';
         }
         if (hintText) {
-            hintText.textContent = isHindi 
-                ? 'यह स्क्रैच कार्ड पहले ही क्लेम किया जा चुका है।' 
-                : 'This scratch card reward was already credited to your wallet.';
+            hintText.textContent = 'This scratch card reward was already credited to your wallet.';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-circle-check';
     } else if (activeScratchOrder.status === 'rejected' || activeScratchOrder.status === 'cancelled' || activeScratchOrder.rewardStatus === 'voided') {
@@ -12337,12 +12193,10 @@ function openScratchCardModal(order, demoAmount) {
         if (claimBtn) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim expired-btn';
-            if (claimText) claimText.innerHTML = `<i class="fa-solid fa-ban"></i> ${isHindi ? 'ऑर्डर रद्द (Voided)' : 'Order Cancelled (Voided)'}`;
+            if (claimText) claimText.innerHTML = '<i class="fa-solid fa-ban"></i> Order Cancelled (Voided)';
         }
         if (hintText) {
-            hintText.textContent = isHindi 
-                ? 'यह ऑर्डर रद्द होने के कारण स्क्रैच कार्ड अमान्य (Voided) कर दिया गया है।' 
-                : 'This order was cancelled or rejected. The scratch reward has been voided.';
+            hintText.textContent = 'This order was cancelled or rejected. The scratch reward has been voided.';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-ban';
     } else if (activeScratchOrder.scratchRevealed && (activeScratchOrder.status !== 'completed' && activeScratchOrder.status !== 'delivered')) {
@@ -12357,15 +12211,11 @@ function openScratchCardModal(order, demoAmount) {
             claimBtn.disabled = false;
             claimBtn.className = 'btn-scratch-claim btn-pending-delivery';
             if (claimText) {
-                claimText.innerHTML = isHindi 
-                    ? `<i class="fa-solid fa-circle-check"></i> ठीक है, समझ गया (डिलीवरी पर जुड़ेगा)` 
-                    : `<i class="fa-solid fa-circle-check"></i> Got It (Credited on Delivery)`;
+                claimText.innerHTML = '<i class="fa-solid fa-circle-check"></i> Got It (Credited on Delivery)';
             }
         }
         if (hintText) {
-            hintText.textContent = isHindi
-                ? `बधाई हो! आपने ₹${activeScratchRewardAmount} जीते। यह कैशबैक ऑर्डर सफलतापूर्वक डिलीवर होते ही आपके वॉलेट में जुड़ जाएगा।`
-                : `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is successfully delivered.`;
+            hintText.textContent = `Congratulations! You won ₹${activeScratchRewardAmount}. This cashback will be credited to your wallet once your order is successfully delivered.`;
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-truck-fast';
     } else {
@@ -12387,13 +12237,11 @@ function openScratchCardModal(order, demoAmount) {
             claimBtn.disabled = true;
             claimBtn.className = 'btn-scratch-claim';
             if (claimText) {
-                claimText.textContent = 'कन्फर्म करें और वॉलेट में जोड़ें / Claim to Wallet';
+                claimText.textContent = 'Claim to Wallet';
             }
         }
         if (hintText) {
-            hintText.textContent = isHindi 
-                ? 'कार्ड को उंगली या माउस से स्क्रैच करें! (कम से कम 35%)' 
-                : 'Scratch the card using your finger or mouse! (35% required)';
+            hintText.textContent = 'Scratch the card using your finger or mouse! (35% required)';
         }
         if (hintIcon) hintIcon.className = 'fa-solid fa-hand-pointer fa-bounce';
 
@@ -14978,7 +14826,6 @@ function renderOrderHistoryDetails() {
                 let isScratchClaimed = !!(o.scratchClaimed || (o.scratchCard && o.scratchCard.claimed));
                 const isCardExpired = isScratchCardExpired(o);
                 const expiryCountdown = getScratchExpiryCountdownText(o);
-                const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
                 const orderDays = (o && (o.scratchExpiryDays || o.cashbackExpiryDays || (o.scratchCard && (o.scratchCard.expiryDays || o.scratchCard.cashbackExpiryDays)))) || getClampedCashbackExpiryDays(customerWalletConfig);
                 if (isCardExpired && !o.scratchExpired) {
                     permanentlyInvalidateScratchCard(o);
@@ -15091,12 +14938,12 @@ function renderOrderHistoryDetails() {
                             ${isCardExpired ? `
                                 <div class="order-history-scratch-expired">
                                     <i class="fa-solid fa-clock-rotate-left"></i>
-                                    <span>⚠️ ${isHindi ? `स्क्रैच कार्ड समाप्त (${orderDays} दिन समाप्त)` : `Scratch Card Expired (${orderDays} days elapsed)`}</span>
+                                    <span>⚠️ Scratch Card Expired (${orderDays} days elapsed)</span>
                                 </div>
                             ` : isScratchClaimed ? `
                                 <div class="order-history-scratch-claimed">
                                     <i class="fa-solid fa-circle-check"></i>
-                                    <span>${typeof t === 'function' ? t('scratch_claimed_status', { amount: orderCashback }) : (isHindi ? `क्लेम किया गया (+₹${orderCashback} वॉलेट में)` : `Claimed (+₹${orderCashback} in wallet)`)}</span>
+                                    <span>Claimed (+₹${orderCashback} in wallet)</span>
                                 </div>
                             ` : !isScratchRevealed ? `
                                 <div class="order-history-scratch-promo unclaimed-glowing" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
@@ -15105,12 +14952,12 @@ function renderOrderHistoryDetails() {
                                             <i class="fa-solid fa-gift fa-bounce"></i>
                                         </div>
                                         <div>
-                                            <div class="scratch-promo-title">${typeof t === 'function' ? t('scratch_card_title') : (isHindi ? '🎉 मिस्ट्री रिवॉर्ड अनलॉक हुआ!' : '🎉 Mystery Reward Unlocked!')}</div>
+                                            <div class="scratch-promo-title">🎉 Mystery Reward Unlocked!</div>
                                             <div class="scratch-promo-sub">
                                                 <span class="scratch-countdown-pill">
                                                     <i class="fa-solid fa-clock"></i> ${escapeHtml(expiryCountdown)}
                                                 </span>
-                                                <span class="scratch-card-amount-hint">${typeof t === 'function' ? t('scratch_card_subtitle') : (isHindi ? 'कैशबैक रिवॉर्ड देखने के लिए कार्ड स्क्रैच करें' : 'Scratch the card to reveal your cashback reward')}</span>
+                                                <span class="scratch-card-amount-hint">Scratch the card to reveal your cashback reward</span>
                                             </div>
                                         </div>
                                     </div>
@@ -15121,7 +14968,7 @@ function renderOrderHistoryDetails() {
                             ` : `
                                 <div class="order-history-scratch-pending" onclick="openScratchCardForOrder('${escapeHtml(o.id || o.orderId)}')">
                                     <i class="fa-solid fa-truck-fast"></i>
-                                    <span>${typeof t === 'function' ? t('scratch_won_banner', { amount: orderCashback }) : (isHindi ? `आपने जीता ₹${orderCashback} कैशबैक!` : `You won ₹${orderCashback} Cashback!`)}</span>
+                                    <span>You won ₹${orderCashback} Cashback!</span>
                                 </div>
                             `}
                         ` : ''}
@@ -15148,10 +14995,7 @@ function renderOrderHistoryDetails() {
     }
 
     if (clearBtn) clearBtn.style.display = 'none';
-    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-    const emptyMsg = typeof t === 'function' && t('no_recent_active_orders')
-        ? t('no_recent_active_orders')
-        : (isHindi ? 'कोई हालिया सक्रिय ऑर्डर नहीं' : 'No recent active orders');
+    const emptyMsg = 'No recent active orders';
     listEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${escapeHtml(emptyMsg)}</span>`;
 }
 
@@ -20543,10 +20387,7 @@ function handleRealtimeCustomerOrderUpdate(orderId, freshOrderData) {
                     }
                     const phone = target.customerPhone || target.phone || ((currentUserProfile && currentUserProfile.phone) || '');
                     creditCustomerWallet(phone, orderCashback, targetOrderId);
-                    const isHindi = typeof getAppLanguage === 'function' && getAppLanguage() === 'hi';
-                    showToast(isHindi 
-                        ? `🎉 बधाई हो! ऑर्डर #${orderId} डिलीवर हो गया - ₹${orderCashback} कैशबैक आपके वॉलेट में जोड़ दिया गया है!` 
-                        : `🎉 Order #${orderId} Delivered! ₹${orderCashback} Cashback has been credited to your wallet!`);
+                    showToast(`🎉 Order #${orderId} Delivered! ₹${orderCashback} Cashback has been credited to your wallet!`);
                     updated = true;
                 } else if (alreadyCreditedInWallet || isAlreadyCredited) {
                     target.scratchClaimed = true;
@@ -20918,9 +20759,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initPhoneInputRestrictions();
     updateStoreNoticeUI();
     initStoreNoticeModal();
-    if (typeof initFirstVisitLanguageModal === 'function') {
-        initFirstVisitLanguageModal();
-    }
+    try {
+        localStorage.removeItem('app_language');
+        localStorage.removeItem('preferred_language');
+    } catch (e) {}
     // Check and synchronize app settings version on startup
     checkAndSyncSettingsVersion();
     initSettingsVersionVisibilityHooks();
