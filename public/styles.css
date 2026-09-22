@@ -229,6 +229,84 @@ body.splash-active {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* --------------------------------------------------------------------------
+   2.1 APP-LIKE NATIVE TOUCH & SELECTION CONTROL
+   Disable text selection, long-press popup menus, and blue selection boxes
+   globally across the entire customer application.
+   -------------------------------------------------------------------------- */
+html,
+body,
+#root,
+#app,
+.app-frame,
+.main-content-container,
+.app-header,
+.bottom-nav,
+.modal,
+.modal-overlay,
+.modal-content,
+.dialog,
+.toast,
+.banner,
+.menu-card,
+.product-card,
+.category-chip,
+.badge,
+button,
+a,
+header,
+nav,
+footer,
+main,
+section,
+article,
+aside,
+div,
+p,
+span,
+h1, h2, h3, h4, h5, h6,
+ul, ol, li,
+label,
+img,
+svg {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Prevent blue selection boxes / highlight on non-editable elements */
+::selection {
+    background: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   2.2 CRITICAL INPUT FIELD EXCEPTION
+   Ensure interactive user input fields remain fully functional: typing, cursor
+   focus, text selection, copy/paste, and editing work without hindrance.
+   -------------------------------------------------------------------------- */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable="plaintext-only"],
+.selectable-text {
+    -webkit-touch-callout: default !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+}
+
+input::selection,
+textarea::selection,
+[contenteditable="true"]::selection,
+[contenteditable="plaintext-only"]::selection,
+.selectable-text::selection {
+    background: rgba(255, 107, 0, 0.3) !important;
+    color: inherit !important;
+}
+
 html,
 body {
     width: 100%;
@@ -244,6 +322,7 @@ body {
     transition: background-color 0.35s ease, color 0.35s ease;
     /* Allow natural horizontal and vertical panning while suppressing pinch-to-zoom gestures */
     touch-action: pan-x pan-y;
+    -webkit-tap-highlight-color: transparent;
 }
 
 #root,
