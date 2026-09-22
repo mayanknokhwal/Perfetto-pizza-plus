@@ -527,15 +527,19 @@ function checkAndApplyAppStorageVersion() {
                     delete memorySessionFallback[k];
                 }
             }
-            if (typeof currentCustomerWallet !== 'undefined') {
-                currentCustomerWallet = null;
-            }
+            try {
+                if (typeof currentCustomerWallet !== 'undefined') {
+                    currentCustomerWallet = null;
+                }
+            } catch (e) {}
             if (typeof window !== 'undefined' && window.currentCustomerWallet) {
                 window.currentCustomerWallet = null;
             }
-            if (typeof cart !== 'undefined' && Array.isArray(cart)) {
-                cart.length = 0;
-            }
+            try {
+                if (typeof cart !== 'undefined' && Array.isArray(cart)) {
+                    cart.length = 0;
+                }
+            } catch (e) {}
 
             localStorage.setItem('perfetto_app_version', APP_STORAGE_VERSION);
             console.log(`[App] Storage upgraded to ${APP_STORAGE_VERSION}, stale cache purged.`);
@@ -1656,6 +1660,9 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
     activeTabName = tabName;
 
     if (tabName === 'profile') {
+        if (typeof reconcileWalletTranches === 'function' && currentCustomerWallet) {
+            reconcileWalletTranches(currentCustomerWallet);
+        }
         updateProfileTotalsUI();
         const savedP = getSavedDeliveryProfile();
         if (savedP && savedP.phone) {
@@ -5143,31 +5150,6 @@ async function fetchAndApplyLiveWalletConfig() {
 }
 fetchAndApplyLiveWalletConfig();
 
-let currentCustomerWallet = (function() {
-    let directBal = 0;
-    const directStored = localStorage.getItem('perfetto_wallet_balance');
-    if (directStored !== null && !isNaN(Number(directStored))) {
-        directBal = Math.max(0, Number(directStored));
-    }
-    try {
-        const stored = localStorage.getItem('perfetto_customer_wallet');
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            if (directStored !== null && !isNaN(Number(directStored))) {
-                parsed.balance = directBal;
-                parsed.nonExpiredBalance = directBal;
-            } else if (typeof parsed.balance === 'number') {
-                localStorage.setItem('perfetto_wallet_balance', parsed.balance);
-            }
-            return parsed;
-        }
-    } catch (e) {}
-    return { balance: directBal, nonExpiredBalance: directBal, transactions: [] };
-})();
-if (typeof window !== 'undefined') {
-    window.currentCustomerWallet = currentCustomerWallet;
-}
-
 function parseTimestampMs(val) {
     if (!val) return NaN;
     if (typeof val === 'number') return val;
@@ -5181,6 +5163,123 @@ function parseTimestampMs(val) {
     return isNaN(parsed) ? NaN : parsed;
 }
 window.parseTimestampMs = parseTimestampMs;
+
+/**
+ * Strictly enforces rolling 15-transaction FIFO retention cap on wallet_transactions.
+ * Automatically shifts/drops the oldest entries (bottom-most) whenever length > 15.
+ */
+function applyRolling15TransactionCap(wallet, newTx = null) {
+    if (!wallet) return [];
+    if (!Array.isArray(wallet.transactions)) {
+        wallet.transactions = [];
+    }
+    if (newTx && typeof newTx === 'object') {
+        wallet.transactions.unshift(newTx);
+    }
+    if (wallet.transactions.length > 15) {
+        wallet.transactions = wallet.transactions.slice(0, 15);
+    }
+    return wallet.transactions;
+}
+window.applyRolling15TransactionCap = applyRolling15TransactionCap;
+
+/**
+ * Synchronizes trimmed 15-item wallet transactions array and balance to Firestore documents.
+ */
+async function syncWalletTransactionsToFirestore(phone, transactions, balance = null) {
+    const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+    if (!cleanPhone) return;
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+    if (!fs) return;
+
+    try {
+        const trimmedTxs = Array.isArray(transactions) ? transactions.slice(0, 15) : [];
+        const payload = {
+            transactions: trimmedTxs,
+            walletTransactions: trimmedTxs,
+            updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
+                ? firebase.firestore.FieldValue.serverTimestamp()
+                : new Date().toISOString()
+        };
+        if (balance !== null && !isNaN(Number(balance))) {
+            payload.balance = Math.max(0, Number(balance));
+            payload.walletBalance = Math.max(0, Number(balance));
+        }
+
+        fs.collection('wallets').doc(cleanPhone).set({ phone: cleanPhone, ...payload }, { merge: true }).catch(() => {});
+        fs.collection('users').doc(`phone_${cleanPhone}`).set(payload, { merge: true }).catch(() => {});
+        fs.collection('users').doc(cleanPhone).set(payload, { merge: true }).catch(() => {});
+    } catch (err) {
+        console.warn('[WALLET] Firestore 15-cap sync note:', err.message);
+    }
+}
+window.syncWalletTransactionsToFirestore = syncWalletTransactionsToFirestore;
+
+var currentCustomerWallet = (function() {
+    let directBal = 0;
+    const directStored = localStorage.getItem('perfetto_wallet_balance');
+    if (directStored !== null && !isNaN(Number(directStored))) {
+        directBal = Math.max(0, Number(directStored));
+    }
+    try {
+        const stored = localStorage.getItem('perfetto_customer_wallet');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            const nowMs = Date.now();
+
+            // Zero-Flash Evaluation: Evaluate expiry immediately before assigning in-memory balance
+            let isWalletExpired = false;
+            if (parsed.expiresAt) {
+                const expMs = parseTimestampMs(parsed.expiresAt);
+                if (!isNaN(expMs) && expMs <= nowMs) {
+                    isWalletExpired = true;
+                }
+            }
+            if (!isWalletExpired && parsed.lastCreditedAt) {
+                const lastCredMs = parseTimestampMs(parsed.lastCreditedAt);
+                const validDays = Number(parsed.cashbackExpiryDays || parsed.expiryDays || 1);
+                if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) {
+                    isWalletExpired = true;
+                }
+            }
+
+            if (Array.isArray(parsed.transactions)) {
+                parsed.transactions = parsed.transactions.slice(0, 15);
+                // Check if all credit tranches in transaction array are expired
+                const activeCredits = parsed.transactions.filter(t => {
+                    if (!t) return false;
+                    const st = String(t.status || '').toUpperCase();
+                    const tp = String(t.type || '').toUpperCase();
+                    const isCredit = st === 'ACTIVE' || st === 'UNLOCKED' || tp === 'CREDIT' || tp === 'CASHBACK_EARNED' || tp.includes('CASHBACK');
+                    const expMs = t.expiresAt ? parseTimestampMs(t.expiresAt) : NaN;
+                    const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (!isNaN(expMs) && expMs <= nowMs);
+                    const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
+                    return isCredit && !isExp && !isRed;
+                });
+                if (parsed.transactions.length > 0 && activeCredits.length === 0) {
+                    isWalletExpired = true;
+                }
+            }
+
+            if (isWalletExpired || parsed.expired) {
+                parsed.balance = 0;
+                parsed.nonExpiredBalance = 0;
+                parsed.expired = true;
+                localStorage.setItem('perfetto_wallet_balance', '0');
+            } else if (directStored !== null && !isNaN(Number(directStored))) {
+                parsed.balance = directBal;
+                parsed.nonExpiredBalance = directBal;
+            } else if (typeof parsed.balance === 'number') {
+                localStorage.setItem('perfetto_wallet_balance', String(parsed.balance));
+            }
+            return parsed;
+        }
+    } catch (e) {}
+    return { balance: directBal, nonExpiredBalance: directBal, transactions: [] };
+})();
+if (typeof window !== 'undefined') {
+    window.currentCustomerWallet = currentCustomerWallet;
+}
 
 function checkAndApplyWalletLedgerReset(targetWallet = null) {
     try {
@@ -5296,12 +5395,58 @@ function reconcileWalletTranches(wallet) {
 
     if (!Array.isArray(wallet.transactions) || wallet.transactions.length === 0) {
         let rawBal = Number(wallet.balance) || 0;
+        let isExpired = false;
         if (wallet.expiresAt) {
             const expMs = parseTs(wallet.expiresAt);
             if (!isNaN(expMs) && expMs <= nowMs) {
-                rawBal = 0;
-                wallet.expired = true;
+                isExpired = true;
             }
+        }
+        if (!isExpired && wallet.lastCreditedAt) {
+            const lastCredMs = parseTs(wallet.lastCreditedAt);
+            const validDays = Number(wallet.cashbackExpiryDays || wallet.expiryDays || 1);
+            if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) {
+                isExpired = true;
+            }
+        }
+        if (isExpired && rawBal > 0) {
+            const expAmt = rawBal;
+            rawBal = 0;
+            wallet.expired = true;
+            wallet.expiresAt = null;
+            wallet.balance = 0;
+            wallet.nonExpiredBalance = 0;
+            if (!Array.isArray(wallet.transactions)) wallet.transactions = [];
+            const nowIso = new Date().toISOString();
+            const expDebit = {
+                id: `tx_exp_bal_${Date.now()}`,
+                type: 'debit',
+                title: 'Cashback Expired',
+                amount: -Math.abs(expAmt),
+                date: nowIso,
+                createdAt: nowIso,
+                timestamp: nowIso,
+                description: 'Cashback validity expired',
+                status: 'completed'
+            };
+            if (typeof applyRolling15TransactionCap === 'function') {
+                applyRolling15TransactionCap(wallet, expDebit);
+            } else {
+                if (!Array.isArray(wallet.transactions)) wallet.transactions = [];
+                wallet.transactions.unshift(expDebit);
+                wallet.transactions = wallet.transactions.slice(0, 15);
+            }
+            try {
+                localStorage.setItem('perfetto_wallet_balance', '0');
+                localStorage.setItem('perfetto_customer_wallet', JSON.stringify(wallet));
+                const phone = wallet.phone || (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone());
+                if (phone) {
+                    localStorage.setItem(`perfetto_wallet_balance_${phone}`, '0');
+                    localStorage.setItem(`perfetto_customer_wallet_${phone}`, JSON.stringify(wallet));
+                    syncWalletTransactionsToFirestore(phone, wallet.transactions, 0);
+                }
+            } catch (e) {}
+            return 0;
         }
         wallet.balance = Math.max(0, rawBal);
         wallet.nonExpiredBalance = wallet.balance;
@@ -5504,7 +5649,11 @@ function reconcileWalletTranches(wallet) {
             const parsedCreated = parseTs(tx.createdAt || tx.timestamp || tx.creditedAt);
             const createdTime = isNaN(parsedCreated) ? 0 : parsedCreated;
             const parsedExp = parseTs(tx.expiresAt);
-            const expMs = isNaN(parsedExp) ? Infinity : parsedExp;
+            let expMs = isNaN(parsedExp) ? Infinity : parsedExp;
+            if (expMs === Infinity && createdTime > 0) {
+                const validDays = Number(tx.cashbackExpiryDays || tx.expiryDays || 1);
+                expMs = createdTime + (validDays * 24 * 60 * 60 * 1000);
+            }
 
             credits.push({
                 tx,
@@ -5559,16 +5708,42 @@ function reconcileWalletTranches(wallet) {
         }
     }
 
-    // 4. Invalidate expired credits at current time and calculate net active unexpired balance
+    // 4. Invalidate expired credits at current time and append explicit debit record to ledger
     let activeSum = 0;
     let expiredSum = 0;
     let earliestExpiryMs = Infinity;
+    const newExpiredDebitRecords = [];
 
     credits.forEach(c => {
         const isExp = c.expiresAtMs <= nowMs;
         c.tx.isExpired = isExp;
         if (isExp) {
-            expiredSum += (c.tx.remainingAmount || 0);
+            const expAmt = Math.max(0, Number(c.tx.remainingAmount !== undefined ? c.tx.remainingAmount : (c.tx.amount || 0)));
+            if (expAmt > 0 && !c.tx.expiryDebitLogged) {
+                expiredSum += expAmt;
+                const trancheId = c.tx.id || c.tx.orderId || `${c.createdTime}_${expAmt}`;
+                const expTxId = `tx_exp_${trancheId}`;
+                const alreadyLogged = Array.isArray(wallet.transactions) && wallet.transactions.some(t =>
+                    t && (t.id === expTxId || (t.type === 'debit' && t.title === 'Cashback Expired' && String(t.relatedTrancheId || '') === String(trancheId)))
+                );
+                if (!alreadyLogged) {
+                    const nowIso = new Date().toISOString();
+                    newExpiredDebitRecords.push({
+                        id: expTxId,
+                        type: 'debit',
+                        title: 'Cashback Expired',
+                        amount: -Math.abs(expAmt),
+                        date: nowIso,
+                        createdAt: nowIso,
+                        timestamp: nowIso,
+                        description: 'Cashback validity expired',
+                        status: 'completed',
+                        relatedTrancheId: trancheId,
+                        orderId: c.tx.orderId || ''
+                    });
+                }
+                c.tx.expiryDebitLogged = true;
+            }
             c.tx.remainingAmount = 0;
             c.tx.status = 'expired';
             c.tx.isRedeemed = false;
@@ -5590,6 +5765,19 @@ function reconcileWalletTranches(wallet) {
             c.tx.isRedeemed = true;
         }
     });
+
+    // Automatically append debit records to the ledger with strict 15-item rolling FIFO cap
+    if (newExpiredDebitRecords.length > 0) {
+        newExpiredDebitRecords.forEach(rec => {
+            if (typeof applyRolling15TransactionCap === 'function') {
+                applyRolling15TransactionCap(wallet, rec);
+            } else {
+                if (!Array.isArray(wallet.transactions)) wallet.transactions = [];
+                wallet.transactions.unshift(rec);
+                wallet.transactions = wallet.transactions.slice(0, 15);
+            }
+        });
+    }
 
     // Authoritative balance calculation:
     // The authoritative balance calculation must sum all valid, active, and unexpired credit tranches:
@@ -5678,12 +5866,23 @@ function reconcileWalletTranches(wallet) {
     } else {
         // When no credit tranches exist in this transaction slice, retain authoritative wallet.balance unless expired
         let rawBal = Number(wallet.balance) || 0;
+        let isExpired = false;
         if (wallet.expiresAt) {
             const expMs = parseTs(wallet.expiresAt);
             if (!isNaN(expMs) && expMs <= nowMs) {
-                rawBal = 0;
-                wallet.expired = true;
+                isExpired = true;
             }
+        }
+        if (!isExpired && wallet.lastCreditedAt) {
+            const lastCredMs = parseTs(wallet.lastCreditedAt);
+            const validDays = Number(wallet.cashbackExpiryDays || wallet.expiryDays || 1);
+            if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) {
+                isExpired = true;
+            }
+        }
+        if (isExpired) {
+            rawBal = 0;
+            wallet.expired = true;
         }
         baseCreditPool = Math.max(0, rawBal);
     }
@@ -5707,9 +5906,24 @@ function reconcileWalletTranches(wallet) {
         wallet.expiresAt = null;
     }
 
+    // Ensure transactions are strictly capped at 15 items
+    if (typeof applyRolling15TransactionCap === 'function') {
+        applyRolling15TransactionCap(wallet);
+    } else if (Array.isArray(wallet.transactions) && wallet.transactions.length > 15) {
+        wallet.transactions = wallet.transactions.slice(0, 15);
+    }
+
     try {
-        localStorage.setItem('perfetto_wallet_balance', reconciledBalance);
+        localStorage.setItem('perfetto_wallet_balance', String(reconciledBalance));
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(wallet));
+        const phone = wallet.phone || (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone());
+        if (phone) {
+            localStorage.setItem(`perfetto_wallet_balance_${phone}`, String(reconciledBalance));
+            localStorage.setItem(`perfetto_customer_wallet_${phone}`, JSON.stringify(wallet));
+            if (newExpiredDebitRecords.length > 0 && typeof syncWalletTransactionsToFirestore === 'function') {
+                syncWalletTransactionsToFirestore(phone, wallet.transactions, reconciledBalance);
+            }
+        }
     } catch (e) {}
 
     return reconciledBalance;
@@ -5958,14 +6172,27 @@ function calculateCustomerWalletBalance(wallet = currentCustomerWallet) {
         }
     });
 
-    if (activeCashbacksTotal === 0 && activeRefundsTotal === 0 && activeOtherCreditsTotal === 0) {
-        const directBal = Number(w.balance) || 0;
-        if (directBal > 0) {
-            const expMs = w.expiresAt ? parseTs(w.expiresAt) : Infinity;
-            if (isNaN(expMs) || expMs > nowMs) {
-                activeCashbacksTotal = directBal;
-                if (expMs < Infinity && expMs > nowMs) {
-                    trancheMap.set(expMs, directBal);
+    // Strict Expiry Zeroing: Only fall back to direct w.balance if transactions array is completely empty AND wallet has not expired
+    if (txList.length === 0 && activeCashbacksTotal === 0 && activeRefundsTotal === 0 && activeOtherCreditsTotal === 0 && !w.expired) {
+        let isExp = false;
+        if (w.expiresAt) {
+            const expMs = parseTs(w.expiresAt);
+            if (!isNaN(expMs) && expMs <= nowMs) isExp = true;
+        }
+        if (!isExp && w.lastCreditedAt) {
+            const lastCredMs = parseTs(w.lastCreditedAt);
+            const validDays = Number(w.cashbackExpiryDays || w.expiryDays || 1);
+            if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) isExp = true;
+        }
+        if (!isExp) {
+            const directBal = Number(w.balance) || 0;
+            if (directBal > 0) {
+                const expMs = w.expiresAt ? parseTs(w.expiresAt) : Infinity;
+                if (isNaN(expMs) || expMs > nowMs) {
+                    activeCashbacksTotal = directBal;
+                    if (expMs < Infinity && expMs > nowMs) {
+                        trancheMap.set(expMs, directBal);
+                    }
                 }
             }
         }
@@ -6043,29 +6270,36 @@ function getEffectiveWalletBalance() {
     if (!verifiedPhone) {
         return 0;
     }
-    const walletInstance = (typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet)
+    let walletInstance = (typeof currentCustomerWallet !== 'undefined' && currentCustomerWallet)
         ? currentCustomerWallet
         : ((typeof window !== 'undefined' && window.currentCustomerWallet) ? window.currentCustomerWallet : null);
+
+    if (!walletInstance) {
+        try {
+            const stored = localStorage.getItem(`perfetto_customer_wallet_${verifiedPhone}`) || localStorage.getItem('perfetto_customer_wallet');
+            if (stored) {
+                walletInstance = JSON.parse(stored);
+                if (typeof window !== 'undefined') window.currentCustomerWallet = walletInstance;
+                currentCustomerWallet = walletInstance;
+            }
+        } catch (e) {}
+    }
+
     if (walletInstance) {
         const walletPhone = walletInstance.phone || walletInstance.customerPhone;
         const cleanWalletPhone = walletPhone ? String(walletPhone).replace(/[^0-9]/g, '').slice(-10) : null;
         if (!cleanWalletPhone || cleanWalletPhone === verifiedPhone) {
-            const calc = (typeof calculateCustomerWalletBalance === 'function') ? calculateCustomerWalletBalance(walletInstance) : null; if (!calc) return (typeof reconcileWalletTranches === 'function') ? reconcileWalletTranches(walletInstance) : Number(walletInstance.balance || 0);
-            const bal = Math.max(0, Number(calc.totalBalance) || 0);
+            if (typeof reconcileWalletTranches === 'function') {
+                reconcileWalletTranches(walletInstance);
+            }
+            const calc = (typeof calculateCustomerWalletBalance === 'function') ? calculateCustomerWalletBalance(walletInstance) : null;
+            const bal = calc ? Math.max(0, Number(calc.totalBalance) || 0) : Math.max(0, Number(walletInstance.balance || 0));
             try {
                 localStorage.setItem('perfetto_wallet_balance', String(bal));
                 localStorage.setItem(`perfetto_wallet_balance_${verifiedPhone}`, String(bal));
             } catch (e) {}
             return bal;
         }
-    }
-    const phoneScopedStored = localStorage.getItem(`perfetto_wallet_balance_${verifiedPhone}`);
-    if (phoneScopedStored !== null && !isNaN(Number(phoneScopedStored))) {
-        return Math.max(0, Number(phoneScopedStored));
-    }
-    const directStored = localStorage.getItem('perfetto_wallet_balance');
-    if (directStored !== null && !isNaN(Number(directStored))) {
-        return Math.max(0, Number(directStored));
     }
     return 0;
 }
@@ -6079,18 +6313,45 @@ function calculateValidWalletBalance(walletDoc) {
     if (!walletDoc) return { balance: 0, nonExpiredBalance: 0 };
     const rawBalance = typeof walletDoc.balance === 'number' ? walletDoc.balance : (parseFloat(walletDoc.balance) || 0);
     let validBalance = rawBalance;
+    const nowMs = Date.now();
+    let isExp = Boolean(walletDoc.expired);
+
+    const parseTs = typeof parseTimestampMs === 'function' ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
 
     // Check expiry timestamp on wallet doc
-    if (walletDoc.expiresAt) {
-        const exp = walletDoc.expiresAt.toDate ? walletDoc.expiresAt.toDate() : new Date(walletDoc.expiresAt);
-        if (!isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
-            validBalance = 0;
+    if (!isExp && walletDoc.expiresAt) {
+        const expMs = parseTs(walletDoc.expiresAt);
+        if (!isNaN(expMs) && expMs <= nowMs) {
+            isExp = true;
+        }
+    }
+    if (!isExp && walletDoc.lastCreditedAt) {
+        const lastCredMs = parseTs(walletDoc.lastCreditedAt);
+        const validDays = Number(walletDoc.cashbackExpiryDays || walletDoc.expiryDays || 1);
+        if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) {
+            isExp = true;
         }
     }
 
+    if (isExp) {
+        validBalance = 0;
+    }
+
+    const safeBal = Math.max(0, validBalance);
     return {
-        balance: Math.max(0, rawBalance),
-        nonExpiredBalance: Math.max(0, validBalance)
+        balance: safeBal,
+        nonExpiredBalance: safeBal
     };
 }
 
@@ -6294,8 +6555,8 @@ function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
     const listA = Array.isArray(existingTxs) ? existingTxs : [];
     const listB = Array.isArray(incomingTxs) ? incomingTxs : [];
     if (listA.length === 0 && listB.length === 0) return [];
-    if (listA.length === 0) return listB.slice(0, 30);
-    if (listB.length === 0) return listA.slice(0, 30);
+    if (listA.length === 0) return listB.slice(0, 15);
+    if (listB.length === 0) return listA.slice(0, 15);
 
     const parseTxTimestamp = (item) => {
         if (!item) return 0;
@@ -6365,7 +6626,7 @@ function mergeAndPreserveWalletTransactions(existingTxs, incomingTxs) {
         }
     });
 
-    return Array.from(map.values()).sort((a, b) => parseTxTimestamp(b) - parseTxTimestamp(a)).slice(0, 30);
+    return Array.from(map.values()).sort((a, b) => parseTxTimestamp(b) - parseTxTimestamp(a)).slice(0, 15);
 }
 window.mergeAndPreserveWalletTransactions = mergeAndPreserveWalletTransactions;
 
@@ -6405,7 +6666,7 @@ function applyLiveWalletData(data, source = 'wallets') {
         }
     }
 
-    const mergedTx = (valid.balance === 0 && incomingTx.length === 0) ? [] : mergeAndPreserveWalletTransactions(existingTx, incomingTx);
+    const mergedTx = (valid.balance === 0 && incomingTx.length === 0) ? [] : mergeAndPreserveWalletTransactions(existingTx, incomingTx).slice(0, 15);
 
     currentCustomerWallet = {
         ...(currentCustomerWallet || {}),
@@ -7329,7 +7590,7 @@ async function createWalletHoldRecord(phone, amount, orderId) {
         holdStatus: 'LOCKED_HOLD' // status: 'LOCKED_HOLD'
     };
     existingTx.unshift(holdTxData);
-    currentCustomerWallet.transactions = existingTx.slice(0, 30);
+    currentCustomerWallet.transactions = existingTx.slice(0, 15);
 
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
@@ -7496,7 +7757,7 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
             creditedAt: new Date(nowMs).toISOString(),
             date: new Date(nowMs).toISOString()
         };
-        currentCustomerWallet.transactions.unshift(refundTx);
+        applyRolling15TransactionCap(currentCustomerWallet, refundTx);
     }
 
     // Update wallet top-level expiration if recovered expiry is newer
@@ -7527,13 +7788,7 @@ function releaseWalletHold(orderId, refundAmount, customExpiresAt) {
                 walletRef.collection('transactions').doc(txId).set(refundDoc, { merge: true }).catch(() => {});
             }
         }
-        walletRef.set({
-            balance: currentCustomerWallet.balance,
-            transactions: currentCustomerWallet.transactions,
-            updatedAt: (typeof firebase !== 'undefined' && firebase.firestore && firebase.firestore.FieldValue)
-                ? firebase.firestore.FieldValue.serverTimestamp()
-                : new Date().toISOString()
-        }, { merge: true }).catch(() => {});
+        syncWalletTransactionsToFirestore(cleanPhone, currentCustomerWallet.transactions, currentCustomerWallet.balance);
     }
 }
 window.releaseWalletHold = releaseWalletHold;
@@ -7767,7 +8022,7 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         : (customExpiryOptions && customExpiryOptions.campaign ? `${customExpiryOptions.campaign} (+₹${earnedCashback})` : `credited +₹${earnedCashback} for Order #${effectiveOrderId}`);
 
     const nowIso = now.toISOString();
-    existingTx.unshift({
+    const newCreditTx = {
         type: 'credit',
         amount: earnedCashback,
         initialAmount: earnedCashback,
@@ -7786,10 +8041,11 @@ async function creditCustomerWallet(phone, amount, orderId, customExpiryOptions 
         cashbackExpiryDays: activeDays,
         status: 'active',
         campaign: campaignName
-    });
-    currentCustomerWallet.transactions = existingTx.slice(0, 30);
+    };
+    applyRolling15TransactionCap(currentCustomerWallet, newCreditTx);
 
     const updatedWalletBalance = reconcileWalletTranches(currentCustomerWallet);
+    syncWalletTransactionsToFirestore(cleanPhone, currentCustomerWallet.transactions, updatedWalletBalance);
 
     updateProfileWalletUI();
     renderProfileWalletTxList();
@@ -7911,13 +8167,14 @@ function addWalletTransaction(txData, phone = null) {
         date: nowIso
     };
 
-    currentCustomerWallet.transactions.unshift(newTx);
-    currentCustomerWallet.transactions = currentCustomerWallet.transactions.slice(0, 30);
+    applyRolling15TransactionCap(currentCustomerWallet, newTx);
 
     reconcileWalletTranches(currentCustomerWallet);
     updateProfileWalletUI();
     renderProfileWalletTxList();
     updateCheckoutWalletUI();
+
+    syncWalletTransactionsToFirestore(cleanPhone, currentCustomerWallet.transactions, currentCustomerWallet.balance);
 
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
@@ -7963,6 +8220,11 @@ function updateProfileWalletUI() {
     const rulesText = document.getElementById('profile-wallet-rules-text');
 
     if (!valEl) return;
+
+    // Zero-Flash Evaluation: Reconcile expiry tranches before reading balance or painting DOM
+    if (typeof reconcileWalletTranches === 'function' && currentCustomerWallet) {
+        reconcileWalletTranches(currentCustomerWallet);
+    }
 
     const isSystemEnabled = customerWalletConfig && customerWalletConfig.enabled !== false;
 
@@ -8113,19 +8375,15 @@ function renderProfileWalletTxList() {
     const container = document.getElementById('profile-wallet-tx-list');
     if (!container) return;
 
-    // Database-First Ledger Sync: Only fall back to local storage if currentCustomerWallet has active non-zero balance and transactions aren't explicitly empty
     try {
-        if (currentCustomerWallet && Number(currentCustomerWallet.balance || 0) > 0 && (!currentCustomerWallet.transactions || currentCustomerWallet.transactions.length === 0)) {
+        if (currentCustomerWallet && (!currentCustomerWallet.transactions || !Array.isArray(currentCustomerWallet.transactions))) {
             const stored = localStorage.getItem('perfetto_customer_wallet');
             if (stored) {
                 const parsed = JSON.parse(stored);
                 if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
-                    currentCustomerWallet.transactions = parsed.transactions;
+                    currentCustomerWallet.transactions = parsed.transactions.slice(0, 15);
                 }
             }
-        } else if (currentCustomerWallet && Number(currentCustomerWallet.balance || 0) === 0) {
-            // Server balance is 0: discard any orphan local transactions
-            currentCustomerWallet.transactions = [];
         }
     } catch (e) {}
 
@@ -8157,10 +8415,9 @@ function renderProfileWalletTxList() {
     }).slice(0, 15);
 
     if (sortedTxList.length === 0) {
-        const firstSlabMin = getSlab1Threshold(customerWalletConfig);
         container.innerHTML = `
             <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 10px 0;">
-                ${typeof t === 'function' ? t('wallet_no_transactions') : `No wallet transactions yet. Place an order of ₹${firstSlabMin}+ to earn cashback!`}
+                No wallet transactions yet. Place an order to earn cashback!
             </div>
         `;
         return;
@@ -8170,17 +8427,18 @@ function renderProfileWalletTxList() {
         const typeUpper = String(tx.type || '').trim().toUpperCase();
         const statusUpper = String(tx.status || '').trim().toUpperCase();
         const descLower = String(tx.description || tx.title || '').toLowerCase();
+        const isExpiredDebit = (tx.title === 'Cashback Expired' || tx.description === 'Cashback validity expired' || (String(tx.type || '').toLowerCase() === 'debit' && String(tx.id || '').startsWith('tx_exp_')));
 
-        const isCompletedDebit = statusUpper === 'COMPLETED' || statusUpper === 'DEBITED' || tx.status === 'completed' || tx.status === 'debited' || typeUpper === 'DEBIT' || tx.type === 'debit';
+        const isCompletedDebit = isExpiredDebit || statusUpper === 'COMPLETED' || statusUpper === 'DEBITED' || tx.status === 'completed' || tx.status === 'debited' || typeUpper === 'DEBIT' || tx.type === 'debit';
         const isRefund = (tx.type === 'REFUND' || tx.type === 'refund');
-        const isHold = !isCompletedDebit && (tx.type === 'hold' || tx.type === 'WALLET_HOLD' || tx.status === 'LOCKED_HOLD' || typeUpper === 'HOLD' || typeUpper === 'WALLET_HOLD' || statusUpper === 'LOCKED_HOLD' || statusUpper === 'LOCKED' || statusUpper === 'HELD');
+        const isHold = !isExpiredDebit && !isCompletedDebit && (tx.type === 'hold' || tx.type === 'WALLET_HOLD' || tx.status === 'LOCKED_HOLD' || typeUpper === 'HOLD' || typeUpper === 'WALLET_HOLD' || statusUpper === 'LOCKED_HOLD' || statusUpper === 'LOCKED' || statusUpper === 'HELD');
 
         // Robust Credit (+) vs Debit (-) Classification:
         // If type === "CASHBACK_EARNED", type === "CREDIT", or transaction represents cash reward/unlock:
         // Display with a positive sign + ₹${amount}, colored in green (credit badge).
         // If type === "DEBIT", type === "ORDER_PAYMENT", or wallet funds were redeemed during checkout:
         // Display with a negative sign - ₹${amount}, colored in red/muted (debit badge).
-        const isExplicitCredit = typeUpper === 'CASHBACK_EARNED' ||
+        const isExplicitCredit = !isExpiredDebit && (typeUpper === 'CASHBACK_EARNED' ||
                                  typeUpper === 'CREDIT' ||
                                  typeUpper === 'CASHBACK' ||
                                  typeUpper === 'REWARD' ||
@@ -8192,9 +8450,9 @@ function renderProfileWalletTxList() {
                                  descLower.includes('credited') ||
                                  descLower.includes('reward') ||
                                  descLower.includes('earned') ||
-                                 descLower.includes('scratch');
+                                 descLower.includes('scratch'));
 
-        const isExplicitDebit = isCompletedDebit ||
+        const isExplicitDebit = isExpiredDebit || isCompletedDebit ||
                                 typeUpper === 'DEBIT' ||
                                 typeUpper === 'ORDER_PAYMENT' ||
                                 typeUpper === 'PAYMENT' ||
@@ -8204,8 +8462,8 @@ function renderProfileWalletTxList() {
                                 descLower.includes('order payment') ||
                                 (descLower.includes('redeemed') && !descLower.includes('credited'));
 
-        const isCredit = !isRefund && !isHold && !isExplicitDebit && (isExplicitCredit || (tx.remainingAmount !== undefined || Number(tx.amount) >= 0));
-        const isPositive = isCredit || isRefund;
+        const isCredit = !isExpiredDebit && !isRefund && !isHold && !isExplicitDebit && (isExplicitCredit || (tx.remainingAmount !== undefined || Number(tx.amount) >= 0));
+        const isPositive = !isExpiredDebit && (isCredit || isRefund);
         const amt = Math.abs(Number(tx.amount) || 0);
 
         // Robust Date Formatting (Safely resolve Firestore Timestamp, ISO string, or numeric epoch)
@@ -8236,7 +8494,9 @@ function renderProfileWalletTxList() {
         const dateStr = `${day} ${month}, ${hours}:${minutes}`;
 
         let expiryNotice = '';
-        if (isRefund) {
+        if (isExpiredDebit) {
+            expiryNotice = '<span class="tx-badge-expired" style="color: #dc2626 !important; background: rgba(239, 68, 68, 0.12);"><i class="fa-solid fa-clock"></i> Expired</span>';
+        } else if (isRefund) {
             expiryNotice = '<span class="tx-badge-refund"><i class="fa-solid fa-rotate-left"></i> Refunded</span>';
         } else if (isHold) {
             if (tx.status === 'released') {
@@ -8267,7 +8527,9 @@ function renderProfileWalletTxList() {
         }
 
         let txTitle = tx.description || tx.title;
-        if (!txTitle) {
+        if (isExpiredDebit) {
+            txTitle = 'Cashback Expired';
+        } else if (!txTitle) {
             if (isRefund) txTitle = `Refund for Order #${tx.orderId || ''}`;
             else if (isHold) txTitle = `Wallet hold for Order #${tx.orderId || ''}`;
             else if (isCredit) txTitle = `credited +₹${amt} for Order #${tx.orderId || ''}`;
@@ -8278,6 +8540,7 @@ function renderProfileWalletTxList() {
         const amountSuffix = isRefund ? ' Refund' : '';
         const rowClass = isRefund ? 'tx-credit tx-refund' : (isCredit ? 'tx-credit' : (isHold ? 'tx-hold' : 'tx-debit'));
         const amountClass = isRefund ? 'amount-credit amount-refund' : (isCredit ? 'amount-credit' : (isHold ? 'amount-hold' : 'amount-debit'));
+        const redStyle = isExpiredDebit ? ' style="color: #dc2626 !important; font-weight: 600;"' : '';
 
         return `
             <div class="wallet-tx-item ${rowClass}">
@@ -8286,7 +8549,7 @@ function renderProfileWalletTxList() {
                     <span class="wallet-tx-date">${dateStr}</span>
                 </div>
                 <div class="wallet-tx-right">
-                    <span class="wallet-tx-amount ${amountClass}">${amountPrefix}₹${amt}${amountSuffix}</span>
+                    <span class="wallet-tx-amount ${amountClass}"${redStyle}>${amountPrefix}₹${amt}${amountSuffix}</span>
                     <span class="wallet-tx-expiry">${expiryNotice}</span>
                 </div>
             </div>
@@ -10337,7 +10600,7 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
     // Rule B: Wallet Cash APPLIED (any amount > 0) -> "Thanks Scratch Card" (uniform random integer between 1 and 10)
     // Rule C: Non-Wallet Payment -> Highest eligible slab (Slab 1: 1 to max; Slabs 2-5: (prevMax + 1) to max; pure equal probability)
     const isWalletApplied = (walletDiscountToApply > 0);
-    const rewardResult = calculateDynamicScratchReward(subtotal, isWalletApplied, customerWalletConfig);
+    const rewardResult = typeof calculateDynamicScratchReward === 'function' ? calculateDynamicScratchReward(subtotal, isWalletApplied, customerWalletConfig) : { eligible: false, rewardAmount: 0 };
 
     const now = new Date();
     const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -12225,7 +12488,7 @@ function openScratchCardModal(order, demoAmount) {
         activeScratchOrder.earnedCashback = rewardAmount;
         activeScratchOrder.wonCashback = rewardAmount;
     } else if (rewardAmount <= 0 && isSlab1Qualified) {
-        const dynamicRes = calculateDynamicScratchReward(orderSubtotal > 0 ? orderSubtotal : 500, isWalletUsedOnOrder, customerWalletConfig);
+        const dynamicRes = typeof calculateDynamicScratchReward === 'function' ? calculateDynamicScratchReward(orderSubtotal > 0 ? orderSubtotal : 500, isWalletUsedOnOrder, customerWalletConfig) : { eligible: false, rewardAmount: 0 };
         if (dynamicRes.eligible) {
             rewardAmount = dynamicRes.rewardAmount;
             activeScratchOrder.earnedCashback = rewardAmount;
@@ -13975,7 +14238,6 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
 
             // Restore Wallet Balance permanently bound to this mobile number
             const restoredBalance = Number(u.walletBalance !== undefined ? u.walletBalance : (u.balance !== undefined ? u.balance : 0));
-            localStorage.setItem('perfetto_wallet_balance', restoredBalance);
 
             let activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
             if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
@@ -13996,9 +14258,14 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                 currentCustomerWallet.transactions = [];
             } else {
                 const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
-                currentCustomerWallet.transactions = mergeAndPreserveWalletTransactions(existingTx, uTxs);
+                currentCustomerWallet.transactions = mergeAndPreserveWalletTransactions(existingTx, uTxs).slice(0, 15);
             }
             reconcileWalletTranches(currentCustomerWallet);
+            localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance || 0));
+            if (currentCustomerWallet.phone) {
+                localStorage.setItem(`perfetto_wallet_balance_${currentCustomerWallet.phone}`, String(currentCustomerWallet.balance || 0));
+                localStorage.setItem(`perfetto_customer_wallet_${currentCustomerWallet.phone}`, JSON.stringify(currentCustomerWallet));
+            }
             safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
 
             // Restore complete order history bound to this phone number
@@ -14328,6 +14595,9 @@ function updateProfileTotalsUI() {
     renderProfileHeaderAndInputs(currentProfile);
 
     // Update Perfetto Wallet UI in Profile Tab & sync latest Firestore balance
+    if (typeof reconcileWalletTranches === 'function' && currentCustomerWallet) {
+        reconcileWalletTranches(currentCustomerWallet);
+    }
     updateProfileWalletUI();
     renderProfileWalletTxList();
     startWalletCountdownTimer();
@@ -14713,7 +14983,7 @@ async function autoRejectExpiredCustomerOrder(order) {
             const txId = `tx_refund_${orderId}`;
             const alreadyLogged = currentCustomerWallet.transactions.some(tx => tx && (tx.id === txId || (tx.type === 'REFUND' && String(tx.orderId) === String(orderId))));
             if (!alreadyLogged) {
-                currentCustomerWallet.transactions.unshift({
+                applyRolling15TransactionCap(currentCustomerWallet, {
                     id: txId,
                     type: 'REFUND',
                     amount: refundAmount,
@@ -14725,6 +14995,7 @@ async function autoRejectExpiredCustomerOrder(order) {
                     graceApplied: new Date(recoveredExpiresAt).getTime() > new Date(originalExpiresAt || 0).getTime(),
                     createdAt: nowIso
                 });
+                syncWalletTransactionsToFirestore(customerPhone, currentCustomerWallet.transactions, currentCustomerWallet.balance);
             }
             updateProfileWalletUI();
             renderProfileWalletTxList();
@@ -19570,7 +19841,7 @@ function setupLocalStorageSync() {
 // --------------------------------------------------------------------------
 let firebaseAuthInstance = null;
 currentUserProfile = null;
-let customerFirestore = null;
+var customerFirestore = null;
 let menuRealtimeUnsubscribe = null;
 let settingsRealtimeUnsubscribe = null;
 let storeConfigRealtimeUnsubscribe = null;
