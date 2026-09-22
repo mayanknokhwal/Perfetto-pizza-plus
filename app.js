@@ -10694,25 +10694,179 @@ async function saveOrderToBackendAPI(order) {
     }
 }
 
-function setupDeliveryInputValidation() {
-    const fieldIds = [
-        'customer-fullname',
-        'customer-phone',
-        'customer-colony-name',
-        'customer-nearby',
-        'customer-street-name',
-        'customer-ward-no'
-    ];
+// --------------------------------------------------------------------------
+// CUSTOMER PROFILE & ADDRESS FIELD SANITIZERS & RESTRICTIONS
+// --------------------------------------------------------------------------
 
-    fieldIds.forEach(id => {
+/**
+ * Sanitizes Full Name input:
+ * - Allowed: Strictly alphabets (A-Z, a-z) and single spaces between words
+ * - Disallowed: numbers, symbols, brackets, hashtags, emojis, punctuation
+ * - Strips leading space and collapses multiple consecutive spaces
+ * - Enforces 25-character maximum length
+ */
+function sanitizeFullName(val) {
+    if (!val) return '';
+    // Strip everything except ASCII letters and spaces
+    let clean = String(val).replace(/[^a-zA-Z\s]/g, '');
+    // Collapse multiple consecutive spaces to a single space
+    clean = clean.replace(/\s{2,}/g, ' ');
+    // Remove leading whitespace
+    clean = clean.replace(/^\s+/, '');
+    // Limit to exactly 25 characters
+    return clean.slice(0, 25);
+}
+
+function handleFullNameInputChange(input) {
+    if (!input) return;
+    const prevPos = input.selectionStart;
+    const oldLen = input.value.length;
+    input.value = sanitizeFullName(input.value);
+    if (input.setSelectionRange && typeof prevPos === 'number') {
+        const diff = input.value.length - oldLen;
+        const newPos = Math.max(0, prevPos + diff);
+        try { input.setSelectionRange(newPos, newPos); } catch (e) {}
+    }
+    if (input.value.trim() !== '') {
+        input.classList.remove('invalid-field');
+    }
+}
+
+function handleFullNameKeyDown(e) {
+    // Allow control/navigation keys
+    if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Tab' || e.key === 'Enter' ||
+        e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+        e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+    }
+    if (e.key && e.key.length === 1) {
+        // Disallow non-letter and non-space characters
+        if (!/^[a-zA-Z ]$/.test(e.key)) {
+            e.preventDefault();
+            return;
+        }
+        // Disallow leading space
+        if (e.key === ' ' && (e.target.value.length === 0 || e.target.selectionStart === 0)) {
+            e.preventDefault();
+            return;
+        }
+        // Disallow consecutive spaces
+        if (e.key === ' ') {
+            const pos = e.target.selectionStart;
+            if (pos > 0 && e.target.value[pos - 1] === ' ') {
+                e.preventDefault();
+                return;
+            }
+        }
+        // Disallow typing beyond 25 characters
+        if (e.target.value.length >= 25 && e.target.selectionStart === e.target.selectionEnd) {
+            e.preventDefault();
+            return;
+        }
+    }
+}
+
+function handleFullNamePaste(e) {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+    const pasted = clipboardData.getData('text');
+    if (!pasted) return;
+    e.preventDefault();
+    const input = e.target;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const before = input.value.slice(0, start);
+    const after = input.value.slice(end);
+    input.value = sanitizeFullName(before + pasted + after);
+    if (input.value.trim() !== '') {
+        input.classList.remove('invalid-field');
+    }
+}
+
+/**
+ * Smart 10-Digit Mobile Number Sanitizer:
+ * - Strips all non-numeric characters (dashes, spaces, brackets, '+')
+ * - Automatically strips initial '91' prefix if input contains leading country code with 12 total digits
+ * - Automatically strips initial '0' prefix if input contains leading 0 with 11 total digits
+ * - Enforces exact 10-digit limit
+ */
+function sanitizePhoneNumber(val) {
+    if (!val) return '';
+    let digits = String(val).replace(/\D/g, '');
+    // 12 digits with 91 prefix (or > 10 digits starting with 91)
+    if (digits.length === 12 && digits.startsWith('91')) {
+        digits = digits.slice(2);
+    } else if (digits.length > 10 && digits.startsWith('91')) {
+        digits = digits.slice(2);
+    }
+    // 11 digits with 0 prefix (or > 10 digits starting with 0)
+    else if (digits.length === 11 && digits.startsWith('0')) {
+        digits = digits.slice(1);
+    } else if (digits.length > 10 && digits.startsWith('0')) {
+        digits = digits.slice(1);
+    }
+    return digits.slice(0, 10);
+}
+
+function handlePhonePaste(e) {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+    const pasted = clipboardData.getData('text');
+    if (!pasted) return;
+    e.preventDefault();
+    const input = e.target;
+    input.value = sanitizePhoneNumber(pasted);
+    handlePhoneInputChange(input);
+}
+
+// Globally expose sanitizers and handlers on window
+window.sanitizeFullName = sanitizeFullName;
+window.handleFullNameInputChange = handleFullNameInputChange;
+window.handleFullNameKeyDown = handleFullNameKeyDown;
+window.handleFullNamePaste = handleFullNamePaste;
+window.sanitizePhoneNumber = sanitizePhoneNumber;
+window.handlePhonePaste = handlePhonePaste;
+
+function setupDeliveryInputValidation() {
+    const fieldLimits = {
+        'customer-fullname': 25,
+        'customer-phone': 10,
+        'customer-colony-name': 30,
+        'customer-nearby': 45,
+        'customer-street-name': 25,
+        'customer-ward-no': 6
+    };
+
+    Object.keys(fieldLimits).forEach(id => {
         const input = document.getElementById(id);
-        if (input && !input.dataset.valListener) {
-            input.dataset.valListener = "true";
-            input.addEventListener('input', () => {
-                if (input.value.trim() !== '') {
-                    input.classList.remove('invalid-field');
+        if (input) {
+            const max = fieldLimits[id];
+            input.setAttribute('maxlength', String(max));
+            input.maxLength = max;
+
+            if (!input.dataset.valListener) {
+                input.dataset.valListener = "true";
+                input.addEventListener('input', () => {
+                    if (id === 'customer-fullname') {
+                        handleFullNameInputChange(input);
+                    } else if (id === 'customer-phone') {
+                        handlePhoneInputChange(input);
+                    } else if (input.value.length > max) {
+                        input.value = input.value.slice(0, max);
+                    }
+
+                    if (input.value.trim() !== '') {
+                        input.classList.remove('invalid-field');
+                    }
+                });
+
+                if (id === 'customer-fullname') {
+                    input.addEventListener('keydown', handleFullNameKeyDown);
+                    input.addEventListener('paste', handleFullNamePaste);
+                } else if (id === 'customer-phone') {
+                    input.addEventListener('paste', handlePhonePaste);
                 }
-            });
+            }
         }
     });
 }
@@ -10723,10 +10877,21 @@ function closeDeliveryModal() {
 
 function initPhoneInputRestrictions() {
     const phoneInput = document.getElementById('customer-phone');
-    if (phoneInput) {
-        phoneInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
-        });
+    if (phoneInput && !phoneInput.dataset.sanitizerBound) {
+        phoneInput.dataset.sanitizerBound = "true";
+        phoneInput.setAttribute('maxlength', '10');
+        phoneInput.maxLength = 10;
+        phoneInput.addEventListener('paste', handlePhonePaste);
+        phoneInput.addEventListener('input', () => handlePhoneInputChange(phoneInput));
+    }
+    const fullNameInput = document.getElementById('customer-fullname');
+    if (fullNameInput && !fullNameInput.dataset.sanitizerBound) {
+        fullNameInput.dataset.sanitizerBound = "true";
+        fullNameInput.setAttribute('maxlength', '25');
+        fullNameInput.maxLength = 25;
+        fullNameInput.addEventListener('keydown', handleFullNameKeyDown);
+        fullNameInput.addEventListener('paste', handleFullNamePaste);
+        fullNameInput.addEventListener('input', () => handleFullNameInputChange(fullNameInput));
     }
 }
 
@@ -13208,9 +13373,10 @@ function formatErrorMessage(errOrData, defaultFallback = 'An error occurred. Ple
     return String(errOrData);
 }
 
+window.handlePhoneInputChange = handlePhoneInputChange;
 function handlePhoneInputChange(input) {
     if (!input) return;
-    input.value = input.value.replace(/[^0-9]/g, '').slice(0, 10);
+    input.value = sanitizePhoneNumber(input.value);
     const cleanDigits = input.value;
 
     const storedVerifiedPhone = getStoredVerifiedPhone();
@@ -13510,13 +13676,33 @@ function handleSaveProfile(event) {
         return;
     }
 
-    const fullName = document.getElementById('customer-fullname').value.trim();
-    const phone = document.getElementById('customer-phone').value.trim();
-    const cleanPhone = phone.replace(/[^0-9]/g, '').slice(0, 10);
-    const colonyName = document.getElementById('customer-colony-name').value.trim();
-    const nearBy = document.getElementById('customer-nearby').value.trim();
-    const streetName = document.getElementById('customer-street-name').value.trim();
-    const wardNo = document.getElementById('customer-ward-no').value.trim();
+    const fullNameRaw = document.getElementById('customer-fullname').value;
+    const fullName = sanitizeFullName(fullNameRaw).trim();
+    const phoneRaw = document.getElementById('customer-phone').value;
+    const cleanPhone = sanitizePhoneNumber(phoneRaw);
+    const colonyName = document.getElementById('customer-colony-name').value.trim().slice(0, 30);
+    const nearBy = document.getElementById('customer-nearby').value.trim().slice(0, 45);
+    const streetName = document.getElementById('customer-street-name').value.trim().slice(0, 25);
+    const wardNo = document.getElementById('customer-ward-no').value.trim().slice(0, 6);
+
+    // Sync sanitized and bounded values back to inputs
+    document.getElementById('customer-fullname').value = fullName;
+    document.getElementById('customer-phone').value = cleanPhone;
+    document.getElementById('customer-colony-name').value = colonyName;
+    document.getElementById('customer-nearby').value = nearBy;
+    document.getElementById('customer-street-name').value = streetName;
+    document.getElementById('customer-ward-no').value = wardNo;
+
+    // Validate Full Name: strictly alphabets and single spaces, max 25 chars
+    if (!fullName || !/^[a-zA-Z]+( [a-zA-Z]+)*$/.test(fullName) || fullName.length > 25) {
+        showToast('Full Name can only contain letters and single spaces (max 25 characters)!');
+        const fnEl = document.getElementById('customer-fullname');
+        if (fnEl) {
+            fnEl.classList.add('invalid-field');
+            fnEl.focus();
+        }
+        return;
+    }
 
     if (cleanPhone.length < 10) {
         showToast('Please enter a valid 10-digit mobile number!');

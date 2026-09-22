@@ -1225,7 +1225,10 @@
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-user"></i>
                                     <input type="text" id="customer-fullname" required autocomplete="name"
-                                        placeholder="Your full name">
+                                        placeholder="Your full name" maxlength="25"
+                                        oninput="handleFullNameInputChange(this)"
+                                        onkeydown="handleFullNameKeyDown(event)"
+                                        onpaste="handleFullNamePaste(event)">
                                 </div>
                             </div>
 
@@ -1248,7 +1251,8 @@
                                     <i class="fa-solid fa-phone"></i>
                                     <input type="tel" id="customer-phone" required autocomplete="tel"
                                         placeholder="10-digit mobile number" maxlength="10" inputmode="numeric"
-                                        pattern="[0-9]{10}" oninput="handlePhoneInputChange(this)">
+                                        pattern="[0-9]{10}" oninput="handlePhoneInputChange(this)"
+                                        onpaste="handlePhonePaste(event)">
                                     <button type="button" class="btn-verify-otp" id="btn-request-otp"
                                         onclick="handleRequestOtp()" disabled>
                                         <i class="fa-solid fa-shield-halved"></i>
@@ -1288,7 +1292,8 @@
                                 <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-building"></i>
-                                    <input type="text" id="customer-colony-name" required placeholder="Colony / Area">
+                                    <input type="text" id="customer-colony-name" required placeholder="Colony / Area"
+                                        maxlength="30" oninput="if(this.value.length > 30) this.value = this.value.slice(0, 30);">
                                 </div>
                             </div>
 
@@ -1296,7 +1301,8 @@
                                 <label for="customer-nearby">Near By <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-location-dot"></i>
-                                    <input type="text" id="customer-nearby" required placeholder="Landmark / Near by">
+                                    <input type="text" id="customer-nearby" required placeholder="Landmark / Near by"
+                                        maxlength="45" oninput="if(this.value.length > 45) this.value = this.value.slice(0, 45);">
                                 </div>
                             </div>
 
@@ -1305,7 +1311,8 @@
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-road"></i>
                                     <input type="text" id="customer-street-name" required
-                                        placeholder="Street / House No.">
+                                        placeholder="Street / House No." maxlength="25"
+                                        oninput="if(this.value.length > 25) this.value = this.value.slice(0, 25);">
                                 </div>
                             </div>
 
@@ -1313,7 +1320,8 @@
                                 <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
                                 <div class="input-icon-group">
                                     <i class="fa-solid fa-hashtag"></i>
-                                    <input type="text" id="customer-ward-no" required placeholder="Ward No.">
+                                    <input type="text" id="customer-ward-no" required placeholder="Ward No."
+                                        maxlength="6" oninput="if(this.value.length > 6) this.value = this.value.slice(0, 6);">
                                 </div>
                             </div>
 
