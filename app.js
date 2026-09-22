@@ -15748,7 +15748,7 @@ const DEFAULT_FALLBACK_BANNER_LOGO = '';
 const DEFAULT_DAILY_BANNERS = [
     { id: 'b1', url: 'https://i.ibb.co/0yFtQNSz/strawberry-shake-55-off.webp', enabled: true, targetProductId: 'shk-strawberry', discountPercent: 55 },
     { id: 'b2', url: 'https://i.ibb.co/Hfbw3snK/699.webp', enabled: true, minSpend: 699, rewardType: 'category', rewardCategory: 'Shake', rewardPizzaSize: 'medium' },
-    { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Momos', buyQty: 2, rewardCategory: 'Shake', freeQty: 1 },
+    { id: 'b3', url: 'https://i.ibb.co/cKMd6MZk/two-pasta.webp', enabled: true, buyCategory: 'Pasta', buyQty: 2, freeCategory: 'Momos', rewardCategory: 'Momos', freeQty: 1 },
     { id: 'b4', url: '', enabled: false }
 ];
 
@@ -16322,7 +16322,7 @@ function handleBannerSlideClick(slideIndex, bannerId) {
         }
         // Do NOT redirect or scroll away. Open self-contained in-modal combo deal directly.
         if (typeof openBogoComboModal === 'function') {
-            openBogoComboModal();
+            openBogoComboModal(banner);
         }
         return;
     }
@@ -17190,24 +17190,42 @@ let currentBogoComboState = {
     selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
 };
 
-function getBannerSlot3Config() {
-    let banners = [];
-    try {
-        const saved = localStorage.getItem('perfetto_daily_banners');
-        if (saved) {
-            banners = JSON.parse(saved);
-        }
-    } catch (e) { }
-    if (!Array.isArray(banners) || banners.length < 3) {
-        banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
+function getCurrentBogoComboState() {
+    return currentBogoComboState;
+}
+window.getCurrentBogoComboState = getCurrentBogoComboState;
+
+function getBannerSlot3Config(overrideBanner = null) {
+    let b3 = null;
+    if (overrideBanner && typeof overrideBanner === 'object') {
+        b3 = overrideBanner;
     }
-    const b3 = banners[2] || {};
-    const rawBuyCat = (b3.buyCategory || b3.targetCategory || b3.bogoCategory || 'Momos').trim();
-    const buyCat = rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat;
+    if (!b3 && typeof window !== 'undefined' && Array.isArray(window.__currentActiveBanners)) {
+        b3 = window.__currentActiveBanners.find(b => b && (b.id === 'b3' || b.bannerSlot === 3));
+    }
+    if (!b3) {
+        let banners = [];
+        try {
+            const saved = localStorage.getItem('perfetto_daily_banners');
+            if (saved) {
+                banners = JSON.parse(saved);
+            }
+        } catch (e) { }
+        if (Array.isArray(banners)) {
+            b3 = banners.find(b => b && (b.id === 'b3' || b.bannerSlot === 3)) || banners[2];
+        }
+    }
+    if (!b3 && typeof DEFAULT_DAILY_BANNERS !== 'undefined') {
+        b3 = DEFAULT_DAILY_BANNERS.find(b => b && b.id === 'b3') || DEFAULT_DAILY_BANNERS[2];
+    }
+    b3 = b3 || {};
+
+    const rawBuyCat = (b3.buyCategory || b3.bogoCategory || b3.targetCategory || 'Pasta').trim();
+    const buyCat = rawBuyCat.toLowerCase() === 'pizza' ? 'Pasta' : rawBuyCat;
     const buyQty = Math.max(1, parseInt(b3.buyQty || 2, 10) || 2);
 
-    const rawRewardCat = (b3.rewardCategory || b3.freeCategory || 'Shake').trim();
-    const rewardCat = rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat;
+    const rawRewardCat = (b3.freeCategory || b3.rewardCategory || 'Momos').trim();
+    const rewardCat = rawRewardCat.toLowerCase() === 'pizza' ? 'Momos' : rawRewardCat;
     const freeQty = Math.max(1, parseInt(b3.freeQty || 1, 10) || 1);
 
     return {
@@ -17215,6 +17233,7 @@ function getBannerSlot3Config() {
         url: b3.url || '',
         buyCategory: buyCat,
         buyQty: buyQty,
+        freeCategory: rewardCat,
         rewardCategory: rewardCat,
         freeQty: freeQty,
         enabled: b3.enabled !== false
@@ -17222,11 +17241,11 @@ function getBannerSlot3Config() {
 }
 window.getBannerSlot3Config = getBannerSlot3Config;
 
-function openBogoComboModal() {
+function openBogoComboModal(slotConfig = null) {
     const modal = document.getElementById('bogo-combo-modal');
     if (!modal) return;
 
-    if (typeof verifyDailyOfferWithComboStacking === 'function' && !verifyDailyOfferWithComboStacking('bogoCombo', () => openBogoComboModal())) {
+    if (typeof verifyDailyOfferWithComboStacking === 'function' && !verifyDailyOfferWithComboStacking('bogoCombo', () => openBogoComboModal(slotConfig))) {
         return;
     }
 
@@ -17235,7 +17254,7 @@ function openBogoComboModal() {
         return;
     }
 
-    const config = getBannerSlot3Config();
+    const config = getBannerSlot3Config(slotConfig);
     if (config.enabled === false) {
         showToast('BOGO Combo Deal is currently inactive.');
         return;
@@ -17243,22 +17262,36 @@ function openBogoComboModal() {
 
     const allItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
 
-    // Step 1: Paid items belonging to buyCategory (pizza strictly excluded)
-    const buyItems = allItems.filter(item => {
-        return isCategoryMatch(item.category, config.buyCategory) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
+    // Step 1: Paid items strictly belonging to buyCategory (pizza strictly excluded)
+    const buyCat = config.buyCategory || 'Pasta';
+    let buyItems = allItems.filter(item => {
+        return isCategoryMatch(item.category, buyCat) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
     });
+    if (buyItems.length === 0 && typeof categorySubItems !== 'undefined') {
+        const matchedKey = Object.keys(categorySubItems).find(k => isCategoryMatch(k, buyCat) && !isCategoryMatch(k, 'Pizza'));
+        if (matchedKey && Array.isArray(categorySubItems[matchedKey])) {
+            buyItems = categorySubItems[matchedKey].filter(i => isProductAvailable(i));
+        }
+    }
 
-    // Step 2: Free reward items belonging to rewardCategory (pizza strictly excluded)
-    const rewardItems = allItems.filter(item => {
-        return isCategoryMatch(item.category, config.rewardCategory) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
+    // Step 2: Free reward items strictly belonging to freeCategory (pizza strictly excluded)
+    const freeCat = config.freeCategory || config.rewardCategory || 'Momos';
+    let rewardItems = allItems.filter(item => {
+        return isCategoryMatch(item.category, freeCat) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
     });
+    if (rewardItems.length === 0 && typeof categorySubItems !== 'undefined') {
+        const matchedKey = Object.keys(categorySubItems).find(k => isCategoryMatch(k, freeCat) && !isCategoryMatch(k, 'Pizza'));
+        if (matchedKey && Array.isArray(categorySubItems[matchedKey])) {
+            rewardItems = categorySubItems[matchedKey].filter(i => isProductAvailable(i));
+        }
+    }
 
     if (buyItems.length === 0) {
-        showToast(`No qualifying items currently available for category "${getCategoryDisplayName(config.buyCategory)}".`);
+        showToast(`No qualifying items currently available for category "${getCategoryDisplayName(buyCat)}".`);
         return;
     }
     if (rewardItems.length === 0) {
-        showToast(`No free reward items currently available for category "${getCategoryDisplayName(config.rewardCategory)}".`);
+        showToast(`No free reward items currently available for category "${getCategoryDisplayName(freeCat)}".`);
         return;
     }
 
@@ -17330,8 +17363,8 @@ function goToBogoStep(stepNum) {
     const totalPaid = getBogoSelectedPaidTotal();
 
     if (stepNum === 2) {
-        if (totalPaid < config.buyQty) {
-            showToast(`Please select ${config.buyQty} distinct ${getCategoryDisplayName(config.buyCategory)} varieties to proceed (${totalPaid}/${config.buyQty} selected).`);
+        if (totalPaid !== config.buyQty) {
+            showToast(`Please select exactly ${config.buyQty} distinct ${getCategoryDisplayName(config.buyCategory)} varieties to proceed (${totalPaid}/${config.buyQty} selected).`);
             return;
         }
     }
@@ -17371,7 +17404,7 @@ function renderBogoStep1UI() {
 
     const titleEl = document.getElementById('bogo-step1-title');
     if (titleEl) {
-        titleEl.textContent = `Please select your ${config.buyQty} ${getCategoryDisplayName(config.buyCategory)}`;
+        titleEl.textContent = `PLEASE SELECT YOUR ${config.buyQty} ${(config.buyCategory || 'Pasta').toUpperCase()}`;
     }
 
     const totalSelected = getBogoSelectedPaidTotal();
@@ -17392,7 +17425,7 @@ function renderBogoStep1UI() {
     }
 
     // Available addons for qualifying buy category
-    const catName = getCategoryStandardKey(config.buyCategory) || 'Momos';
+    const catName = getCategoryStandardKey(config.buyCategory) || 'Pasta';
     let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
     const availableAddons = [];
     if (addonConfig.extraCheese !== undefined && Number(addonConfig.extraCheese) > 0) {
@@ -17546,7 +17579,8 @@ function renderBogoStep2UI() {
 
     const titleEl = document.getElementById('bogo-step2-title');
     if (titleEl) {
-        titleEl.textContent = `Choose your ${config.freeQty} FREE ${getCategoryDisplayName(config.rewardCategory)}`;
+        const freeCat = (config.freeCategory || config.rewardCategory || 'Momos').toUpperCase();
+        titleEl.textContent = `CHOOSE YOUR ${config.freeQty} FREE ${freeCat}`;
     }
 
     const countValEl = document.getElementById('bogo-step2-count-val');
@@ -17555,7 +17589,7 @@ function renderBogoStep2UI() {
     if (targetValEl) targetValEl.textContent = config.freeQty;
 
     // Available add-ons for Reward Category (placed directly on item cards in the bottom row)
-    const catName = getCategoryStandardKey(config.rewardCategory || (selectedFreeItem && selectedFreeItem.category)) || 'Shake';
+    const catName = getCategoryStandardKey(config.freeCategory || config.rewardCategory || (selectedFreeItem && selectedFreeItem.category)) || 'Momos';
     let addonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(catName) : {};
 
     const availableAddons = [];
@@ -17728,8 +17762,8 @@ function confirmClaimBogoCombo() {
     }
 
     const totalPaid = getBogoSelectedPaidTotal();
-    if (totalPaid < config.buyQty) {
-        showToast(`Please select ${config.buyQty} distinct qualifying items.`);
+    if (totalPaid !== config.buyQty) {
+        showToast(`Please select exactly ${config.buyQty} distinct qualifying items.`);
         goToBogoStep(1);
         return;
     }
@@ -17741,7 +17775,7 @@ function confirmClaimBogoCombo() {
     const bogoComboId = 'bogo_combo_' + Date.now();
 
     // 1. Calculate Add-ons for Reward Item
-    const rewardCatName = getCategoryStandardKey(config.rewardCategory || selectedFreeItem.category) || 'Shake';
+    const rewardCatName = getCategoryStandardKey(config.freeCategory || config.rewardCategory || selectedFreeItem.category) || 'Momos';
     let rewardAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(rewardCatName) : {};
     const rewardAddonsList = [];
     let rewardAddonsPrice = 0;
@@ -17774,7 +17808,7 @@ function confirmClaimBogoCombo() {
     cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isBogoCombo && !item.isBogoReward && !item.isBogoQualifying);
 
     // 3. Add Qualifying Paid Items (unique varieties at standard/original base prices + item add-ons)
-    const buyCatName = getCategoryStandardKey(config.buyCategory) || 'Momos';
+    const buyCatName = getCategoryStandardKey(config.buyCategory) || 'Pasta';
     let buyAddonConfig = (typeof getCustomerCategoryAddons === 'function') ? getCustomerCategoryAddons(buyCatName) : {};
 
     for (const [key, itemAddons] of Object.entries(selectedPaid)) {
@@ -17833,7 +17867,7 @@ function confirmClaimBogoCombo() {
         originalPrice: origRewardPrice + rewardAddonsPrice,
         qty: initialComboQty,
         img: selectedFreeItem.img || '',
-        category: selectedFreeItem.category || getCategoryStandardKey(config.rewardCategory),
+        category: selectedFreeItem.category || getCategoryStandardKey(config.freeCategory || config.rewardCategory),
         addons: rewardAddonsList,
         isBogoCombo: true,
         isBogoReward: true,
@@ -20283,9 +20317,9 @@ function applyIncomingDailyBannersData(docData) {
             const cat = i === 1 ? (bannerObj.rewardCategory || slot2Data.rewardCategory || 'Shake') : '';
             const isPizza = cat.toLowerCase() === 'pizza';
 
-            const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Momos').trim() : '';
+            const rawBuyCat = i === 2 ? (bannerObj.buyCategory || slot3Data.buyCategory || 'Pasta').trim() : '';
             const rawBuyQty = i === 2 ? parseInt(bannerObj.buyQty || slot3Data.buyQty || 2, 10) : 0;
-            const rawRewardCat = i === 2 ? (bannerObj.rewardCategory || slot3Data.rewardCategory || 'Shake').trim() : '';
+            const rawRewardCat = i === 2 ? (bannerObj.freeCategory || bannerObj.rewardCategory || slot3Data.freeCategory || slot3Data.rewardCategory || 'Momos').trim() : '';
             const rawFreeQty = i === 2 ? parseInt(bannerObj.freeQty || slot3Data.freeQty || 1, 10) : 0;
 
             const rawCandidateUrl = bannerObj.url || bannerObj.imageUrl || bannerObj.image || bannerObj.bannerUrl || bannerObj.src ||
@@ -20302,10 +20336,11 @@ function applyIncomingDailyBannersData(docData) {
                 targetProductId: i === 0 ? slot1Target : '',
                 discountPercent: i === 0 ? (slot1Discount >= 2 ? slot1Discount : 55) : 0,
                 minSpend: i === 1 ? (Number(bannerObj.minSpend) || Number(slot2Data.minSpend) || 699) : 0,
-                rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Shake' : rawRewardCat) : ''),
+                rewardCategory: i === 1 ? cat : (i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Momos' : rawRewardCat) : ''),
+                freeCategory: i === 2 ? (rawRewardCat.toLowerCase() === 'pizza' ? 'Momos' : rawRewardCat) : '',
                 rewardType: i === 1 ? (isPizza ? 'pizza' : 'category') : '',
                 rewardPizzaSize: (i === 1 && isPizza) ? (bannerObj.rewardPizzaSize || slot2Data.rewardPizzaSize || 'medium') : '',
-                buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Momos' : rawBuyCat) : '',
+                buyCategory: i === 2 ? (rawBuyCat.toLowerCase() === 'pizza' ? 'Pasta' : rawBuyCat) : '',
                 buyQty: i === 2 ? ((!isNaN(rawBuyQty) && rawBuyQty >= 1) ? rawBuyQty : 2) : 0,
                 freeQty: i === 2 ? ((!isNaN(rawFreeQty) && rawFreeQty >= 1) ? rawFreeQty : 1) : 0
             };
