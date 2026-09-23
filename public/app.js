@@ -7,8 +7,10 @@
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
-const APP_STORAGE_VERSION = 'v2.1_clean';
-window.APP_STORAGE_VERSION = APP_STORAGE_VERSION;
+const STORAGE_VERSION = 'v2_clean';
+const APP_STORAGE_VERSION = STORAGE_VERSION;
+window.STORAGE_VERSION = STORAGE_VERSION;
+window.APP_STORAGE_VERSION = STORAGE_VERSION;
 
 const LOGO_LIGHT = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
 const LOGO_DARK = 'https://i.ibb.co/XZsGT4Mq/perfetto-White.webp';
@@ -467,29 +469,25 @@ window.checkAndApplyClientStateReset = checkAndApplyClientStateReset;
 function checkAndApplyAppStorageVersion() {
     try {
         if (typeof localStorage === 'undefined') return;
-        const storedVersion = localStorage.getItem('perfetto_app_version');
-        if (storedVersion !== APP_STORAGE_VERSION) {
-            // Clear all lingering perfetto storage keys: perfettoWalletLedger, perfettoCustomerOrders, perfetto_cart, stale user snapshots, etc.
-            const lingeringKeys = [
-                'perfettoWalletLedger',
+        const storedVersion = localStorage.getItem('perfetto_app_storage_version') || localStorage.getItem('perfetto_storage_version') || localStorage.getItem('perfetto_app_version');
+        if (storedVersion !== STORAGE_VERSION) {
+            console.log(`[Storage Migration] Version mismatch (stored: "${storedVersion}", required: "${STORAGE_VERSION}"). Purging stale customer wallet & order cache.`);
+
+            // Purge stale customer-side keys: wallet_balance, wallet_transactions, cached orders
+            const keysToPurge = [
+                'perfetto_wallet_balance',
+                'perfetto_customer_wallet',
+                'wallet_balance',
+                'wallet_transactions',
                 'perfettoCustomerOrders',
                 'perfetto_cart',
                 'perfetto_pizza_cart',
-                'perfetto_customer_wallet',
-                'perfetto_wallet_balance',
                 'perfetto_wallet_hold',
-                'perfettoCustomerProfile',
-                'customerDeliveryProfile',
-                'perfettoSavedProfile',
-                'perfetto_verified_phone',
-                'perfetto_phone_verification_state',
                 'perfettoClearedOrderIds',
-                'clearedOrderIds',
-                'RESET_WALLET_LEDGER',
-                'PERFETTO_STATE_EPOCH'
+                'RESET_WALLET_LEDGER'
             ];
 
-            lingeringKeys.forEach(k => {
+            keysToPurge.forEach(k => {
                 try { localStorage.removeItem(k); } catch (e) {}
                 try { sessionStorage.removeItem(k); } catch (e) {}
                 if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
@@ -497,11 +495,11 @@ function checkAndApplyAppStorageVersion() {
                 }
             });
 
-            // Dynamically scan and purge any keys starting with 'perfetto' or 'customerDeliveryProfile' or containing 'wallet'
+            // Dynamically scan and purge any dynamic phone-keyed wallet or order cache keys (preserving user profile & auth)
             try {
                 for (let i = localStorage.length - 1; i >= 0; i--) {
                     const k = localStorage.key(i);
-                    if (k && k !== 'perfetto_app_version' && (k.startsWith('perfetto') || k.startsWith('customerDeliveryProfile') || k.includes('wallet'))) {
+                    if (k && k !== 'perfetto_storage_version' && k !== 'perfetto_app_version' && k !== 'perfetto_verified_phone' && k !== 'perfettoCustomerProfile' && k !== 'customerDeliveryProfile' && k !== 'perfettoSavedProfile' && (k.includes('wallet_balance') || k.includes('customer_wallet') || k.includes('CustomerOrders') || k.includes('wallet_transactions'))) {
                         localStorage.removeItem(k);
                     }
                 }
@@ -510,39 +508,35 @@ function checkAndApplyAppStorageVersion() {
             try {
                 for (let i = sessionStorage.length - 1; i >= 0; i--) {
                     const k = sessionStorage.key(i);
-                    if (k && (k.startsWith('perfetto') || k.startsWith('customerDeliveryProfile') || k.includes('wallet'))) {
+                    if (k && k !== 'perfetto_verified_phone' && (k.includes('wallet_balance') || k.includes('customer_wallet') || k.includes('CustomerOrders') || k.includes('wallet_transactions'))) {
                         sessionStorage.removeItem(k);
                     }
                 }
             } catch (e) {}
 
-            // Clear in-memory fallbacks
-            if (typeof memoryStorageFallback !== 'undefined') {
-                for (const k in memoryStorageFallback) {
-                    delete memoryStorageFallback[k];
-                }
+            // Reset in-memory wallet
+            currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+            if (typeof window !== 'undefined') {
+                window.currentCustomerWallet = currentCustomerWallet;
             }
-            if (typeof memorySessionFallback !== 'undefined') {
-                for (const k in memorySessionFallback) {
-                    delete memorySessionFallback[k];
-                }
-            }
-            try {
-                if (typeof currentCustomerWallet !== 'undefined') {
-                    currentCustomerWallet = null;
-                }
-            } catch (e) {}
-            if (typeof window !== 'undefined' && window.currentCustomerWallet) {
-                window.currentCustomerWallet = null;
-            }
-            try {
-                if (typeof cart !== 'undefined' && Array.isArray(cart)) {
-                    cart.length = 0;
-                }
-            } catch (e) {}
 
-            localStorage.setItem('perfetto_app_version', APP_STORAGE_VERSION);
-            console.log(`[App] Storage upgraded to ${APP_STORAGE_VERSION}, stale cache purged.`);
+            localStorage.setItem('perfetto_storage_version', STORAGE_VERSION);
+            localStorage.setItem('perfetto_app_version', STORAGE_VERSION);
+            localStorage.setItem('perfetto_app_storage_version', STORAGE_VERSION);
+            console.log(`[App] Storage successfully upgraded to ${STORAGE_VERSION}, stale cache purged.`);
+
+            // Automatically re-sync freshly from Firestore document state
+            const phone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone()) ||
+                localStorage.getItem('perfetto_verified_phone') ||
+                '';
+            if (phone) {
+                if (typeof fetchCustomerWallet === 'function') {
+                    fetchCustomerWallet(phone);
+                }
+                if (typeof listenToCustomerWalletRealtime === 'function') {
+                    listenToCustomerWalletRealtime(phone);
+                }
+            }
         }
     } catch (err) {
         console.warn('[App] Error in checkAndApplyAppStorageVersion:', err);
@@ -5176,6 +5170,19 @@ function applyRolling15TransactionCap(wallet, newTx = null) {
     if (newTx && typeof newTx === 'object') {
         wallet.transactions.unshift(newTx);
     }
+    const parseTxTimestamp = (item) => {
+        if (!item) return 0;
+        const cand = item.timestamp || item.creditedAt || item.completedAt || item.claimedAt || item.createdAt || item.date;
+        if (cand?.toDate && typeof cand.toDate === 'function') {
+            try { return cand.toDate().getTime(); } catch (e) {}
+        }
+        if (cand && typeof cand.seconds === 'number') {
+            return cand.seconds * 1000 + (cand.nanoseconds ? Math.round(cand.nanoseconds / 1e6) : 0);
+        }
+        const parsed = cand ? new Date(cand).getTime() : 0;
+        return isNaN(parsed) ? 0 : parsed;
+    };
+    wallet.transactions.sort((a, b) => parseTxTimestamp(b) - parseTxTimestamp(a));
     if (wallet.transactions.length > 15) {
         wallet.transactions = wallet.transactions.slice(0, 15);
     }
@@ -5227,7 +5234,40 @@ var currentCustomerWallet = (function() {
             const parsed = JSON.parse(stored);
             const nowMs = Date.now();
 
-            // Zero-Flash Evaluation: Evaluate expiry immediately before assigning in-memory balance
+            // Zero-Flash Evaluation: Calculate valid balance through active tranches arithmetic
+            if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
+                parsed.transactions = parsed.transactions.slice(0, 15);
+                let activeBalance = 0;
+                let hasTranches = false;
+                parsed.transactions.forEach(t => {
+                    if (!t) return;
+                    const st = String(t.status || '').toUpperCase();
+                    const tp = String(t.type || '').toUpperCase();
+                    const isCredit = st === 'ACTIVE' || st === 'UNLOCKED' || tp === 'CREDIT' || tp === 'CASHBACK_EARNED' || tp.includes('CASHBACK') || tp === 'REFUND';
+                    if (isCredit) {
+                        hasTranches = true;
+                        const expMs = t.expiresAt ? parseTimestampMs(t.expiresAt) : NaN;
+                        const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (!isNaN(expMs) && expMs <= nowMs);
+                        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
+                        if (!isExp && !isRed) {
+                            const val = Number(t.remainingAmount !== undefined ? t.remainingAmount : (t.amount || 0));
+                            activeBalance += Math.max(0, val);
+                        }
+                    }
+                });
+                if (hasTranches) {
+                    parsed.balance = activeBalance;
+                    parsed.nonExpiredBalance = activeBalance;
+                    parsed.expired = (activeBalance <= 0);
+                    localStorage.setItem('perfetto_wallet_balance', String(activeBalance));
+                    return parsed;
+                }
+            }
+
+            // Fallback when no transaction tranches exist
+            let rawBal = (directStored !== null && !isNaN(Number(directStored)))
+                ? directBal
+                : ((typeof parsed.balance === 'number') ? parsed.balance : 0);
             let isWalletExpired = false;
             if (parsed.expiresAt) {
                 const expMs = parseTimestampMs(parsed.expiresAt);
@@ -5235,42 +5275,16 @@ var currentCustomerWallet = (function() {
                     isWalletExpired = true;
                 }
             }
-            if (!isWalletExpired && parsed.lastCreditedAt) {
-                const lastCredMs = parseTimestampMs(parsed.lastCreditedAt);
-                const validDays = Number(parsed.cashbackExpiryDays || parsed.expiryDays || 1);
-                if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) {
-                    isWalletExpired = true;
-                }
-            }
-
-            if (Array.isArray(parsed.transactions)) {
-                parsed.transactions = parsed.transactions.slice(0, 15);
-                // Check if all credit tranches in transaction array are expired
-                const activeCredits = parsed.transactions.filter(t => {
-                    if (!t) return false;
-                    const st = String(t.status || '').toUpperCase();
-                    const tp = String(t.type || '').toUpperCase();
-                    const isCredit = st === 'ACTIVE' || st === 'UNLOCKED' || tp === 'CREDIT' || tp === 'CASHBACK_EARNED' || tp.includes('CASHBACK');
-                    const expMs = t.expiresAt ? parseTimestampMs(t.expiresAt) : NaN;
-                    const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (!isNaN(expMs) && expMs <= nowMs);
-                    const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED';
-                    return isCredit && !isExp && !isRed;
-                });
-                if (parsed.transactions.length > 0 && activeCredits.length === 0) {
-                    isWalletExpired = true;
-                }
-            }
-
-            if (isWalletExpired || parsed.expired) {
+            if (isWalletExpired) {
                 parsed.balance = 0;
                 parsed.nonExpiredBalance = 0;
                 parsed.expired = true;
                 localStorage.setItem('perfetto_wallet_balance', '0');
-            } else if (directStored !== null && !isNaN(Number(directStored))) {
-                parsed.balance = directBal;
-                parsed.nonExpiredBalance = directBal;
-            } else if (typeof parsed.balance === 'number') {
-                localStorage.setItem('perfetto_wallet_balance', String(parsed.balance));
+            } else {
+                parsed.balance = rawBal;
+                parsed.nonExpiredBalance = rawBal;
+                parsed.expired = false;
+                localStorage.setItem('perfetto_wallet_balance', String(rawBal));
             }
             return parsed;
         }
@@ -6311,11 +6325,10 @@ let customerWalletRealtimeUnsubscribe = null;
 
 function calculateValidWalletBalance(walletDoc) {
     if (!walletDoc) return { balance: 0, nonExpiredBalance: 0 };
-    const rawBalance = typeof walletDoc.balance === 'number' ? walletDoc.balance : (parseFloat(walletDoc.balance) || 0);
-    let validBalance = rawBalance;
+    const rawBalance = typeof walletDoc.balance === 'number'
+        ? walletDoc.balance
+        : (parseFloat(walletDoc.balance) || (typeof walletDoc.walletBalance === 'number' ? walletDoc.walletBalance : (parseFloat(walletDoc.walletBalance) || 0)));
     const nowMs = Date.now();
-    let isExp = Boolean(walletDoc.expired);
-
     const parseTs = typeof parseTimestampMs === 'function' ? parseTimestampMs : (v) => {
         if (!v) return NaN;
         if (typeof v === 'number') return v;
@@ -6329,25 +6342,61 @@ function calculateValidWalletBalance(walletDoc) {
         return isNaN(parsed) ? NaN : parsed;
     };
 
-    // Check expiry timestamp on wallet doc
-    if (!isExp && walletDoc.expiresAt) {
+    // Evaluate active tranches from document or in-memory wallet
+    const txList = Array.isArray(walletDoc.transactions) && walletDoc.transactions.length > 0
+        ? walletDoc.transactions
+        : (Array.isArray(walletDoc.walletTransactions) && walletDoc.walletTransactions.length > 0
+            ? walletDoc.walletTransactions
+            : (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : []));
+
+    if (txList.length > 0) {
+        let activeBalance = 0;
+        let expiredSlabAmount = 0;
+        let hasActiveCredits = false;
+
+        txList.forEach(t => {
+            if (!t) return;
+            const st = String(t.status || '').toUpperCase();
+            const tp = String(t.type || '').toUpperCase();
+            const isCredit = st === 'ACTIVE' || st === 'UNLOCKED' || tp === 'CREDIT' || tp === 'CASHBACK_EARNED' || tp.includes('CASHBACK') || tp === 'REFUND';
+            if (isCredit) {
+                const expMs = t.expiresAt ? parseTs(t.expiresAt) : NaN;
+                const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (!isNaN(expMs) && expMs <= nowMs);
+                const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
+                const amt = Number(t.remainingAmount !== undefined ? t.remainingAmount : (t.amount || 0));
+                if (isExp) {
+                    expiredSlabAmount += Math.max(0, amt);
+                } else if (!isRed) {
+                    hasActiveCredits = true;
+                    activeBalance += Math.max(0, amt);
+                }
+            }
+        });
+
+        if (hasActiveCredits) {
+            const calculatedBal = Math.max(0, activeBalance);
+            return {
+                balance: calculatedBal,
+                nonExpiredBalance: calculatedBal
+            };
+        } else if (expiredSlabAmount > 0) {
+            // Deduct strictly via arithmetic deduction: activeBalance = Math.max(0, currentBalance - expiredSlabAmount)
+            const deducted = Math.max(0, rawBalance - expiredSlabAmount);
+            return {
+                balance: deducted,
+                nonExpiredBalance: deducted
+            };
+        }
+    }
+
+    // Fallback when no tranches exist:
+    let validBalance = rawBalance;
+    if (walletDoc.expiresAt && !txList.length) {
         const expMs = parseTs(walletDoc.expiresAt);
         if (!isNaN(expMs) && expMs <= nowMs) {
-            isExp = true;
+            validBalance = 0;
         }
     }
-    if (!isExp && walletDoc.lastCreditedAt) {
-        const lastCredMs = parseTs(walletDoc.lastCreditedAt);
-        const validDays = Number(walletDoc.cashbackExpiryDays || walletDoc.expiryDays || 1);
-        if (!isNaN(lastCredMs) && (nowMs - lastCredMs >= validDays * 24 * 60 * 60 * 1000)) {
-            isExp = true;
-        }
-    }
-
-    if (isExp) {
-        validBalance = 0;
-    }
-
     const safeBal = Math.max(0, validBalance);
     return {
         balance: safeBal,
@@ -8427,42 +8476,63 @@ function renderProfileWalletTxList() {
         const typeUpper = String(tx.type || '').trim().toUpperCase();
         const statusUpper = String(tx.status || '').trim().toUpperCase();
         const descLower = String(tx.description || tx.title || '').toLowerCase();
-        const isExpiredDebit = (tx.title === 'Cashback Expired' || tx.description === 'Cashback validity expired' || (String(tx.type || '').toLowerCase() === 'debit' && String(tx.id || '').startsWith('tx_exp_')));
+        const isExpiredDebit = (
+            tx.title === 'Cashback Expired' ||
+            tx.description === 'Cashback validity expired' ||
+            tx.isExpiredDebit === true ||
+            (String(tx.type || '').toLowerCase() === 'debit' && (
+                String(tx.id || '').startsWith('tx_exp_') ||
+                descLower.includes('expired') ||
+                String(tx.title || '').toLowerCase().includes('expired')
+            ))
+        );
 
-        const isCompletedDebit = isExpiredDebit || statusUpper === 'COMPLETED' || statusUpper === 'DEBITED' || tx.status === 'completed' || tx.status === 'debited' || typeUpper === 'DEBIT' || tx.type === 'debit';
         const isRefund = (tx.type === 'REFUND' || tx.type === 'refund');
-        const isHold = !isExpiredDebit && !isCompletedDebit && (tx.type === 'hold' || tx.type === 'WALLET_HOLD' || tx.status === 'LOCKED_HOLD' || typeUpper === 'HOLD' || typeUpper === 'WALLET_HOLD' || statusUpper === 'LOCKED_HOLD' || statusUpper === 'LOCKED' || statusUpper === 'HELD');
+        const isHold = !isExpiredDebit && !isRefund && (
+            tx.type === 'hold' ||
+            tx.type === 'WALLET_HOLD' ||
+            tx.status === 'LOCKED_HOLD' ||
+            typeUpper === 'HOLD' ||
+            typeUpper === 'WALLET_HOLD' ||
+            statusUpper === 'LOCKED_HOLD' ||
+            statusUpper === 'LOCKED' ||
+            statusUpper === 'HELD'
+        );
 
-        // Robust Credit (+) vs Debit (-) Classification:
-        // If type === "CASHBACK_EARNED", type === "CREDIT", or transaction represents cash reward/unlock:
-        // Display with a positive sign + ₹${amount}, colored in green (credit badge).
-        // If type === "DEBIT", type === "ORDER_PAYMENT", or wallet funds were redeemed during checkout:
-        // Display with a negative sign - ₹${amount}, colored in red/muted (debit badge).
-        const isExplicitCredit = !isExpiredDebit && (typeUpper === 'CASHBACK_EARNED' ||
-                                 typeUpper === 'CREDIT' ||
-                                 typeUpper === 'CASHBACK' ||
-                                 typeUpper === 'REWARD' ||
-                                 typeUpper === 'WONCASHBACK' ||
-                                 typeUpper === 'BONUS' ||
-                                 tx.type === 'credit' ||
-                                 Boolean(tx.campaign) ||
-                                 descLower.includes('cashback') ||
-                                 descLower.includes('credited') ||
-                                 descLower.includes('reward') ||
-                                 descLower.includes('earned') ||
-                                 descLower.includes('scratch'));
+        const isExplicitCredit = !isExpiredDebit && !isRefund && (
+            typeUpper === 'CASHBACK_EARNED' ||
+            typeUpper === 'CREDIT' ||
+            typeUpper === 'CASHBACK' ||
+            typeUpper === 'REWARD' ||
+            typeUpper === 'WONCASHBACK' ||
+            typeUpper === 'BONUS' ||
+            tx.type === 'credit' ||
+            Boolean(tx.campaign) ||
+            descLower.includes('cashback') ||
+            descLower.includes('credited') ||
+            descLower.includes('reward') ||
+            descLower.includes('earned') ||
+            descLower.includes('scratch')
+        );
 
-        const isExplicitDebit = isExpiredDebit || isCompletedDebit ||
-                                typeUpper === 'DEBIT' ||
-                                typeUpper === 'ORDER_PAYMENT' ||
-                                typeUpper === 'PAYMENT' ||
-                                typeUpper === 'REDEEMED' ||
-                                typeUpper === 'DEDUCTION' ||
-                                descLower.includes('used for order') ||
-                                descLower.includes('order payment') ||
-                                (descLower.includes('redeemed') && !descLower.includes('credited'));
+        const isExplicitDebit = !isExpiredDebit && !isRefund && !isHold && !isExplicitCredit && (
+            typeUpper === 'DEBIT' ||
+            typeUpper === 'ORDER_PAYMENT' ||
+            typeUpper === 'PAYMENT' ||
+            typeUpper === 'REDEEMED' ||
+            typeUpper === 'DEDUCTION' ||
+            statusUpper === 'COMPLETED' ||
+            statusUpper === 'DEBITED' ||
+            tx.type === 'debit' ||
+            tx.status === 'debited' ||
+            tx.isDebit === true ||
+            descLower.includes('used for order') ||
+            descLower.includes('order payment') ||
+            (descLower.includes('redeemed') && !descLower.includes('credited'))
+        );
 
-        const isCredit = !isExpiredDebit && !isRefund && !isHold && !isExplicitDebit && (isExplicitCredit || (tx.remainingAmount !== undefined || Number(tx.amount) >= 0));
+        // A credit is never reclassified as a debit even if status was set to 'redeemed' or 'used' during FIFO balance consumption
+        const isCredit = !isExpiredDebit && !isRefund && !isHold && (isExplicitCredit || (!isExplicitDebit && (tx.remainingAmount !== undefined || Number(tx.amount) >= 0)));
         const isPositive = !isExpiredDebit && (isCredit || isRefund);
         const amt = Math.abs(Number(tx.amount) || 0);
 
@@ -8505,25 +8575,23 @@ function renderProfileWalletTxList() {
                 expiryNotice = '<span class="tx-badge-hold"><i class="fa-solid fa-lock"></i> Locked Hold</span>';
             }
         } else if (isCredit) {
-            const remaining = tx.remainingAmount !== undefined
-                ? Number(tx.remainingAmount)
-                : (tx.status === 'used' ? 0 : amt);
+            const expTime = tx.expiresAt ? new Date(tx.expiresAt).getTime() : 0;
+            const remainingMs = expTime ? expTime - now : 0;
+            const creditBadge = '<span class="tx-badge-earned" style="display: inline-flex; align-items: center; gap: 3px; font-size: 0.68rem; font-weight: 700; color: #059669; background: rgba(16, 185, 129, 0.14); border-radius: 4px; padding: 1px 6px;"><i class="fa-solid fa-circle-check"></i> Credited</span>';
 
-            if (tx.status === 'redeemed' || tx.status === 'used' || remaining <= 0) {
-                expiryNotice = '<span class="tx-badge-used"><i class="fa-solid fa-check"></i> Redeemed</span>';
-            } else if (tx.expiresAt) {
-                const expTime = new Date(tx.expiresAt).getTime();
-                const remainingMs = expTime - now;
-                if (remainingMs <= 0) {
-                    expiryNotice = '<span class="tx-badge-expired"><i class="fa-solid fa-clock"></i> Expired</span>';
-                } else {
-                    const countdownStr = formatStepDownExpiryCountdown(remainingMs, false, true);
-                    const amtLabel = (remaining < amt) ? ` (₹${remaining} active)` : '';
-                    const isUrgent = remainingMs <= (24 * 60 * 60 * 1000);
-                    const urgentClass = isUrgent ? 'is-urgent' : '';
-                    expiryNotice = `<span class="tx-badge-validity ${urgentClass}"><i class="fa-solid fa-hourglass-half"></i> ${countdownStr}${amtLabel}</span>`;
-                }
+            if (expTime > 0 && remainingMs <= 0) {
+                expiryNotice = '<span class="tx-badge-expired" style="color: #dc2626 !important; background: rgba(239, 68, 68, 0.12);"><i class="fa-solid fa-clock"></i> Expired</span>';
+            } else if (expTime > 0 && remainingMs > 0) {
+                const countdownStr = formatStepDownExpiryCountdown(remainingMs, false, true);
+                const isUrgent = remainingMs <= (24 * 60 * 60 * 1000);
+                const urgentClass = isUrgent ? 'is-urgent' : '';
+                expiryNotice = `${creditBadge} <span class="tx-badge-validity ${urgentClass}"><i class="fa-solid fa-hourglass-half"></i> ${countdownStr}</span>`;
+            } else {
+                expiryNotice = creditBadge;
             }
+        } else {
+            // Explicit checkout deduction / debit:
+            expiryNotice = '<span class="tx-badge-used"><i class="fa-solid fa-check"></i> Redeemed</span>';
         }
 
         let txTitle = tx.description || tx.title;
