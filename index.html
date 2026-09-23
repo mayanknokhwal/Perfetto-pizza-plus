@@ -80,6 +80,22 @@
             cursor: pointer !important;
             pointer-events: auto !important;
         }
+
+        .otp-verification-wrapper {
+            animation: otpSmoothExpand 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transform-origin: top center;
+        }
+
+        @keyframes otpSmoothExpand {
+            from {
+                opacity: 0;
+                transform: translateY(-8px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
     </style>
 
     <!-- Critical Startup Splash Styles (Pure Black #000000 Immediate Render - Zero Flash) -->

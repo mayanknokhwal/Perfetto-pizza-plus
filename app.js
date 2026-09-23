@@ -1354,7 +1354,7 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
         if (verifyBtn) {
             verifyBtn.style.display = 'inline-flex';
             const currentLen = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
-            if (otpResendCountdown > 0) {
+            if (otpResendCountdown > 0 || isOtpSendingInProgress) {
                 verifyBtn.disabled = true;
                 verifyBtn.classList.add('btn-cooldown-locked');
                 verifyBtn.style.pointerEvents = 'none';
@@ -12957,6 +12957,7 @@ isPhoneVerified = false;
 currentTargetPhone = null;
 let otpResendCountdown = 0;
 let otpResendTimerId = null;
+let isOtpSendingInProgress = false;
 
 // --------------------------------------------------------------------------
 // CUSTOMER INTERACTIVE LOCATION MAP CONTROLLER (LEAFLET + LIVE GPS)
@@ -13791,6 +13792,9 @@ function handleChangePhoneNumber() {
     }
     otpResendCountdown = 0;
     window.otpResendCountdown = 0;
+    isOtpSendingInProgress = false;
+    const otpBox = document.getElementById('otp-verification-box');
+    if (otpBox) otpBox.style.display = 'none';
     if (typeof setOtpButtonsCooldownState === 'function') {
         setOtpButtonsCooldownState(false);
     }
@@ -13811,7 +13815,7 @@ function setOtpButtonsCooldownState(isLocked) {
     const resendBtn = document.getElementById('btn-resend-voice-otp');
     const phoneInput = document.getElementById('customer-phone');
 
-    if (isLocked) {
+    if (isLocked || isOtpSendingInProgress || otpResendCountdown > 0) {
         if (verifyBtn) {
             verifyBtn.disabled = true;
             verifyBtn.classList.add('btn-cooldown-locked');
@@ -13862,6 +13866,11 @@ async function handleRequestOtp(isResend = false) {
         return;
     }
 
+    if (isOtpSendingInProgress) {
+        console.warn('[OTP] Request blocked: OTP dispatch already in flight.');
+        return;
+    }
+
     const phoneVal = (document.getElementById('customer-phone') || {}).value?.trim();
     if (!phoneVal || phoneVal.replace(/[^0-9]/g, '').length < 10) {
         showToast('⚠️ Please enter a valid 10-digit Indian mobile number!');
@@ -13881,103 +13890,149 @@ async function handleRequestOtp(isResend = false) {
     if (phoneInput) phoneInput.classList.remove('invalid-field');
 
     const verifyBtn = document.getElementById('btn-request-otp');
+    const resendBtn = document.getElementById('btn-resend-voice-otp');
     const badge = document.getElementById('phone-verified-badge');
     const otpBox = document.getElementById('otp-verification-box');
     const otpInput = document.getElementById('otp-input');
 
-    // Reveal native custom OTP container immediately upon triggering
-    if (otpBox) {
-        otpBox.style.display = 'block';
-        otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-    if (otpInput && !isResend) {
-        otpInput.value = '';
-        otpInput.focus();
+    // CRITICAL: Do NOT unhide or render the OTP verification box yet!
+    if (!isResend && otpBox) {
+        otpBox.style.display = 'none';
     }
 
-    // Start 59-second cooldown countdown immediately upon triggering an OTP request
-    startOtpResendTimer(59);
+    // CRITICAL: Do NOT start the 59-second cooldown timer yet!
 
-    // UI Loading state
-    if (verifyBtn && !isResend) {
-        verifyBtn.innerHTML = '<span class="btn-spinner"></span><span class="verify-text">Sending...</span>';
+    // Immediately show the loading/spinner state on the button ("Sending...")
+    // Keep button disabled with faded styling to prevent double submission
+    isOtpSendingInProgress = true;
+    if (verifyBtn) {
+        verifyBtn.disabled = true;
+        verifyBtn.classList.add('btn-cooldown-locked');
+        verifyBtn.style.pointerEvents = 'none';
+        verifyBtn.style.cursor = 'not-allowed';
+        verifyBtn.style.opacity = '0.6';
+        if (!isResend) {
+            verifyBtn.innerHTML = '<span class="btn-spinner"></span><span class="verify-text">Sending...</span>';
+        }
+    }
+    if (resendBtn && isResend) {
+        resendBtn.classList.add('btn-cooldown-locked');
+        resendBtn.setAttribute('disabled', 'true');
+        resendBtn.setAttribute('aria-disabled', 'true');
+        resendBtn.style.pointerEvents = 'none';
+        resendBtn.style.cursor = 'not-allowed';
+        resendBtn.style.opacity = '0.45';
+        resendBtn.textContent = 'Sending OTP...';
     }
 
     showToast(`📲 Sending OTP to +91 ${cleanDigits}...`);
 
-    const handleSendSuccess = (data) => {
-        console.log('MSG91 sendOtp Success:', data);
-        if (verifyBtn) {
-            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
-            if (otpResendCountdown > 0) {
-                setOtpButtonsCooldownState(true);
+    // Wrap SMS/Firebase dispatch inside an asynchronous Promise resolution
+    const dispatchSmsPromise = new Promise((resolve, reject) => {
+        let isSettled = false;
+
+        const handleSendSuccess = (data) => {
+            if (isSettled) return;
+            isSettled = true;
+            resolve(data);
+        };
+
+        const handleSendFailure = (error) => {
+            if (isSettled) return;
+            isSettled = true;
+            reject(error);
+        };
+
+        const executeSendOtp = () => {
+            if (typeof window.sendOtp === 'function') {
+                window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
+                return true;
+            } else if (typeof window.initSendOTP === 'function') {
+                window.initSendOTP({
+                    widgetId: MSG91_WIDGET_CONFIG.widgetId,
+                    tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
+                    exposeMethods: true,
+                    identifier: fullNumber,
+                    success: handleSendSuccess,
+                    failure: handleSendFailure
+                });
+                setTimeout(() => {
+                    if (typeof window.sendOtp === 'function') {
+                        window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
+                    }
+                }, 300);
+                return true;
             }
+            return false;
+        };
+
+        try {
+            if (!executeSendOtp()) {
+                console.log('MSG91 Widget SDK loading, retrying sendOtp in 800ms...');
+                setTimeout(() => {
+                    if (!executeSendOtp()) {
+                        handleSendFailure({ message: 'MSG91 Widget SDK is loading. Please try again in a few moments.' });
+                    }
+                }, 800);
+            }
+        } catch (err) {
+            handleSendFailure(err);
         }
+    });
+
+    try {
+        const data = await dispatchSmsPromise;
+        isOtpSendingInProgress = false;
+        console.log('MSG91 sendOtp Success:', data);
+
+        // a. Reveal/expand the OTP Verification input section smoothly
         if (otpBox) {
             otpBox.style.display = 'block';
+            otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        if (otpInput && !otpInput.value) {
+        if (otpInput && !isResend) {
+            otpInput.value = '';
             otpInput.focus();
         }
-        showToast('✅ OTP sent successfully! Please enter code below.');
-    };
 
-    const handleSendFailure = (error) => {
+        // b. Initialize and start the 59-second cooldown timer starting fresh from Resend in 59s
+        startOtpResendTimer(59);
+
+        // c. Keep both the "Verify" button and "Resend OTP" strictly locked and unclickable until 59s reaches 0s
+        if (verifyBtn) {
+            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+        }
+        setOtpButtonsCooldownState(true);
+
+        showToast('✅ OTP sent successfully! Please enter code below.');
+    } catch (error) {
+        isOtpSendingInProgress = false;
         console.error('MSG91 sendOtp Error:', error);
+
+        // If an error occurs during dispatch:
+        // Do NOT show the OTP box
+        if (!isResend && otpBox) {
+            otpBox.style.display = 'none';
+        }
+
+        // Release cooldown state
         if (otpResendTimerId) {
             clearInterval(otpResendTimerId);
             otpResendTimerId = null;
         }
         otpResendCountdown = 0;
         window.otpResendCountdown = 0;
+
+        // Re-enable the "Verify" button to allow immediate correction and retry
         setOtpButtonsCooldownState(false);
         if (verifyBtn) {
             verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
         }
         const timerText = document.getElementById('otp-timer-text');
         if (timerText) timerText.textContent = "Didn't receive OTP?";
+
         const errorMsg = (error && (error.message || error.description || error.msg)) || 'Failed to send OTP. Please try again.';
         showToast(`❌ ${errorMsg}`);
-    };
-
-    const executeSendOtp = () => {
-        if (typeof window.sendOtp === 'function') {
-            window.sendOtp(
-                fullNumber,
-                handleSendSuccess,
-                handleSendFailure
-            );
-            return true;
-        } else if (typeof window.initSendOTP === 'function') {
-            window.initSendOTP({
-                widgetId: MSG91_WIDGET_CONFIG.widgetId,
-                tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
-                exposeMethods: true,
-                identifier: fullNumber,
-                success: handleSendSuccess,
-                failure: handleSendFailure
-            });
-            setTimeout(() => {
-                if (typeof window.sendOtp === 'function') {
-                    window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
-                }
-            }, 300);
-            return true;
-        }
-        return false;
-    };
-
-    try {
-        if (!executeSendOtp()) {
-            console.log('MSG91 Widget SDK loading, retrying sendOtp in 800ms...');
-            setTimeout(() => {
-                if (!executeSendOtp()) {
-                    handleSendFailure({ message: 'MSG91 Widget SDK is loading. Please try again in a few moments.' });
-                }
-            }, 800);
-        }
-    } catch (err) {
-        handleSendFailure(err);
     }
 }
 
@@ -14055,6 +14110,7 @@ async function handleVerifyOtp() {
         }
         otpResendCountdown = 0;
         window.otpResendCountdown = 0;
+        isOtpSendingInProgress = false;
         setOtpButtonsCooldownState(false);
 
         if (submitBtn) {
