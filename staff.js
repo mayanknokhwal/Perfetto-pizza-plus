@@ -40,6 +40,9 @@ const STAFF_SESSION_STORAGE_KEY = 'perfetto_staff_session_user';
 const STAFF_LOCAL_STORAGE_KEY = 'perfetto_staff_user_session';
 const STAFF_VERIFIED_PHONE_KEY = 'perfetto_staff_verified_phone';
 const STAFF_ORDERS_STORAGE_KEY = 'staff_perfetto_state';
+const STAFF_LAUNCH_EPOCH = 'launch_2026_v1';
+const OFFICIAL_LAUNCH_TIMESTAMP_MS = 1774353600000;
+window.STAFF_LAUNCH_EPOCH = STAFF_LAUNCH_EPOCH;
 const MASTER_ADMIN_PHONE_NUM = '9414503886';
 const STAFF_MSG91_CONFIG = {
     widgetId: "3668716b4f68313937363038",
@@ -298,6 +301,7 @@ async function initStaffFirebase() {
         }
         listenToFirestoreStaffSettings();
         fetchStaffSettingsFromBackend();
+        cleanupOrphanedTestOrders().catch(() => {});
         if (db && isStaffAuthenticated()) {
             listenToFirestoreStaffOrders();
         }
@@ -3927,6 +3931,15 @@ function initStaffWebWorkerTimer() {
 }
 
 function initStaffApp() {
+    // Fresh launch local cache cleanse on epoch boundary
+    try {
+        if (localStorage.getItem('staff_launch_cleanup_epoch') !== STAFF_LAUNCH_EPOCH) {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify([]));
+            staffOrders = [];
+        }
+    } catch (e) {}
+    cleanupOrphanedTestOrders().catch(() => {});
+
     // Initial fetch of settings & check initial auth state
     fetchStaffSettingsFromBackend();
     checkStaffAuthSession();
@@ -6448,6 +6461,114 @@ async function recordStaffActivityLog(actionText, details = {}) {
     } catch (e) { }
 }
 window.recordStaffActivityLog = recordStaffActivityLog;
+
+/**
+ * Administrative utility: Fresh Launch Database Pruning & Orphaned Order Cleanup.
+ * Queries and permanently batch-deletes all residual/test documents in the `orders`
+ * collection that have status 'completed', 'rejected', or created before launch cutoff.
+ * Ensures Completed and Rejected tabs start completely fresh with zero lingering records.
+ * @param {boolean} [force=false]
+ * @returns {Promise<{deletedCount: number, success: boolean}>}
+ */
+async function cleanupOrphanedTestOrders(force = false) {
+    try {
+        const storedEpoch = localStorage.getItem('staff_launch_cleanup_epoch');
+        if (!force && storedEpoch === STAFF_LAUNCH_EPOCH) {
+            return { deletedCount: 0, success: true, alreadyCleaned: true };
+        }
+        console.warn(`🚀 [STAFF LAUNCH PURGE] Executing fresh launch database order pruning (Epoch: ${STAFF_LAUNCH_EPOCH})...`);
+
+        const db = getStaffFirestore();
+        const ordersToDelete = new Set();
+        const targetStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'declined', 'auto_expired'];
+
+        // 1. Query Firestore 'orders' collection
+        if (db) {
+            try {
+                const snap = await db.collection('orders').get();
+                snap.forEach(doc => {
+                    const data = doc.data() || {};
+                    const st = String(data.status || '').toLowerCase().trim();
+                    const createdVal = data.createdAt || data.date || data.timestamp;
+                    let createdMs = NaN;
+                    if (createdVal?.toDate && typeof createdVal.toDate === 'function') {
+                        try { createdMs = createdVal.toDate().getTime(); } catch (e) {}
+                    } else if (createdVal && typeof createdVal.seconds === 'number') {
+                        createdMs = createdVal.seconds * 1000;
+                    } else if (createdVal) {
+                        createdMs = new Date(createdVal).getTime();
+                    }
+                    const isPreLaunch = !isNaN(createdMs) && createdMs < OFFICIAL_LAUNCH_TIMESTAMP_MS;
+                    const isTestDoc = doc.id.startsWith('test_') || Boolean(data.isTestOrder);
+
+                    // Delete completed, rejected, and pre-launch test orders
+                    if (targetStatuses.includes(st) || isPreLaunch || isTestDoc) {
+                        ordersToDelete.add(doc.id);
+                    }
+                });
+            } catch (err) {
+                console.warn('[STAFF LAUNCH PURGE] Firestore scan notice:', err.message);
+            }
+        }
+
+        // Add any completed/rejected/test orders from in-memory staffOrders
+        if (Array.isArray(staffOrders)) {
+            staffOrders.forEach(o => {
+                if (!o) return;
+                const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                const st = String(o.status || '').toLowerCase().trim();
+                if (targetStatuses.includes(st) || id.startsWith('test_') || Boolean(o.isTestOrder)) {
+                    if (id) ordersToDelete.add(id);
+                }
+            });
+        }
+
+        // Batch delete from Firestore in chunks of up to 400
+        let deletedCount = 0;
+        if (db && ordersToDelete.size > 0) {
+            const idList = Array.from(ordersToDelete);
+            for (let i = 0; i < idList.length; i += 400) {
+                const chunk = idList.slice(i, i + 400);
+                const batch = db.batch();
+                chunk.forEach(id => {
+                    batch.delete(db.collection('orders').doc(id));
+                });
+                await batch.commit();
+                deletedCount += chunk.length;
+            }
+            console.log(`✅ [STAFF LAUNCH PURGE] Batch deleted ${deletedCount} test/residual order(s) from Firestore.`);
+        }
+
+        // Wipe completed and rejected orders from local memory and localStorage
+        staffOrders = (Array.isArray(staffOrders) ? staffOrders : []).filter(o => {
+            const st = String(o.status || '').toLowerCase().trim();
+            const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+            return !targetStatuses.includes(st) && !ordersToDelete.has(id);
+        });
+
+        try {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
+            localStorage.setItem('staff_launch_cleanup_epoch', STAFF_LAUNCH_EPOCH);
+        } catch (e) {}
+
+        // Re-render orders and refresh UI counters to zero
+        if (typeof renderOrders === 'function') {
+            renderOrders();
+        }
+        const pendingCountEl = document.getElementById('pending-orders-count');
+        const completedCountEl = document.getElementById('completed-orders-count');
+        const rejectedCountEl = document.getElementById('rejected-orders-count');
+        if (pendingCountEl && staffOrders.length === 0) pendingCountEl.textContent = '0';
+        if (completedCountEl) completedCountEl.textContent = '0';
+        if (rejectedCountEl) rejectedCountEl.textContent = '0';
+
+        return { deletedCount, success: true };
+    } catch (err) {
+        console.error('[STAFF LAUNCH PURGE] Error during order cleanup:', err);
+        return { deletedCount: 0, success: false, error: err.message };
+    }
+}
+window.cleanupOrphanedTestOrders = cleanupOrphanedTestOrders;
 
 /**
  * Clears all completed or rejected orders from Firestore and local cache, strictly scoped to the active tab.

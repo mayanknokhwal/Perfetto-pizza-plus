@@ -40,6 +40,9 @@ const STAFF_SESSION_STORAGE_KEY = 'perfetto_staff_session_user';
 const STAFF_LOCAL_STORAGE_KEY = 'perfetto_staff_user_session';
 const STAFF_VERIFIED_PHONE_KEY = 'perfetto_staff_verified_phone';
 const STAFF_ORDERS_STORAGE_KEY = 'staff_perfetto_state';
+const STAFF_LAUNCH_EPOCH = 'launch_2026_v1';
+const OFFICIAL_LAUNCH_TIMESTAMP_MS = 1774353600000;
+window.STAFF_LAUNCH_EPOCH = STAFF_LAUNCH_EPOCH;
 const MASTER_ADMIN_PHONE_NUM = '9414503886';
 const STAFF_MSG91_CONFIG = {
     widgetId: "3668716b4f68313937363038",
@@ -298,6 +301,7 @@ async function initStaffFirebase() {
         }
         listenToFirestoreStaffSettings();
         fetchStaffSettingsFromBackend();
+        cleanupOrphanedTestOrders().catch(() => {});
         if (db && isStaffAuthenticated()) {
             listenToFirestoreStaffOrders();
         }
@@ -862,15 +866,15 @@ function listenToFirestoreStaffOrders() {
         try {
             const colRef = db.collection('orders');
             if (typeof colRef.orderBy === 'function') {
-                queryRef = colRef.orderBy('createdAt', 'desc').limit(50);
+                queryRef = colRef.orderBy('createdAt', 'desc').limit(100);
             } else if (typeof colRef.limit === 'function') {
-                queryRef = colRef.limit(50);
+                queryRef = colRef.limit(100);
             } else {
                 queryRef = colRef;
             }
         } catch (e) {
             try {
-                queryRef = db.collection('orders').limit(50);
+                queryRef = db.collection('orders').limit(100);
             } catch (e2) {
                 queryRef = db.collection('orders');
             }
@@ -888,7 +892,7 @@ function listenToFirestoreStaffOrders() {
             // Resilient fallback: query collection directly with limit
             try {
                 staffOrdersUnsubscribe = db.collection('orders')
-                    .limit(50)
+                    .limit(100)
                     .onSnapshot((fallbackSnap) => {
                         processOrdersSnapshot(fallbackSnap);
                     }, (fbErr) => {
@@ -3927,6 +3931,15 @@ function initStaffWebWorkerTimer() {
 }
 
 function initStaffApp() {
+    // Fresh launch local cache cleanse on epoch boundary
+    try {
+        if (localStorage.getItem('staff_launch_cleanup_epoch') !== STAFF_LAUNCH_EPOCH) {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify([]));
+            staffOrders = [];
+        }
+    } catch (e) {}
+    cleanupOrphanedTestOrders().catch(() => {});
+
     // Initial fetch of settings & check initial auth state
     fetchStaffSettingsFromBackend();
     checkStaffAuthSession();
@@ -4341,23 +4354,12 @@ if (typeof window !== 'undefined') {
 }
 
 function getDateDividerLabel(dateInput) {
-    if (!dateInput) return 'Earlier';
-    const d = new Date(dateInput);
-    if (isNaN(d.getTime())) return 'Earlier';
-
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const targetDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const diffDays = Math.round((today.getTime() - targetDay.getTime()) / (24 * 60 * 60 * 1000));
-
-    if (diffDays === 0) {
-        return 'Today';
-    } else if (diffDays === 1) {
-        return 'Yesterday';
-    } else {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    }
+    const d = dateInput ? new Date(dateInput) : new Date();
+    const validDate = isNaN(d.getTime()) ? new Date() : d;
+    const day = String(validDate.getDate()).padStart(2, '0');
+    const month = String(validDate.getMonth() + 1).padStart(2, '0');
+    const year = validDate.getFullYear();
+    return `${day}-${month}-${year}`;
 }
 window.getDateDividerLabel = getDateDividerLabel;
 
@@ -4714,10 +4716,6 @@ function buildCompletedOrderCardHTML(order) {
             <div class="card-head completed-card-head">
                 <div class="order-id-group">
                     <span class="order-id">#${seqTag} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
-                    ${createdTimeStr ? `
-                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
-                        <i class="fa-regular fa-clock"></i> <span>Order Placed: ${escapeHtml(createdTimeStr)}</span>
-                    </div>` : ''}
                 </div>
                 <div class="completed-card-status-badge status-delivered">
                     <i class="fa-solid fa-check-double"></i>
@@ -4740,16 +4738,6 @@ function buildCompletedOrderCardHTML(order) {
                     <span class="total-amount">₹${totalVal}</span>
                 </div>
             </div>
-
-            ${isAdminViewer ? `
-            <div class="card-footer completed-card-footer">
-                <div class="action-btn-group" style="display: flex; justify-content: flex-end; align-items: center; width: 100%;">
-                    <button type="button" class="btn-outline-danger btn-sm" onclick="handleAdminDeleteOrder('${order.id}')" title="Delete Order (Admin Only)" style="padding: 6px 12px; font-size: 0.78rem; font-weight: 600; border-radius: 8px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-trash-can"></i> Delete
-                    </button>
-                </div>
-            </div>
-            ` : ''}
         </article>
     `;
 }
@@ -4811,16 +4799,6 @@ function buildRejectedOrderCardHTML(order) {
                     <span class="total-amount">₹${totalVal}</span>
                 </div>
             </div>
-
-            ${isAdminViewer ? `
-            <div class="card-footer completed-card-footer">
-                <div class="action-btn-group" style="display: flex; justify-content: flex-end; align-items: center; width: 100%;">
-                    <button type="button" class="btn-outline-danger btn-sm" onclick="handleAdminDeleteOrder('${order.id}')" title="Delete Order (Admin Only)" style="padding: 6px 12px; font-size: 0.78rem; font-weight: 600; border-radius: 8px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-trash-can"></i> Delete
-                    </button>
-                </div>
-            </div>
-            ` : ''}
         </article>
     `;
 }
@@ -4908,40 +4886,20 @@ function buildOrderCardHTML(order) {
             </div>
         `;
     } else if (normalizedStatus === 'rejected' || isRejectedStaffOrder(order)) {
-        const isMasterAdminViewer = currentStaffUser && (
-            currentStaffUser.role === 'Master Admin' || 
-            String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10) === MASTER_ADMIN_PHONE_NUM || 
-            currentStaffUser.isMasterAdmin === true
-        );
         actionButtonsHTML = `
-            <div class="action-btn-group" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div class="action-btn-group" style="display: flex; justify-content: flex-start; align-items: center; width: 100%;">
                 <span class="order-status-rejected-label">
                     <i class="fa-solid fa-ban"></i> Order Declined / Cancelled
                 </span>
-                ${isMasterAdminViewer ? `
-                    <button type="button" class="btn-outline-danger btn-sm" onclick="handleAdminDeleteOrder('${order.id}')" title="Delete Order (Master Admin Only)" style="padding: 6px 12px; font-size: 0.78rem; font-weight: 600; border-radius: 8px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-trash-can"></i> Delete
-                    </button>
-                ` : ''}
             </div>
         `;
     } else {
         // Delivered & Completed: Protected (Cleared manually by Master Admin via Master OTP)
-        const isMasterAdminViewer = currentStaffUser && (
-            currentStaffUser.role === 'Master Admin' || 
-            String(currentStaffUser.phone || '').replace(/[^0-9]/g, '').slice(-10) === MASTER_ADMIN_PHONE_NUM || 
-            currentStaffUser.isMasterAdmin === true
-        );
         actionButtonsHTML = `
-            <div class="action-btn-group" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div class="action-btn-group" style="display: flex; justify-content: flex-start; align-items: center; width: 100%;">
                 <span class="order-status-completed-label">
                     <i class="fa-solid fa-check-double"></i> Delivered &amp; Verified ${order.deliveryOtp ? `(OTP: ${order.deliveryOtp})` : ''}
                 </span>
-                ${isMasterAdminViewer ? `
-                    <button type="button" class="btn-outline-danger btn-sm" onclick="handleAdminDeleteOrder('${order.id}')" title="Delete Completed Order (Master Admin Only)" style="padding: 6px 12px; font-size: 0.78rem; font-weight: 600; border-radius: 8px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-trash-can"></i> Delete
-                    </button>
-                ` : ''}
             </div>
         `;
     }
@@ -4968,20 +4926,16 @@ function buildOrderCardHTML(order) {
             <div class="card-head" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
                 <div class="order-id-group" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0;">
                     <span class="order-id">#${seqTag} <span class="customer-name-inline">${escapeHtml(customerName)}</span></span>
-                    <!-- Left Badge: Ascending elapsed duration from placement -->
-                    <span class="elapsed-duration-badge ${timerData.badgeClass}" id="timer-val-${order.id}" title="Elapsed duration since order placement" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 9999px; font-size: 0.78rem; font-weight: 700; color: ${timerData.color.textColor}; border: 1px solid ${timerData.color.borderColor}; background: ${timerData.color.bgColor}; white-space: nowrap;">
-                        <i class="fa-solid fa-stopwatch"></i>
-                        <span>${timerData.elapsedFormatted}</span>
-                    </span>
-                    ${createdTimeStr ? `
-                    <div class="order-created-time" style="font-size: 0.75rem; color: #64748b; margin-top: 2px; width: 100%; display: flex; align-items: center; gap: 4px;">
-                        <i class="fa-regular fa-clock"></i> <span>Placed: ${escapeHtml(createdTimeStr)}</span>
-                    </div>` : ''}
+                    <!-- Left Badge: Static cutoff threshold display adjacent to customer name / order # -->
+                    <div class="order-cutoff-badge" id="cutoff-badge-${order.id}" title="100-Minute Kitchen Auto-Timeout Cutoff" style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 9999px; font-size: 0.78rem; font-weight: 700; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); white-space: nowrap;">
+                        <i class="fa-solid fa-hourglass-half" style="color: #f59e0b;"></i>
+                        <span>1h 40m limit</span>
+                    </div>
                 </div>
-                <!-- Right Badge: Static cutoff threshold display -->
-                <div class="order-cutoff-badge" id="cutoff-badge-${order.id}" title="100-Minute Kitchen Auto-Timeout Cutoff" style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; color: #94a3b8; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); white-space: nowrap; flex-shrink: 0;">
-                    <i class="fa-solid fa-hourglass-half" style="color: #f59e0b;"></i>
-                    <span>1h 40m limit</span>
+                <!-- Right Badge: Live ascending/countdown timer pill in far right corner -->
+                <div class="elapsed-duration-badge ${timerData.badgeClass}" id="timer-badge-${order.id}" title="${timerData.stageTitle || 'Elapsed duration since order placement'}" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; color: ${timerData.color.textColor}; border: 1px solid ${timerData.color.borderColor}; background: ${timerData.color.bgColor}; white-space: nowrap; flex-shrink: 0;">
+                    <i class="fa-solid fa-stopwatch"></i>
+                    <span id="timer-val-${order.id}">${timerData.elapsedFormatted}</span>
                 </div>
             </div>
 
@@ -6507,6 +6461,114 @@ async function recordStaffActivityLog(actionText, details = {}) {
     } catch (e) { }
 }
 window.recordStaffActivityLog = recordStaffActivityLog;
+
+/**
+ * Administrative utility: Fresh Launch Database Pruning & Orphaned Order Cleanup.
+ * Queries and permanently batch-deletes all residual/test documents in the `orders`
+ * collection that have status 'completed', 'rejected', or created before launch cutoff.
+ * Ensures Completed and Rejected tabs start completely fresh with zero lingering records.
+ * @param {boolean} [force=false]
+ * @returns {Promise<{deletedCount: number, success: boolean}>}
+ */
+async function cleanupOrphanedTestOrders(force = false) {
+    try {
+        const storedEpoch = localStorage.getItem('staff_launch_cleanup_epoch');
+        if (!force && storedEpoch === STAFF_LAUNCH_EPOCH) {
+            return { deletedCount: 0, success: true, alreadyCleaned: true };
+        }
+        console.warn(`🚀 [STAFF LAUNCH PURGE] Executing fresh launch database order pruning (Epoch: ${STAFF_LAUNCH_EPOCH})...`);
+
+        const db = getStaffFirestore();
+        const ordersToDelete = new Set();
+        const targetStatuses = ['completed', 'delivered', 'rejected', 'cancelled', 'canceled', 'declined', 'auto_expired'];
+
+        // 1. Query Firestore 'orders' collection
+        if (db) {
+            try {
+                const snap = await db.collection('orders').get();
+                snap.forEach(doc => {
+                    const data = doc.data() || {};
+                    const st = String(data.status || '').toLowerCase().trim();
+                    const createdVal = data.createdAt || data.date || data.timestamp;
+                    let createdMs = NaN;
+                    if (createdVal?.toDate && typeof createdVal.toDate === 'function') {
+                        try { createdMs = createdVal.toDate().getTime(); } catch (e) {}
+                    } else if (createdVal && typeof createdVal.seconds === 'number') {
+                        createdMs = createdVal.seconds * 1000;
+                    } else if (createdVal) {
+                        createdMs = new Date(createdVal).getTime();
+                    }
+                    const isPreLaunch = !isNaN(createdMs) && createdMs < OFFICIAL_LAUNCH_TIMESTAMP_MS;
+                    const isTestDoc = doc.id.startsWith('test_') || Boolean(data.isTestOrder);
+
+                    // Delete completed, rejected, and pre-launch test orders
+                    if (targetStatuses.includes(st) || isPreLaunch || isTestDoc) {
+                        ordersToDelete.add(doc.id);
+                    }
+                });
+            } catch (err) {
+                console.warn('[STAFF LAUNCH PURGE] Firestore scan notice:', err.message);
+            }
+        }
+
+        // Add any completed/rejected/test orders from in-memory staffOrders
+        if (Array.isArray(staffOrders)) {
+            staffOrders.forEach(o => {
+                if (!o) return;
+                const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+                const st = String(o.status || '').toLowerCase().trim();
+                if (targetStatuses.includes(st) || id.startsWith('test_') || Boolean(o.isTestOrder)) {
+                    if (id) ordersToDelete.add(id);
+                }
+            });
+        }
+
+        // Batch delete from Firestore in chunks of up to 400
+        let deletedCount = 0;
+        if (db && ordersToDelete.size > 0) {
+            const idList = Array.from(ordersToDelete);
+            for (let i = 0; i < idList.length; i += 400) {
+                const chunk = idList.slice(i, i + 400);
+                const batch = db.batch();
+                chunk.forEach(id => {
+                    batch.delete(db.collection('orders').doc(id));
+                });
+                await batch.commit();
+                deletedCount += chunk.length;
+            }
+            console.log(`✅ [STAFF LAUNCH PURGE] Batch deleted ${deletedCount} test/residual order(s) from Firestore.`);
+        }
+
+        // Wipe completed and rejected orders from local memory and localStorage
+        staffOrders = (Array.isArray(staffOrders) ? staffOrders : []).filter(o => {
+            const st = String(o.status || '').toLowerCase().trim();
+            const id = String(o.orderId || o.id || o.firestoreDocId || '').trim();
+            return !targetStatuses.includes(st) && !ordersToDelete.has(id);
+        });
+
+        try {
+            localStorage.setItem(STAFF_ORDERS_STORAGE_KEY, JSON.stringify(staffOrders));
+            localStorage.setItem('staff_launch_cleanup_epoch', STAFF_LAUNCH_EPOCH);
+        } catch (e) {}
+
+        // Re-render orders and refresh UI counters to zero
+        if (typeof renderOrders === 'function') {
+            renderOrders();
+        }
+        const pendingCountEl = document.getElementById('pending-orders-count');
+        const completedCountEl = document.getElementById('completed-orders-count');
+        const rejectedCountEl = document.getElementById('rejected-orders-count');
+        if (pendingCountEl && staffOrders.length === 0) pendingCountEl.textContent = '0';
+        if (completedCountEl) completedCountEl.textContent = '0';
+        if (rejectedCountEl) rejectedCountEl.textContent = '0';
+
+        return { deletedCount, success: true };
+    } catch (err) {
+        console.error('[STAFF LAUNCH PURGE] Error during order cleanup:', err);
+        return { deletedCount: 0, success: false, error: err.message };
+    }
+}
+window.cleanupOrphanedTestOrders = cleanupOrphanedTestOrders;
 
 /**
  * Clears all completed or rejected orders from Firestore and local cache, strictly scoped to the active tab.

@@ -7,10 +7,12 @@
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
-const STORAGE_VERSION = 'v2_clean';
-const APP_STORAGE_VERSION = STORAGE_VERSION;
+const APP_LAUNCH_EPOCH = 'launch_2026_v1';
+const STORAGE_VERSION = APP_LAUNCH_EPOCH;
+const APP_STORAGE_VERSION = APP_LAUNCH_EPOCH;
+window.APP_LAUNCH_EPOCH = APP_LAUNCH_EPOCH;
 window.STORAGE_VERSION = STORAGE_VERSION;
-window.APP_STORAGE_VERSION = STORAGE_VERSION;
+window.APP_STORAGE_VERSION = APP_STORAGE_VERSION;
 
 const LOGO_LIGHT = 'https://i.ibb.co/wNBDySCg/perfetto-Black.webp';
 const LOGO_DARK = 'https://i.ibb.co/XZsGT4Mq/perfetto-White.webp';
@@ -469,74 +471,71 @@ window.checkAndApplyClientStateReset = checkAndApplyClientStateReset;
 function checkAndApplyAppStorageVersion() {
     try {
         if (typeof localStorage === 'undefined') return;
-        const storedVersion = localStorage.getItem('perfetto_app_storage_version') || localStorage.getItem('perfetto_storage_version') || localStorage.getItem('perfetto_app_version');
-        if (storedVersion !== STORAGE_VERSION) {
-            console.log(`[Storage Migration] Version mismatch (stored: "${storedVersion}", required: "${STORAGE_VERSION}"). Purging stale customer wallet & order cache.`);
+        const storedEpoch = localStorage.getItem('app_version');
+        const storedVersion = localStorage.getItem('perfetto_app_storage_version') || localStorage.getItem('perfetto_storage_version');
+        if (storedEpoch !== APP_LAUNCH_EPOCH || storedVersion !== APP_LAUNCH_EPOCH) {
+            console.warn(`🧹 [Launch Migration] Epoch mismatch (stored: "${storedEpoch || storedVersion}", required: "${APP_LAUNCH_EPOCH}"). Executing complete customer storage wipe.`);
 
-            // Purge stale customer-side keys: wallet_balance, wallet_transactions, cached orders
-            const keysToPurge = [
-                'perfetto_wallet_balance',
-                'perfetto_customer_wallet',
-                'wallet_balance',
-                'wallet_transactions',
-                'perfettoCustomerOrders',
-                'perfetto_cart',
-                'perfetto_pizza_cart',
-                'perfetto_wallet_hold',
-                'perfettoClearedOrderIds',
-                'RESET_WALLET_LEDGER'
-            ];
+            // 1. Complete wipe of customer storage
+            if (typeof localStorage !== 'undefined') {
+                localStorage.clear();
+            }
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.clear();
+            }
 
-            keysToPurge.forEach(k => {
-                try { localStorage.removeItem(k); } catch (e) {}
-                try { sessionStorage.removeItem(k); } catch (e) {}
-                if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
-                    safeStorage.removeItem(k);
-                }
-            });
+            // 2. Set official launch epoch keys
+            localStorage.setItem('app_version', APP_LAUNCH_EPOCH);
+            localStorage.setItem('perfetto_app_storage_version', APP_LAUNCH_EPOCH);
+            localStorage.setItem('perfetto_storage_version', APP_LAUNCH_EPOCH);
+            localStorage.setItem('PERFETTO_STATE_EPOCH', APP_LAUNCH_EPOCH);
 
-            // Dynamically scan and purge any dynamic phone-keyed wallet or order cache keys (preserving user profile & auth)
-            try {
-                for (let i = localStorage.length - 1; i >= 0; i--) {
-                    const k = localStorage.key(i);
-                    if (k && k !== 'perfetto_storage_version' && k !== 'perfetto_app_version' && k !== 'perfetto_verified_phone' && k !== 'perfettoCustomerProfile' && k !== 'customerDeliveryProfile' && k !== 'perfettoSavedProfile' && (k.includes('wallet_balance') || k.includes('customer_wallet') || k.includes('CustomerOrders') || k.includes('wallet_transactions'))) {
-                        localStorage.removeItem(k);
-                    }
-                }
-            } catch (e) {}
-
-            try {
-                for (let i = sessionStorage.length - 1; i >= 0; i--) {
-                    const k = sessionStorage.key(i);
-                    if (k && k !== 'perfetto_verified_phone' && (k.includes('wallet_balance') || k.includes('customer_wallet') || k.includes('CustomerOrders') || k.includes('wallet_transactions'))) {
-                        sessionStorage.removeItem(k);
-                    }
-                }
-            } catch (e) {}
-
-            // Reset in-memory wallet
-            currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+            // 3. Reset in-memory wallet state to strict default
+            currentCustomerWallet = {
+                balance: 0,
+                nonExpiredBalance: 0,
+                transactions: [],
+                activeCashbackSlabs: []
+            };
             if (typeof window !== 'undefined') {
                 window.currentCustomerWallet = currentCustomerWallet;
             }
 
-            localStorage.setItem('perfetto_storage_version', STORAGE_VERSION);
-            localStorage.setItem('perfetto_app_version', STORAGE_VERSION);
-            localStorage.setItem('perfetto_app_storage_version', STORAGE_VERSION);
-            console.log(`[App] Storage successfully upgraded to ${STORAGE_VERSION}, stale cache purged.`);
-
-            // Automatically re-sync freshly from Firestore document state
-            const phone = (typeof getVerifiedCustomerPhone === 'function' && getVerifiedCustomerPhone()) ||
-                localStorage.getItem('perfetto_verified_phone') ||
-                '';
-            if (phone) {
-                if (typeof fetchCustomerWallet === 'function') {
-                    fetchCustomerWallet(phone);
-                }
-                if (typeof listenToCustomerWalletRealtime === 'function') {
-                    listenToCustomerWalletRealtime(phone);
-                }
+            // 4. Remove any lingering testing customer profile details and delivery addresses
+            currentUserProfile = null;
+            isPhoneVerified = false;
+            currentTargetPhone = null;
+            if (typeof window !== 'undefined') {
+                window.currentUserProfile = null;
+                window.isPhoneVerified = false;
+                window.currentTargetPhone = null;
             }
+
+            // 5. Clear profile and sign-up form fields if DOM is present
+            try {
+                const pName = document.getElementById('profile-name');
+                const pPhone = document.getElementById('profile-phone');
+                const pEmail = document.getElementById('profile-email');
+                const pAddress = document.getElementById('profile-address');
+                if (pName) pName.value = '';
+                if (pPhone) pPhone.value = '';
+                if (pEmail) pEmail.value = '';
+                if (pAddress) pAddress.value = '';
+                const phoneInput = document.getElementById('phone-input');
+                if (phoneInput) phoneInput.value = '';
+            } catch (e) {}
+
+            // 6. Reset UI views to clean initial state
+            try {
+                if (typeof applyPhoneVerifiedUI === 'function') applyPhoneVerifiedUI(false, '');
+                if (typeof updateProfileWalletUI === 'function') updateProfileWalletUI();
+                if (typeof renderProfileWalletTxList === 'function') renderProfileWalletTxList();
+                if (typeof updateCheckoutWalletUI === 'function') updateCheckoutWalletUI();
+                if (typeof updateCartUI === 'function') updateCartUI();
+                if (typeof renderOrderHistoryDetails === 'function') renderOrderHistoryDetails();
+            } catch (e) {}
+
+            console.log(`✅ [App] Customer storage wiped clean and initialized to ${APP_LAUNCH_EPOCH}. Ready for new customer sign-up.`);
         }
     } catch (err) {
         console.warn('[App] Error in checkAndApplyAppStorageVersion:', err);
@@ -6528,6 +6527,36 @@ async function fetchCustomerWalletLedger(phone) {
 }
 window.fetchCustomerWalletLedger = fetchCustomerWalletLedger;
 
+function hasActiveUnexpiredCredits(txs) {
+    if (!Array.isArray(txs) || txs.length === 0) return false;
+    const nowMs = Date.now();
+    const parseTs = typeof parseTimestampMs === 'function' ? parseTimestampMs : (v) => {
+        if (!v) return NaN;
+        if (typeof v === 'number') return v;
+        if (typeof v.toDate === 'function') {
+            try { return v.toDate().getTime(); } catch (e) {}
+        }
+        if (v.seconds !== undefined) {
+            return v.seconds * 1000 + (v.nanoseconds ? Math.round(v.nanoseconds / 1e6) : 0);
+        }
+        const parsed = new Date(v).getTime();
+        return isNaN(parsed) ? NaN : parsed;
+    };
+    return txs.some(t => {
+        if (!t) return false;
+        const st = String(t.status || '').toUpperCase();
+        const tp = String(t.type || '').toUpperCase();
+        const isCredit = st === 'ACTIVE' || st === 'UNLOCKED' || tp === 'CREDIT' || tp === 'CASHBACK_EARNED' || tp.includes('CASHBACK') || tp === 'REFUND';
+        if (!isCredit) return false;
+        const expMs = t.expiresAt ? parseTs(t.expiresAt) : NaN;
+        const isExp = Boolean(t.isExpired) || st === 'EXPIRED' || (!isNaN(expMs) && expMs <= nowMs);
+        const isRed = Boolean(t.isRedeemed) || st === 'REDEEMED' || st === 'USED' || st === 'CONSUMED';
+        const amt = Number(t.remainingAmount !== undefined ? t.remainingAmount : (t.amount || 0));
+        return !isExp && !isRed && amt > 0;
+    });
+}
+window.hasActiveUnexpiredCredits = hasActiveUnexpiredCredits;
+
 async function fetchCustomerWallet(phone) {
     if (!phone) return currentCustomerWallet;
     const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
@@ -6541,17 +6570,14 @@ async function fetchCustomerWallet(phone) {
                 const docData = doc.data();
                 const valid = calculateValidWalletBalance(docData);
                 const serverTx = Array.isArray(docData.transactions) ? docData.transactions : (Array.isArray(docData.walletTransactions) ? docData.walletTransactions : []);
+                const localTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
 
-                // Database-First Ledger Sync: Discard orphan local transactions if active Firestore record shows balance = 0 or empty transactions array
-                const isServerZeroOrEmpty = (valid.balance === 0) ||
-                                            (Array.isArray(docData.transactions) && docData.transactions.length === 0) ||
-                                            (Array.isArray(docData.walletTransactions) && docData.walletTransactions.length === 0);
+                const hasLocal = hasActiveUnexpiredCredits(localTx);
+                const hasServer = hasActiveUnexpiredCredits(serverTx);
 
                 let resolvedTx = [];
-                if (!isServerZeroOrEmpty && currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions) && currentCustomerWallet.transactions.length > 0) {
-                    resolvedTx = currentCustomerWallet.transactions;
-                } else if (serverTx.length > 0) {
-                    resolvedTx = serverTx;
+                if (hasLocal || hasServer || serverTx.length > 0 || localTx.length > 0) {
+                    resolvedTx = mergeAndPreserveWalletTransactions(localTx, serverTx).slice(0, 15);
                 } else {
                     resolvedTx = [];
                 }
@@ -6696,39 +6722,41 @@ function applyLiveWalletData(data, source = 'wallets') {
 
     const valid = calculateValidWalletBalance({ ...data, balance: rawBalance });
     
-    // Database-First Ledger Sync: Discard orphan local transactions if user's active Firestore record shows balance = 0 or empty transactions array
-    const hasServerExplicitEmptyTx = (Array.isArray(data.transactions) && data.transactions.length === 0) ||
-                                     (Array.isArray(data.walletTransactions) && data.walletTransactions.length === 0);
-    const isServerZeroOrEmpty = (valid.balance === 0) || hasServerExplicitEmptyTx;
-
     let incomingTx = Array.isArray(data.walletTransactions) && data.walletTransactions.length > 0
         ? data.walletTransactions
         : (Array.isArray(data.transactions) && data.transactions.length > 0 ? data.transactions : []);
 
     let existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
 
-    if (isServerZeroOrEmpty) {
-        // Discard orphan local transactions and strictly adhere to server state
+    const hasLocalActive = (typeof hasActiveUnexpiredCredits === 'function') ? hasActiveUnexpiredCredits(existingTx) : false;
+    const hasIncomingActive = (typeof hasActiveUnexpiredCredits === 'function') ? hasActiveUnexpiredCredits(incomingTx) : false;
+
+    // If local or incoming state contains unexpired active credits, do NOT allow empty or zero server snapshots to wipe them
+    if (!hasLocalActive && !hasIncomingActive && (rawBalance === 0 || valid.balance === 0) && incomingTx.length === 0) {
         existingTx = [];
-        if (valid.balance === 0 && incomingTx.length === 0) {
-            incomingTx = [];
-        }
+        incomingTx = [];
     }
 
-    const mergedTx = (valid.balance === 0 && incomingTx.length === 0) ? [] : mergeAndPreserveWalletTransactions(existingTx, incomingTx).slice(0, 15);
+    const mergedTx = (existingTx.length === 0 && incomingTx.length === 0)
+        ? []
+        : mergeAndPreserveWalletTransactions(existingTx, incomingTx).slice(0, 15);
 
     currentCustomerWallet = {
         ...(currentCustomerWallet || {}),
         ...data,
         ...valid,
-        balance: valid.balance,
-        nonExpiredBalance: valid.nonExpiredBalance,
         transactions: mergedTx
     };
-    if (valid.balance === 0 && mergedTx.length === 0) {
+
+    // Live Wallet Balance Auto-Calculation from Valid Slabs:
+    // Balance = sum of active valid slabs minus actual redeemed deductions.
+    // If total active slabs sum to 0 or are empty, render clean ₹0.
+    reconcileWalletTranches(currentCustomerWallet);
+    if (!hasLocalActive && !hasIncomingActive && mergedTx.length === 0) {
+        currentCustomerWallet.balance = 0;
+        currentCustomerWallet.nonExpiredBalance = 0;
         currentCustomerWallet.transactions = [];
     }
-    reconcileWalletTranches(currentCustomerWallet);
     try {
         localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
         localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance));
