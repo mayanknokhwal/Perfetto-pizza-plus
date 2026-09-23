@@ -1354,8 +1354,22 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
         if (verifyBtn) {
             verifyBtn.style.display = 'inline-flex';
             const currentLen = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
-            verifyBtn.disabled = currentLen !== 10;
-            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+            if (otpResendCountdown > 0) {
+                verifyBtn.disabled = true;
+                verifyBtn.classList.add('btn-cooldown-locked');
+                verifyBtn.style.pointerEvents = 'none';
+                verifyBtn.style.cursor = 'not-allowed';
+                verifyBtn.style.opacity = '0.6';
+            } else {
+                verifyBtn.disabled = currentLen !== 10;
+                verifyBtn.classList.remove('btn-cooldown-locked');
+                verifyBtn.style.pointerEvents = '';
+                verifyBtn.style.cursor = '';
+                verifyBtn.style.opacity = '';
+            }
+            if (!verifyBtn.innerHTML.includes('Sending...')) {
+                verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+            }
         }
         if (otpBox) otpBox.style.display = 'none';
 
@@ -13775,6 +13789,11 @@ function handleChangePhoneNumber() {
         clearInterval(otpResendTimerId);
         otpResendTimerId = null;
     }
+    otpResendCountdown = 0;
+    window.otpResendCountdown = 0;
+    if (typeof setOtpButtonsCooldownState === 'function') {
+        setOtpButtonsCooldownState(false);
+    }
 
     applyPhoneVerifiedUI(false, phoneInput ? phoneInput.value : '');
 
@@ -13787,6 +13806,49 @@ function handleChangePhoneNumber() {
     showToast('✏️ Mobile number unlocked. Update your number.');
 }
 
+function setOtpButtonsCooldownState(isLocked) {
+    const verifyBtn = document.getElementById('btn-request-otp');
+    const resendBtn = document.getElementById('btn-resend-voice-otp');
+    const phoneInput = document.getElementById('customer-phone');
+
+    if (isLocked) {
+        if (verifyBtn) {
+            verifyBtn.disabled = true;
+            verifyBtn.classList.add('btn-cooldown-locked');
+            verifyBtn.style.pointerEvents = 'none';
+            verifyBtn.style.cursor = 'not-allowed';
+            verifyBtn.style.opacity = '0.6';
+        }
+        if (resendBtn) {
+            resendBtn.classList.add('btn-cooldown-locked');
+            resendBtn.setAttribute('disabled', 'true');
+            resendBtn.setAttribute('aria-disabled', 'true');
+            resendBtn.style.pointerEvents = 'none';
+            resendBtn.style.cursor = 'not-allowed';
+            resendBtn.style.opacity = '0.45';
+        }
+    } else {
+        if (verifyBtn) {
+            verifyBtn.classList.remove('btn-cooldown-locked');
+            verifyBtn.style.pointerEvents = '';
+            verifyBtn.style.cursor = '';
+            verifyBtn.style.opacity = '';
+            const cleanDigits = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '') : '';
+            verifyBtn.disabled = (cleanDigits.length !== 10) || Boolean(isPhoneVerified);
+            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+        }
+        if (resendBtn) {
+            resendBtn.classList.remove('btn-cooldown-locked');
+            resendBtn.removeAttribute('disabled');
+            resendBtn.removeAttribute('aria-disabled');
+            resendBtn.style.pointerEvents = 'auto';
+            resendBtn.style.cursor = 'pointer';
+            resendBtn.style.opacity = '1';
+            resendBtn.textContent = 'Resend OTP';
+        }
+    }
+}
+
 // MSG91 OTP Widget Configuration Constants
 const MSG91_WIDGET_CONFIG = {
     widgetId: "3668716b4f68313937363038",
@@ -13794,6 +13856,12 @@ const MSG91_WIDGET_CONFIG = {
 };
 
 async function handleRequestOtp(isResend = false) {
+    if (otpResendCountdown > 0) {
+        console.warn(`[OTP] Request blocked: Cooldown active (${otpResendCountdown}s remaining)`);
+        showToast(`⏳ Please wait ${otpResendCountdown}s before requesting a new OTP.`);
+        return;
+    }
+
     const phoneVal = (document.getElementById('customer-phone') || {}).value?.trim();
     if (!phoneVal || phoneVal.replace(/[^0-9]/g, '').length < 10) {
         showToast('⚠️ Please enter a valid 10-digit Indian mobile number!');
@@ -13817,9 +13885,21 @@ async function handleRequestOtp(isResend = false) {
     const otpBox = document.getElementById('otp-verification-box');
     const otpInput = document.getElementById('otp-input');
 
+    // Reveal native custom OTP container immediately upon triggering
+    if (otpBox) {
+        otpBox.style.display = 'block';
+        otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    if (otpInput && !isResend) {
+        otpInput.value = '';
+        otpInput.focus();
+    }
+
+    // Start 59-second cooldown countdown immediately upon triggering an OTP request
+    startOtpResendTimer(59);
+
     // UI Loading state
     if (verifyBtn && !isResend) {
-        verifyBtn.disabled = true;
         verifyBtn.innerHTML = '<span class="btn-spinner"></span><span class="verify-text">Sending...</span>';
     }
 
@@ -13828,28 +13908,34 @@ async function handleRequestOtp(isResend = false) {
     const handleSendSuccess = (data) => {
         console.log('MSG91 sendOtp Success:', data);
         if (verifyBtn) {
-            verifyBtn.disabled = false;
             verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+            if (otpResendCountdown > 0) {
+                setOtpButtonsCooldownState(true);
+            }
         }
-        // Reveal native custom OTP container
         if (otpBox) {
             otpBox.style.display = 'block';
-            otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        if (otpInput) {
-            otpInput.value = '';
+        if (otpInput && !otpInput.value) {
             otpInput.focus();
         }
-        startOtpResendTimer(45);
         showToast('✅ OTP sent successfully! Please enter code below.');
     };
 
     const handleSendFailure = (error) => {
         console.error('MSG91 sendOtp Error:', error);
+        if (otpResendTimerId) {
+            clearInterval(otpResendTimerId);
+            otpResendTimerId = null;
+        }
+        otpResendCountdown = 0;
+        window.otpResendCountdown = 0;
+        setOtpButtonsCooldownState(false);
         if (verifyBtn) {
-            verifyBtn.disabled = false;
             verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
         }
+        const timerText = document.getElementById('otp-timer-text');
+        if (timerText) timerText.textContent = "Didn't receive OTP?";
         const errorMsg = (error && (error.message || error.description || error.msg)) || 'Failed to send OTP. Please try again.';
         showToast(`❌ ${errorMsg}`);
     };
@@ -13895,31 +13981,40 @@ async function handleRequestOtp(isResend = false) {
     }
 }
 
-function startOtpResendTimer(seconds) {
+function startOtpResendTimer(seconds = 59) {
     otpResendCountdown = seconds;
+    window.otpResendCountdown = otpResendCountdown;
     const timerText = document.getElementById('otp-timer-text');
-    const resendBtn = document.getElementById('btn-resend-voice-otp');
 
-    if (resendBtn) {
-        resendBtn.style.pointerEvents = 'none';
-        resendBtn.style.opacity = '0.5';
+    setOtpButtonsCooldownState(true);
+
+    if (timerText) {
+        timerText.textContent = `Resend in ${otpResendCountdown}s`;
     }
 
     if (otpResendTimerId) clearInterval(otpResendTimerId);
 
     otpResendTimerId = setInterval(() => {
         otpResendCountdown--;
+        window.otpResendCountdown = otpResendCountdown;
         if (timerText) {
-            timerText.textContent = otpResendCountdown > 0 ? `Resend in ${otpResendCountdown}s` : "Didn't receive OTP?";
+            timerText.textContent = otpResendCountdown > 0 ? `Resend in ${otpResendCountdown}s` : 'Resend in 0s';
         }
         if (otpResendCountdown <= 0) {
             clearInterval(otpResendTimerId);
             otpResendTimerId = null;
-            if (resendBtn) {
-                resendBtn.style.pointerEvents = 'auto';
-                resendBtn.style.opacity = '1';
-                resendBtn.textContent = 'Resend OTP';
+            otpResendCountdown = 0;
+            window.otpResendCountdown = 0;
+            setOtpButtonsCooldownState(false);
+            if (timerText) {
+                setTimeout(() => {
+                    if (otpResendCountdown === 0 && timerText) {
+                        timerText.textContent = "Didn't receive OTP?";
+                    }
+                }, 800);
             }
+        } else {
+            setOtpButtonsCooldownState(true);
         }
     }, 1000);
 }
@@ -13958,6 +14053,9 @@ async function handleVerifyOtp() {
             clearInterval(otpResendTimerId);
             otpResendTimerId = null;
         }
+        otpResendCountdown = 0;
+        window.otpResendCountdown = 0;
+        setOtpButtonsCooldownState(false);
 
         if (submitBtn) {
             submitBtn.disabled = false;
@@ -14572,7 +14670,15 @@ function renderProfileHeaderAndInputs(profile) {
                 phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
                 phoneInput.style.cursor = 'not-allowed';
             } else if (verifyBtn) {
-                verifyBtn.disabled = profile.phone.length !== 10;
+                if (otpResendCountdown > 0) {
+                    verifyBtn.disabled = true;
+                    verifyBtn.classList.add('btn-cooldown-locked');
+                    verifyBtn.style.pointerEvents = 'none';
+                    verifyBtn.style.cursor = 'not-allowed';
+                    verifyBtn.style.opacity = '0.6';
+                } else {
+                    verifyBtn.disabled = profile.phone.length !== 10;
+                }
             }
         }
         if (profile.colonyName && colonyInput && (!colonyInput.value || colonyInput.value === '')) colonyInput.value = profile.colonyName;
@@ -21599,6 +21705,9 @@ window.switchTab = switchTab;
 window.handleChangePhoneNumber = handleChangePhoneNumber;
 window.handleRequestOtp = handleRequestOtp;
 window.handleVerifyOtp = handleVerifyOtp;
+window.startOtpResendTimer = startOtpResendTimer;
+window.setOtpButtonsCooldownState = setOtpButtonsCooldownState;
+window.otpResendCountdown = otpResendCountdown;
 window.openCustomerMapModal = openCustomerMapModal;
 window.closeCustomerMapModal = closeCustomerMapModal;
 window.closeCheckoutModal = closeCheckoutModal;
