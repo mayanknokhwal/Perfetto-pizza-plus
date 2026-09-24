@@ -7,9 +7,7 @@
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
-const PURGE_TIMESTAMP = 'purge_2026_09_24_fresh';
-window.PURGE_TIMESTAMP = PURGE_TIMESTAMP;
-const APP_LAUNCH_EPOCH = PURGE_TIMESTAMP;
+const APP_LAUNCH_EPOCH = 'launch_2026_v1';
 const STORAGE_VERSION = APP_LAUNCH_EPOCH;
 const APP_STORAGE_VERSION = APP_LAUNCH_EPOCH;
 window.APP_LAUNCH_EPOCH = APP_LAUNCH_EPOCH;
@@ -310,13 +308,11 @@ const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
 var isPhoneVerified = false;
 var currentTargetPhone = null;
 var currentUserProfile = null;
-var currentUser = null;
-var activeAddress = null;
 
 // --------------------------------------------------------------------------
 // CLIENT-SIDE STATE PURGE & ONE-TIME RESET EPOCH ENGINE
 // --------------------------------------------------------------------------
-const CLIENT_STATE_RESET_EPOCH = PURGE_TIMESTAMP;
+const CLIENT_STATE_RESET_EPOCH = '2026_09_RESET_V1';
 window.perfettoNextOrderNumber = 1;
 window.perfettoOrderCycleLimit = 9999;
 
@@ -469,80 +465,65 @@ function checkAndApplyClientStateReset() {
 window.checkAndApplyClientStateReset = checkAndApplyClientStateReset;
 
 /**
- * One-Time Global Client Storage & Cache Purge Engine:
- * When localStorage.getItem('app_reset_token') !== PURGE_TIMESTAMP:
- * - Executes localStorage.clear() and sessionStorage.clear().
- * - Sets localStorage.setItem('app_reset_token', PURGE_TIMESTAMP).
- * - Resets in-memory session: currentUser = null, activeAddress = null, cart = [].
- * - Unloads any stored profile (including +91 9414503886 and others), forcing a completely blank initial screen.
+ * Checks whether client-side localStorage needs a clean-slate purge based on APP_STORAGE_VERSION.
+ * Automatically clears lingering perfetto keys across returning devices without manual user actions.
  */
-function checkAndApplyGlobalClientPurge() {
+function checkAndApplyAppStorageVersion() {
     try {
         if (typeof localStorage === 'undefined') return;
-        const storedToken = localStorage.getItem('app_reset_token');
-        if (storedToken !== PURGE_TIMESTAMP) {
-            console.warn(`🧹 [HARD RESET] Reset marker mismatch (stored: "${storedToken}", required: "${PURGE_TIMESTAMP}"). Purging all client storage & session...`);
+        const storedEpoch = localStorage.getItem('app_version');
+        const storedVersion = localStorage.getItem('perfetto_app_storage_version') || localStorage.getItem('perfetto_storage_version');
+        if (storedEpoch !== APP_LAUNCH_EPOCH || storedVersion !== APP_LAUNCH_EPOCH) {
+            console.warn(`🧹 [Launch Migration] Epoch mismatch (stored: "${storedEpoch || storedVersion}", required: "${APP_LAUNCH_EPOCH}"). Executing complete customer storage wipe.`);
 
-            // 1. Complete wipe of customer storage & session
-            try { localStorage.clear(); } catch (e) {}
-            try { if (typeof sessionStorage !== 'undefined') sessionStorage.clear(); } catch (e) {}
-
-            // 2. Set reset marker and version tokens
-            localStorage.setItem('app_reset_token', PURGE_TIMESTAMP);
-            localStorage.setItem('app_version', PURGE_TIMESTAMP);
-            localStorage.setItem('perfetto_app_storage_version', PURGE_TIMESTAMP);
-            localStorage.setItem('perfetto_storage_version', PURGE_TIMESTAMP);
-            localStorage.setItem('PERFETTO_STATE_EPOCH', PURGE_TIMESTAMP);
-
-            // 3. Reset in-memory session: currentUser = null, activeAddress = null, cart = []
-            currentUser = null;
-            currentUserProfile = null;
-            activeAddress = null;
-            isPhoneVerified = false;
-            currentTargetPhone = null;
-            if (typeof cart !== 'undefined' && Array.isArray(cart)) {
-                cart.length = 0;
+            // 1. Complete wipe of customer storage
+            if (typeof localStorage !== 'undefined') {
+                localStorage.clear();
+            }
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.clear();
             }
 
-            // 4. Reset in-memory wallet state to strict clean baseline
+            // 2. Set official launch epoch keys
+            localStorage.setItem('app_version', APP_LAUNCH_EPOCH);
+            localStorage.setItem('perfetto_app_storage_version', APP_LAUNCH_EPOCH);
+            localStorage.setItem('perfetto_storage_version', APP_LAUNCH_EPOCH);
+            localStorage.setItem('PERFETTO_STATE_EPOCH', APP_LAUNCH_EPOCH);
+
+            // 3. Reset in-memory wallet state to strict default
             currentCustomerWallet = {
                 balance: 0,
                 nonExpiredBalance: 0,
-                usableBalance: 0,
                 transactions: [],
-                activeCashbackSlabs: [],
-                expired: false
+                activeCashbackSlabs: []
             };
-
             if (typeof window !== 'undefined') {
-                window.currentUser = null;
-                window.currentUserProfile = null;
-                window.activeAddress = null;
-                window.cart = [];
-                window.isPhoneVerified = false;
-                window.currentTargetPhone = null;
                 window.currentCustomerWallet = currentCustomerWallet;
             }
 
-            // 5. Unload any stored profile (including +91 9414503886 and others), forcing a completely blank initial screen
-            const clearProfileFormFields = () => {
-                const targetFieldIds = [
-                    'profile-name', 'profile-phone', 'profile-email', 'profile-address',
-                    'profile-ward', 'profile-colony', 'profile-street', 'profile-nearby',
-                    'phone-input', 'checkout-phone-input', 'modal-phone-input',
-                    'user-name', 'user-phone', 'user-email', 'user-address'
-                ];
-                targetFieldIds.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.value = '';
-                });
-            };
-            clearProfileFormFields();
-            if (typeof document !== 'undefined') {
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', clearProfileFormFields);
-                }
+            // 4. Remove any lingering testing customer profile details and delivery addresses
+            currentUserProfile = null;
+            isPhoneVerified = false;
+            currentTargetPhone = null;
+            if (typeof window !== 'undefined') {
+                window.currentUserProfile = null;
+                window.isPhoneVerified = false;
+                window.currentTargetPhone = null;
             }
+
+            // 5. Clear profile and sign-up form fields if DOM is present
+            try {
+                const pName = document.getElementById('profile-name');
+                const pPhone = document.getElementById('profile-phone');
+                const pEmail = document.getElementById('profile-email');
+                const pAddress = document.getElementById('profile-address');
+                if (pName) pName.value = '';
+                if (pPhone) pPhone.value = '';
+                if (pEmail) pEmail.value = '';
+                if (pAddress) pAddress.value = '';
+                const phoneInput = document.getElementById('phone-input');
+                if (phoneInput) phoneInput.value = '';
+            } catch (e) {}
 
             // 6. Reset UI views to clean initial state
             try {
@@ -554,101 +535,22 @@ function checkAndApplyGlobalClientPurge() {
                 if (typeof renderOrderHistoryDetails === 'function') renderOrderHistoryDetails();
             } catch (e) {}
 
-            console.log(`✅ [HARD RESET] Client storage cleansed. App reset marker '${PURGE_TIMESTAMP}' active. Blank initial screen ready.`);
+            console.log(`✅ [App] Customer storage wiped clean and initialized to ${APP_LAUNCH_EPOCH}. Ready for new customer sign-up.`);
         }
     } catch (err) {
-        console.warn('[HARD RESET] Error in checkAndApplyGlobalClientPurge:', err);
+        console.warn('[App] Error in checkAndApplyAppStorageVersion:', err);
     }
 }
-window.checkAndApplyGlobalClientPurge = checkAndApplyGlobalClientPurge;
-const checkAndApplyAppStorageVersion = checkAndApplyGlobalClientPurge;
 window.checkAndApplyAppStorageVersion = checkAndApplyAppStorageVersion;
 
-/**
- * Complete Firestore Customer & Order Cleanup Routine:
- * Safely purges testing collections from Firestore:
- * - Collection 'orders': Batch-deletes all lingering test orders across all statuses.
- * - Collection 'users' / 'customers': Deletes existing customer documents, wiping stale fields.
- * - Collection 'wallets': Truncates/deletes wallet ledger history.
- * @param {boolean} [force=false]
- * @returns {Promise<{success: boolean, error?: string}>}
- */
-async function executeFirestoreCustomerCleanupRoutine(force = false) {
-    try {
-        if (typeof localStorage !== 'undefined') {
-            const stored = localStorage.getItem('firestore_customer_cleanup_token');
-            if (!force && stored === PURGE_TIMESTAMP) {
-                return { success: true, alreadyCleaned: true };
-            }
-        }
-        const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || customerFirestore;
-        if (!fs) return { success: false, reason: 'Firestore not available' };
-
-        console.warn(`🚀 [FIRESTORE CLEANUP] Purging test orders, customers, and wallets (Token: ${PURGE_TIMESTAMP})...`);
-
-        // 1. Collection 'orders'
-        try {
-            const oSnap = await fs.collection('orders').get();
-            if (!oSnap.empty) {
-                const batch = fs.batch();
-                oSnap.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-                console.log(`  ✓ Batch deleted ${oSnap.size} order(s) from 'orders' collection.`);
-            }
-        } catch (e) {
-            console.warn('Orders cleanup note:', e.message);
-        }
-
-        // 2. Collection 'users'
-        try {
-            const uSnap = await fs.collection('users').get();
-            if (!uSnap.empty) {
-                const batch = fs.batch();
-                uSnap.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-                console.log(`  ✓ Cleared ${uSnap.size} customer record(s) from 'users' collection.`);
-            }
-        } catch (e) {
-            console.warn('Users cleanup note:', e.message);
-        }
-
-        // 3. Collection 'wallets'
-        try {
-            const wSnap = await fs.collection('wallets').get();
-            if (!wSnap.empty) {
-                const batch = fs.batch();
-                wSnap.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-                console.log(`  ✓ Cleared ${wSnap.size} wallet(s) from 'wallets' collection.`);
-            }
-        } catch (e) {
-            console.warn('Wallets cleanup note:', e.message);
-        }
-
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('firestore_customer_cleanup_token', PURGE_TIMESTAMP);
-        }
-        return { success: true };
-    } catch (err) {
-        console.error('Error during Firestore customer cleanup:', err);
-        return { success: false, error: err.message };
-    }
-}
-window.executeFirestoreCustomerCleanupRoutine = executeFirestoreCustomerCleanupRoutine;
-
-// Proactively execute client app storage purge on script load
+// Proactively execute client app storage version check on script load
 try {
-    checkAndApplyGlobalClientPurge();
+    checkAndApplyAppStorageVersion();
 } catch (e) {}
 
 // Proactively execute one-time state reset check on script load
 try {
     checkAndApplyClientStateReset();
-} catch (e) {}
-
-// Proactively execute Firestore cleanup routine
-try {
-    executeFirestoreCustomerCleanupRoutine().catch(() => {});
 } catch (e) {}
 
 let orderCounterUnsubscribe = null;
@@ -1406,26 +1308,6 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
                 profile.isVerified = true;
                 safeStorage.setJSON(DELIVERY_PROFILE_KEY, profile);
                 safeStorage.setJSON(`customerDeliveryProfile_${cleanPhone}`, profile);
-            }
-
-            // Baseline Wallet Initialization: strictly ₹0, empty transactions, no stale flags
-            if (!currentCustomerWallet || currentCustomerWallet.phone !== cleanPhone || typeof currentCustomerWallet.balance !== 'number') {
-                currentCustomerWallet = {
-                    phone: cleanPhone,
-                    balance: 0,
-                    nonExpiredBalance: 0,
-                    usableBalance: 0,
-                    transactions: [],
-                    activeCashbackSlabs: [],
-                    expired: false
-                };
-                if (typeof window !== 'undefined') {
-                    window.currentCustomerWallet = currentCustomerWallet;
-                }
-                safeStorage.setItem('perfetto_wallet_balance', '0');
-                safeStorage.setItem(`perfetto_wallet_balance_${cleanPhone}`, '0');
-                safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
-                safeStorage.setJSON(`perfetto_customer_wallet_${cleanPhone}`, currentCustomerWallet);
             }
 
             // Only trigger restore if explicitly requested and not already verified to prevent recursive loops
@@ -14745,14 +14627,13 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             }
 
             // Restore Wallet Balance permanently bound to this mobile number
-            const restoredBalance = Math.max(0, Number(u.walletBalance !== undefined ? u.walletBalance : (u.balance !== undefined ? u.balance : 0)));
+            const restoredBalance = Number(u.walletBalance !== undefined ? u.walletBalance : (u.balance !== undefined ? u.balance : 0));
 
             let activeDays = getClampedCashbackExpiryDays(customerWalletConfig);
-            if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, usableBalance: 0, transactions: [], activeCashbackSlabs: [] };
+            if (!currentCustomerWallet) currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
             currentCustomerWallet.phone = cleanPhone || restoredProfile.phone;
             currentCustomerWallet.balance = restoredBalance;
             currentCustomerWallet.nonExpiredBalance = restoredBalance;
-            currentCustomerWallet.usableBalance = restoredBalance;
             currentCustomerWallet.expiresAt = u.walletExpiresAt || u.expiresAt || null;
             currentCustomerWallet.expiryDays = u.walletExpiryDays || u.expiryDays || activeDays;
             currentCustomerWallet.cashbackExpiryDays = u.cashbackExpiryDays || activeDays;
@@ -14762,20 +14643,14 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                 ? u.walletTransactions
                 : (Array.isArray(u.transactions) && u.transactions.length > 0 ? u.transactions : []);
             
-            // Baseline Clean Ledger: If balance is 0 or transactions array is empty, strictly initialize baseline empty state
-            if (restoredBalance <= 0 || uTxs.length === 0) {
-                currentCustomerWallet.balance = 0;
-                currentCustomerWallet.nonExpiredBalance = 0;
-                currentCustomerWallet.usableBalance = 0;
+            // Database-First Ledger Sync: Discard orphan local transactions if active record shows balance = 0 or empty transactions
+            if (restoredBalance === 0 || uTxs.length === 0) {
                 currentCustomerWallet.transactions = [];
-                currentCustomerWallet.activeCashbackSlabs = [];
-                currentCustomerWallet.expired = false;
-                currentCustomerWallet.expiresAt = null;
             } else {
                 const existingTx = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
                 currentCustomerWallet.transactions = mergeAndPreserveWalletTransactions(existingTx, uTxs).slice(0, 15);
-                reconcileWalletTranches(currentCustomerWallet);
             }
+            reconcileWalletTranches(currentCustomerWallet);
             localStorage.setItem('perfetto_wallet_balance', String(currentCustomerWallet.balance || 0));
             if (currentCustomerWallet.phone) {
                 localStorage.setItem(`perfetto_wallet_balance_${currentCustomerWallet.phone}`, String(currentCustomerWallet.balance || 0));
