@@ -1166,14 +1166,24 @@ function toggleShakeIceCreamAddon(itemId, event) {
 window.toggleShakeIceCreamAddon = toggleShakeIceCreamAddon;
 
 function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
+    const allItems = getAllCustomerMenuItems();
+    const itemObj = allItems.find(i => i.id === itemId || i.name === itemName);
+    const resolvedId = (itemObj && itemObj.id) || itemId;
+    const resolvedName = (itemObj && itemObj.name) || itemName;
+
     if (isCategoryAddonIneligible(categoryName)) {
-        return addToCart(itemName, basePrice, itemImg, [], basePrice);
+        return addToCart(itemName, basePrice, itemImg, [], basePrice, {
+            baseId: resolvedId,
+            productId: resolvedId,
+            id: resolvedId,
+            baseName: resolvedName,
+            originalTitle: resolvedName,
+            category: categoryName
+        });
     }
     const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false, iceCream: false };
     const catAddons = getCustomerCategoryAddons(categoryName);
     
-    const allItems = getAllCustomerMenuItems();
-    const itemObj = allItems.find(i => i.id === itemId || i.name === itemName);
     const origBasePrice = (itemObj && itemObj.price) ? itemObj.price : basePrice;
     const discInfo = getItemEffectiveDiscount(itemObj);
     const effectiveBasePrice = discInfo.isDiscountActive
@@ -1213,7 +1223,14 @@ function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, item
         }
     }
 
-    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice);
+    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice, {
+        baseId: resolvedId,
+        productId: resolvedId,
+        id: resolvedId,
+        baseName: resolvedName,
+        originalTitle: resolvedName,
+        category: categoryName
+    });
 }
 window.addCardWithAddonsToCart = addCardWithAddonsToCart;
 window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
@@ -1328,13 +1345,14 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
     const otpBox = document.getElementById('otp-verification-box');
     const phoneInput = document.getElementById('customer-phone');
 
+    if (changeBtn) changeBtn.style.display = 'none';
+
     if (verified) {
         isPhoneVerified = true;
         if (badge) {
             badge.style.display = 'inline-flex';
             badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Verified';
         }
-        if (changeBtn) changeBtn.style.display = 'inline-flex';
         if (verifyBtn) verifyBtn.style.display = 'none';
         if (otpBox) otpBox.style.display = 'none';
 
@@ -1354,10 +1372,33 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
         if (verifyBtn) {
             verifyBtn.style.display = 'inline-flex';
             const currentLen = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
-            verifyBtn.disabled = currentLen !== 10;
-            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+            if (otpResendCountdown > 0 || isOtpSendingInProgress) {
+                verifyBtn.disabled = true;
+                verifyBtn.classList.add('btn-cooldown-locked');
+                verifyBtn.style.pointerEvents = 'none';
+                verifyBtn.style.cursor = 'not-allowed';
+                verifyBtn.style.opacity = '0.6';
+            } else {
+                verifyBtn.disabled = currentLen !== 10;
+                verifyBtn.classList.remove('btn-cooldown-locked');
+                verifyBtn.style.pointerEvents = '';
+                verifyBtn.style.cursor = '';
+                verifyBtn.style.opacity = '';
+            }
+            if (!verifyBtn.innerHTML.includes('Sending...')) {
+                verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+            }
         }
-        if (otpBox) otpBox.style.display = 'none';
+
+        // PRESERVE active OTP box if countdown is running, sending is in flight, or draft shows OTP box active
+        if (otpBox) {
+            const shouldKeepOtpBox = (otpResendCountdown > 0) || isOtpSendingInProgress || (typeof profileFormDraft !== 'undefined' && profileFormDraft && profileFormDraft.isOtpBoxVisible);
+            if (shouldKeepOtpBox) {
+                otpBox.style.display = 'block';
+            } else {
+                otpBox.style.display = 'none';
+            }
+        }
 
         if (phoneInput) {
             phoneInput.readOnly = false;
@@ -1453,7 +1494,30 @@ function loadCartFromStorage() {
         checkAndApplyClientStateReset();
     }
     const parsed = safeStorage.getJSON(CART_STORAGE_KEY, []);
-    return Array.isArray(parsed) ? parsed : [];
+    const items = Array.isArray(parsed) ? parsed : [];
+    items.forEach(item => {
+        if (!item || typeof item !== 'object') return;
+        if (item.type === 'combo' || item.isComboBundle) return;
+        if (!item.baseName || item.baseName === item.name) {
+            const clean = (item.baseName || item.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim();
+            if (clean) {
+                item.baseName = clean;
+                if (!item.originalTitle) item.originalTitle = clean;
+            }
+        }
+        if (!item.baseId && item.id) {
+            item.baseId = item.id;
+            item.productId = item.id;
+        } else if (item.baseId && !item.productId) {
+            item.productId = item.baseId;
+        } else if (item.productId && !item.baseId) {
+            item.baseId = item.productId;
+        }
+    });
+    return items;
 }
 
 function saveCartToStorage() {
@@ -1657,15 +1721,15 @@ function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHo
             reconcileWalletTranches(currentCustomerWallet);
         }
         updateProfileTotalsUI();
-        const savedP = getSavedDeliveryProfile();
-        if (savedP && savedP.phone) {
-            listenToCustomerWalletRealtime(savedP.phone);
+        const verifiedP = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        if (verifiedP) {
+            listenToCustomerWalletRealtime(verifiedP);
         }
     }
     if (tabName === 'cart') {
-        const savedP = getSavedDeliveryProfile();
-        if (savedP && savedP.phone) {
-            listenToCustomerWalletRealtime(savedP.phone);
+        const verifiedP = typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null;
+        if (verifiedP) {
+            listenToCustomerWalletRealtime(verifiedP);
         }
     }
     if (tabName === 'profile' || tabName === 'home') {
@@ -2674,15 +2738,23 @@ function syncCartWithLatestMenu(freshItems) {
             ? cartItem.addons.reduce((sum, a) => sum + (Number(a && typeof a === 'object' ? a.price : 0) || 0), 0)
             : 0;
 
-        // 1. Check if it's a Pizza with size e.g. "Hot Country (M)"
-        const sizeMatch = (cartItem.name || '').match(/^(.+?)\s*\((S|M|L)\)(.*)$/i);
-        if (sizeMatch) {
-            const pizzaName = sizeMatch[1].trim().toLowerCase();
-            const size = sizeMatch[2].toUpperCase();
-            const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === pizzaName) || (m.id && m.id.toLowerCase() === pizzaName));
+        const sizeMatch = (cartItem.name || '').match(/\((S|M|L)\)/i);
+        const itemSize = (cartItem.size || (sizeMatch ? sizeMatch[1] : '')).toUpperCase();
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+
+        if (itemSize && (itemSize === 'S' || itemSize === 'M' || itemSize === 'L')) {
+            const pizzaName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
+            const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
+                (m.name && m.name.toLowerCase() === pizzaName) ||
+                (m.id && m.id.toLowerCase() === pizzaName)
+            );
             if (menuItem) {
-                if (menuItem.prices && menuItem.prices[size] !== undefined) {
-                    const freshBasePrice = Number(menuItem.prices[size]);
+                if (menuItem.prices && menuItem.prices[itemSize] !== undefined) {
+                    const freshBasePrice = Number(menuItem.prices[itemSize]);
                     const effBasePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
                     const expectedTotal = effBasePrice + addonsSum;
                     if (cartItem.price !== expectedTotal) {
@@ -2690,18 +2762,26 @@ function syncCartWithLatestMenu(freshItems) {
                         changed = true;
                     }
                 }
-                if (menuItem.available === false && cartItem.available !== false) {
+                const isAvail = isProductAvailable(menuItem);
+                if (!isAvail && cartItem.available !== false) {
                     cartItem.available = false;
                     changed = true;
-                } else if (menuItem.available !== false && cartItem.available === false) {
+                } else if (isAvail && cartItem.available === false) {
                     cartItem.available = true;
                     changed = true;
                 }
             }
         } else {
             // 2. Regular item (Burger, Bread, Shake, etc.)
-            const cleanName = (cartItem.name || '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
-            const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === cleanName) || (m.id && m.id === cartItem.id));
+            const cleanName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
+            const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
+                (m.name && m.name.toLowerCase() === cleanName) ||
+                (m.id && m.id === cartItem.id)
+            );
             if (menuItem) {
                 if (menuItem.price !== undefined) {
                     const freshBasePrice = Number(menuItem.price);
@@ -2712,10 +2792,11 @@ function syncCartWithLatestMenu(freshItems) {
                         changed = true;
                     }
                 }
-                if (menuItem.available === false && cartItem.available !== false) {
+                const isAvail = isProductAvailable(menuItem);
+                if (!isAvail && cartItem.available !== false) {
                     cartItem.available = false;
                     changed = true;
-                } else if (menuItem.available !== false && cartItem.available === false) {
+                } else if (isAvail && cartItem.available === false) {
                     cartItem.available = true;
                     changed = true;
                 }
@@ -2852,12 +2933,29 @@ function validateCartAvailability() {
     const unavailableInCart = [];
 
     cart.forEach(cartItem => {
-        const cleanName = (cartItem.name || '').replace(/\s*\([SML]\)$/i, '').trim();
+        if (cartItem.type === 'combo' || cartItem.isComboBundle) {
+            return;
+        }
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+        const cleanBase = (cartItem.baseName || cartItem.originalTitle || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+        const fallbackClean = (cartItem.name || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+
         const found = allItems.find(i =>
-            (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) ||
-            (i.id && cartItem.id && i.id === cartItem.id)
+            (targetId && i.id && String(i.id).toLowerCase() === String(targetId).toLowerCase()) ||
+            (cleanBase && i.name && i.name.toLowerCase() === cleanBase) ||
+            (cleanBase && i.id && i.id.toLowerCase() === cleanBase) ||
+            (fallbackClean && i.name && i.name.toLowerCase() === fallbackClean) ||
+            (fallbackClean && i.id && i.id.toLowerCase() === fallbackClean)
         );
-        if (found && !isProductAvailable(found)) {
+        if (found && (!isProductAvailable(found) || found.isAvailable === false || found.outOfStock === true)) {
             unavailableInCart.push(cartItem.name);
         }
     });
@@ -2938,15 +3036,26 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
         if (cartItem.type === 'combo' || cartItem.isComboBundle) {
             return;
         }
-        const cleanName = (cartItem.name || '')
-            .replace(/\s*\([SML]\)$/i, '')
-            .replace(/\s*\(\+.*?\)$/i, '')
-            .trim();
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+        const cleanBase = (cartItem.baseName || cartItem.originalTitle || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+        const fallbackClean = (cartItem.name || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+
         const found = freshItems.find(i =>
-            (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) ||
-            (i.id && cartItem.id && i.id === cartItem.id)
+            (targetId && i.id && String(i.id).toLowerCase() === String(targetId).toLowerCase()) ||
+            (cleanBase && i.name && i.name.toLowerCase() === cleanBase) ||
+            (cleanBase && i.id && i.id.toLowerCase() === cleanBase) ||
+            (fallbackClean && i.name && i.name.toLowerCase() === fallbackClean) ||
+            (fallbackClean && i.id && i.id.toLowerCase() === fallbackClean)
         );
-        if (!found || !isProductAvailable(found)) {
+        if (!found || !isProductAvailable(found) || found.isAvailable === false || found.outOfStock === true) {
             unavailableItems.push(cartItem.name);
         }
     });
@@ -2975,15 +3084,21 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
             : 0;
 
         const sizeMatch = (cartItem.name || '').match(/\((S|M|L)\)/i);
-        if (sizeMatch) {
-            const pizzaName = (cartItem.name || '').replace(/\s*\([SML]\).*/i, '').trim().toLowerCase();
-            const size = sizeMatch[1].toUpperCase();
+        const itemSize = (cartItem.size || (sizeMatch ? sizeMatch[1] : '')).toUpperCase();
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+
+        if (itemSize && (itemSize === 'S' || itemSize === 'M' || itemSize === 'L')) {
+            const pizzaName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
             const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
                 (m.name && m.name.toLowerCase() === pizzaName) ||
                 (m.id && m.id.toLowerCase() === pizzaName)
             );
-            if (menuItem && menuItem.prices && menuItem.prices[size] !== undefined) {
-                const freshBasePrice = Number(menuItem.prices[size]);
+            if (menuItem && menuItem.prices && menuItem.prices[itemSize] !== undefined) {
+                const freshBasePrice = Number(menuItem.prices[itemSize]);
                 if (!isNaN(freshBasePrice) && freshBasePrice > 0) {
                     const effectivePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
                     const expectedTotal = effectivePrice + addonsSum;
@@ -2994,8 +3109,12 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
                 }
             }
         } else {
-            const cleanName = (cartItem.name || '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
+            const cleanName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
             const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
                 (m.name && m.name.toLowerCase() === cleanName) ||
                 (m.id && m.id === cartItem.id)
             );
@@ -3168,7 +3287,15 @@ function addPizzaToCart(pizzaId, event) {
     }
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
-    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice);
+    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice, {
+        baseId: item.id || pizzaId,
+        productId: item.id || pizzaId,
+        id: item.id || pizzaId,
+        baseName: item.name,
+        originalTitle: item.name,
+        size: selectedSize,
+        category: 'Pizza'
+    });
 }
 
 function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
@@ -9232,12 +9359,31 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         return false;
     }
 
-    // Check if item is marked out-of-stock in latest menu data
+    // Extract size if specified or embedded in name
+    const sizeMatch = (name || '').match(/\((S|M|L)\)/i);
+    const itemSize = (options && options.size) || (sizeMatch ? sizeMatch[1].toUpperCase() : '');
+
+    // Extract clean base product title without size and without addons
+    const cleanBaseName = (options && (options.baseName || options.originalTitle)) ||
+        (name || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim();
+
+    // Check if item is marked out-of-stock in latest menu data by matching root identifiers
     const allItems = getAllCustomerMenuItems();
-    const cleanName = (name || '').replace(/\s*\([SML]\)$/i, '').replace(/\s*\(\+.*?\)$/i, '').trim();
-    const menuItem = allItems.find(i => (i.name && i.name.toLowerCase() === cleanName.toLowerCase()));
-    if (menuItem && !isProductAvailable(menuItem)) {
-        showToast(`⚠️ "${cleanName}" is currently out of stock.`);
+    const targetId = options && (options.baseId || options.productId || options.id);
+    const menuItem = allItems.find(i =>
+        (targetId && i.id && String(i.id).toLowerCase() === String(targetId).toLowerCase()) ||
+        (i.name && i.name.toLowerCase() === cleanBaseName.toLowerCase()) ||
+        (i.id && String(i.id).toLowerCase() === cleanBaseName.toLowerCase())
+    );
+
+    const baseCatalogId = targetId || (menuItem && menuItem.id) || '';
+    const plainCatalogTitle = (menuItem && menuItem.name) || cleanBaseName;
+
+    if (menuItem && (!isProductAvailable(menuItem) || menuItem.isAvailable === false || menuItem.outOfStock === true)) {
+        showToast(`⚠️ "${plainCatalogTitle}" is currently out of stock.`);
         return false;
     }
 
@@ -9257,18 +9403,19 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     // Strip and disallow any add-ons if product belongs to an ineligible category
     if ((menuItem && isCategoryAddonIneligible(menuItem.category)) || 
         (options && isCategoryAddonIneligible(options.category)) || 
-        isCategoryAddonIneligible(cleanName)) {
+        isCategoryAddonIneligible(plainCatalogTitle)) {
         addons = [];
-        name = name.replace(/\s*\(\+.*?\)$/i, '').trim();
+        name = name.replace(/\s*\(\+.*?\)/gi, '').trim();
     }
 
     // Build item name and identifier taking add-ons into account
+    const baseFormattedName = (name || '').replace(/\s*\(\+.*?\)/gi, '').trim();
     const addonNames = Array.isArray(addons)
-        ? addons.map(a => typeof a === 'string' ? a : a.name).filter(Boolean)
+        ? addons.map(a => typeof a === 'string' ? a : (a && a.name)).filter(Boolean)
         : [];
     const fullItemName = addonNames.length > 0
-        ? `${name} (+${addonNames.join(', ')})`
-        : name;
+        ? `${baseFormattedName} (+${addonNames.join(', ')})`
+        : baseFormattedName;
 
     const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo) === isBannerDeal);
     if (existingIndex > -1) {
@@ -9282,19 +9429,36 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         cart[existingIndex].qty += 1;
         cart[existingIndex].price = effPrice;
         cart[existingIndex].originalPrice = origPrice;
+        if (baseCatalogId && !cart[existingIndex].baseId) {
+            cart[existingIndex].baseId = baseCatalogId;
+            cart[existingIndex].productId = baseCatalogId;
+            if (!cart[existingIndex].id) cart[existingIndex].id = baseCatalogId;
+        }
+        if (!cart[existingIndex].baseName || cart[existingIndex].baseName === fullItemName) {
+            cart[existingIndex].baseName = plainCatalogTitle;
+            cart[existingIndex].originalTitle = plainCatalogTitle;
+        }
         if (isBannerDeal) {
             cart[existingIndex].isBannerDeal = true;
             cart[existingIndex].isSpotlightDeal = true;
             cart[existingIndex].appliedPrice = effPrice;
         }
     } else {
+        const displayTitle = baseFormattedName;
         cart.push({
+            id: baseCatalogId,
+            baseId: baseCatalogId,
+            productId: baseCatalogId,
             name: fullItemName,
-            baseName: name,
+            baseName: plainCatalogTitle,
+            originalTitle: plainCatalogTitle,
+            displayName: displayTitle,
+            displayTitle: displayTitle,
+            size: itemSize || undefined,
             price: effPrice,
             originalPrice: origPrice,
             qty: 1,
-            img: img || '',
+            img: img || (menuItem && menuItem.img) || '',
             addons: addons,
             isBannerDeal: isBannerDeal,
             isSpotlightDeal: isSpotlightDeal,
@@ -9305,7 +9469,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     updateCartUI();
 
     if (!options || !options.skipToast) {
-        const cleanToastItemName = String(name || '').replace(/\s*\(\+.*?\)$/i, '').trim();
+        const cleanToastItemName = String(baseFormattedName || plainCatalogTitle || '').trim();
         showToast(`Added ${cleanToastItemName} to your cart!`);
     }
     return true;
@@ -10009,7 +10173,7 @@ function updateCartUI() {
                 <div class="cart-item-card cart-item-free-gift">
                     <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                     <div class="cart-item-info">
-                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
+                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name))) : (item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name)))}${bannerBadgeMarkup}</h5>
                         ${addonTagsMarkup}
                         ${priceMarkup}
                     </div>
@@ -10038,7 +10202,7 @@ function updateCartUI() {
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
-                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
+                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name))) : (item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name)))}${bannerBadgeMarkup}</h5>
                     ${addonTagsMarkup}
                     ${priceMarkup}
                 </div>
@@ -10176,7 +10340,8 @@ function getSavedDeliveryProfile() {
             const nearBy = (profile.nearBy || (profile.address && profile.address.nearBy) || '').trim();
             const streetName = (profile.streetName || (profile.address && profile.address.streetName) || '').trim();
             const wardNo = (profile.wardNo || (profile.address && profile.address.wardNo) || '').trim();
-            const isVerified = profile.isVerified === true || profile.isPhoneVerified === true;
+            const storedVerifiedPhone = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : null;
+            const isVerified = Boolean(storedVerifiedPhone && phone && phone === storedVerifiedPhone);
             let gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
             let gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
             if ((gpsLat === null || isNaN(gpsLat)) && profile.gps && profile.gps.lat !== undefined && profile.gps.lat !== null) {
@@ -11255,8 +11420,158 @@ function initPhoneInputRestrictions() {
 }
 
 // --------------------------------------------------------------------------
-// EDIT PROFILE & HOME ADDRESS POPUP MODAL CONTROLLER
+// EDIT PROFILE & HOME ADDRESS POPUP MODAL CONTROLLER & FORM DRAFT PERSISTENCE
 // --------------------------------------------------------------------------
+let profileFormDraft = {
+    fullName: '',
+    phone: '',
+    colonyName: '',
+    nearBy: '',
+    streetName: '',
+    wardNo: '',
+    email: '',
+    isOtpBoxVisible: false,
+    otpValue: '',
+    hasOtpBeenRequested: false,
+    lat: '',
+    lng: '',
+    isLiveGps: false
+};
+window.profileFormDraft = profileFormDraft;
+
+function saveProfileFormDraft() {
+    const fullNameInput = document.getElementById('customer-fullname');
+    const phoneInput = document.getElementById('customer-phone');
+    const colonyInput = document.getElementById('customer-colony-name');
+    const nearbyInput = document.getElementById('customer-nearby');
+    const streetInput = document.getElementById('customer-street-name');
+    const wardInput = document.getElementById('customer-ward-no');
+    const emailInput = document.getElementById('customer-email');
+    const otpBox = document.getElementById('otp-verification-box');
+    const otpInput = document.getElementById('otp-input');
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const isLiveHidden = document.getElementById('customer-gps-is-live');
+
+    const isOtpBoxVisible = otpBox ? (otpBox.style.display !== 'none' && otpBox.style.display !== '') : false;
+
+    profileFormDraft = {
+        fullName: fullNameInput && fullNameInput.value ? fullNameInput.value : (profileFormDraft.fullName || ''),
+        phone: phoneInput && phoneInput.value ? phoneInput.value : (profileFormDraft.phone || ''),
+        colonyName: colonyInput && colonyInput.value ? colonyInput.value : (profileFormDraft.colonyName || ''),
+        nearBy: nearbyInput && nearbyInput.value ? nearbyInput.value : (profileFormDraft.nearBy || ''),
+        streetName: streetInput && streetInput.value ? streetInput.value : (profileFormDraft.streetName || ''),
+        wardNo: wardInput && wardInput.value ? wardInput.value : (profileFormDraft.wardNo || ''),
+        email: emailInput && emailInput.value ? emailInput.value : (profileFormDraft.email || ''),
+        isOtpBoxVisible: isOtpBoxVisible || (otpResendCountdown > 0) || Boolean(profileFormDraft.isOtpBoxVisible),
+        otpValue: otpInput && otpInput.value ? otpInput.value : (profileFormDraft.otpValue || ''),
+        hasOtpBeenRequested: (otpResendCountdown > 0) || isOtpBoxVisible || Boolean(profileFormDraft.hasOtpBeenRequested),
+        lat: latHidden && latHidden.value ? latHidden.value : (currentCustomerGps ? String(currentCustomerGps.lat) : (profileFormDraft.lat || '')),
+        lng: lngHidden && lngHidden.value ? lngHidden.value : (currentCustomerGps ? String(currentCustomerGps.lng) : (profileFormDraft.lng || '')),
+        isLiveGps: isLiveHidden && isLiveHidden.value === 'true' ? true : (currentCustomerGps ? Boolean(currentCustomerGps.isLiveGps) : Boolean(profileFormDraft.isLiveGps))
+    };
+    window.profileFormDraft = profileFormDraft;
+    return profileFormDraft;
+}
+window.saveProfileFormDraft = saveProfileFormDraft;
+
+function restoreProfileFormDraft() {
+    if (!profileFormDraft) return;
+    const fullNameInput = document.getElementById('customer-fullname');
+    const phoneInput = document.getElementById('customer-phone');
+    const colonyInput = document.getElementById('customer-colony-name');
+    const nearbyInput = document.getElementById('customer-nearby');
+    const streetInput = document.getElementById('customer-street-name');
+    const wardInput = document.getElementById('customer-ward-no');
+    const emailInput = document.getElementById('customer-email');
+    const otpBox = document.getElementById('otp-verification-box');
+    const otpInput = document.getElementById('otp-input');
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const isLiveHidden = document.getElementById('customer-gps-is-live');
+    const statusBadge = document.getElementById('gps-status-badge');
+    const coordsDisplay = document.getElementById('gps-coordinates-display');
+    const coordsText = document.getElementById('gps-coords-text');
+    const gpsContainer = document.querySelector('.full-width-gps-field');
+    const mapBtn = document.getElementById('btn-open-map-modal');
+    const gpsBtnText = document.getElementById('gps-btn-text');
+
+    if (fullNameInput && profileFormDraft.fullName) {
+        fullNameInput.value = profileFormDraft.fullName;
+    }
+    if (phoneInput && profileFormDraft.phone) {
+        phoneInput.value = profileFormDraft.phone;
+    }
+    if (colonyInput && profileFormDraft.colonyName) {
+        colonyInput.value = profileFormDraft.colonyName;
+    }
+    if (nearbyInput && profileFormDraft.nearBy) {
+        nearbyInput.value = profileFormDraft.nearBy;
+    }
+    if (streetInput && profileFormDraft.streetName) {
+        streetInput.value = profileFormDraft.streetName;
+    }
+    if (wardInput && profileFormDraft.wardNo) {
+        wardInput.value = profileFormDraft.wardNo;
+    }
+    if (emailInput && profileFormDraft.email) {
+        emailInput.value = profileFormDraft.email;
+    }
+
+    // Retain OTP verification box & active state if OTP was active or requested
+    if (profileFormDraft.isOtpBoxVisible || profileFormDraft.hasOtpBeenRequested || otpResendCountdown > 0 || isOtpSendingInProgress) {
+        if (otpBox) {
+            otpBox.style.display = 'block';
+        }
+        if (otpInput && profileFormDraft.otpValue) {
+            otpInput.value = profileFormDraft.otpValue;
+        }
+        if (typeof setOtpButtonsCooldownState === 'function') {
+            setOtpButtonsCooldownState(otpResendCountdown > 0 || isOtpSendingInProgress);
+        }
+    }
+
+    // Retain verified / pinned GPS state
+    const effectiveLat = profileFormDraft.lat || (latHidden ? latHidden.value : '') || (currentCustomerGps ? String(currentCustomerGps.lat) : '');
+    const effectiveLng = profileFormDraft.lng || (lngHidden ? lngHidden.value : '') || (currentCustomerGps ? String(currentCustomerGps.lng) : '');
+    const effectiveIsLive = profileFormDraft.isLiveGps || (isLiveHidden && isLiveHidden.value === 'true') || (currentCustomerGps && currentCustomerGps.isLiveGps);
+
+    if (effectiveLat && effectiveLng) {
+        const latNum = parseFloat(effectiveLat);
+        const lngNum = parseFloat(effectiveLng);
+        if (!isNaN(latNum) && !isNaN(lngNum)) {
+            currentCustomerGps = { lat: latNum, lng: lngNum, isLiveGps: Boolean(effectiveIsLive) };
+            if (latHidden) latHidden.value = String(latNum);
+            if (lngHidden) lngHidden.value = String(lngNum);
+            if (isLiveHidden) isLiveHidden.value = effectiveIsLive ? 'true' : 'false';
+
+            if (statusBadge) {
+                statusBadge.className = 'gps-status-badge gps-success';
+                statusBadge.innerHTML = effectiveIsLive ? '<i class="fa-solid fa-circle-check"></i> Live GPS Verified' : '<i class="fa-solid fa-circle-check"></i> GPS Location Fixed';
+                statusBadge.style.display = 'inline-flex';
+            }
+            if (coordsDisplay) {
+                coordsDisplay.style.display = 'flex';
+                if (coordsText) {
+                    coordsText.textContent = `${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`;
+                }
+            }
+            if (gpsContainer) {
+                gpsContainer.classList.remove('invalid-gps');
+                gpsContainer.classList.add('gps-verified');
+            }
+            if (mapBtn) {
+                mapBtn.classList.remove('invalid-gps-btn');
+                mapBtn.classList.add('btn-gps-selected');
+            }
+            if (gpsBtnText) {
+                gpsBtnText.innerHTML = '<i class="fa-solid fa-map-pin"></i> Change Location Pin';
+            }
+        }
+    }
+}
+window.restoreProfileFormDraft = restoreProfileFormDraft;
+
 function openEditProfileModal() {
     const modal = document.getElementById('profile-edit-modal');
     if (!modal) return;
@@ -11264,11 +11579,16 @@ function openEditProfileModal() {
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
 
-    // Pre-fill profile fields from active delivery profile
+    // Pre-fill profile fields from active delivery profile strictly if verified in current session
     const currentProfile = getSavedDeliveryProfile();
-    if (currentProfile) {
+    const verifiedPhone = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : null;
+    if (currentProfile && verifiedPhone && currentProfile.phone === verifiedPhone) {
         renderProfileHeaderAndInputs(currentProfile);
+    } else {
+        renderProfileHeaderAndInputs(null);
     }
+    // Restore any active user-entered draft (typed fields, active OTP box, confirmed GPS pin)
+    restoreProfileFormDraft();
 }
 
 function closeEditProfileModal() {
@@ -11298,10 +11618,23 @@ function initEditProfileModal() {
 
     // Close modal on Escape key
     document.addEventListener('keydown', (e) => {
+        const mapModal = document.getElementById('customer-map-modal');
+        if (mapModal && (mapModal.style.display === 'flex' || mapModal.style.display === 'block')) {
+            return; // Map modal is active on top; don't close profile modal
+        }
         if (e.key === 'Escape' && modal.style.display === 'flex') {
             closeEditProfileModal();
         }
     });
+
+    // Real-time synchronization of profile form inputs to draft
+    const form = document.getElementById('delivery-details-form');
+    if (form && !form.dataset.draftBound) {
+        form.dataset.draftBound = 'true';
+        form.addEventListener('input', () => {
+            saveProfileFormDraft();
+        });
+    }
 }
 
 function getClearedOrderIds() {
@@ -12943,6 +13276,7 @@ isPhoneVerified = false;
 currentTargetPhone = null;
 let otpResendCountdown = 0;
 let otpResendTimerId = null;
+let isOtpSendingInProgress = false;
 
 // --------------------------------------------------------------------------
 // CUSTOMER INTERACTIVE LOCATION MAP CONTROLLER (LEAFLET + LIVE GPS)
@@ -13038,6 +13372,9 @@ function pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold) {
 }
 
 function openCustomerMapModal() {
+    if (typeof saveProfileFormDraft === 'function') {
+        saveProfileFormDraft();
+    }
     const modal = document.getElementById('customer-map-modal');
     const openBtn = document.getElementById('btn-open-map-modal');
     const openBtnText = document.getElementById('gps-btn-text');
@@ -13160,6 +13497,9 @@ function closeCustomerMapModal() {
     if (modal) {
         modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
+    }
+    if (typeof restoreProfileFormDraft === 'function') {
+        restoreProfileFormDraft();
     }
 }
 
@@ -13575,6 +13915,15 @@ function handleDetectLiveGps() {
 
             currentCustomerGps = { lat, lng, isLiveGps: true };
 
+            if (typeof saveProfileFormDraft === 'function') {
+                saveProfileFormDraft();
+                if (profileFormDraft) {
+                    profileFormDraft.lat = String(lat);
+                    profileFormDraft.lng = String(lng);
+                    profileFormDraft.isLiveGps = true;
+                }
+            }
+
             showToast(`📍 Live GPS detected (${dist} km from store)!`);
         },
         (error) => {
@@ -13671,6 +14020,16 @@ function handleConfirmMapLocation() {
         gpsBtnText.innerHTML = '<i class="fa-solid fa-map-pin"></i> Change Location Pin';
     }
 
+    // Save and cache the confirmed GPS in profileFormDraft
+    if (typeof saveProfileFormDraft === 'function') {
+        saveProfileFormDraft();
+        if (profileFormDraft) {
+            profileFormDraft.lat = String(lat);
+            profileFormDraft.lng = String(lng);
+            profileFormDraft.isLiveGps = isLiveGps;
+        }
+    }
+
     // Immediately update existing profile in localStorage with newly confirmed custom coordinates
     try {
         const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
@@ -13691,6 +14050,11 @@ function handleConfirmMapLocation() {
     // Recalculate dynamic delivery fee & update cart / profile UI in real-time
     updateCartUI();
     updateProfileTotalsUI();
+
+    // Re-verify that form fields and active OTP box remain 100% restored and intact
+    if (typeof restoreProfileFormDraft === 'function') {
+        restoreProfileFormDraft();
+    }
 
     // If checkout modal is open, re-render checkout modal with newly confirmed location
     const checkoutModal = document.getElementById('checkout-modal');
@@ -13775,6 +14139,14 @@ function handleChangePhoneNumber() {
         clearInterval(otpResendTimerId);
         otpResendTimerId = null;
     }
+    otpResendCountdown = 0;
+    window.otpResendCountdown = 0;
+    isOtpSendingInProgress = false;
+    const otpBox = document.getElementById('otp-verification-box');
+    if (otpBox) otpBox.style.display = 'none';
+    if (typeof setOtpButtonsCooldownState === 'function') {
+        setOtpButtonsCooldownState(false);
+    }
 
     applyPhoneVerifiedUI(false, phoneInput ? phoneInput.value : '');
 
@@ -13787,6 +14159,49 @@ function handleChangePhoneNumber() {
     showToast('✏️ Mobile number unlocked. Update your number.');
 }
 
+function setOtpButtonsCooldownState(isLocked) {
+    const verifyBtn = document.getElementById('btn-request-otp');
+    const resendBtn = document.getElementById('btn-resend-voice-otp');
+    const phoneInput = document.getElementById('customer-phone');
+
+    if (isLocked || isOtpSendingInProgress || otpResendCountdown > 0) {
+        if (verifyBtn) {
+            verifyBtn.disabled = true;
+            verifyBtn.classList.add('btn-cooldown-locked');
+            verifyBtn.style.pointerEvents = 'none';
+            verifyBtn.style.cursor = 'not-allowed';
+            verifyBtn.style.opacity = '0.6';
+        }
+        if (resendBtn) {
+            resendBtn.classList.add('btn-cooldown-locked');
+            resendBtn.setAttribute('disabled', 'true');
+            resendBtn.setAttribute('aria-disabled', 'true');
+            resendBtn.style.pointerEvents = 'none';
+            resendBtn.style.cursor = 'not-allowed';
+            resendBtn.style.opacity = '0.45';
+        }
+    } else {
+        if (verifyBtn) {
+            verifyBtn.classList.remove('btn-cooldown-locked');
+            verifyBtn.style.pointerEvents = '';
+            verifyBtn.style.cursor = '';
+            verifyBtn.style.opacity = '';
+            const cleanDigits = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '') : '';
+            verifyBtn.disabled = (cleanDigits.length !== 10) || Boolean(isPhoneVerified);
+            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+        }
+        if (resendBtn) {
+            resendBtn.classList.remove('btn-cooldown-locked');
+            resendBtn.removeAttribute('disabled');
+            resendBtn.removeAttribute('aria-disabled');
+            resendBtn.style.pointerEvents = 'auto';
+            resendBtn.style.cursor = 'pointer';
+            resendBtn.style.opacity = '1';
+            resendBtn.textContent = 'Resend OTP';
+        }
+    }
+}
+
 // MSG91 OTP Widget Configuration Constants
 const MSG91_WIDGET_CONFIG = {
     widgetId: "3668716b4f68313937363038",
@@ -13794,6 +14209,17 @@ const MSG91_WIDGET_CONFIG = {
 };
 
 async function handleRequestOtp(isResend = false) {
+    if (otpResendCountdown > 0) {
+        console.warn(`[OTP] Request blocked: Cooldown active (${otpResendCountdown}s remaining)`);
+        showToast(`⏳ Please wait ${otpResendCountdown}s before requesting a new OTP.`);
+        return;
+    }
+
+    if (isOtpSendingInProgress) {
+        console.warn('[OTP] Request blocked: OTP dispatch already in flight.');
+        return;
+    }
+
     const phoneVal = (document.getElementById('customer-phone') || {}).value?.trim();
     if (!phoneVal || phoneVal.replace(/[^0-9]/g, '').length < 10) {
         showToast('⚠️ Please enter a valid 10-digit Indian mobile number!');
@@ -13813,113 +14239,200 @@ async function handleRequestOtp(isResend = false) {
     if (phoneInput) phoneInput.classList.remove('invalid-field');
 
     const verifyBtn = document.getElementById('btn-request-otp');
+    const resendBtn = document.getElementById('btn-resend-voice-otp');
     const badge = document.getElementById('phone-verified-badge');
     const otpBox = document.getElementById('otp-verification-box');
     const otpInput = document.getElementById('otp-input');
 
-    // UI Loading state
-    if (verifyBtn && !isResend) {
+    // CRITICAL: Do NOT unhide or render the OTP verification box yet!
+    if (!isResend && otpBox) {
+        otpBox.style.display = 'none';
+    }
+
+    // CRITICAL: Do NOT start the 59-second cooldown timer yet!
+
+    // Immediately show the loading/spinner state on the button ("Sending...")
+    // Keep button disabled with faded styling to prevent double submission
+    isOtpSendingInProgress = true;
+    if (verifyBtn) {
         verifyBtn.disabled = true;
-        verifyBtn.innerHTML = '<span class="btn-spinner"></span><span class="verify-text">Sending...</span>';
+        verifyBtn.classList.add('btn-cooldown-locked');
+        verifyBtn.style.pointerEvents = 'none';
+        verifyBtn.style.cursor = 'not-allowed';
+        verifyBtn.style.opacity = '0.6';
+        if (!isResend) {
+            verifyBtn.innerHTML = '<span class="btn-spinner"></span><span class="verify-text">Sending...</span>';
+        }
+    }
+    if (resendBtn && isResend) {
+        resendBtn.classList.add('btn-cooldown-locked');
+        resendBtn.setAttribute('disabled', 'true');
+        resendBtn.setAttribute('aria-disabled', 'true');
+        resendBtn.style.pointerEvents = 'none';
+        resendBtn.style.cursor = 'not-allowed';
+        resendBtn.style.opacity = '0.45';
+        resendBtn.textContent = 'Sending OTP...';
     }
 
     showToast(`📲 Sending OTP to +91 ${cleanDigits}...`);
 
-    const handleSendSuccess = (data) => {
-        console.log('MSG91 sendOtp Success:', data);
-        if (verifyBtn) {
-            verifyBtn.disabled = false;
-            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+    // Wrap SMS/Firebase dispatch inside an asynchronous Promise resolution
+    const dispatchSmsPromise = new Promise((resolve, reject) => {
+        let isSettled = false;
+        const timeoutId = setTimeout(() => {
+            if (!isSettled) {
+                isSettled = true;
+                reject({ message: 'OTP request timed out. Please try again.' });
+            }
+        }, 10000);
+
+        const handleSendSuccess = (data) => {
+            if (isSettled) return;
+            isSettled = true;
+            clearTimeout(timeoutId);
+            resolve(data);
+        };
+
+        const handleSendFailure = (error) => {
+            if (isSettled) return;
+            isSettled = true;
+            clearTimeout(timeoutId);
+            reject(error);
+        };
+
+        const executeSendOtp = () => {
+            if (typeof window !== 'undefined' && typeof window.__testOtpHandler === 'function') {
+                window.__testOtpHandler('send', fullNumber, handleSendSuccess, handleSendFailure);
+                return true;
+            }
+            if (typeof window.sendOtp === 'function') {
+                window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
+                return true;
+            } else if (typeof window.initSendOTP === 'function') {
+                window.initSendOTP({
+                    widgetId: MSG91_WIDGET_CONFIG.widgetId,
+                    tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
+                    exposeMethods: true,
+                    identifier: fullNumber,
+                    success: handleSendSuccess,
+                    failure: handleSendFailure
+                });
+                setTimeout(() => {
+                    if (typeof window.sendOtp === 'function') {
+                        window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
+                    } else if (!isSettled) {
+                        handleSendFailure({ message: 'MSG91 Widget failed to expose sendOtp method.' });
+                    }
+                }, 400);
+                return true;
+            }
+            return false;
+        };
+
+        try {
+            if (!executeSendOtp()) {
+                console.log('MSG91 Widget SDK loading, retrying sendOtp in 800ms...');
+                setTimeout(() => {
+                    if (!executeSendOtp()) {
+                        handleSendFailure({ message: 'MSG91 Widget SDK is loading. Please try again in a few moments.' });
+                    }
+                }, 800);
+            }
+        } catch (err) {
+            handleSendFailure(err);
         }
-        // Reveal native custom OTP container
+    });
+
+    try {
+        const data = await dispatchSmsPromise;
+        isOtpSendingInProgress = false;
+        console.log('MSG91 sendOtp Success:', data);
+
+        // a. Reveal/expand the OTP Verification input section smoothly
         if (otpBox) {
             otpBox.style.display = 'block';
             otpBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        if (otpInput) {
+        if (otpInput && !isResend) {
             otpInput.value = '';
             otpInput.focus();
         }
-        startOtpResendTimer(45);
-        showToast('✅ OTP sent successfully! Please enter code below.');
-    };
 
-    const handleSendFailure = (error) => {
-        console.error('MSG91 sendOtp Error:', error);
+        // b. Initialize and start the 59-second cooldown timer starting fresh from Resend in 59s
+        startOtpResendTimer(59);
+
+        // c. Keep both the "Verify" button and "Resend OTP" strictly locked and unclickable until 59s reaches 0s
         if (verifyBtn) {
-            verifyBtn.disabled = false;
             verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
         }
+        setOtpButtonsCooldownState(true);
+
+        showToast('✅ OTP sent successfully! Please enter code below.');
+    } catch (error) {
+        isOtpSendingInProgress = false;
+        console.error('MSG91 sendOtp Error:', error);
+
+        // If an error occurs during dispatch:
+        // Do NOT show the OTP box
+        if (!isResend && otpBox) {
+            otpBox.style.display = 'none';
+        }
+
+        // Release cooldown state
+        if (otpResendTimerId) {
+            clearInterval(otpResendTimerId);
+            otpResendTimerId = null;
+        }
+        otpResendCountdown = 0;
+        window.otpResendCountdown = 0;
+
+        // Re-enable the "Verify" button to allow immediate correction and retry
+        setOtpButtonsCooldownState(false);
+        if (verifyBtn) {
+            verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+        }
+        const timerText = document.getElementById('otp-timer-text');
+        if (timerText) timerText.textContent = "Didn't receive OTP?";
+
         const errorMsg = (error && (error.message || error.description || error.msg)) || 'Failed to send OTP. Please try again.';
         showToast(`❌ ${errorMsg}`);
-    };
-
-    const executeSendOtp = () => {
-        if (typeof window.sendOtp === 'function') {
-            window.sendOtp(
-                fullNumber,
-                handleSendSuccess,
-                handleSendFailure
-            );
-            return true;
-        } else if (typeof window.initSendOTP === 'function') {
-            window.initSendOTP({
-                widgetId: MSG91_WIDGET_CONFIG.widgetId,
-                tokenAuth: MSG91_WIDGET_CONFIG.tokenAuth,
-                exposeMethods: true,
-                identifier: fullNumber,
-                success: handleSendSuccess,
-                failure: handleSendFailure
-            });
-            setTimeout(() => {
-                if (typeof window.sendOtp === 'function') {
-                    window.sendOtp(fullNumber, handleSendSuccess, handleSendFailure);
-                }
-            }, 300);
-            return true;
-        }
-        return false;
-    };
-
-    try {
-        if (!executeSendOtp()) {
-            console.log('MSG91 Widget SDK loading, retrying sendOtp in 800ms...');
-            setTimeout(() => {
-                if (!executeSendOtp()) {
-                    handleSendFailure({ message: 'MSG91 Widget SDK is loading. Please try again in a few moments.' });
-                }
-            }, 800);
-        }
-    } catch (err) {
-        handleSendFailure(err);
     }
 }
 
-function startOtpResendTimer(seconds) {
+function startOtpResendTimer(seconds = 59) {
     otpResendCountdown = seconds;
+    window.otpResendCountdown = otpResendCountdown;
     const timerText = document.getElementById('otp-timer-text');
-    const resendBtn = document.getElementById('btn-resend-voice-otp');
 
-    if (resendBtn) {
-        resendBtn.style.pointerEvents = 'none';
-        resendBtn.style.opacity = '0.5';
+    setOtpButtonsCooldownState(true);
+
+    if (timerText) {
+        timerText.textContent = `Resend in ${otpResendCountdown}s`;
     }
 
     if (otpResendTimerId) clearInterval(otpResendTimerId);
 
     otpResendTimerId = setInterval(() => {
         otpResendCountdown--;
+        window.otpResendCountdown = otpResendCountdown;
         if (timerText) {
-            timerText.textContent = otpResendCountdown > 0 ? `Resend in ${otpResendCountdown}s` : "Didn't receive OTP?";
+            timerText.textContent = otpResendCountdown > 0 ? `Resend in ${otpResendCountdown}s` : 'Resend in 0s';
         }
         if (otpResendCountdown <= 0) {
             clearInterval(otpResendTimerId);
             otpResendTimerId = null;
-            if (resendBtn) {
-                resendBtn.style.pointerEvents = 'auto';
-                resendBtn.style.opacity = '1';
-                resendBtn.textContent = 'Resend OTP';
+            otpResendCountdown = 0;
+            window.otpResendCountdown = 0;
+            setOtpButtonsCooldownState(false);
+            if (timerText) {
+                setTimeout(() => {
+                    if (otpResendCountdown === 0 && timerText) {
+                        timerText.textContent = "Didn't receive OTP?";
+                    }
+                }, 800);
             }
+        } else {
+            setOtpButtonsCooldownState(true);
         }
     }, 1000);
 }
@@ -13958,10 +14471,36 @@ async function handleVerifyOtp() {
             clearInterval(otpResendTimerId);
             otpResendTimerId = null;
         }
+        otpResendCountdown = 0;
+        window.otpResendCountdown = 0;
+        isOtpSendingInProgress = false;
+        setOtpButtonsCooldownState(false);
 
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Confirm OTP';
+        }
+
+        // Clean up OTP draft state
+        if (typeof profileFormDraft !== 'undefined' && profileFormDraft) {
+            profileFormDraft.isOtpBoxVisible = false;
+            profileFormDraft.hasOtpBeenRequested = false;
+            profileFormDraft.otpValue = '';
+        }
+
+        // Retrieve and restore user profile, address & wallet strictly after successful OTP confirmation
+        if (typeof restoreUserProfileFromFirestore === 'function') {
+            restoreUserProfileFromFirestore(cleanDigits, { force: true, forceAuth: true }).then((restored) => {
+                if (restored) {
+                    renderProfileHeaderAndInputs(restored);
+                }
+                updateProfileTotalsUI();
+                updateProfileWalletUI();
+                updateCartUI();
+            });
+        }
+        if (typeof listenToCustomerWalletRealtime === 'function') {
+            listenToCustomerWalletRealtime(cleanDigits);
         }
 
         showToast('🎉 Mobile number verified successfully!');
@@ -13984,6 +14523,10 @@ async function handleVerifyOtp() {
     };
 
     try {
+        if (typeof window !== 'undefined' && typeof window.__testOtpHandler === 'function') {
+            window.__testOtpHandler('verify', enteredOtp, onVerifySuccess, onVerifyFailure);
+            return;
+        }
         if (typeof window.verifyOtp === 'function') {
             window.verifyOtp(enteredOtp, onVerifySuccess, onVerifyFailure);
         } else if (typeof window.OTPWidget !== 'undefined' && typeof window.OTPWidget.verifyOTP === 'function') {
@@ -14157,6 +14700,11 @@ function handleSaveProfile(event) {
         listenToCustomerWalletRealtime(profile.phone);
     }
     closeEditProfileModal();
+    if (typeof profileFormDraft !== 'undefined' && profileFormDraft) {
+        profileFormDraft.isOtpBoxVisible = false;
+        profileFormDraft.hasOtpBeenRequested = false;
+        profileFormDraft.otpValue = '';
+    }
 
     showToast('✅ Profile & Custom Delivery Address saved successfully!');
 }
@@ -14244,6 +14792,14 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
     const cleanPhone = isEmail ? '' : identifier.replace(/[^0-9]/g, '').slice(-10);
     if (!isEmail && cleanPhone.length !== 10) return null;
 
+    // SECURITY: Strictly require that this phone is already verified via OTP in the active session
+    const activeVerifiedPhone = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : '';
+    const isAuthorized = Boolean(options.forceAuth || (cleanPhone && activeVerifiedPhone && cleanPhone === activeVerifiedPhone));
+    if (!isAuthorized) {
+        console.warn(`[Security] Blocked unauthorized profile/wallet restore for unverified number: ${cleanPhone || identifier}`);
+        return null;
+    }
+
     const cacheKey = isEmail ? identifier.toLowerCase() : cleanPhone;
     const now = Date.now();
     const lastRestore = lastProfileRestoreTimestamps.get(cacheKey) || 0;
@@ -14312,22 +14868,17 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                 nearBy: u.address?.nearBy || u.nearBy || currentLocalProfile.nearBy || '',
                 streetName: u.address?.streetName || u.streetName || currentLocalProfile.streetName || '',
                 wardNo: u.address?.wardNo || u.wardNo || currentLocalProfile.wardNo || '',
-                isVerified: isVerified || Boolean(currentLocalProfile.isVerified || currentLocalProfile.isPhoneVerified),
+                isVerified: true,
                 gpsLat: hasLocalGps ? currentLocalProfile.gpsLat : (lat !== null && !isNaN(lat) ? lat : currentLocalProfile.gpsLat || null),
                 gpsLng: hasLocalGps ? currentLocalProfile.gpsLng : (lng !== null && !isNaN(lng) ? lng : currentLocalProfile.gpsLng || null),
             };
 
             try {
                 localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(restoredProfile));
-                if (isVerified && restoredProfile.phone) {
-                    const currentStored = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : '';
-                    if (currentStored !== restoredProfile.phone) {
-                        setStoredPhoneVerified(restoredProfile.phone, true, false);
-                    }
-                }
+                setStoredPhoneVerified(restoredProfile.phone, true, false);
             } catch (e) { }
 
-            isPhoneVerified = Boolean(restoredProfile.isVerified);
+            isPhoneVerified = true;
             if (restoredProfile.gpsLat !== null && restoredProfile.gpsLng !== null) {
                 currentCustomerGps = { lat: restoredProfile.gpsLat, lng: restoredProfile.gpsLng };
             }
@@ -14492,20 +15043,25 @@ function renderProfileHeaderAndInputs(profile) {
     const gpsBtnText = document.getElementById('gps-btn-text');
     const mapBtn = document.getElementById('btn-open-map-modal');
 
+    const editModal = document.getElementById('profile-edit-modal');
+    const isEditModalOpen = editModal && (editModal.style.display === 'flex' || editModal.style.display === 'block');
+
     const storedVerifiedPhone = getStoredVerifiedPhone();
     const profilePhone = profile ? (profile.phone || '').replace(/[^0-9]/g, '').slice(-10) : '';
     const currentInputPhone = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').slice(-10) : '';
 
     const effectivePhone = profilePhone || currentInputPhone || storedVerifiedPhone || '';
     const isVerifiedUser = Boolean(
-        (profile && profile.isVerified) || 
-        (storedVerifiedPhone && effectivePhone === storedVerifiedPhone) ||
-        (storedVerifiedPhone && !profilePhone && !currentInputPhone)
+        storedVerifiedPhone && (
+            (profilePhone && profilePhone === storedVerifiedPhone) ||
+            (currentInputPhone && currentInputPhone === storedVerifiedPhone) ||
+            (!profilePhone && !currentInputPhone)
+        )
     );
 
     if (profile && typeof profile === 'object') {
         if (nameEl) {
-            if (profile.fullName && profile.fullName.trim().length > 0) {
+            if (isVerifiedUser && profile.fullName && profile.fullName.trim().length > 0) {
                 nameEl.textContent = profile.fullName;
                 nameEl.removeAttribute('data-i18n');
             } else {
@@ -14514,7 +15070,7 @@ function renderProfileHeaderAndInputs(profile) {
             }
         }
         if (subtextEl) {
-            subtextEl.textContent = profile.phone ? `+91 ${profile.phone}` : (storedVerifiedPhone ? `+91 ${storedVerifiedPhone}` : '+91 Mobile Number');
+            subtextEl.textContent = (isVerifiedUser && profile.phone) ? `+91 ${profile.phone}` : (storedVerifiedPhone ? `+91 ${storedVerifiedPhone}` : '+91 Mobile Number');
         }
 
         // Set phone verification state & UI
@@ -14523,11 +15079,11 @@ function renderProfileHeaderAndInputs(profile) {
             applyPhoneVerifiedUI(true, profile.phone || storedVerifiedPhone);
         } else {
             isPhoneVerified = false;
-            applyPhoneVerifiedUI(false, profile.phone);
+            applyPhoneVerifiedUI(false, currentInputPhone || (profile ? profile.phone : ''));
         }
 
-        // Pre-fill GPS coordinate state
-        if (profile.gpsLat !== undefined && profile.gpsLat !== null && profile.gpsLng !== undefined && profile.gpsLng !== null) {
+        // Pre-fill GPS coordinate state only if user is verified
+        if (isVerifiedUser && profile.gpsLat !== undefined && profile.gpsLat !== null && profile.gpsLng !== undefined && profile.gpsLng !== null) {
             const isLive = Boolean(profile.isLiveGps);
             currentCustomerGps = { lat: profile.gpsLat, lng: profile.gpsLng, isLiveGps: isLive };
             if (latHidden) latHidden.value = profile.gpsLat;
@@ -14555,7 +15111,7 @@ function renderProfileHeaderAndInputs(profile) {
             }
         }
 
-        // Pre-fill form inputs
+        // Pre-fill form inputs strictly if verified
         const fullNameInput = document.getElementById('customer-fullname');
         const colonyInput = document.getElementById('customer-colony-name');
         const nearbyInput = document.getElementById('customer-nearby');
@@ -14563,22 +15119,31 @@ function renderProfileHeaderAndInputs(profile) {
         const wardInput = document.getElementById('customer-ward-no');
         const emailInput = document.getElementById('customer-email');
 
-        if (profile.fullName && fullNameInput && (!fullNameInput.value || fullNameInput.value === '')) fullNameInput.value = profile.fullName;
-        if (profile.email && emailInput && (!emailInput.value || emailInput.value === '')) emailInput.value = profile.email;
-        if (profile.phone && phoneInput && (!phoneInput.value || phoneInput.value === '')) {
-            phoneInput.value = profile.phone;
-            if (isVerifiedUser) {
+        if (isVerifiedUser) {
+            if (profile.fullName && fullNameInput && (!fullNameInput.value || !isEditModalOpen)) fullNameInput.value = profile.fullName;
+            if (profile.email && emailInput && (!emailInput.value || !isEditModalOpen)) emailInput.value = profile.email;
+            if (profile.phone && phoneInput && (!phoneInput.value || !isEditModalOpen)) {
+                phoneInput.value = profile.phone;
                 phoneInput.readOnly = true;
                 phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
                 phoneInput.style.cursor = 'not-allowed';
-            } else if (verifyBtn) {
-                verifyBtn.disabled = profile.phone.length !== 10;
+            }
+            if (profile.colonyName && colonyInput && (!colonyInput.value || !isEditModalOpen)) colonyInput.value = profile.colonyName;
+            if (profile.nearBy && nearbyInput && (!nearbyInput.value || !isEditModalOpen)) nearbyInput.value = profile.nearBy;
+            if (profile.streetName && streetInput && (!streetInput.value || !isEditModalOpen)) streetInput.value = profile.streetName;
+            if (profile.wardNo && wardInput && (!wardInput.value || !isEditModalOpen)) wardInput.value = profile.wardNo;
+        } else {
+            if (phoneInput && (!phoneInput.value || !isEditModalOpen)) {
+                phoneInput.value = currentInputPhone || (profile ? profile.phone : '') || '';
+                phoneInput.readOnly = false;
+                phoneInput.style.backgroundColor = 'var(--bg-input)';
+                phoneInput.style.cursor = 'text';
+            }
+            if (verifyBtn) {
+                const currentLen = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
+                verifyBtn.disabled = currentLen !== 10 || (otpResendCountdown > 0);
             }
         }
-        if (profile.colonyName && colonyInput && (!colonyInput.value || colonyInput.value === '')) colonyInput.value = profile.colonyName;
-        if (profile.nearBy && nearbyInput && (!nearbyInput.value || nearbyInput.value === '')) nearbyInput.value = profile.nearBy;
-        if (profile.streetName && streetInput && (!streetInput.value || streetInput.value === '')) streetInput.value = profile.streetName;
-        if (profile.wardNo && wardInput && (!wardInput.value || wardInput.value === '')) wardInput.value = profile.wardNo;
     } else {
         if (storedVerifiedPhone) {
             isPhoneVerified = true;
@@ -14590,40 +15155,45 @@ function renderProfileHeaderAndInputs(profile) {
             applyPhoneVerifiedUI(true, storedVerifiedPhone);
         } else {
             isPhoneVerified = false;
-            currentCustomerGps = null;
             if (nameEl) {
                 nameEl.textContent = typeof t === 'function' ? t('customer_name_fallback') : 'Customer Name';
                 nameEl.setAttribute('data-i18n', 'customer_name_fallback');
             }
             if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
-            applyPhoneVerifiedUI(false, '');
-            if (statusBadge) {
-                statusBadge.className = 'gps-status-badge';
-                statusBadge.innerHTML = '';
-                statusBadge.style.display = 'none';
-            }
-            if (coordsDisplay) coordsDisplay.style.display = 'none';
-            if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
+            applyPhoneVerifiedUI(false, currentInputPhone);
 
-            const fullNameInput = document.getElementById('customer-fullname');
-            const colonyInput = document.getElementById('customer-colony-name');
-            const nearbyInput = document.getElementById('customer-nearby');
-            const streetInput = document.getElementById('customer-street-name');
-            const wardInput = document.getElementById('customer-ward-no');
-            const emailInput = document.getElementById('customer-email');
-            const phoneInput = document.getElementById('customer-phone');
-            if (fullNameInput) fullNameInput.value = '';
-            if (emailInput) emailInput.value = '';
-            if (phoneInput) {
-                phoneInput.value = '';
-                phoneInput.readOnly = false;
-                phoneInput.style.backgroundColor = '';
-                phoneInput.style.cursor = '';
+            const hasLatVal = latHidden && latHidden.value;
+            const hasLngVal = lngHidden && lngHidden.value;
+            if (!isEditModalOpen && !hasLatVal && !hasLngVal) {
+                currentCustomerGps = null;
+                if (statusBadge) {
+                    statusBadge.className = 'gps-status-badge';
+                    statusBadge.innerHTML = '';
+                    statusBadge.style.display = 'none';
+                }
+                if (coordsDisplay) coordsDisplay.style.display = 'none';
+                if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
+
+                const fullNameInput = document.getElementById('customer-fullname');
+                const colonyInput = document.getElementById('customer-colony-name');
+                const nearbyInput = document.getElementById('customer-nearby');
+                const streetInput = document.getElementById('customer-street-name');
+                const wardInput = document.getElementById('customer-ward-no');
+                const emailInput = document.getElementById('customer-email');
+                const phoneInput = document.getElementById('customer-phone');
+                if (fullNameInput) fullNameInput.value = '';
+                if (emailInput) emailInput.value = '';
+                if (phoneInput) {
+                    phoneInput.value = '';
+                    phoneInput.readOnly = false;
+                    phoneInput.style.backgroundColor = '';
+                    phoneInput.style.cursor = '';
+                }
+                if (colonyInput) colonyInput.value = '';
+                if (nearbyInput) nearbyInput.value = '';
+                if (streetInput) streetInput.value = '';
+                if (wardInput) wardInput.value = '';
             }
-            if (colonyInput) colonyInput.value = '';
-            if (nearbyInput) nearbyInput.value = '';
-            if (streetInput) streetInput.value = '';
-            if (wardInput) wardInput.value = '';
         }
     }
 }
@@ -14688,7 +15258,16 @@ function updateProfileTotalsUI() {
         } catch (e) { }
     }
 
-    renderProfileHeaderAndInputs(currentProfile);
+    const editModal = document.getElementById('profile-edit-modal');
+    const isEditModalOpen = editModal && (editModal.style.display === 'flex' || editModal.style.display === 'block');
+    if (!isEditModalOpen) {
+        renderProfileHeaderAndInputs(currentProfile);
+    } else if (currentProfile && typeof currentProfile === 'object') {
+        const nameEl = document.getElementById('profile-display-name');
+        const subtextEl = document.getElementById('profile-display-subtext');
+        if (nameEl && currentProfile.fullName) nameEl.textContent = currentProfile.fullName;
+        if (subtextEl && currentProfile.phone) subtextEl.textContent = `+91 ${currentProfile.phone}`;
+    }
 
     // Update Perfetto Wallet UI in Profile Tab & sync latest Firestore balance
     if (typeof reconcileWalletTranches === 'function' && currentCustomerWallet) {
@@ -16807,6 +17386,12 @@ function claimSpotlightDealToCart() {
 
     // Add to cart with isBannerDeal: true, isSpotlightDeal: true and appliedPrice: finalDiscountedPrice
     const added = addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
+        baseId: product.id || '',
+        productId: product.id || '',
+        id: product.id || '',
+        baseName: product.name,
+        originalTitle: product.name,
+        size: isMultiSize ? size : undefined,
         isBannerDeal: true,
         isSpotlightDeal: true,
         bannerSlot: 1,
@@ -17230,8 +17815,14 @@ function confirmClaimFreeGift() {
 
     if (isEditing) {
         cart[window.__editingFreeGiftIndex] = {
+            id: selectedItem.id || '',
+            baseId: selectedItem.id || '',
+            productId: selectedItem.id || '',
             name: fullItemName,
             baseName: baseItemName,
+            originalTitle: baseItemName,
+            displayName: baseItemName,
+            displayTitle: baseItemName,
             price: addonsPrice,
             basePrice: 0,
             originalPrice: origBasePrice + addonsPrice,
@@ -17250,8 +17841,14 @@ function confirmClaimFreeGift() {
             cart[existingGiftIdx].qty = (cart[existingGiftIdx].qty || 1) + 1;
         } else {
             cart.push({
+                id: selectedItem.id || '',
+                baseId: selectedItem.id || '',
+                productId: selectedItem.id || '',
                 name: fullItemName,
                 baseName: baseItemName,
+                originalTitle: baseItemName,
+                displayName: baseItemName,
+                displayTitle: baseItemName,
                 price: addonsPrice,
                 basePrice: 0,
                 originalPrice: origBasePrice + addonsPrice,
@@ -17937,8 +18534,14 @@ function confirmClaimBogoCombo() {
         const finalPrice = regularPrice + itemAddonPrice;
 
         cart.push({
+            id: itemObj.id || '',
+            baseId: itemObj.id || '',
+            productId: itemObj.id || '',
             name: fullItemName,
             baseName: itemObj.name,
+            originalTitle: itemObj.name,
+            displayName: itemObj.name,
+            displayTitle: itemObj.name,
             price: finalPrice,
             originalPrice: finalPrice,
             qty: initialComboQty,
@@ -17956,8 +18559,14 @@ function confirmClaimBogoCombo() {
 
     // 4. Add Free Reward Item (base price ₹0, add-ons charged at full rate)
     cart.push({
+        id: selectedFreeItem.id || '',
+        baseId: selectedFreeItem.id || '',
+        productId: selectedFreeItem.id || '',
         name: fullRewardName,
         baseName: selectedFreeItem.name,
+        originalTitle: selectedFreeItem.name,
+        displayName: selectedFreeItem.name,
+        displayTitle: selectedFreeItem.name,
         price: rewardAddonsPrice,
         basePrice: 0,
         originalPrice: origRewardPrice + rewardAddonsPrice,
@@ -21363,39 +21972,11 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchLiveSettingsFromBackend();
     fetchLiveNoticeFromBackend();
 
-    // 2. Cross-Device Profile & Address Automatic Sync
-    const effectiveSyncPhone = (savedProfile && savedProfile.phone) || getStoredVerifiedPhone();
-    if (effectiveSyncPhone) {
-        restoreUserProfileFromFirestore(effectiveSyncPhone, { silent: true });
-        listenToCustomerWalletRealtime(effectiveSyncPhone);
-    }
-
-    const phoneInput = document.getElementById('customer-phone');
-    if (phoneInput) {
-        let lastRestoredPhone = '';
-        const handlePhoneLookup = (e) => {
-            const val = String(e.target.value || '').replace(/[^0-9]/g, '').slice(-10);
-            if (val.length === 10 && val !== lastRestoredPhone) {
-                lastRestoredPhone = val;
-                restoreUserProfileFromFirestore(val, { silent: true });
-            }
-        };
-        phoneInput.addEventListener('blur', handlePhoneLookup);
-        phoneInput.addEventListener('input', handlePhoneLookup);
-    }
-
-    const checkoutPhoneInput = document.getElementById('checkout-phone');
-    if (checkoutPhoneInput) {
-        let lastRestoredCheckoutPhone = '';
-        const handleCheckoutPhoneLookup = (e) => {
-            const val = String(e.target.value || '').replace(/[^0-9]/g, '').slice(-10);
-            if (val.length === 10 && val !== lastRestoredCheckoutPhone) {
-                lastRestoredCheckoutPhone = val;
-                restoreUserProfileFromFirestore(val, { silent: true });
-            }
-        };
-        checkoutPhoneInput.addEventListener('blur', handleCheckoutPhoneLookup);
-        checkoutPhoneInput.addEventListener('input', handleCheckoutPhoneLookup);
+    // 2. Cross-Device Profile & Address Automatic Sync strictly for active verified session
+    const verifiedPhone = getStoredVerifiedPhone();
+    if (verifiedPhone) {
+        restoreUserProfileFromFirestore(verifiedPhone, { silent: true });
+        listenToCustomerWalletRealtime(verifiedPhone);
     }
 
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
@@ -21599,6 +22180,9 @@ window.switchTab = switchTab;
 window.handleChangePhoneNumber = handleChangePhoneNumber;
 window.handleRequestOtp = handleRequestOtp;
 window.handleVerifyOtp = handleVerifyOtp;
+window.startOtpResendTimer = startOtpResendTimer;
+window.setOtpButtonsCooldownState = setOtpButtonsCooldownState;
+window.otpResendCountdown = otpResendCountdown;
 window.openCustomerMapModal = openCustomerMapModal;
 window.closeCustomerMapModal = closeCustomerMapModal;
 window.closeCheckoutModal = closeCheckoutModal;

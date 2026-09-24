@@ -41,6 +41,63 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="stylesheet" href="styles.css">
 
+    <!-- Mobile OTP Verify & Resend 59-Second Cooldown Styles -->
+    <style id="profile-otp-cooldown-styles">
+        .btn-verify-otp.btn-cooldown-locked,
+        .btn-verify-otp:disabled {
+            background: linear-gradient(135deg, rgba(255, 107, 0, 0.45) 0%, rgba(255, 56, 92, 0.45) 100%) !important;
+            color: rgba(255, 255, 255, 0.72) !important;
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+            pointer-events: none !important;
+            box-shadow: none !important;
+            transform: translateY(-50%) !important;
+            filter: none !important;
+        }
+
+        .btn-verify-otp:not(:disabled):not(.btn-cooldown-locked) {
+            background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%) !important;
+            color: #ffffff !important;
+            opacity: 1 !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            box-shadow: 0 2px 8px var(--primary-glow) !important;
+        }
+
+        #btn-resend-voice-otp.btn-cooldown-locked,
+        #btn-resend-voice-otp[disabled],
+        #btn-resend-voice-otp[aria-disabled="true"] {
+            opacity: 0.45 !important;
+            color: rgba(255, 107, 0, 0.5) !important;
+            cursor: not-allowed !important;
+            pointer-events: none !important;
+            text-decoration: none !important;
+        }
+
+        #btn-resend-voice-otp:not(.btn-cooldown-locked):not([disabled]):not([aria-disabled="true"]) {
+            opacity: 1 !important;
+            color: var(--primary-orange, #ff6b00) !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+        }
+
+        .otp-verification-wrapper {
+            animation: otpSmoothExpand 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            transform-origin: top center;
+        }
+
+        @keyframes otpSmoothExpand {
+            from {
+                opacity: 0;
+                transform: translateY(-8px) scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+    </style>
+
     <!-- Critical Startup Splash Styles (Pure Black #000000 Immediate Render - Zero Flash) -->
     <style id="app-splash-critical-css">
         html.splash-active,
@@ -1254,10 +1311,6 @@
                                             style="display: none;">
                                             <i class="fa-solid fa-circle-check"></i> Verified
                                         </span>
-                                        <button type="button" class="btn-change-phone" id="btn-change-phone"
-                                            style="display: none;" onclick="handleChangePhoneNumber()">
-                                            <i class="fa-solid fa-pen-to-square"></i> Change
-                                        </button>
                                     </span>
                                 </label>
                                 <div class="input-icon-group phone-input-with-action">
