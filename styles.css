@@ -1232,6 +1232,58 @@ body.shop-closed #btn-pay-online {
     border-color: rgba(245, 158, 11, 0.45);
 }
 
+/* 6. Dedicated Log Out Item: Soft Crimson / Red accent */
+.menu-item-row.menu-item-logout {
+    border-top: 1px solid var(--border-color);
+    margin-top: 6px;
+    padding-top: 14px;
+    padding-bottom: 10px;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.menu-item-row.menu-item-logout:hover {
+    background-color: rgba(239, 68, 68, 0.06);
+    border-radius: 12px;
+}
+
+.menu-item-row.menu-item-logout:active {
+    transform: scale(0.99);
+}
+
+.menu-item-icon.icon-profile-logout {
+    background: rgba(239, 68, 68, 0.12) !important;
+    color: #ef4444 !important;
+}
+
+[data-theme="dark"] .menu-item-icon.icon-profile-logout {
+    background: rgba(239, 68, 68, 0.22) !important;
+    color: #f87171 !important;
+}
+
+.menu-item-row.menu-item-logout .logout-item-title {
+    color: #ef4444;
+    font-weight: 700;
+}
+
+[data-theme="dark"] .menu-item-row.menu-item-logout .logout-item-title {
+    color: #f87171;
+}
+
+.menu-item-row.menu-item-logout .logout-item-subtitle {
+    color: var(--text-muted);
+}
+
+.menu-item-row.menu-item-logout .logout-item-arrow {
+    color: #ef4444;
+    opacity: 0.7;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.menu-item-row.menu-item-logout:hover .logout-item-arrow {
+    opacity: 1;
+    transform: translateX(3px);
+}
+
 .menu-item-text {
     flex: 1;
     display: flex;
@@ -3932,6 +3984,57 @@ button.btn-disabled-stock {
     color: #ffffff;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.profile-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    width: 100%;
+}
+
+.btn-profile-logout {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--bg-surface-elevated, #ffffff);
+    border: 1.5px solid #ef4444;
+    color: #ef4444;
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 20px;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: all 0.25s ease;
+    touch-action: manipulation;
+}
+
+.btn-profile-logout:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.28);
+}
+
+.btn-profile-logout:active {
+    transform: translateY(0);
+}
+
+[data-theme="dark"] .btn-profile-logout {
+    background-color: var(--bg-surface-elevated, #1e293b);
+    border-color: #f87171;
+    color: #f87171;
+}
+
+[data-theme="dark"] .btn-profile-logout:hover {
+    background-color: #ef4444;
+    color: #ffffff;
 }
 
 /* STATS ROW (Clean Single Card for Total Orders) */

@@ -207,7 +207,13 @@ const ENGLISH_STRINGS = {
     scratch_card_title: "🎉 Mystery Reward Unlocked!",
     scratch_card_subtitle: "Scratch the card to reveal your cashback reward",
     scratch_won_banner: "You won ₹{amount} Cashback!",
-    no_recent_active_orders: "No recent active orders"
+    no_recent_active_orders: "No recent active orders",
+    customer_name_fallback: "Customer Name",
+    logout: "Log Out",
+    logout_sub: "Sign out from your account on this device",
+    logout_dialog_title: "Log Out from Perfetto?",
+    logout_dialog_desc: "Are you sure you want to log out? Your session details and active cart will be cleared from this device. You can log in again anytime with your mobile number.",
+    confirm_logout: "Log Out"
 };
 
 function t(key, params, fallback = '') {
@@ -16365,6 +16371,181 @@ window.clearCustomerOrderHistory = clearCustomerOrderHistory;
 window.confirmClearCustomerOrderHistory = clearFinishedCustomerOrders;
 
 // --------------------------------------------------------------------------
+// 6B. CLIENT-SIDE LOGOUT & SESSION TEARDOWN CONTROLLER
+// --------------------------------------------------------------------------
+function handleUserLogout() {
+    const modal = document.getElementById('user-logout-confirm-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+    } else {
+        if (window.confirm('Are you sure you want to log out?')) {
+            executeUserLogout();
+        }
+    }
+}
+
+function closeUserLogoutModal() {
+    const modal = document.getElementById('user-logout-confirm-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+}
+
+function executeUserLogout() {
+    closeUserLogoutModal();
+
+    // 1. Detach and unsubscribe any active Firestore real-time snapshot listeners for the current user's profile and wallet
+    if (customerWalletRealtimeUnsubscribe) {
+        try { customerWalletRealtimeUnsubscribe(); } catch (e) {}
+        customerWalletRealtimeUnsubscribe = null;
+    }
+    if (customerUserRealtimeUnsubscribe) {
+        try { customerUserRealtimeUnsubscribe(); } catch (e) {}
+        customerUserRealtimeUnsubscribe = null;
+    }
+    activeWalletListeningPhone = null;
+
+    if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap && typeof customerOrdersUnsubscribeMap.forEach === 'function') {
+        customerOrdersUnsubscribeMap.forEach((unsub) => {
+            if (typeof unsub === 'function') {
+                try { unsub(); } catch (e) {}
+            }
+        });
+        customerOrdersUnsubscribeMap.clear();
+    }
+
+    // 2. Wipe all customer-specific credentials from storage: remove keys for current user, phone, profile address, active cart, and local wallet cache
+    const keysToRemove = [
+        'customerDeliveryProfile',
+        'perfettoCustomerProfile',
+        'perfettoSavedProfile',
+        'perfetto_verified_phone',
+        'perfetto_phone_verification_state',
+        'perfetto_customer_phone',
+        'perfetto_customer_session',
+        'perfetto_customer_wallet',
+        'perfetto_wallet_balance',
+        'perfetto_wallet_hold',
+        'RESET_WALLET_LEDGER',
+        'perfetto_scratch_cards',
+        'perfetto_unclaimed_scratch_cards',
+        'perfetto_pizza_cart',
+        'perfettoCart',
+        'perfetto_cart',
+        'perfettoCustomerOrders',
+        'perfettoClearedOrderIds',
+        'clearedOrderIds'
+    ];
+    keysToRemove.forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+        try { sessionStorage.removeItem(k); } catch (e) {}
+        if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
+            try { safeStorage.removeItem(k); } catch (e) {}
+        }
+        if (typeof safeSessionStorage !== 'undefined' && safeSessionStorage && typeof safeSessionStorage.removeItem === 'function') {
+            try { safeSessionStorage.removeItem(k); } catch (e) {}
+        }
+    });
+
+    // Clear any phone-indexed profile entries
+    try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && (
+                key.startsWith('customerDeliveryProfile_') || 
+                key.startsWith('perfettoCustomerProfile_') ||
+                key.startsWith('wallet_') ||
+                key.startsWith('user_')
+            )) {
+                localStorage.removeItem(key);
+            }
+        }
+    } catch (e) {}
+
+    // 3. Reset in-memory application variables: currentUser = null, walletBalance = 0, walletTransactions = [], cart = []
+    if (typeof cart !== 'undefined' && Array.isArray(cart)) {
+        cart.length = 0;
+    }
+    isPhoneVerified = false;
+    currentTargetPhone = null;
+    currentUserProfile = null;
+    currentCustomerGps = null;
+    currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
+    customerScratchCards = [];
+    if (typeof profileFormDraft !== 'undefined' && profileFormDraft) {
+        profileFormDraft.fullName = '';
+        profileFormDraft.phone = '';
+        profileFormDraft.colonyName = '';
+        profileFormDraft.nearBy = '';
+        profileFormDraft.streetName = '';
+        profileFormDraft.wardNo = '';
+        profileFormDraft.email = '';
+        profileFormDraft.isOtpBoxVisible = false;
+        profileFormDraft.otpValue = '';
+        profileFormDraft.hasOtpBeenRequested = false;
+        profileFormDraft.lat = null;
+        profileFormDraft.lng = null;
+        profileFormDraft.isLiveGps = false;
+    }
+
+    // 4. Reset Profile view to unauthenticated state (clear displayed name, clear phone number, show ₹0 balance with no past ledger entries)
+    renderProfileHeaderAndInputs(null);
+    updateProfileTotalsUI();
+    updateProfileWalletUI();
+    updateCheckoutWalletUI();
+    renderOrderHistoryDetails();
+    updateCartUI();
+    if (typeof updateCartCount === 'function') updateCartCount();
+
+    // Reset phone inputs in delivery details modal
+    const phoneInput = document.getElementById('customer-phone');
+    if (phoneInput) {
+        phoneInput.value = '';
+        phoneInput.readOnly = false;
+        phoneInput.style.backgroundColor = 'var(--bg-input)';
+        phoneInput.style.cursor = 'text';
+    }
+    const otpBox = document.getElementById('otp-verification-box');
+    if (otpBox) otpBox.style.display = 'none';
+
+    // Reset saved address preview box
+    const addressBox = document.getElementById('saved-address-text-content');
+    if (addressBox) {
+        addressBox.innerHTML = '<p class="empty-address-msg" data-i18n="no_address_saved">No delivery address saved yet. Tap "Edit Profile" above to enter your address.</p>';
+    }
+
+    // Reset unclaimed scratch cards banner
+    const scratchBanner = document.getElementById('profile-scratch-unclaimed-banner');
+    if (scratchBanner) scratchBanner.style.display = 'none';
+
+    // 5. Ensure that upon returning to home or cart, the app behaves as a fresh anonymous visitor
+    showToast('👋 You have been logged out successfully.');
+}
+
+function initUserLogoutModal() {
+    const modal = document.getElementById('user-logout-confirm-modal');
+    if (!modal) return;
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeUserLogoutModal();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            closeUserLogoutModal();
+        }
+    });
+}
+
+window.handleUserLogout = handleUserLogout;
+window.closeUserLogoutModal = closeUserLogoutModal;
+window.executeUserLogout = executeUserLogout;
+window.initUserLogoutModal = initUserLogoutModal;
+
+// --------------------------------------------------------------------------
 // 7. TOAST NOTIFICATION SYSTEM
 // --------------------------------------------------------------------------
 let toastTimeout = null;
@@ -21942,6 +22123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLogoModal();
     initEditProfileModal();
     initClearHistoryModal();
+    initUserLogoutModal();
     initCustomerCareModal();
     initOrderOtpSuccessModal();
     initScratchCardModal();

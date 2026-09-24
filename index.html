@@ -587,6 +587,10 @@
                             onclick="openEditProfileModal()">
                             <i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_profile">Edit Profile</span>
                         </button>
+                        <button type="button" class="btn-profile-logout" id="btn-header-logout"
+                            onclick="handleUserLogout()" aria-label="Log Out">
+                            <i class="fa-solid fa-arrow-right-from-bracket"></i> <span data-i18n="logout">Log Out</span>
+                        </button>
                     </div>
                 </div>
 
@@ -810,6 +814,18 @@
                             <span class="item-subtitle profile-notice-muted-subtitle" id="profile-notice-inactive-preview-text" data-i18n="store_policy_notice_sub">Store guidelines, terms reference &amp; updates</span>
                         </div>
                         <i class="fa-solid fa-chevron-right item-arrow"></i>
+                    </div>
+
+                    <!-- DEDICATED LOG OUT ITEM (Account Settings Footer) -->
+                    <div class="menu-item-row menu-item-logout" id="menu-item-logout" onclick="handleUserLogout()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleUserLogout();}" role="button" tabindex="0" aria-label="Log Out">
+                        <div class="menu-item-icon icon-profile-logout">
+                            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        </div>
+                        <div class="menu-item-text">
+                            <span class="item-title logout-item-title" data-i18n="logout">Log Out</span>
+                            <span class="item-subtitle logout-item-subtitle" data-i18n="logout_sub">Sign out from your account on this device</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right item-arrow logout-item-arrow"></i>
                     </div>
 
                 </div>
@@ -1260,6 +1276,27 @@
                     </button>
                     <button type="button" class="btn-dialog-confirm-danger" onclick="confirmClearCustomerOrderHistory()">
                         <i class="fa-solid fa-broom"></i> <span data-i18n="clear_order_history">Clear Order History</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CUSTOM USER LOGOUT CONFIRMATION MODAL -->
+        <div class="checkout-modal-overlay" id="user-logout-confirm-modal" aria-hidden="true" style="display: none;">
+            <div class="checkout-modal-card confirm-dialog-card" role="dialog" aria-labelledby="user-logout-dialog-title">
+                <div class="confirm-dialog-icon danger">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </div>
+                <h3 class="confirm-dialog-title" id="user-logout-dialog-title" data-i18n="logout_dialog_title">Log Out from Perfetto?</h3>
+                <p class="confirm-dialog-message" data-i18n="logout_dialog_desc">
+                    Are you sure you want to log out? Your session details and active cart will be cleared from this device. You can log in again anytime with your mobile number.
+                </p>
+                <div class="confirm-dialog-actions">
+                    <button type="button" class="btn-dialog-cancel" onclick="closeUserLogoutModal()" data-i18n="cancel">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn-dialog-confirm-danger" id="btn-confirm-user-logout" onclick="executeUserLogout()">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i> <span data-i18n="confirm_logout">Log Out</span>
                     </button>
                 </div>
             </div>
