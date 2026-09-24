@@ -1388,7 +1388,16 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
                 verifyBtn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
             }
         }
-        if (otpBox) otpBox.style.display = 'none';
+
+        // PRESERVE active OTP box if countdown is running, sending is in flight, or draft shows OTP box active
+        if (otpBox) {
+            const shouldKeepOtpBox = (otpResendCountdown > 0) || isOtpSendingInProgress || (typeof profileFormDraft !== 'undefined' && profileFormDraft && profileFormDraft.isOtpBoxVisible);
+            if (shouldKeepOtpBox) {
+                otpBox.style.display = 'block';
+            } else {
+                otpBox.style.display = 'none';
+            }
+        }
 
         if (phoneInput) {
             phoneInput.readOnly = false;
@@ -11409,8 +11418,158 @@ function initPhoneInputRestrictions() {
 }
 
 // --------------------------------------------------------------------------
-// EDIT PROFILE & HOME ADDRESS POPUP MODAL CONTROLLER
+// EDIT PROFILE & HOME ADDRESS POPUP MODAL CONTROLLER & FORM DRAFT PERSISTENCE
 // --------------------------------------------------------------------------
+let profileFormDraft = {
+    fullName: '',
+    phone: '',
+    colonyName: '',
+    nearBy: '',
+    streetName: '',
+    wardNo: '',
+    email: '',
+    isOtpBoxVisible: false,
+    otpValue: '',
+    hasOtpBeenRequested: false,
+    lat: '',
+    lng: '',
+    isLiveGps: false
+};
+window.profileFormDraft = profileFormDraft;
+
+function saveProfileFormDraft() {
+    const fullNameInput = document.getElementById('customer-fullname');
+    const phoneInput = document.getElementById('customer-phone');
+    const colonyInput = document.getElementById('customer-colony-name');
+    const nearbyInput = document.getElementById('customer-nearby');
+    const streetInput = document.getElementById('customer-street-name');
+    const wardInput = document.getElementById('customer-ward-no');
+    const emailInput = document.getElementById('customer-email');
+    const otpBox = document.getElementById('otp-verification-box');
+    const otpInput = document.getElementById('otp-input');
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const isLiveHidden = document.getElementById('customer-gps-is-live');
+
+    const isOtpBoxVisible = otpBox ? (otpBox.style.display !== 'none' && otpBox.style.display !== '') : false;
+
+    profileFormDraft = {
+        fullName: fullNameInput && fullNameInput.value ? fullNameInput.value : (profileFormDraft.fullName || ''),
+        phone: phoneInput && phoneInput.value ? phoneInput.value : (profileFormDraft.phone || ''),
+        colonyName: colonyInput && colonyInput.value ? colonyInput.value : (profileFormDraft.colonyName || ''),
+        nearBy: nearbyInput && nearbyInput.value ? nearbyInput.value : (profileFormDraft.nearBy || ''),
+        streetName: streetInput && streetInput.value ? streetInput.value : (profileFormDraft.streetName || ''),
+        wardNo: wardInput && wardInput.value ? wardInput.value : (profileFormDraft.wardNo || ''),
+        email: emailInput && emailInput.value ? emailInput.value : (profileFormDraft.email || ''),
+        isOtpBoxVisible: isOtpBoxVisible || (otpResendCountdown > 0) || Boolean(profileFormDraft.isOtpBoxVisible),
+        otpValue: otpInput && otpInput.value ? otpInput.value : (profileFormDraft.otpValue || ''),
+        hasOtpBeenRequested: (otpResendCountdown > 0) || isOtpBoxVisible || Boolean(profileFormDraft.hasOtpBeenRequested),
+        lat: latHidden && latHidden.value ? latHidden.value : (currentCustomerGps ? String(currentCustomerGps.lat) : (profileFormDraft.lat || '')),
+        lng: lngHidden && lngHidden.value ? lngHidden.value : (currentCustomerGps ? String(currentCustomerGps.lng) : (profileFormDraft.lng || '')),
+        isLiveGps: isLiveHidden && isLiveHidden.value === 'true' ? true : (currentCustomerGps ? Boolean(currentCustomerGps.isLiveGps) : Boolean(profileFormDraft.isLiveGps))
+    };
+    window.profileFormDraft = profileFormDraft;
+    return profileFormDraft;
+}
+window.saveProfileFormDraft = saveProfileFormDraft;
+
+function restoreProfileFormDraft() {
+    if (!profileFormDraft) return;
+    const fullNameInput = document.getElementById('customer-fullname');
+    const phoneInput = document.getElementById('customer-phone');
+    const colonyInput = document.getElementById('customer-colony-name');
+    const nearbyInput = document.getElementById('customer-nearby');
+    const streetInput = document.getElementById('customer-street-name');
+    const wardInput = document.getElementById('customer-ward-no');
+    const emailInput = document.getElementById('customer-email');
+    const otpBox = document.getElementById('otp-verification-box');
+    const otpInput = document.getElementById('otp-input');
+    const latHidden = document.getElementById('customer-gps-lat');
+    const lngHidden = document.getElementById('customer-gps-lng');
+    const isLiveHidden = document.getElementById('customer-gps-is-live');
+    const statusBadge = document.getElementById('gps-status-badge');
+    const coordsDisplay = document.getElementById('gps-coordinates-display');
+    const coordsText = document.getElementById('gps-coords-text');
+    const gpsContainer = document.querySelector('.full-width-gps-field');
+    const mapBtn = document.getElementById('btn-open-map-modal');
+    const gpsBtnText = document.getElementById('gps-btn-text');
+
+    if (fullNameInput && profileFormDraft.fullName) {
+        fullNameInput.value = profileFormDraft.fullName;
+    }
+    if (phoneInput && profileFormDraft.phone) {
+        phoneInput.value = profileFormDraft.phone;
+    }
+    if (colonyInput && profileFormDraft.colonyName) {
+        colonyInput.value = profileFormDraft.colonyName;
+    }
+    if (nearbyInput && profileFormDraft.nearBy) {
+        nearbyInput.value = profileFormDraft.nearBy;
+    }
+    if (streetInput && profileFormDraft.streetName) {
+        streetInput.value = profileFormDraft.streetName;
+    }
+    if (wardInput && profileFormDraft.wardNo) {
+        wardInput.value = profileFormDraft.wardNo;
+    }
+    if (emailInput && profileFormDraft.email) {
+        emailInput.value = profileFormDraft.email;
+    }
+
+    // Retain OTP verification box & active state if OTP was active or requested
+    if (profileFormDraft.isOtpBoxVisible || profileFormDraft.hasOtpBeenRequested || otpResendCountdown > 0 || isOtpSendingInProgress) {
+        if (otpBox) {
+            otpBox.style.display = 'block';
+        }
+        if (otpInput && profileFormDraft.otpValue) {
+            otpInput.value = profileFormDraft.otpValue;
+        }
+        if (typeof setOtpButtonsCooldownState === 'function') {
+            setOtpButtonsCooldownState(otpResendCountdown > 0 || isOtpSendingInProgress);
+        }
+    }
+
+    // Retain verified / pinned GPS state
+    const effectiveLat = profileFormDraft.lat || (latHidden ? latHidden.value : '') || (currentCustomerGps ? String(currentCustomerGps.lat) : '');
+    const effectiveLng = profileFormDraft.lng || (lngHidden ? lngHidden.value : '') || (currentCustomerGps ? String(currentCustomerGps.lng) : '');
+    const effectiveIsLive = profileFormDraft.isLiveGps || (isLiveHidden && isLiveHidden.value === 'true') || (currentCustomerGps && currentCustomerGps.isLiveGps);
+
+    if (effectiveLat && effectiveLng) {
+        const latNum = parseFloat(effectiveLat);
+        const lngNum = parseFloat(effectiveLng);
+        if (!isNaN(latNum) && !isNaN(lngNum)) {
+            currentCustomerGps = { lat: latNum, lng: lngNum, isLiveGps: Boolean(effectiveIsLive) };
+            if (latHidden) latHidden.value = String(latNum);
+            if (lngHidden) lngHidden.value = String(lngNum);
+            if (isLiveHidden) isLiveHidden.value = effectiveIsLive ? 'true' : 'false';
+
+            if (statusBadge) {
+                statusBadge.className = 'gps-status-badge gps-success';
+                statusBadge.innerHTML = effectiveIsLive ? '<i class="fa-solid fa-circle-check"></i> Live GPS Verified' : '<i class="fa-solid fa-circle-check"></i> GPS Location Fixed';
+                statusBadge.style.display = 'inline-flex';
+            }
+            if (coordsDisplay) {
+                coordsDisplay.style.display = 'flex';
+                if (coordsText) {
+                    coordsText.textContent = `${latNum.toFixed(4)}, ${lngNum.toFixed(4)}`;
+                }
+            }
+            if (gpsContainer) {
+                gpsContainer.classList.remove('invalid-gps');
+                gpsContainer.classList.add('gps-verified');
+            }
+            if (mapBtn) {
+                mapBtn.classList.remove('invalid-gps-btn');
+                mapBtn.classList.add('btn-gps-selected');
+            }
+            if (gpsBtnText) {
+                gpsBtnText.innerHTML = '<i class="fa-solid fa-map-pin"></i> Change Location Pin';
+            }
+        }
+    }
+}
+window.restoreProfileFormDraft = restoreProfileFormDraft;
+
 function openEditProfileModal() {
     const modal = document.getElementById('profile-edit-modal');
     if (!modal) return;
@@ -11423,6 +11582,8 @@ function openEditProfileModal() {
     if (currentProfile) {
         renderProfileHeaderAndInputs(currentProfile);
     }
+    // Restore any active user-entered draft (typed fields, active OTP box, confirmed GPS pin)
+    restoreProfileFormDraft();
 }
 
 function closeEditProfileModal() {
@@ -11452,10 +11613,23 @@ function initEditProfileModal() {
 
     // Close modal on Escape key
     document.addEventListener('keydown', (e) => {
+        const mapModal = document.getElementById('customer-map-modal');
+        if (mapModal && (mapModal.style.display === 'flex' || mapModal.style.display === 'block')) {
+            return; // Map modal is active on top; don't close profile modal
+        }
         if (e.key === 'Escape' && modal.style.display === 'flex') {
             closeEditProfileModal();
         }
     });
+
+    // Real-time synchronization of profile form inputs to draft
+    const form = document.getElementById('delivery-details-form');
+    if (form && !form.dataset.draftBound) {
+        form.dataset.draftBound = 'true';
+        form.addEventListener('input', () => {
+            saveProfileFormDraft();
+        });
+    }
 }
 
 function getClearedOrderIds() {
@@ -13193,6 +13367,9 @@ function pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold) {
 }
 
 function openCustomerMapModal() {
+    if (typeof saveProfileFormDraft === 'function') {
+        saveProfileFormDraft();
+    }
     const modal = document.getElementById('customer-map-modal');
     const openBtn = document.getElementById('btn-open-map-modal');
     const openBtnText = document.getElementById('gps-btn-text');
@@ -13315,6 +13492,9 @@ function closeCustomerMapModal() {
     if (modal) {
         modal.style.display = 'none';
         modal.setAttribute('aria-hidden', 'true');
+    }
+    if (typeof restoreProfileFormDraft === 'function') {
+        restoreProfileFormDraft();
     }
 }
 
@@ -13730,6 +13910,15 @@ function handleDetectLiveGps() {
 
             currentCustomerGps = { lat, lng, isLiveGps: true };
 
+            if (typeof saveProfileFormDraft === 'function') {
+                saveProfileFormDraft();
+                if (profileFormDraft) {
+                    profileFormDraft.lat = String(lat);
+                    profileFormDraft.lng = String(lng);
+                    profileFormDraft.isLiveGps = true;
+                }
+            }
+
             showToast(`📍 Live GPS detected (${dist} km from store)!`);
         },
         (error) => {
@@ -13826,6 +14015,16 @@ function handleConfirmMapLocation() {
         gpsBtnText.innerHTML = '<i class="fa-solid fa-map-pin"></i> Change Location Pin';
     }
 
+    // Save and cache the confirmed GPS in profileFormDraft
+    if (typeof saveProfileFormDraft === 'function') {
+        saveProfileFormDraft();
+        if (profileFormDraft) {
+            profileFormDraft.lat = String(lat);
+            profileFormDraft.lng = String(lng);
+            profileFormDraft.isLiveGps = isLiveGps;
+        }
+    }
+
     // Immediately update existing profile in localStorage with newly confirmed custom coordinates
     try {
         const stored = localStorage.getItem(DELIVERY_PROFILE_KEY);
@@ -13846,6 +14045,11 @@ function handleConfirmMapLocation() {
     // Recalculate dynamic delivery fee & update cart / profile UI in real-time
     updateCartUI();
     updateProfileTotalsUI();
+
+    // Re-verify that form fields and active OTP box remain 100% restored and intact
+    if (typeof restoreProfileFormDraft === 'function') {
+        restoreProfileFormDraft();
+    }
 
     // If checkout modal is open, re-render checkout modal with newly confirmed location
     const checkoutModal = document.getElementById('checkout-modal');
@@ -14451,6 +14655,11 @@ function handleSaveProfile(event) {
         listenToCustomerWalletRealtime(profile.phone);
     }
     closeEditProfileModal();
+    if (typeof profileFormDraft !== 'undefined' && profileFormDraft) {
+        profileFormDraft.isOtpBoxVisible = false;
+        profileFormDraft.hasOtpBeenRequested = false;
+        profileFormDraft.otpValue = '';
+    }
 
     showToast('✅ Profile & Custom Delivery Address saved successfully!');
 }
@@ -14786,6 +14995,9 @@ function renderProfileHeaderAndInputs(profile) {
     const gpsBtnText = document.getElementById('gps-btn-text');
     const mapBtn = document.getElementById('btn-open-map-modal');
 
+    const editModal = document.getElementById('profile-edit-modal');
+    const isEditModalOpen = editModal && (editModal.style.display === 'flex' || editModal.style.display === 'block');
+
     const storedVerifiedPhone = getStoredVerifiedPhone();
     const profilePhone = profile ? (profile.phone || '').replace(/[^0-9]/g, '').slice(-10) : '';
     const currentInputPhone = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').slice(-10) : '';
@@ -14817,7 +15029,7 @@ function renderProfileHeaderAndInputs(profile) {
             applyPhoneVerifiedUI(true, profile.phone || storedVerifiedPhone);
         } else {
             isPhoneVerified = false;
-            applyPhoneVerifiedUI(false, profile.phone);
+            applyPhoneVerifiedUI(false, profile.phone || currentInputPhone);
         }
 
         // Pre-fill GPS coordinate state
@@ -14857,9 +15069,9 @@ function renderProfileHeaderAndInputs(profile) {
         const wardInput = document.getElementById('customer-ward-no');
         const emailInput = document.getElementById('customer-email');
 
-        if (profile.fullName && fullNameInput && (!fullNameInput.value || fullNameInput.value === '')) fullNameInput.value = profile.fullName;
-        if (profile.email && emailInput && (!emailInput.value || emailInput.value === '')) emailInput.value = profile.email;
-        if (profile.phone && phoneInput && (!phoneInput.value || phoneInput.value === '')) {
+        if (profile.fullName && fullNameInput && (!fullNameInput.value || !isEditModalOpen)) fullNameInput.value = profile.fullName;
+        if (profile.email && emailInput && (!emailInput.value || !isEditModalOpen)) emailInput.value = profile.email;
+        if (profile.phone && phoneInput && (!phoneInput.value || !isEditModalOpen)) {
             phoneInput.value = profile.phone;
             if (isVerifiedUser) {
                 phoneInput.readOnly = true;
@@ -14877,10 +15089,10 @@ function renderProfileHeaderAndInputs(profile) {
                 }
             }
         }
-        if (profile.colonyName && colonyInput && (!colonyInput.value || colonyInput.value === '')) colonyInput.value = profile.colonyName;
-        if (profile.nearBy && nearbyInput && (!nearbyInput.value || nearbyInput.value === '')) nearbyInput.value = profile.nearBy;
-        if (profile.streetName && streetInput && (!streetInput.value || streetInput.value === '')) streetInput.value = profile.streetName;
-        if (profile.wardNo && wardInput && (!wardInput.value || wardInput.value === '')) wardInput.value = profile.wardNo;
+        if (profile.colonyName && colonyInput && (!colonyInput.value || !isEditModalOpen)) colonyInput.value = profile.colonyName;
+        if (profile.nearBy && nearbyInput && (!nearbyInput.value || !isEditModalOpen)) nearbyInput.value = profile.nearBy;
+        if (profile.streetName && streetInput && (!streetInput.value || !isEditModalOpen)) streetInput.value = profile.streetName;
+        if (profile.wardNo && wardInput && (!wardInput.value || !isEditModalOpen)) wardInput.value = profile.wardNo;
     } else {
         if (storedVerifiedPhone) {
             isPhoneVerified = true;
@@ -14892,40 +15104,45 @@ function renderProfileHeaderAndInputs(profile) {
             applyPhoneVerifiedUI(true, storedVerifiedPhone);
         } else {
             isPhoneVerified = false;
-            currentCustomerGps = null;
             if (nameEl) {
                 nameEl.textContent = typeof t === 'function' ? t('customer_name_fallback') : 'Customer Name';
                 nameEl.setAttribute('data-i18n', 'customer_name_fallback');
             }
             if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
-            applyPhoneVerifiedUI(false, '');
-            if (statusBadge) {
-                statusBadge.className = 'gps-status-badge';
-                statusBadge.innerHTML = '';
-                statusBadge.style.display = 'none';
-            }
-            if (coordsDisplay) coordsDisplay.style.display = 'none';
-            if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
+            applyPhoneVerifiedUI(false, currentInputPhone);
 
-            const fullNameInput = document.getElementById('customer-fullname');
-            const colonyInput = document.getElementById('customer-colony-name');
-            const nearbyInput = document.getElementById('customer-nearby');
-            const streetInput = document.getElementById('customer-street-name');
-            const wardInput = document.getElementById('customer-ward-no');
-            const emailInput = document.getElementById('customer-email');
-            const phoneInput = document.getElementById('customer-phone');
-            if (fullNameInput) fullNameInput.value = '';
-            if (emailInput) emailInput.value = '';
-            if (phoneInput) {
-                phoneInput.value = '';
-                phoneInput.readOnly = false;
-                phoneInput.style.backgroundColor = '';
-                phoneInput.style.cursor = '';
+            const hasLatVal = latHidden && latHidden.value;
+            const hasLngVal = lngHidden && lngHidden.value;
+            if (!isEditModalOpen && !hasLatVal && !hasLngVal) {
+                currentCustomerGps = null;
+                if (statusBadge) {
+                    statusBadge.className = 'gps-status-badge';
+                    statusBadge.innerHTML = '';
+                    statusBadge.style.display = 'none';
+                }
+                if (coordsDisplay) coordsDisplay.style.display = 'none';
+                if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
+
+                const fullNameInput = document.getElementById('customer-fullname');
+                const colonyInput = document.getElementById('customer-colony-name');
+                const nearbyInput = document.getElementById('customer-nearby');
+                const streetInput = document.getElementById('customer-street-name');
+                const wardInput = document.getElementById('customer-ward-no');
+                const emailInput = document.getElementById('customer-email');
+                const phoneInput = document.getElementById('customer-phone');
+                if (fullNameInput) fullNameInput.value = '';
+                if (emailInput) emailInput.value = '';
+                if (phoneInput) {
+                    phoneInput.value = '';
+                    phoneInput.readOnly = false;
+                    phoneInput.style.backgroundColor = '';
+                    phoneInput.style.cursor = '';
+                }
+                if (colonyInput) colonyInput.value = '';
+                if (nearbyInput) nearbyInput.value = '';
+                if (streetInput) streetInput.value = '';
+                if (wardInput) wardInput.value = '';
             }
-            if (colonyInput) colonyInput.value = '';
-            if (nearbyInput) nearbyInput.value = '';
-            if (streetInput) streetInput.value = '';
-            if (wardInput) wardInput.value = '';
         }
     }
 }
@@ -14990,7 +15207,16 @@ function updateProfileTotalsUI() {
         } catch (e) { }
     }
 
-    renderProfileHeaderAndInputs(currentProfile);
+    const editModal = document.getElementById('profile-edit-modal');
+    const isEditModalOpen = editModal && (editModal.style.display === 'flex' || editModal.style.display === 'block');
+    if (!isEditModalOpen) {
+        renderProfileHeaderAndInputs(currentProfile);
+    } else if (currentProfile && typeof currentProfile === 'object') {
+        const nameEl = document.getElementById('profile-display-name');
+        const subtextEl = document.getElementById('profile-display-subtext');
+        if (nameEl && currentProfile.fullName) nameEl.textContent = currentProfile.fullName;
+        if (subtextEl && currentProfile.phone) subtextEl.textContent = `+91 ${currentProfile.phone}`;
+    }
 
     // Update Perfetto Wallet UI in Profile Tab & sync latest Firestore balance
     if (typeof reconcileWalletTranches === 'function' && currentCustomerWallet) {
