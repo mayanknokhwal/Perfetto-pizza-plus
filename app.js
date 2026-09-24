@@ -1166,14 +1166,24 @@ function toggleShakeIceCreamAddon(itemId, event) {
 window.toggleShakeIceCreamAddon = toggleShakeIceCreamAddon;
 
 function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, itemImg) {
+    const allItems = getAllCustomerMenuItems();
+    const itemObj = allItems.find(i => i.id === itemId || i.name === itemName);
+    const resolvedId = (itemObj && itemObj.id) || itemId;
+    const resolvedName = (itemObj && itemObj.name) || itemName;
+
     if (isCategoryAddonIneligible(categoryName)) {
-        return addToCart(itemName, basePrice, itemImg, [], basePrice);
+        return addToCart(itemName, basePrice, itemImg, [], basePrice, {
+            baseId: resolvedId,
+            productId: resolvedId,
+            id: resolvedId,
+            baseName: resolvedName,
+            originalTitle: resolvedName,
+            category: categoryName
+        });
     }
     const sel = cardSelectedAddons[itemId] || { cheese: false, spicy: false, mayo: false, iceCream: false };
     const catAddons = getCustomerCategoryAddons(categoryName);
     
-    const allItems = getAllCustomerMenuItems();
-    const itemObj = allItems.find(i => i.id === itemId || i.name === itemName);
     const origBasePrice = (itemObj && itemObj.price) ? itemObj.price : basePrice;
     const discInfo = getItemEffectiveDiscount(itemObj);
     const effectiveBasePrice = discInfo.isDiscountActive
@@ -1213,7 +1223,14 @@ function addCardWithAddonsToCart(categoryName, itemId, itemName, basePrice, item
         }
     }
 
-    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice);
+    addToCart(itemName, calculatedPrice, itemImg, addons, originalCalculatedPrice, {
+        baseId: resolvedId,
+        productId: resolvedId,
+        id: resolvedId,
+        baseName: resolvedName,
+        originalTitle: resolvedName,
+        category: categoryName
+    });
 }
 window.addCardWithAddonsToCart = addCardWithAddonsToCart;
 window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
@@ -1467,7 +1484,30 @@ function loadCartFromStorage() {
         checkAndApplyClientStateReset();
     }
     const parsed = safeStorage.getJSON(CART_STORAGE_KEY, []);
-    return Array.isArray(parsed) ? parsed : [];
+    const items = Array.isArray(parsed) ? parsed : [];
+    items.forEach(item => {
+        if (!item || typeof item !== 'object') return;
+        if (item.type === 'combo' || item.isComboBundle) return;
+        if (!item.baseName || item.baseName === item.name) {
+            const clean = (item.baseName || item.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim();
+            if (clean) {
+                item.baseName = clean;
+                if (!item.originalTitle) item.originalTitle = clean;
+            }
+        }
+        if (!item.baseId && item.id) {
+            item.baseId = item.id;
+            item.productId = item.id;
+        } else if (item.baseId && !item.productId) {
+            item.productId = item.baseId;
+        } else if (item.productId && !item.baseId) {
+            item.baseId = item.productId;
+        }
+    });
+    return items;
 }
 
 function saveCartToStorage() {
@@ -2688,15 +2728,23 @@ function syncCartWithLatestMenu(freshItems) {
             ? cartItem.addons.reduce((sum, a) => sum + (Number(a && typeof a === 'object' ? a.price : 0) || 0), 0)
             : 0;
 
-        // 1. Check if it's a Pizza with size e.g. "Hot Country (M)"
-        const sizeMatch = (cartItem.name || '').match(/^(.+?)\s*\((S|M|L)\)(.*)$/i);
-        if (sizeMatch) {
-            const pizzaName = sizeMatch[1].trim().toLowerCase();
-            const size = sizeMatch[2].toUpperCase();
-            const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === pizzaName) || (m.id && m.id.toLowerCase() === pizzaName));
+        const sizeMatch = (cartItem.name || '').match(/\((S|M|L)\)/i);
+        const itemSize = (cartItem.size || (sizeMatch ? sizeMatch[1] : '')).toUpperCase();
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+
+        if (itemSize && (itemSize === 'S' || itemSize === 'M' || itemSize === 'L')) {
+            const pizzaName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
+            const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
+                (m.name && m.name.toLowerCase() === pizzaName) ||
+                (m.id && m.id.toLowerCase() === pizzaName)
+            );
             if (menuItem) {
-                if (menuItem.prices && menuItem.prices[size] !== undefined) {
-                    const freshBasePrice = Number(menuItem.prices[size]);
+                if (menuItem.prices && menuItem.prices[itemSize] !== undefined) {
+                    const freshBasePrice = Number(menuItem.prices[itemSize]);
                     const effBasePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
                     const expectedTotal = effBasePrice + addonsSum;
                     if (cartItem.price !== expectedTotal) {
@@ -2704,18 +2752,26 @@ function syncCartWithLatestMenu(freshItems) {
                         changed = true;
                     }
                 }
-                if (menuItem.available === false && cartItem.available !== false) {
+                const isAvail = isProductAvailable(menuItem);
+                if (!isAvail && cartItem.available !== false) {
                     cartItem.available = false;
                     changed = true;
-                } else if (menuItem.available !== false && cartItem.available === false) {
+                } else if (isAvail && cartItem.available === false) {
                     cartItem.available = true;
                     changed = true;
                 }
             }
         } else {
             // 2. Regular item (Burger, Bread, Shake, etc.)
-            const cleanName = (cartItem.name || '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
-            const menuItem = freshItems.find(m => (m.name && m.name.toLowerCase() === cleanName) || (m.id && m.id === cartItem.id));
+            const cleanName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
+            const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
+                (m.name && m.name.toLowerCase() === cleanName) ||
+                (m.id && m.id === cartItem.id)
+            );
             if (menuItem) {
                 if (menuItem.price !== undefined) {
                     const freshBasePrice = Number(menuItem.price);
@@ -2726,10 +2782,11 @@ function syncCartWithLatestMenu(freshItems) {
                         changed = true;
                     }
                 }
-                if (menuItem.available === false && cartItem.available !== false) {
+                const isAvail = isProductAvailable(menuItem);
+                if (!isAvail && cartItem.available !== false) {
                     cartItem.available = false;
                     changed = true;
-                } else if (menuItem.available !== false && cartItem.available === false) {
+                } else if (isAvail && cartItem.available === false) {
                     cartItem.available = true;
                     changed = true;
                 }
@@ -2866,12 +2923,29 @@ function validateCartAvailability() {
     const unavailableInCart = [];
 
     cart.forEach(cartItem => {
-        const cleanName = (cartItem.name || '').replace(/\s*\([SML]\)$/i, '').trim();
+        if (cartItem.type === 'combo' || cartItem.isComboBundle) {
+            return;
+        }
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+        const cleanBase = (cartItem.baseName || cartItem.originalTitle || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+        const fallbackClean = (cartItem.name || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+
         const found = allItems.find(i =>
-            (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) ||
-            (i.id && cartItem.id && i.id === cartItem.id)
+            (targetId && i.id && String(i.id).toLowerCase() === String(targetId).toLowerCase()) ||
+            (cleanBase && i.name && i.name.toLowerCase() === cleanBase) ||
+            (cleanBase && i.id && i.id.toLowerCase() === cleanBase) ||
+            (fallbackClean && i.name && i.name.toLowerCase() === fallbackClean) ||
+            (fallbackClean && i.id && i.id.toLowerCase() === fallbackClean)
         );
-        if (found && !isProductAvailable(found)) {
+        if (found && (!isProductAvailable(found) || found.isAvailable === false || found.outOfStock === true)) {
             unavailableInCart.push(cartItem.name);
         }
     });
@@ -2952,15 +3026,26 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
         if (cartItem.type === 'combo' || cartItem.isComboBundle) {
             return;
         }
-        const cleanName = (cartItem.name || '')
-            .replace(/\s*\([SML]\)$/i, '')
-            .replace(/\s*\(\+.*?\)$/i, '')
-            .trim();
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+        const cleanBase = (cartItem.baseName || cartItem.originalTitle || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+        const fallbackClean = (cartItem.name || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim()
+            .toLowerCase();
+
         const found = freshItems.find(i =>
-            (i.name && i.name.toLowerCase() === cleanName.toLowerCase()) ||
-            (i.id && cartItem.id && i.id === cartItem.id)
+            (targetId && i.id && String(i.id).toLowerCase() === String(targetId).toLowerCase()) ||
+            (cleanBase && i.name && i.name.toLowerCase() === cleanBase) ||
+            (cleanBase && i.id && i.id.toLowerCase() === cleanBase) ||
+            (fallbackClean && i.name && i.name.toLowerCase() === fallbackClean) ||
+            (fallbackClean && i.id && i.id.toLowerCase() === fallbackClean)
         );
-        if (!found || !isProductAvailable(found)) {
+        if (!found || !isProductAvailable(found) || found.isAvailable === false || found.outOfStock === true) {
             unavailableItems.push(cartItem.name);
         }
     });
@@ -2989,15 +3074,21 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
             : 0;
 
         const sizeMatch = (cartItem.name || '').match(/\((S|M|L)\)/i);
-        if (sizeMatch) {
-            const pizzaName = (cartItem.name || '').replace(/\s*\([SML]\).*/i, '').trim().toLowerCase();
-            const size = sizeMatch[1].toUpperCase();
+        const itemSize = (cartItem.size || (sizeMatch ? sizeMatch[1] : '')).toUpperCase();
+        const targetId = cartItem.baseId || cartItem.productId || cartItem.id;
+
+        if (itemSize && (itemSize === 'S' || itemSize === 'M' || itemSize === 'L')) {
+            const pizzaName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
             const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
                 (m.name && m.name.toLowerCase() === pizzaName) ||
                 (m.id && m.id.toLowerCase() === pizzaName)
             );
-            if (menuItem && menuItem.prices && menuItem.prices[size] !== undefined) {
-                const freshBasePrice = Number(menuItem.prices[size]);
+            if (menuItem && menuItem.prices && menuItem.prices[itemSize] !== undefined) {
+                const freshBasePrice = Number(menuItem.prices[itemSize]);
                 if (!isNaN(freshBasePrice) && freshBasePrice > 0) {
                     const effectivePrice = getEffectiveDiscountedUnitPrice(menuItem, freshBasePrice);
                     const expectedTotal = effectivePrice + addonsSum;
@@ -3008,8 +3099,12 @@ async function verifyLatestMenuPricesAndAvailabilityBeforeCheckout() {
                 }
             }
         } else {
-            const cleanName = (cartItem.name || '').replace(/\s*\(\+.*?\)$/i, '').trim().toLowerCase();
+            const cleanName = (cartItem.baseName || cartItem.originalTitle || cartItem.name || '')
+                .replace(/\s*\(\+.*?\)/gi, '')
+                .replace(/\s*\([SML]\)/gi, '')
+                .trim().toLowerCase();
             const menuItem = freshItems.find(m =>
+                (targetId && m.id && String(m.id).toLowerCase() === String(targetId).toLowerCase()) ||
                 (m.name && m.name.toLowerCase() === cleanName) ||
                 (m.id && m.id === cartItem.id)
             );
@@ -3182,7 +3277,15 @@ function addPizzaToCart(pizzaId, event) {
     }
 
     const cartItemTitle = `${item.name} (${selectedSize})`;
-    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice);
+    addToCart(cartItemTitle, calculatedPrice, item.img, addons, originalCalculatedPrice, {
+        baseId: item.id || pizzaId,
+        productId: item.id || pizzaId,
+        id: item.id || pizzaId,
+        baseName: item.name,
+        originalTitle: item.name,
+        size: selectedSize,
+        category: 'Pizza'
+    });
 }
 
 function openCategoryDetail(categoryName, categoryImg, isRestoringState = false, isPopState = false) {
@@ -9246,12 +9349,31 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         return false;
     }
 
-    // Check if item is marked out-of-stock in latest menu data
+    // Extract size if specified or embedded in name
+    const sizeMatch = (name || '').match(/\((S|M|L)\)/i);
+    const itemSize = (options && options.size) || (sizeMatch ? sizeMatch[1].toUpperCase() : '');
+
+    // Extract clean base product title without size and without addons
+    const cleanBaseName = (options && (options.baseName || options.originalTitle)) ||
+        (name || '')
+            .replace(/\s*\(\+.*?\)/gi, '')
+            .replace(/\s*\([SML]\)/gi, '')
+            .trim();
+
+    // Check if item is marked out-of-stock in latest menu data by matching root identifiers
     const allItems = getAllCustomerMenuItems();
-    const cleanName = (name || '').replace(/\s*\([SML]\)$/i, '').replace(/\s*\(\+.*?\)$/i, '').trim();
-    const menuItem = allItems.find(i => (i.name && i.name.toLowerCase() === cleanName.toLowerCase()));
-    if (menuItem && !isProductAvailable(menuItem)) {
-        showToast(`⚠️ "${cleanName}" is currently out of stock.`);
+    const targetId = options && (options.baseId || options.productId || options.id);
+    const menuItem = allItems.find(i =>
+        (targetId && i.id && String(i.id).toLowerCase() === String(targetId).toLowerCase()) ||
+        (i.name && i.name.toLowerCase() === cleanBaseName.toLowerCase()) ||
+        (i.id && String(i.id).toLowerCase() === cleanBaseName.toLowerCase())
+    );
+
+    const baseCatalogId = targetId || (menuItem && menuItem.id) || '';
+    const plainCatalogTitle = (menuItem && menuItem.name) || cleanBaseName;
+
+    if (menuItem && (!isProductAvailable(menuItem) || menuItem.isAvailable === false || menuItem.outOfStock === true)) {
+        showToast(`⚠️ "${plainCatalogTitle}" is currently out of stock.`);
         return false;
     }
 
@@ -9271,18 +9393,19 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     // Strip and disallow any add-ons if product belongs to an ineligible category
     if ((menuItem && isCategoryAddonIneligible(menuItem.category)) || 
         (options && isCategoryAddonIneligible(options.category)) || 
-        isCategoryAddonIneligible(cleanName)) {
+        isCategoryAddonIneligible(plainCatalogTitle)) {
         addons = [];
-        name = name.replace(/\s*\(\+.*?\)$/i, '').trim();
+        name = name.replace(/\s*\(\+.*?\)/gi, '').trim();
     }
 
     // Build item name and identifier taking add-ons into account
+    const baseFormattedName = (name || '').replace(/\s*\(\+.*?\)/gi, '').trim();
     const addonNames = Array.isArray(addons)
-        ? addons.map(a => typeof a === 'string' ? a : a.name).filter(Boolean)
+        ? addons.map(a => typeof a === 'string' ? a : (a && a.name)).filter(Boolean)
         : [];
     const fullItemName = addonNames.length > 0
-        ? `${name} (+${addonNames.join(', ')})`
-        : name;
+        ? `${baseFormattedName} (+${addonNames.join(', ')})`
+        : baseFormattedName;
 
     const existingIndex = cart.findIndex(item => item.name === fullItemName && Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo) === isBannerDeal);
     if (existingIndex > -1) {
@@ -9296,19 +9419,36 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
         cart[existingIndex].qty += 1;
         cart[existingIndex].price = effPrice;
         cart[existingIndex].originalPrice = origPrice;
+        if (baseCatalogId && !cart[existingIndex].baseId) {
+            cart[existingIndex].baseId = baseCatalogId;
+            cart[existingIndex].productId = baseCatalogId;
+            if (!cart[existingIndex].id) cart[existingIndex].id = baseCatalogId;
+        }
+        if (!cart[existingIndex].baseName || cart[existingIndex].baseName === fullItemName) {
+            cart[existingIndex].baseName = plainCatalogTitle;
+            cart[existingIndex].originalTitle = plainCatalogTitle;
+        }
         if (isBannerDeal) {
             cart[existingIndex].isBannerDeal = true;
             cart[existingIndex].isSpotlightDeal = true;
             cart[existingIndex].appliedPrice = effPrice;
         }
     } else {
+        const displayTitle = baseFormattedName;
         cart.push({
+            id: baseCatalogId,
+            baseId: baseCatalogId,
+            productId: baseCatalogId,
             name: fullItemName,
-            baseName: name,
+            baseName: plainCatalogTitle,
+            originalTitle: plainCatalogTitle,
+            displayName: displayTitle,
+            displayTitle: displayTitle,
+            size: itemSize || undefined,
             price: effPrice,
             originalPrice: origPrice,
             qty: 1,
-            img: img || '',
+            img: img || (menuItem && menuItem.img) || '',
             addons: addons,
             isBannerDeal: isBannerDeal,
             isSpotlightDeal: isSpotlightDeal,
@@ -9319,7 +9459,7 @@ function addToCart(name, price, img, addons = [], originalPrice = null, options 
     updateCartUI();
 
     if (!options || !options.skipToast) {
-        const cleanToastItemName = String(name || '').replace(/\s*\(\+.*?\)$/i, '').trim();
+        const cleanToastItemName = String(baseFormattedName || plainCatalogTitle || '').trim();
         showToast(`Added ${cleanToastItemName} to your cart!`);
     }
     return true;
@@ -10023,7 +10163,7 @@ function updateCartUI() {
                 <div class="cart-item-card cart-item-free-gift">
                     <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                     <div class="cart-item-info">
-                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
+                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name))) : (item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name)))}${bannerBadgeMarkup}</h5>
                         ${addonTagsMarkup}
                         ${priceMarkup}
                     </div>
@@ -10052,7 +10192,7 @@ function updateCartUI() {
             <div class="cart-item-card">
                 <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                 <div class="cart-item-info">
-                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.baseName || item.name) : (item.baseName || item.name)}${bannerBadgeMarkup}</h5>
+                    <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name))) : (item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name)))}${bannerBadgeMarkup}</h5>
                     ${addonTagsMarkup}
                     ${priceMarkup}
                 </div>
@@ -16969,6 +17109,12 @@ function claimSpotlightDealToCart() {
 
     // Add to cart with isBannerDeal: true, isSpotlightDeal: true and appliedPrice: finalDiscountedPrice
     const added = addToCart(itemName, finalDiscountedPrice, product.img, addonsList, originalTotalPrice, {
+        baseId: product.id || '',
+        productId: product.id || '',
+        id: product.id || '',
+        baseName: product.name,
+        originalTitle: product.name,
+        size: isMultiSize ? size : undefined,
         isBannerDeal: true,
         isSpotlightDeal: true,
         bannerSlot: 1,
@@ -17392,8 +17538,14 @@ function confirmClaimFreeGift() {
 
     if (isEditing) {
         cart[window.__editingFreeGiftIndex] = {
+            id: selectedItem.id || '',
+            baseId: selectedItem.id || '',
+            productId: selectedItem.id || '',
             name: fullItemName,
             baseName: baseItemName,
+            originalTitle: baseItemName,
+            displayName: baseItemName,
+            displayTitle: baseItemName,
             price: addonsPrice,
             basePrice: 0,
             originalPrice: origBasePrice + addonsPrice,
@@ -17412,8 +17564,14 @@ function confirmClaimFreeGift() {
             cart[existingGiftIdx].qty = (cart[existingGiftIdx].qty || 1) + 1;
         } else {
             cart.push({
+                id: selectedItem.id || '',
+                baseId: selectedItem.id || '',
+                productId: selectedItem.id || '',
                 name: fullItemName,
                 baseName: baseItemName,
+                originalTitle: baseItemName,
+                displayName: baseItemName,
+                displayTitle: baseItemName,
                 price: addonsPrice,
                 basePrice: 0,
                 originalPrice: origBasePrice + addonsPrice,
@@ -18099,8 +18257,14 @@ function confirmClaimBogoCombo() {
         const finalPrice = regularPrice + itemAddonPrice;
 
         cart.push({
+            id: itemObj.id || '',
+            baseId: itemObj.id || '',
+            productId: itemObj.id || '',
             name: fullItemName,
             baseName: itemObj.name,
+            originalTitle: itemObj.name,
+            displayName: itemObj.name,
+            displayTitle: itemObj.name,
             price: finalPrice,
             originalPrice: finalPrice,
             qty: initialComboQty,
@@ -18118,8 +18282,14 @@ function confirmClaimBogoCombo() {
 
     // 4. Add Free Reward Item (base price ₹0, add-ons charged at full rate)
     cart.push({
+        id: selectedFreeItem.id || '',
+        baseId: selectedFreeItem.id || '',
+        productId: selectedFreeItem.id || '',
         name: fullRewardName,
         baseName: selectedFreeItem.name,
+        originalTitle: selectedFreeItem.name,
+        displayName: selectedFreeItem.name,
+        displayTitle: selectedFreeItem.name,
         price: rewardAddonsPrice,
         basePrice: 0,
         originalPrice: origRewardPrice + rewardAddonsPrice,
