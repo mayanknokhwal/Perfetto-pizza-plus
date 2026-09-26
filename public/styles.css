@@ -310,7 +310,11 @@ textarea::selection,
 html,
 body {
     width: 100%;
+    max-width: 100%;
     min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+    overscroll-behavior-x: none;
     background-color: var(--bg-page);
     color: var(--text-main);
     font-family: var(--font-body);
@@ -320,8 +324,8 @@ body {
     -webkit-font-smoothing: antialiased;
     /* Smooth theme transition */
     transition: background-color 0.35s ease, color 0.35s ease;
-    /* Allow natural horizontal and vertical panning while suppressing pinch-to-zoom gestures */
-    touch-action: pan-x pan-y;
+    /* Suppress horizontal viewport wobble and side drift; preserve smooth vertical scrolling */
+    touch-action: pan-y pinch-zoom;
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -329,7 +333,11 @@ body {
 #app,
 .app-frame,
 .main-content-container {
-    touch-action: pan-x pan-y;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    touch-action: pan-y pinch-zoom;
 }
 
 /* Prevent unwanted double-tap zoom triggers on interactive elements (buttons, images, cards) */
@@ -427,6 +435,9 @@ a {
     transition: background-color 0.35s ease;
     overflow-x: hidden;
     overflow-x: clip;
+    box-sizing: border-box;
+    overscroll-behavior-x: none;
+    touch-action: pan-y pinch-zoom;
 }
 
 @media (max-width: 500px) {
@@ -911,15 +922,20 @@ body.shop-closed #btn-pay-online {
 .main-content-container {
     flex: 1;
     width: 100%;
+    max-width: 100%;
     padding: 16px 16px;
     padding-bottom: max(148px, calc(136px + env(safe-area-inset-bottom, 12px)));
     /* Safe clearance so bottom row product buttons rest smoothly above fixed bottom nav and floating cart bar */
-    overflow: visible;
+    overflow-x: hidden;
     box-sizing: border-box;
 }
 
 .tab-view {
     display: none;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
     animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -3608,8 +3624,11 @@ body.shop-closed #btn-pay-online {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     background-color: rgba(0, 0, 0, 0.88);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -3617,6 +3636,10 @@ body.shop-closed #btn-pay-online {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.35s ease, visibility 0.35s ease;
@@ -3759,8 +3782,11 @@ button.btn-disabled-stock {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     background-color: rgba(7, 13, 25, 0.85);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
@@ -3770,6 +3796,8 @@ button.btn-disabled-stock {
     justify-content: center;
     padding: 16px;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
 }
 
 .delivery-modal-content {
@@ -4447,8 +4475,11 @@ button.btn-disabled-stock {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     background-color: rgba(0, 0, 0, 0.65);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
@@ -4458,6 +4489,8 @@ button.btn-disabled-stock {
     z-index: 99999;
     padding: 16px;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
     animation: fadeIn 0.25s ease;
 }
 
@@ -5216,8 +5249,11 @@ button.btn-disabled-stock {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     background-color: rgba(15, 23, 42, 0.75);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -5230,6 +5266,8 @@ button.btn-disabled-stock {
     transition: opacity 0.3s ease;
     padding: 20px;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
 }
 
 .customer-care-modal-overlay.active {
@@ -5469,8 +5507,11 @@ button.btn-disabled-stock {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     height: 100dvh;
     background-color: rgba(0, 0, 0, 0.68);
     backdrop-filter: blur(6px);
@@ -5481,6 +5522,8 @@ button.btn-disabled-stock {
     z-index: 99999;
     padding: 16px;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
     animation: fadeIn 0.25s ease;
 }
 
@@ -6220,8 +6263,11 @@ button.btn-disabled-stock {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     pointer-events: none;
     z-index: 100001;
 }
@@ -8320,8 +8366,9 @@ button.btn-disabled-stock {
 .scratch-modal-overlay {
     position: fixed;
     inset: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     background: rgba(8, 10, 16, 0.88);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -8331,14 +8378,19 @@ button.btn-disabled-stock {
     justify-content: center;
     padding: 16px;
     box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
 }
 
 .scratch-confetti-canvas {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100vh;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
     pointer-events: none;
     z-index: 100006;
 }
@@ -9381,6 +9433,8 @@ button.btn-disabled-stock {
     max-width: 500px;
     margin: 0 auto;
     pointer-events: none;
+    box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .offers-tracker-stack > * {
@@ -9401,6 +9455,7 @@ button.btn-disabled-stock {
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
     padding: 7px 12px 6px 12px;
     box-sizing: border-box;
+    overflow-x: hidden;
     animation: slideDownHunger 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     transition: all 0.3s ease;
 }
@@ -9487,35 +9542,35 @@ button.btn-disabled-stock {
 }
 
 .spend-hunger-pill {
-    background: rgba(255, 107, 0, 0.14);
+    background: rgba(255, 107, 0, 0.12);
     color: var(--primary-orange, #ff6b00);
-    border: 1px solid rgba(255, 107, 0, 0.35);
+    border: 1px solid rgba(255, 107, 0, 0.3);
     border-radius: 999px;
-    padding: 2px 7px;
+    padding: 2px 8px;
     font-size: 0.70rem;
     font-weight: 800;
     white-space: nowrap;
 }
 
 .spend-hunger-pill.pill-unlocked {
-    background: rgba(16, 185, 129, 0.15);
+    background: rgba(16, 185, 129, 0.12);
     color: #10b981;
-    border-color: rgba(16, 185, 129, 0.4);
+    border-color: rgba(16, 185, 129, 0.35);
 }
 
 .btn-hunger-claim {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
     color: #ffffff;
     border: none;
     border-radius: 999px;
-    padding: 4px 10px;
+    padding: 4px 11px;
     font-size: 0.74rem;
     font-weight: 800;
     display: inline-flex;
     align-items: center;
     gap: 4px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
     animation: giftPulse 2s infinite ease-in-out;
     white-space: nowrap;
 }
@@ -9580,24 +9635,50 @@ button.btn-disabled-stock {
 
 .spend-hunger-track {
     width: 100%;
-    height: 5px;
-    background: rgba(148, 163, 184, 0.22);
+    height: 6px;
+    background: rgba(0, 0, 0, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 999px;
     overflow: hidden;
     position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="light"] .spend-hunger-track {
+    background: rgba(15, 23, 42, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .spend-hunger-fill {
     height: 100%;
-    background: linear-gradient(90deg, #ff6b00 0%, #f59e0b 60%, #10b981 100%);
+    background: linear-gradient(90deg, #ff5722 0%, #ff7a00 50%, #f59e0b 100%);
     border-radius: 999px;
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 10px rgba(255, 107, 0, 0.5);
+    transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), background 0.35s ease, box-shadow 0.35s ease;
+    box-shadow: 0 0 10px rgba(255, 122, 0, 0.45);
+    position: relative;
+}
+
+.spend-hunger-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%);
+    border-radius: 999px 999px 0 0;
+    pointer-events: none;
 }
 
 .spend-hunger-fill.fill-complete {
-    background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+    background: linear-gradient(90deg, #059669 0%, #10b981 60%, #34d399 100%);
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .spend-hunger-fill.fill-complete {
+    background: linear-gradient(90deg, #047857 0%, #059669 60%, #10b981 100%);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
 }
 
 /* Cart Item Free Gift Controls (Locked Standard Controls) */
@@ -10281,8 +10362,8 @@ button.btn-disabled-stock {
 }
 
 .cart-free-gift-unlock-banner.in-progress {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.16) 100%);
-    border: 1px dashed rgba(245, 158, 11, 0.4);
+    background: linear-gradient(135deg, rgba(255, 107, 0, 0.08) 0%, rgba(245, 158, 11, 0.14) 100%);
+    border: 1px dashed rgba(255, 107, 0, 0.4);
 }
 
 .gift-banner-left {

@@ -10196,7 +10196,7 @@ function updateCartUI() {
                 } else {
                     const diff = baseMinSpend - qualifyingPaidTotal;
                     freeGiftContainer.innerHTML = `
-                        <div class="cart-free-gift-unlock-banner in-progress" style="border-left: 4px solid #f59e0b;">
+                        <div class="cart-free-gift-unlock-banner in-progress" style="border-left: 4px solid var(--primary-orange, #ff6b00);">
                             <div class="gift-banner-left">
                                 <span class="gift-banner-icon">🔒</span>
                                 <div class="gift-banner-text">
