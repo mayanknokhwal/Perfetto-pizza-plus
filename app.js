@@ -107,6 +107,16 @@ const safeStorage = {
             const str = JSON.stringify(val);
             safeStorage.setItem(key, str);
         } catch (e) { }
+    },
+    clear: () => {
+        for (const k in memoryStorageFallback) {
+            delete memoryStorageFallback[k];
+        }
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.clear();
+            }
+        } catch (e) { }
     }
 };
 window.safeStorage = safeStorage;
@@ -135,6 +145,16 @@ const safeSessionStorage = {
         try {
             if (typeof window !== 'undefined' && window.sessionStorage) {
                 window.sessionStorage.removeItem(key);
+            }
+        } catch (e) { }
+    },
+    clear: () => {
+        for (const k in memorySessionFallback) {
+            delete memorySessionFallback[k];
+        }
+        try {
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.clear();
             }
         } catch (e) { }
     }
@@ -1330,6 +1350,11 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
         if (isVerified) {
             safeStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
             safeSessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('perfetto_verified_phone', cleanPhone);
+                }
+            } catch (e) {}
             safeStorage.setJSON(VERIFIED_PHONE_STATE_KEY, {
                 phone: cleanPhone,
                 isVerified: true,
@@ -8627,6 +8652,10 @@ function renderProfileWalletTxList() {
     }
 
     try {
+        if (!currentCustomerWallet) {
+            const stored = localStorage.getItem('perfetto_customer_wallet');
+            if (stored) currentCustomerWallet = JSON.parse(stored);
+        }
         if (currentCustomerWallet && (!currentCustomerWallet.transactions || !Array.isArray(currentCustomerWallet.transactions))) {
             const stored = localStorage.getItem('perfetto_customer_wallet');
             if (stored) {
@@ -8638,7 +8667,7 @@ function renderProfileWalletTxList() {
         }
     } catch (e) {}
 
-    const txList = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+    const txList = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
     const now = Date.now();
 
     // Enforce strict reverse chronological order by creation timestamp and cap to 15 entries
@@ -10421,28 +10450,16 @@ function getSavedDeliveryProfile() {
 let isCheckoutAddressConfirmed = false;
 
 async function processCheckout() {
-    // Directly verify store status before initiating checkout
-    try {
-        if (customerFirestore) {
-            const snap = await customerFirestore.collection('settings').doc('storeSettings').get();
-            if (snap && snap.exists) {
-                applyIncomingSettingsData(snap.data());
-            }
-        }
-    } catch (e) { }
-
-    const storeStatus = evaluateCustomerStoreStatus();
-    if (!storeStatus.isOpen) {
-        checkAndUpdateShopStatusUI();
-        alert('Store is currently closed');
-        if (typeof showToast === 'function') showToast('Store is currently closed');
-        return;
+    const effectiveCart = (Array.isArray(cart) && cart.length > 0)
+        ? cart
+        : ((typeof window !== 'undefined' && Array.isArray(window.cart)) ? window.cart : []);
+    if (cart !== effectiveCart && Array.isArray(effectiveCart)) {
+        cart = effectiveCart;
     }
+    const itemCount = effectiveCart.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const subtotal = effectiveCart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
 
-    const itemCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
-    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-
-    if (!cart || cart.length === 0 || itemCount === 0 || subtotal <= 0) {
+    if (!effectiveCart || effectiveCart.length === 0 || itemCount === 0 || subtotal <= 0) {
         showToast('Your cart is empty! Please add items before placing an order.');
         return;
     }
@@ -10480,6 +10497,24 @@ async function processCheckout() {
                 if (typeof phoneInput.select === 'function') phoneInput.select();
             }
         }, 120);
+        return;
+    }
+
+    // Directly verify store status before initiating checkout
+    try {
+        if (customerFirestore) {
+            const snap = await customerFirestore.collection('settings').doc('storeSettings').get();
+            if (snap && snap.exists) {
+                applyIncomingSettingsData(snap.data());
+            }
+        }
+    } catch (e) { }
+
+    const storeStatus = evaluateCustomerStoreStatus();
+    if (!storeStatus.isOpen) {
+        checkAndUpdateShopStatusUI();
+        alert('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed');
         return;
     }
 
@@ -10572,6 +10607,33 @@ window.handleAdjustLocationFromCheckout = handleAdjustLocationFromCheckout;
 function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
+
+    // Strict Checkout Authentication Guard
+    const activePhone = (customerPhone && String(customerPhone).trim().length === 10)
+        ? String(customerPhone).trim()
+        : (typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : ((profile && profile.phone) || null));
+
+    const hasActiveVerifiedSession = Boolean(
+        currentUser &&
+        activePhone &&
+        (isPhoneVerified || (typeof getStoredVerifiedPhone === 'function' && getStoredVerifiedPhone() === activePhone))
+    );
+
+    if (!hasActiveVerifiedSession) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        showToast("Please verify your mobile number to place an order");
+        openEditProfileModal();
+        setTimeout(() => {
+            const phoneInput = document.getElementById('customer-phone');
+            if (phoneInput) {
+                phoneInput.focus();
+                if (typeof phoneInput.select === 'function') phoneInput.select();
+            }
+        }, 120);
+        return;
+    }
 
     // Reset checkout redemption selection fresh to prevent carrying over state
     isWalletRedemptionSelected = false;
@@ -14550,6 +14612,7 @@ async function syncCustomerPhoneSession(cleanPhone) {
     customerPhone = cleanDigits;
     window.customerPhone = cleanDigits;
     isPhoneVerified = true;
+    window.isPhoneVerified = true;
     setStoredPhoneVerified(cleanDigits, true);
     applyPhoneVerifiedUI(true, cleanDigits);
 
@@ -14578,6 +14641,9 @@ async function syncCustomerPhoneSession(cleanPhone) {
             gpsLat: restored.gpsLat,
             gpsLng: restored.gpsLng
         };
+        if (!currentCustomerWallet) {
+            currentCustomerWallet = { phone: cleanDigits, balance: 0, nonExpiredBalance: 0, transactions: [] };
+        }
         walletBalance = currentCustomerWallet ? Number(currentCustomerWallet.balance || 0) : 0;
         walletTransactions = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
     } else {
@@ -14610,6 +14676,7 @@ async function syncCustomerPhoneSession(cleanPhone) {
             currentUserProfile = currentUser;
             activeDeliveryAddress = null;
 
+            localStorage.setItem('perfetto_verified_phone', cleanDigits);
             localStorage.setItem('perfetto_wallet_balance', String(walletBalance));
             localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
             localStorage.setItem(`perfetto_wallet_balance_${cleanDigits}`, String(walletBalance));
@@ -14624,6 +14691,7 @@ async function syncCustomerPhoneSession(cleanPhone) {
             currentUserProfile = currentUser;
             activeDeliveryAddress = null;
 
+            localStorage.setItem('perfetto_verified_phone', cleanDigits);
             localStorage.setItem('perfetto_wallet_balance', '0');
             localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
             localStorage.setItem(`perfetto_wallet_balance_${cleanDigits}`, '0');
@@ -14644,7 +14712,9 @@ async function syncCustomerPhoneSession(cleanPhone) {
 
     // Keep globals & window variables strictly synced
     window.currentUser = currentUser;
+    window.currentUserProfile = currentUser;
     window.customerPhone = customerPhone;
+    window.isPhoneVerified = true;
     window.activeDeliveryAddress = activeDeliveryAddress;
     window.walletBalance = walletBalance;
     window.walletTransactions = walletTransactions;
@@ -16901,6 +16971,24 @@ function executeUserLogout() {
     if (document.getElementById('profile-wallet-tx-list')) {
         document.getElementById('profile-wallet-tx-list').innerHTML = '';
         document.getElementById('profile-wallet-tx-list').style.display = 'none';
+    }
+
+    // Final complete storage sweep ensuring no intermediate component writes survive in storage
+    try { localStorage.clear(); } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
+    if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.clear === 'function') {
+        try { safeStorage.clear(); } catch (e) {}
+    }
+    if (typeof safeSessionStorage !== 'undefined' && safeSessionStorage && typeof safeSessionStorage.clear === 'function') {
+        try { safeSessionStorage.clear(); } catch (e) {}
+    }
+
+    const finalPhoneInput = document.getElementById('customer-phone');
+    if (finalPhoneInput) {
+        finalPhoneInput.value = '';
+        finalPhoneInput.readOnly = false;
+        finalPhoneInput.style.backgroundColor = 'var(--bg-input)';
+        finalPhoneInput.style.cursor = 'text';
     }
 
     // 5. User feedback
