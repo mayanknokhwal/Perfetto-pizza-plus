@@ -4791,8 +4791,8 @@
                         </div>
                     </div>
 
-                    <!-- BANNER RESTRICTION SETTINGS (MAX OFFERS & MAX QUANTITY) -->
-                    <div class="banner-restrictions-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 14px 0 16px 0;">
+                    <!-- BANNER RESTRICTION SETTINGS (MAX CLAIMABLE OFFERS PER ORDER) -->
+                    <div class="banner-restrictions-container" style="margin: 14px 0 16px 0;">
                         <!-- 1. MAX CLAIMABLE OFFERS PER ORDER -->
                         <div class="banner-max-offers-config-row" style="padding: 14px 18px; background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 14px;">
                             <div style="flex: 1;">
@@ -4800,7 +4800,7 @@
                                     <i class="fa-solid fa-layer-group" style="color: var(--primary-orange);"></i> Max Claimable Offers Per Order
                                 </label>
                                 <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                                    How many distinct banner deals a customer can claim in a single order.
+                                    How many distinct banner deals a customer can claim in a single order (each offer deal has a fixed quantity of 1).
                                 </span>
                             </div>
                             <div>
@@ -4812,32 +4812,6 @@
                                     <option value="2">2 Offers</option>
                                     <option value="3">3 Offers</option>
                                 </select>
-                            </div>
-                        </div>
-
-                        <!-- 2. MAX QUANTITY PER OFFER (STRICT RANGE 1 - 9) -->
-                        <div class="banner-max-qty-config-row" style="padding: 14px 18px; background: rgba(255, 107, 0, 0.05); border: 1px solid rgba(255, 107, 0, 0.2); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 14px;">
-                            <div style="flex: 1;">
-                                <label for="admin-max-qty-per-offer" style="font-size: 0.92rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                                    <i class="fa-solid fa-calculator" style="color: var(--primary-orange);"></i> Max Quantity Per Offer
-                                </label>
-                                <span style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; display: block;">
-                                    Max units of a banner deal (1 to 9) a customer can claim in an order.
-                                </span>
-                            </div>
-                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
-                                <input type="number" 
-                                       id="admin-max-qty-per-offer" 
-                                       min="1" 
-                                       max="9" 
-                                       step="1" 
-                                       value="1" 
-                                       class="search-input"
-                                       oninput="handleAdminMaxQtyInput(this)"
-                                       onchange="handleAdminMaxQtyChange(this)"
-                                       onblur="handleAdminMaxQtyBlur(this)"
-                                       style="width: 80px; height: 40px; text-align: center; border-radius: 8px; font-size: 1rem; font-weight: 800; background: var(--bg-card); color: var(--primary-orange); border: 1.5px solid var(--border-color); padding: 0 8px;">
-                                <span id="admin-max-qty-validation-hint" style="font-size: 0.72rem; color: #ef4444; display: none;">Strict range: 1–9</span>
                             </div>
                         </div>
                     </div>
@@ -10342,7 +10316,6 @@
 
         let adminDailyBannersList = JSON.parse(JSON.stringify(DEFAULT_DAILY_BANNERS));
         let adminBannerMaxOffers = 1;
-        let adminBannerMaxQty = 1;
 
         function onBannerMaxOffersChange(val) {
             const num = parseInt(val, 10);
@@ -10358,48 +10331,6 @@
             if (btnSaveBanners) btnSaveBanners.disabled = disabled;
             if (btnSaveAll) btnSaveAll.disabled = disabled;
         }
-
-        function handleAdminMaxQtyInput(inputEl) {
-            if (!inputEl) return;
-            const rawVal = inputEl.value.trim();
-            const hint = document.getElementById('admin-max-qty-validation-hint');
-            const num = parseInt(rawVal, 10);
-
-            if (!rawVal || isNaN(num) || num < 1 || num > 9) {
-                if (hint) hint.style.display = 'block';
-                inputEl.style.borderColor = '#ef4444';
-                setBannerSaveButtonsDisabled(true);
-            } else {
-                if (hint) hint.style.display = 'none';
-                inputEl.style.borderColor = 'var(--border-color)';
-                setBannerSaveButtonsDisabled(false);
-                adminBannerMaxQty = num;
-            }
-        }
-
-        function handleAdminMaxQtyBlur(inputEl) {
-            if (!inputEl) return;
-            let num = parseInt(inputEl.value, 10);
-            if (isNaN(num) || num < 1) {
-                num = 1;
-            } else if (num > 9) {
-                num = 9;
-            }
-            inputEl.value = String(num);
-            adminBannerMaxQty = num;
-            const hint = document.getElementById('admin-max-qty-validation-hint');
-            if (hint) hint.style.display = 'none';
-            inputEl.style.borderColor = 'var(--border-color)';
-            setBannerSaveButtonsDisabled(false);
-        }
-
-        function handleAdminMaxQtyChange(inputEl) {
-            handleAdminMaxQtyBlur(inputEl);
-        }
-
-        window.handleAdminMaxQtyInput = handleAdminMaxQtyInput;
-        window.handleAdminMaxQtyBlur = handleAdminMaxQtyBlur;
-        window.handleAdminMaxQtyChange = handleAdminMaxQtyChange;
 
         function normalizeAdminBanners(raw) {
             const list = Array.isArray(raw) ? raw : [];
@@ -10475,12 +10406,6 @@
                             const sel = document.getElementById('admin-max-offers-per-order');
                             if (sel) sel.value = String(adminBannerMaxOffers);
                         }
-                        const maxQtyVal = parseInt(doc.data().max_qty_per_offer || doc.data().maxQtyPerOffer, 10);
-                        if (!isNaN(maxQtyVal) && maxQtyVal >= 1 && maxQtyVal <= 9) {
-                            adminBannerMaxQty = maxQtyVal;
-                            const qtyInput = document.getElementById('admin-max-qty-per-offer');
-                            if (qtyInput) qtyInput.value = String(adminBannerMaxQty);
-                        }
                         return normalized;
                     }
                 } catch (e) {
@@ -10513,17 +10438,11 @@
                             if (data.slot3.rewardCategory) normalized[2].rewardCategory = data.slot3.rewardCategory;
                             if (data.slot3.freeQty !== undefined) normalized[2].freeQty = Number(data.slot3.freeQty) || 1;
                         }
-                        const maxVal = parseInt(data.max_offers_per_order || data.maxOffersPerOrder, 10);
+                        const maxVal = parseInt(data.max_offers_per_order || data.maxOffersPerOrder || data.maxClaimableOffers, 10);
                         if (!isNaN(maxVal) && maxVal >= 1 && maxVal <= 3) {
                             adminBannerMaxOffers = maxVal;
                             const sel = document.getElementById('admin-max-offers-per-order');
                             if (sel) sel.value = String(adminBannerMaxOffers);
-                        }
-                        const maxQtyVal = parseInt(data.max_qty_per_offer || data.maxQtyPerOffer, 10);
-                        if (!isNaN(maxQtyVal) && maxQtyVal >= 1 && maxQtyVal <= 9) {
-                            adminBannerMaxQty = maxQtyVal;
-                            const qtyInput = document.getElementById('admin-max-qty-per-offer');
-                            if (qtyInput) qtyInput.value = String(adminBannerMaxQty);
                         }
                         return normalized;
                     }
@@ -10678,12 +10597,6 @@
                 adminBannerMaxOffers = (!isNaN(parsed) && parsed >= 1 && parsed <= 3) ? parsed : 1;
             }
 
-            const maxQtyInput = document.getElementById('admin-max-qty-per-offer');
-            if (maxQtyInput) {
-                const parsedQty = parseInt(maxQtyInput.value, 10);
-                adminBannerMaxQty = (!isNaN(parsedQty) && parsedQty >= 1 && parsedQty <= 9) ? parsedQty : 1;
-            }
-
             const docPayload = {
                 banners: slots,
                 slot1: slot1Data,
@@ -10691,8 +10604,10 @@
                 slot3: slot3Data,
                 max_offers_per_order: adminBannerMaxOffers,
                 maxOffersPerOrder: adminBannerMaxOffers,
-                max_qty_per_offer: adminBannerMaxQty,
-                maxQtyPerOffer: adminBannerMaxQty,
+                maxClaimableOffers: adminBannerMaxOffers,
+                max_qty_per_offer: 1,
+                maxQtyPerOffer: 1,
+                maxQuantityPerOffer: 1,
                 count: 4,
                 activeCount: slots.filter(s => s.enabled).length,
                 updatedAt: new Date().toISOString(),
@@ -10928,26 +10843,38 @@
         }
         window.getAdminCategoryAvailableItemCount = getAdminCategoryAvailableItemCount;
 
+        function renderQtyDropdownOptions(maxCount, selectedQty) {
+            const count = Math.max(1, parseInt(maxCount, 10) || 1);
+            const selected = Math.min(count, Math.max(1, parseInt(selectedQty, 10) || 1));
+            let opts = '';
+            for (let i = 1; i <= count; i++) {
+                opts += `<option value="${i}" ${i === selected ? 'selected' : ''}>${i}</option>`;
+            }
+            return opts;
+        }
+        window.renderQtyDropdownOptions = renderQtyDropdownOptions;
+
         function updateBogoBuyQtyConstraint() {
             if (!adminDailyBannersList[2]) return;
             const buyCat = adminDailyBannersList[2].buyCategory || 'Momos';
             const maxAvailable = getAdminCategoryAvailableItemCount(buyCat);
-            const buyQtyInput = document.getElementById('banner-bogo-buy-qty');
+            const buyQtySelect = document.getElementById('banner-bogo-buy-qty');
             const hintEl = document.getElementById('banner-bogo-buy-qty-hint');
 
-            if (buyQtyInput) {
-                buyQtyInput.max = maxAvailable;
-                let currentVal = parseInt(buyQtyInput.value, 10);
-                if (isNaN(currentVal) || currentVal < 1) {
-                    buyQtyInput.value = 1;
-                    adminDailyBannersList[2].buyQty = 1;
-                } else if (currentVal > maxAvailable) {
-                    buyQtyInput.value = maxAvailable;
-                    adminDailyBannersList[2].buyQty = maxAvailable;
-                    if (typeof showToast === 'function') {
-                        showToast(`Buy quantity clamped to maximum ${maxAvailable} available items for ${buyCat}`, 2200);
-                    }
+            let currentVal = parseInt(adminDailyBannersList[2].buyQty, 10);
+            if (isNaN(currentVal) || currentVal < 1) {
+                currentVal = 1;
+            } else if (currentVal > maxAvailable) {
+                currentVal = maxAvailable;
+                if (typeof showToast === 'function') {
+                    showToast(`Buy quantity capped to maximum ${maxAvailable} available items for ${buyCat}`, 2000);
                 }
+            }
+            adminDailyBannersList[2].buyQty = currentVal;
+
+            if (buyQtySelect) {
+                buyQtySelect.innerHTML = renderQtyDropdownOptions(maxAvailable, currentVal);
+                buyQtySelect.value = String(currentVal);
             }
             if (hintEl) {
                 hintEl.textContent = `Max available: ${maxAvailable} item${maxAvailable === 1 ? '' : 's'}`;
@@ -10968,59 +10895,37 @@
             const buyCat = adminDailyBannersList[2].buyCategory || 'Momos';
             const maxAvailable = getAdminCategoryAvailableItemCount(buyCat);
             let num = parseInt(val, 10);
-            const buyQtyInput = document.getElementById('banner-bogo-buy-qty');
-
-            if (!isNaN(num) && num > maxAvailable) {
-                num = maxAvailable;
-                if (buyQtyInput) buyQtyInput.value = num;
-                if (typeof showToast === 'function') {
-                    showToast(`Max available items for category is ${maxAvailable}`, 2000);
-                }
-            }
             if (isNaN(num) || num < 1) num = 1;
+            if (num > maxAvailable) num = maxAvailable;
             adminDailyBannersList[2].buyQty = num;
+            const buyQtySelect = document.getElementById('banner-bogo-buy-qty');
+            if (buyQtySelect && String(buyQtySelect.value) !== String(num)) {
+                buyQtySelect.value = String(num);
+            }
         }
         window.onBannerBogoBuyQtyChange = onBannerBogoBuyQtyChange;
-
-        function onBannerBogoBuyQtyBlur(input) {
-            if (!input || !adminDailyBannersList[2]) return;
-            const buyCat = adminDailyBannersList[2].buyCategory || 'Momos';
-            const maxAvailable = getAdminCategoryAvailableItemCount(buyCat);
-            let num = parseInt(input.value, 10);
-            if (isNaN(num) || num < 1) {
-                num = 1;
-                input.value = 1;
-            } else if (num > maxAvailable) {
-                num = maxAvailable;
-                input.value = maxAvailable;
-                if (typeof showToast === 'function') {
-                    showToast(`Clamped to maximum available ${maxAvailable} items`, 2000);
-                }
-            }
-            adminDailyBannersList[2].buyQty = num;
-        }
-        window.onBannerBogoBuyQtyBlur = onBannerBogoBuyQtyBlur;
 
         function updateBogoFreeQtyConstraint() {
             if (!adminDailyBannersList[2]) return;
             const rewardCat = adminDailyBannersList[2].rewardCategory || 'Shake';
             const maxAvailable = getAdminCategoryAvailableItemCount(rewardCat);
-            const freeQtyInput = document.getElementById('banner-bogo-free-qty');
+            const freeQtySelect = document.getElementById('banner-bogo-free-qty');
             const hintEl = document.getElementById('banner-bogo-free-qty-hint');
 
-            if (freeQtyInput) {
-                freeQtyInput.max = maxAvailable;
-                let currentVal = parseInt(freeQtyInput.value, 10);
-                if (isNaN(currentVal) || currentVal < 1) {
-                    freeQtyInput.value = 1;
-                    adminDailyBannersList[2].freeQty = 1;
-                } else if (currentVal > maxAvailable) {
-                    freeQtyInput.value = maxAvailable;
-                    adminDailyBannersList[2].freeQty = maxAvailable;
-                    if (typeof showToast === 'function') {
-                        showToast(`Free quantity clamped to maximum ${maxAvailable} available items for ${rewardCat}`, 2200);
-                    }
+            let currentVal = parseInt(adminDailyBannersList[2].freeQty, 10);
+            if (isNaN(currentVal) || currentVal < 1) {
+                currentVal = 1;
+            } else if (currentVal > maxAvailable) {
+                currentVal = maxAvailable;
+                if (typeof showToast === 'function') {
+                    showToast(`Free quantity capped to maximum ${maxAvailable} available items for ${rewardCat}`, 2000);
                 }
+            }
+            adminDailyBannersList[2].freeQty = currentVal;
+
+            if (freeQtySelect) {
+                freeQtySelect.innerHTML = renderQtyDropdownOptions(maxAvailable, currentVal);
+                freeQtySelect.value = String(currentVal);
             }
             if (hintEl) {
                 hintEl.textContent = `Max available: ${maxAvailable} item${maxAvailable === 1 ? '' : 's'}`;
@@ -11041,38 +10946,15 @@
             const rewardCat = adminDailyBannersList[2].rewardCategory || 'Shake';
             const maxAvailable = getAdminCategoryAvailableItemCount(rewardCat);
             let num = parseInt(val, 10);
-            const freeQtyInput = document.getElementById('banner-bogo-free-qty');
-
-            if (!isNaN(num) && num > maxAvailable) {
-                num = maxAvailable;
-                if (freeQtyInput) freeQtyInput.value = num;
-                if (typeof showToast === 'function') {
-                    showToast(`Max available items for category is ${maxAvailable}`, 2000);
-                }
-            }
             if (isNaN(num) || num < 1) num = 1;
+            if (num > maxAvailable) num = maxAvailable;
             adminDailyBannersList[2].freeQty = num;
+            const freeQtySelect = document.getElementById('banner-bogo-free-qty');
+            if (freeQtySelect && String(freeQtySelect.value) !== String(num)) {
+                freeQtySelect.value = String(num);
+            }
         }
         window.onBannerBogoFreeQtyChange = onBannerBogoFreeQtyChange;
-
-        function onBannerBogoFreeQtyBlur(input) {
-            if (!input || !adminDailyBannersList[2]) return;
-            const rewardCat = adminDailyBannersList[2].rewardCategory || 'Shake';
-            const maxAvailable = getAdminCategoryAvailableItemCount(rewardCat);
-            let num = parseInt(input.value, 10);
-            if (isNaN(num) || num < 1) {
-                num = 1;
-                input.value = 1;
-            } else if (num > maxAvailable) {
-                num = maxAvailable;
-                input.value = maxAvailable;
-                if (typeof showToast === 'function') {
-                    showToast(`Clamped to maximum available ${maxAvailable} items`, 2000);
-                }
-            }
-            adminDailyBannersList[2].freeQty = num;
-        }
-        window.onBannerBogoFreeQtyBlur = onBannerBogoFreeQtyBlur;
 
         function renderAdminBannersUI() {
             const listContainer = document.getElementById('admin-banners-list');
@@ -11231,16 +11113,12 @@
                                     <label for="banner-bogo-buy-qty" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Buy Qty (X):
                                     </label>
-                                    <input type="number" 
-                                           id="banner-bogo-buy-qty" 
-                                           class="search-input" 
-                                           min="1" 
-                                           max="${buyCatMax}" 
-                                           value="${buyQtyVal}" 
-                                           oninput="onBannerBogoBuyQtyChange(this.value)" 
-                                           onchange="onBannerBogoBuyQtyBlur(this)" 
-                                           onblur="onBannerBogoBuyQtyBlur(this)" 
-                                           style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                    <select id="banner-bogo-buy-qty" 
+                                            class="search-input" 
+                                            onchange="onBannerBogoBuyQtyChange(this.value)" 
+                                            style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        ${renderQtyDropdownOptions(buyCatMax, buyQtyVal)}
+                                    </select>
                                     <span id="banner-bogo-buy-qty-hint" style="font-size: 0.70rem; color: #10b981; display: block; margin-top: 4px; font-weight: 600;">Max available: ${buyCatMax} item${buyCatMax === 1 ? '' : 's'}</span>
                                 </div>
                                 <div>
@@ -11255,16 +11133,12 @@
                                     <label for="banner-bogo-free-qty" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 4px;">
                                         Free Qty (Y):
                                     </label>
-                                    <input type="number" 
-                                           id="banner-bogo-free-qty" 
-                                           class="search-input" 
-                                           min="1" 
-                                           max="${rewardCatMax}" 
-                                           value="${freeQtyVal}" 
-                                           oninput="onBannerBogoFreeQtyChange(this.value)" 
-                                           onchange="onBannerBogoFreeQtyBlur(this)" 
-                                           onblur="onBannerBogoFreeQtyBlur(this)" 
-                                           style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                    <select id="banner-bogo-free-qty" 
+                                            class="search-input" 
+                                            onchange="onBannerBogoFreeQtyChange(this.value)" 
+                                            style="width: 100%; height: 38px; border-radius: 8px; font-size: 0.84rem; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 8px;">
+                                        ${renderQtyDropdownOptions(rewardCatMax, freeQtyVal)}
+                                    </select>
                                     <span id="banner-bogo-free-qty-hint" style="font-size: 0.70rem; color: #10b981; display: block; margin-top: 4px; font-weight: 600;">Max available: ${rewardCatMax} item${rewardCatMax === 1 ? '' : 's'}</span>
                                 </div>
                             </div>

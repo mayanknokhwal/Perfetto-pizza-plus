@@ -393,6 +393,65 @@ export function normalizeDailyBanners(raw) {
     return normalized;
 }
 
+export const DEFAULT_MAX_CLAIMABLE_OFFERS = 1;
+export const FIXED_OFFER_QUANTITY = 1;
+
+/**
+ * Calculates total available active menu items in a category.
+ * Used for dynamic quantity caps in Slot #3 BOGO deal.
+ * @param {string} categoryKeyOrName 
+ * @param {Array} items 
+ * @returns {number} Qualifying items count (minimum 1)
+ */
+export function calculateCategoryItemCount(categoryKeyOrName, items = []) {
+    if (!categoryKeyOrName) return 1;
+    const target = String(categoryKeyOrName).trim().toLowerCase();
+    const list = Array.isArray(items) ? items : [];
+
+    const matched = list.filter(item => {
+        if (!item || !item.name) return false;
+        if (item.available === false) return false;
+        const itemCat = String(item.category || '').trim().toLowerCase();
+        if (itemCat === target) return true;
+        if ((itemCat === 'bread' || itemCat === 'bread & sides') && (target === 'bread' || target === 'bread & sides' || target === 'breads')) return true;
+        if ((itemCat === 'burger' || itemCat === 'burgers') && (target === 'burger' || target === 'burgers')) return true;
+        if ((itemCat === 'chinese food' || itemCat === 'chinese') && (target === 'chinese' || target === 'chinese food')) return true;
+        if ((itemCat === 'colo drinks' || itemCat === 'cold drinks') && (target === 'colo drinks' || target === 'cold drinks' || target === 'drinks')) return true;
+        if ((itemCat === 'shake' || itemCat === 'shakes') && (target === 'shake' || target === 'shakes')) return true;
+        if ((itemCat === 'hot cold coffee' || itemCat === 'hot & cold coffee') && (target === 'hot cold coffee' || target === 'hot & cold coffee' || target === 'coffee')) return true;
+        if ((itemCat === 'pasta' || itemCat === 'pastas') && (target === 'pasta' || target === 'pastas')) return true;
+        if ((itemCat === 'salad' || itemCat === 'salads') && (target === 'salad' || target === 'salads')) return true;
+        if ((itemCat === 'sandwich' || itemCat === 'sandwiches') && (target === 'sandwich' || target === 'sandwiches')) return true;
+        if ((itemCat === 'momo' || itemCat === 'momos') && (target === 'momo' || target === 'momos')) return true;
+        if ((itemCat === 'noodle' || itemCat === 'noodles') && (target === 'noodle' || target === 'noodles')) return true;
+        if ((itemCat === 'spring roll' || itemCat === 'spring rolls') && (target === 'spring roll' || target === 'spring rolls')) return true;
+        return false;
+    });
+
+    return Math.max(1, matched.length);
+}
+
+/**
+ * Generates selectable options array strictly from 1 up to N (available items count)
+ * @param {number} maxCount 
+ * @param {number} selectedQty 
+ * @returns {Array<{value: number, label: string, selected: boolean}>}
+ */
+export function generateCategoryQuantityOptions(maxCount, selectedQty = 1) {
+    const max = Math.max(1, parseInt(maxCount, 10) || 1);
+    const sel = Math.max(1, Math.min(parseInt(selectedQty, 10) || 1, max));
+    const options = [];
+    for (let i = 1; i <= max; i++) {
+        options.push({
+            value: i,
+            label: String(i),
+            selected: i === sel
+        });
+    }
+    return options;
+}
+
+
 // --------------------------------------------------------------------------
 // CATEGORY-LEVEL MASTER DISCOUNT CONFIGURATION & PRICE CALCULATIONS
 // --------------------------------------------------------------------------
@@ -1838,6 +1897,10 @@ if (typeof window !== 'undefined') {
     window.setAdminSoundDismissed = setAdminSoundDismissed;
     window.adminHandledAudioOrderIds = adminHandledAudioOrderIds;
     window.adminKnownOrderIds = adminKnownOrderIds;
+    window.calculateCategoryItemCount = calculateCategoryItemCount;
+    window.generateCategoryQuantityOptions = generateCategoryQuantityOptions;
+    window.DEFAULT_MAX_CLAIMABLE_OFFERS = DEFAULT_MAX_CLAIMABLE_OFFERS;
+    window.FIXED_OFFER_QUANTITY = FIXED_OFFER_QUANTITY;
 
     try {
         Object.defineProperty(window, 'adminSoundDismissed', {

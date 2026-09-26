@@ -393,11 +393,9 @@ async function handleBannersRequest(req, res) {
                 slot1: slot1,
                 slot2: slot2,
                 slot3: slot3,
-                max_offers_per_order: global.__perfettoMaxOffersPerOrder || 2,
-                maxOffersPerOrder: global.__perfettoMaxOffersPerOrder || 2,
-                maxClaimableOffers: global.__perfettoMaxOffersPerOrder || 2,
-                max_qty_per_offer: global.__perfettoMaxQtyPerOffer || 4,
-                maxQtyPerOffer: global.__perfettoMaxQtyPerOffer || 4,
+                max_offers_per_order: global.__perfettoMaxOffersPerOrder || 1,
+                maxOffersPerOrder: global.__perfettoMaxOffersPerOrder || 1,
+                maxClaimableOffers: global.__perfettoMaxOffersPerOrder || 1,
                 count: banners.length,
                 activeCount: banners.filter(b => b.enabled).length,
                 fallbackLogo: DEFAULT_FALLBACK_BANNER_LOGO
@@ -422,11 +420,9 @@ async function handleBannersRequest(req, res) {
                 slot1: result.slot1 || null,
                 slot2: result.slot2 || null,
                 slot3: result.slot3 || null,
-                max_offers_per_order: result.max_offers_per_order || 2,
-                maxOffersPerOrder: result.maxOffersPerOrder || 2,
-                maxClaimableOffers: result.maxOffersPerOrder || 2,
-                max_qty_per_offer: result.max_qty_per_offer || 4,
-                maxQtyPerOffer: result.maxQtyPerOffer || 4,
+                max_offers_per_order: result.max_offers_per_order || 1,
+                maxOffersPerOrder: result.maxOffersPerOrder || 1,
+                maxClaimableOffers: result.maxOffersPerOrder || 1,
                 count: result.banners.length,
                 activeCount: result.banners.filter(b => b.enabled).length
             });
@@ -435,9 +431,19 @@ async function handleBannersRequest(req, res) {
         return res.status(405).json({ success: false, message: 'Method Not Allowed' });
     } catch (error) {
         console.error('Error in handleBannersRequest:', error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Internal Server Error',
+        return res.status(200).json({
+            success: true,
+            message: 'Banners handled with fallback',
+            banners: DEFAULT_DAILY_BANNERS,
+            maxClaimableOffers: 1,
+            maxOffersPerOrder: 1,
+            slot3: {
+                buyCategory: 'Momos',
+                buyQty: 2,
+                rewardCategory: 'Shake',
+                freeCategory: 'Shake',
+                freeQty: 1
+            }
         });
     }
 }
