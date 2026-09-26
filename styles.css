@@ -10654,6 +10654,34 @@ button.btn-disabled-stock {
     gap: 4px;
 }
 
+.cart-reward-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cart-reward-badge.badge-unlocked {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.cart-reward-badge.badge-locked {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    font-size: 0.74rem;
+}
+
+.cart-item-card.item-reward-locked {
+    border: 1px dashed rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.03);
+}
+
 @media (max-width: 480px) {
     .free-gift-modal-card {
         border-radius: 20px;
@@ -12354,6 +12382,58 @@ button.btn-disabled-stock {
     0%, 100% { transform: scale(1); opacity: 1; }
     50% { transform: scale(1.03); opacity: 0.88; }
 }
+
+/* --------------------------------------------------------------------------
+   BANNER SLOT 2: CONDITIONAL REWARD STATE & DYNAMIC SPEND BADGE IN CART
+   -------------------------------------------------------------------------- */
+.cart-reward-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 3px 9px;
+    border-radius: 999px;
+    transition: all 0.25s ease;
+}
+
+.cart-reward-badge.badge-unlocked {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.38);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.cart-reward-badge.badge-locked {
+    background: rgba(245, 158, 11, 0.14);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.42);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.12);
+}
+
+.cart-item-card.item-reward-locked {
+    border-left: 3.5px solid #f59e0b !important;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.cart-item-card.item-reward-unlocked {
+    border-left: 3.5px solid #10b981 !important;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+[data-theme="light"] .cart-reward-badge.badge-locked {
+    background: #fffbeb;
+    color: #b45309;
+    border-color: #fcd34d;
+}
+
+[data-theme="light"] .cart-reward-badge.badge-unlocked {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
+}
+
 
 
 

@@ -1588,6 +1588,8 @@ function saveCartToStorage() {
 }
 
 let cart = loadCartFromStorage();
+try { window.cart = cart; } catch (e) { }
+window.getCart = () => cart;
 
 // Navigation Retention State
 let activeTabName = 'home';
@@ -9980,7 +9982,7 @@ function updateCartUI() {
         updateSpendHungerBar();
     }
 
-    // Banner Slot 2 Tiered Spend Target Check & Automatic Free Gift Revocation Safeguard
+    // Banner Slot 2 Tiered Spend Target Check & Conditional Reward Support
     const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : { minSpend: 699, rewardType: 'category', rewardCategory: 'Shake' };
     const baseMinSpend = Number(slot2Config.minSpend) || 699;
     const maxQty = (typeof getCustomerMaxQtyPerOffer === 'function') ? getCustomerMaxQtyPerOffer() : 1;
@@ -9996,34 +9998,24 @@ function updateCartUI() {
 
     const maxAllowedGifts = Math.min(maxQty, Math.floor(qualifyingPaidTotal / baseMinSpend));
 
-    if (totalClaimedGifts > maxAllowedGifts) {
-        if (maxAllowedGifts === 0) {
-            cart = cart.filter(item => !item.isFreeGift);
-            saveCartToStorage();
-            window.__lastAutoPoppedTier = 0;
-            showToast(`⚠️ Free gift removed: Paid cart total must be at least ₹${baseMinSpend}.`);
-            if (typeof updateSpendHungerBar === 'function') {
-                updateSpendHungerBar();
-            }
-        } else {
-            let toRemove = totalClaimedGifts - maxAllowedGifts;
-            for (let i = cart.length - 1; i >= 0 && toRemove > 0; i--) {
-                if (cart[i].isFreeGift) {
-                    const currentQty = Number(cart[i].qty) || 1;
-                    if (currentQty <= toRemove) {
-                        toRemove -= currentQty;
-                        cart.splice(i, 1);
-                    } else {
-                        cart[i].qty -= toRemove;
-                        toRemove = 0;
-                    }
+    // Cap total free gift items at maxQty, but NEVER auto-remove an early picked locked reward!
+    if (totalClaimedGifts > maxQty) {
+        let toRemove = totalClaimedGifts - maxQty;
+        for (let i = cart.length - 1; i >= 0 && toRemove > 0; i--) {
+            if (cart[i].isFreeGift) {
+                const currentQty = Number(cart[i].qty) || 1;
+                if (currentQty <= toRemove) {
+                    toRemove -= currentQty;
+                    cart.splice(i, 1);
+                } else {
+                    cart[i].qty -= toRemove;
+                    toRemove = 0;
                 }
             }
-            saveCartToStorage();
-            showToast(`⚠️ Adjusted free gifts: Paid cart total qualifies for ${maxAllowedGifts} free gift${maxAllowedGifts > 1 ? 's' : ''}.`);
-            if (typeof updateSpendHungerBar === 'function') {
-                updateSpendHungerBar();
-            }
+        }
+        saveCartToStorage();
+        if (typeof updateSpendHungerBar === 'function') {
+            updateSpendHungerBar();
         }
     }
 
@@ -10072,35 +10064,16 @@ function updateCartUI() {
                 ? `${(slot2Config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (slot2Config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
                 : (getCategoryDisplayName(slot2Config.rewardCategory) || 'Reward');
 
-            if (maxAllowedGifts > totalClaimedGifts) {
-                const nextGiftNum = totalClaimedGifts + 1;
+            if (totalClaimedGifts > 0) {
                 freeGiftContainer.style.display = 'block';
-                freeGiftContainer.innerHTML = `
-                    <div class="cart-free-gift-unlock-banner unlocked">
-                        <div class="gift-banner-left">
-                            <span class="gift-banner-icon">🎁</span>
-                            <div class="gift-banner-text">
-                                <strong>🎉 Tier ${nextGiftNum} Unlocked!</strong>
-                                <span>Claim your ${getOrdinal(nextGiftNum)} Free ${escapeHtml(rewardName)} now!</span>
-                            </div>
-                        </div>
-                        <button type="button" class="btn-claim-free-gift" onclick="openFreeGiftSelectionModal()">
-                            <i class="fa-solid fa-gift"></i> Claim Gift
-                        </button>
-                    </div>
-                `;
-            } else if (totalClaimedGifts > 0) {
-                freeGiftContainer.style.display = 'block';
-                if (totalClaimedGifts < maxQty) {
-                    const nextTier = totalClaimedGifts + 1;
-                    const diff = (nextTier * baseMinSpend) - qualifyingPaidTotal;
+                if (qualifyingPaidTotal >= baseMinSpend) {
                     freeGiftContainer.innerHTML = `
-                        <div class="cart-free-gift-unlock-banner claimed">
+                        <div class="cart-free-gift-unlock-banner unlocked">
                             <div class="gift-banner-left">
-                                <span class="gift-banner-icon">🎁</span>
+                                <span class="gift-banner-icon">🎉</span>
                                 <div class="gift-banner-text">
-                                    <strong>Tier ${totalClaimedGifts} Unlocked (${totalClaimedGifts} Free ${escapeHtml(rewardName)}${totalClaimedGifts > 1 ? 's' : ''} in cart)</strong>
-                                    <span>Add ₹${diff} more for your ${getOrdinal(nextTier)} FREE ${escapeHtml(rewardName)}!</span>
+                                    <strong>Reward Unlocked (100% FREE)</strong>
+                                    <span>Free ${escapeHtml(rewardName)} unlocked on orders of ₹${baseMinSpend}+!</span>
                                 </div>
                             </div>
                             <button type="button" class="btn-change-free-gift" onclick="openFreeGiftSelectionModal()">
@@ -10109,13 +10082,14 @@ function updateCartUI() {
                         </div>
                     `;
                 } else {
+                    const diff = baseMinSpend - qualifyingPaidTotal;
                     freeGiftContainer.innerHTML = `
-                        <div class="cart-free-gift-unlock-banner claimed">
+                        <div class="cart-free-gift-unlock-banner in-progress" style="border-left: 4px solid #f59e0b;">
                             <div class="gift-banner-left">
-                                <span class="gift-banner-icon">👑</span>
+                                <span class="gift-banner-icon">🔒</span>
                                 <div class="gift-banner-text">
-                                    <strong>All ${maxQty} Free ${escapeHtml(rewardName)}s Claimed!</strong>
-                                    <span>Max offer limit reached (${totalClaimedGifts} in cart)</span>
+                                    <strong>Free ${escapeHtml(rewardName)} Locked in Cart</strong>
+                                    <span>Add ₹${diff} more to unlock for 100% FREE!</span>
                                 </div>
                             </div>
                             <button type="button" class="btn-change-free-gift" onclick="openFreeGiftSelectionModal()">
@@ -10124,6 +10098,22 @@ function updateCartUI() {
                         </div>
                     `;
                 }
+            } else if (qualifyingPaidTotal >= baseMinSpend) {
+                freeGiftContainer.style.display = 'block';
+                freeGiftContainer.innerHTML = `
+                    <div class="cart-free-gift-unlock-banner unlocked">
+                        <div class="gift-banner-left">
+                            <span class="gift-banner-icon">🎁</span>
+                            <div class="gift-banner-text">
+                                <strong>🎉 Free Reward Unlocked!</strong>
+                                <span>You qualify for 1 Free ${escapeHtml(rewardName)}!</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-claim-free-gift" onclick="openFreeGiftSelectionModal()">
+                            <i class="fa-solid fa-gift"></i> Claim Gift
+                        </button>
+                    </div>
+                `;
             } else {
                 const diff = baseMinSpend - qualifyingPaidTotal;
                 freeGiftContainer.style.display = 'block';
@@ -10133,9 +10123,12 @@ function updateCartUI() {
                             <span class="gift-banner-icon">🎯</span>
                             <div class="gift-banner-text">
                                 <strong>Free ${escapeHtml(rewardName)} Offer Active!</strong>
-                                <span>Add ₹${diff} more in paid items to claim your gift</span>
+                                <span>Add ₹${diff} more in paid items to unlock for FREE</span>
                             </div>
                         </div>
+                        <button type="button" class="btn-claim-free-gift" onclick="openFreeGiftSelectionModal()">
+                            Choose Gift
+                        </button>
                     </div>
                 `;
             }
@@ -10269,7 +10262,20 @@ function updateCartUI() {
             const isAnyFree = isGift || isBogo;
 
             let priceMarkup = '';
-            if (isAnyFree) {
+            if (isGift) {
+                const itemMinSpend = Number(item.minSpendRequired || slot2Config.minSpend) || 699;
+                const isUnlocked = qualifyingPaidTotal >= itemMinSpend;
+                const remaining = Math.max(0, itemMinSpend - qualifyingPaidTotal);
+                if (isUnlocked) {
+                    if (item.price > 0) {
+                        priceMarkup = `<span class="cart-item-price"><span class="free-gift-price-base">₹0 (FREE)</span> + ₹${item.price} add-ons</span>`;
+                    } else {
+                        priceMarkup = `<span class="cart-item-price" style="color: #10b981; font-weight:800;">₹0 (FREE)</span>`;
+                    }
+                } else {
+                    priceMarkup = `<span class="cart-item-price" style="color: #94a3b8; font-weight:700;">₹0 <span style="font-size:0.75rem; color:#f59e0b; font-weight:600;">(Pending ₹${remaining})</span></span>`;
+                }
+            } else if (isBogo) {
                 if (item.price > 0) {
                     priceMarkup = `<span class="cart-item-price"><span class="free-gift-price-base">FREE</span> + ₹${item.price} add-ons</span>`;
                 } else {
@@ -10282,31 +10288,49 @@ function updateCartUI() {
                     : `<span class="cart-item-price">${formatPrice(item.price * item.qty)}</span>`;
             }
 
-            const isBogoQualifying = Boolean(item.isBogoQualifying);
-            const bannerBadgeMarkup = item.isBannerDeal
-                ? `<span class="cart-banner-deal-badge" style="font-size:0.68rem; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.12); border:1px solid rgba(234,88,12,0.3); border-radius:999px; padding:2px 8px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-fire"></i> Banner Deal</span>`
-                : (isGift
-                    ? `<span class="cart-free-gift-badge"><i class="fa-solid fa-gift"></i> Free Gift</span>`
-                    : (isBogo
-                        ? `<span class="cart-bogo-reward-badge"><i class="fa-solid fa-gift"></i> Free Reward</span>`
-                        : (isBogoQualifying
-                            ? `<span class="cart-bogo-qualifying-badge"><i class="fa-solid fa-tag"></i> BOGO Item</span>`
-                            : '')));
+            let bannerBadgeMarkup = '';
+            if (isGift) {
+                const itemMinSpend = Number(item.minSpendRequired || slot2Config.minSpend) || 699;
+                const isUnlocked = qualifyingPaidTotal >= itemMinSpend;
+                const remaining = Math.max(0, itemMinSpend - qualifyingPaidTotal);
+                if (isUnlocked) {
+                    bannerBadgeMarkup = `<span class="cart-reward-badge badge-unlocked" id="badge-reward-unlocked-${index}"><i class="fa-solid fa-circle-check"></i> Reward Unlocked (100% FREE)</span>`;
+                } else {
+                    bannerBadgeMarkup = `<div class="cart-reward-lock-inline" style="margin-top:4px;"><span class="cart-reward-badge badge-locked" id="badge-reward-locked-${index}"><i class="fa-solid fa-lock"></i> Locked: Add ₹${remaining} more to unlock for FREE</span></div>`;
+                }
+            } else if (item.isBannerDeal) {
+                bannerBadgeMarkup = `<span class="cart-banner-deal-badge" style="font-size:0.68rem; font-weight:700; color:#ea580c; background:rgba(234,88,12,0.12); border:1px solid rgba(234,88,12,0.3); border-radius:999px; padding:2px 8px; margin-left:6px; display:inline-flex; align-items:center; gap:4px;"><i class="fa-solid fa-fire"></i> Banner Deal</span>`;
+            } else if (isBogo) {
+                bannerBadgeMarkup = `<span class="cart-bogo-reward-badge"><i class="fa-solid fa-gift"></i> Free Reward</span>`;
+            } else if (item.isBogoQualifying) {
+                bannerBadgeMarkup = `<span class="cart-bogo-qualifying-badge"><i class="fa-solid fa-tag"></i> BOGO Item</span>`;
+            }
 
             if (isAnyFree) {
                 const changeAction = isBogo ? 'openBogoComboModal()' : `openFreeGiftSelectionModal(${index})`;
                 const changeLabel = isBogo ? 'Edit Combo' : 'Change Gift';
                 const removeAction = isBogo ? 'removeBogoComboFromCart()' : `removeFreeGiftFromCart(${index})`;
+                const isGiftLocked = isGift && (qualifyingPaidTotal < (Number(item.minSpendRequired || slot2Config.minSpend) || 699));
+                const qtyTagText = isBogo
+                    ? `<i class="fa-solid fa-gift"></i> ${item.qty || 1}x FREE`
+                    : (isGiftLocked
+                        ? `<i class="fa-solid fa-lock"></i> Locked`
+                        : `<i class="fa-solid fa-gift"></i> ${item.qty || 1}x FREE`);
+                const qtyTagStyle = isGiftLocked ? 'background:rgba(245,158,11,0.15); color:#f59e0b; border-color:rgba(245,158,11,0.3);' : '';
+
                 return `
-                <div class="cart-item-card cart-item-free-gift">
+                <div class="cart-item-card cart-item-free-gift ${isGiftLocked ? 'item-reward-locked' : 'item-reward-unlocked'}">
                     <img src="${item.img}" alt="${item.name}" class="cart-item-img">
                     <div class="cart-item-info">
-                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name))) : (item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name)))}${bannerBadgeMarkup}</h5>
+                        <h5 class="cart-item-name">${typeof tItem === 'function' ? tItem(item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name))) : (item.displayName || item.displayTitle || (item.size && item.baseName ? `${item.baseName} (${item.size})` : (item.baseName || item.name)))}</h5>
+                        ${bannerBadgeMarkup}
                         ${addonTagsMarkup}
                         ${priceMarkup}
                     </div>
                     <div class="free-gift-cart-controls">
-                        <span class="free-gift-qty-tag" title="${isBogo ? `BOGO Reward (${item.qty || 1}x FREE with combo)` : 'Standard reward item (Free)'}"><i class="fa-solid fa-gift"></i> ${item.qty || 1}x FREE</span>
+                        <span class="free-gift-qty-tag" style="${qtyTagStyle}" title="${isBogo ? `BOGO Reward (${item.qty || 1}x FREE with combo)` : (isGiftLocked ? 'Locked until order meets minimum spend' : 'Standard reward item (Free)')}">
+                            ${qtyTagText}
+                        </span>
                         <button type="button" class="btn-cart-change-gift" onclick="${changeAction}" title="${isBogo ? 'Edit BOGO combo' : 'Swap your free reward'}">
                             <i class="fa-solid fa-arrows-rotate"></i> ${changeLabel}
                         </button>
@@ -10348,7 +10372,14 @@ function updateCartUI() {
     const minOrderVal = getMinOrderValue();
     const freeDeliveryLim = getFreeDeliveryLimit();
 
-    const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    const subtotal = cart.reduce((sum, item) => {
+        if (item.isFreeGift) {
+            const itemMinSpend = Number(item.minSpendRequired || slot2Config.minSpend) || 699;
+            const isUnlocked = qualifyingPaidTotal >= itemMinSpend;
+            return sum + (isUnlocked ? ((item.price || 0) * (item.qty || 0)) : 0);
+        }
+        return sum + ((item.price || 0) * (item.qty || 0));
+    }, 0);
 
     const itemDiscRow = document.getElementById('cart-item-discount-row');
     if (itemDiscRow) {
@@ -10499,6 +10530,126 @@ function getSavedDeliveryProfile() {
 // CHECKOUT & PAYMENT FLOW CONTROLLER
 // --------------------------------------------------------------------------
 let isCheckoutAddressConfirmed = false;
+let pendingLockedRewardOnProceed = null;
+
+function showLockedRewardPromptModal({ remaining, categoryName, minSpend, onProceed }) {
+    pendingLockedRewardOnProceed = (typeof onProceed === 'function') ? onProceed : null;
+    const modal = document.getElementById('locked-reward-modal');
+    const msgEl = document.getElementById('locked-reward-message');
+    const actionsBox = document.getElementById('locked-reward-actions');
+
+    const cleanMsg = `Add ₹${remaining} more to get your free ${categoryName} or remove it to proceed.`;
+    if (msgEl) {
+        msgEl.textContent = cleanMsg;
+    }
+
+    if (actionsBox) {
+        actionsBox.innerHTML = `
+            <button type="button" id="btn-locked-reward-continue" class="offer-conflict-btn secondary btn-conflict-action btn-conflict-secondary" onclick="handleLockedRewardAction('continue')">
+                <i class="fa-solid fa-cart-plus"></i>
+                <span>Continue Shopping (Add ₹${remaining})</span>
+            </button>
+            <button type="button" id="btn-locked-reward-drop" class="offer-conflict-btn primary btn-conflict-action btn-conflict-primary" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="handleLockedRewardAction('drop')">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Remove Reward & Proceed</span>
+            </button>
+        `;
+    }
+
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        modal.classList.add('active');
+        document.body.classList.add('modal-open');
+    }
+}
+window.showLockedRewardPromptModal = showLockedRewardPromptModal;
+
+function closeLockedRewardModal() {
+    const modal = document.getElementById('locked-reward-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        modal.classList.remove('active');
+    }
+    document.body.classList.remove('modal-open');
+    pendingLockedRewardOnProceed = null;
+}
+window.closeLockedRewardModal = closeLockedRewardModal;
+
+function handleLockedRewardBackdropClick(event) {
+    if (event.target && event.target.id === 'locked-reward-modal') {
+        closeLockedRewardModal();
+    }
+}
+window.handleLockedRewardBackdropClick = handleLockedRewardBackdropClick;
+
+function handleLockedRewardAction(actionType) {
+    if (actionType === 'continue') {
+        closeLockedRewardModal();
+        if (typeof switchTab === 'function') {
+            switchTab('home');
+        }
+        return;
+    }
+    if (actionType === 'drop') {
+        cart = (Array.isArray(cart) ? cart : []).filter(item => !item.isFreeGift);
+        saveCartToStorage();
+        if (typeof updateCartUI === 'function') {
+            updateCartUI();
+        }
+        showToast('Removed free reward from cart.');
+        const resumeFn = pendingLockedRewardOnProceed;
+        closeLockedRewardModal();
+        if (typeof resumeFn === 'function') {
+            resumeFn();
+        }
+        return;
+    }
+    closeLockedRewardModal();
+}
+window.handleLockedRewardAction = handleLockedRewardAction;
+
+function checkLockedSlot2RewardGuard(onProceed) {
+    const effectiveCart = (Array.isArray(cart) && cart.length > 0)
+        ? cart
+        : ((typeof window !== 'undefined' && Array.isArray(window.cart)) ? window.cart : []);
+
+    const lockedGiftItem = effectiveCart.find(item => item && item.isFreeGift);
+    if (!lockedGiftItem) return true;
+
+    const slot2Config = (typeof getBannerSlot2Config === 'function') ? getBannerSlot2Config() : { minSpend: 699 };
+    const minSpend = Number(lockedGiftItem.minSpendRequired || slot2Config.minSpend) || 699;
+
+    const qualifyingPaidTotal = effectiveCart
+        .filter(item => !item.isFreeGift && !item.isBogoReward)
+        .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
+
+    if (qualifyingPaidTotal < minSpend) {
+        const remaining = minSpend - qualifyingPaidTotal;
+        const isPizza = isCategoryMatch(lockedGiftItem.eligibleCategory || slot2Config.rewardCategory, 'Pizza');
+        const categoryName = isPizza
+            ? (lockedGiftItem.size ? `${lockedGiftItem.size} Pizza` : 'Pizza')
+            : (getCategoryDisplayName(lockedGiftItem.eligibleCategory || slot2Config.rewardCategory) || lockedGiftItem.eligibleCategory || slot2Config.rewardCategory || 'reward');
+
+        const promptText = `Add ₹${remaining} more to get your free ${categoryName} or remove it to proceed.`;
+        if (typeof showToast === 'function') {
+            showToast(`🔒 ${promptText}`, 4000);
+        }
+
+        showLockedRewardPromptModal({
+            remaining,
+            categoryName,
+            minSpend,
+            onProceed
+        });
+
+        return false;
+    }
+
+    return true;
+}
+window.checkLockedSlot2RewardGuard = checkLockedSlot2RewardGuard;
 
 async function processCheckout() {
     const effectiveCart = (Array.isArray(cart) && cart.length > 0)
@@ -10508,10 +10659,20 @@ async function processCheckout() {
         cart = effectiveCart;
     }
     const itemCount = effectiveCart.reduce((sum, item) => sum + (item.qty || 0), 0);
-    const subtotal = effectiveCart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
 
-    if (!effectiveCart || effectiveCart.length === 0 || itemCount === 0 || subtotal <= 0) {
+    if (!effectiveCart || effectiveCart.length === 0 || itemCount === 0) {
         showToast('Your cart is empty! Please add items before placing an order.');
+        return;
+    }
+
+    // CHECKOUT SPEND-VALIDATION GUARD FOR BANNER SLOT #2
+    if (!checkLockedSlot2RewardGuard(() => processCheckout())) {
+        return;
+    }
+
+    const subtotal = effectiveCart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
+    if (subtotal <= 0) {
+        showToast('Your cart total is ₹0. Please add items before placing an order.');
         return;
     }
 
@@ -10949,6 +11110,12 @@ async function handleSelectCodPayment() {
         if (typeof showToast === 'function') showToast('Store is currently closed');
         return;
     }
+
+    // CHECKOUT SPEND-VALIDATION GUARD FOR BANNER SLOT #2
+    if (!checkLockedSlot2RewardGuard(() => handleSelectCodPayment())) {
+        return;
+    }
+
     if (!isCheckoutAddressConfirmed) {
         showToast('⚠️ Please tap "Confirm Address" first.');
         return;
@@ -11038,6 +11205,12 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         if (typeof showToast === 'function') showToast('Store is currently closed');
         return false;
     }
+
+    // CHECKOUT SPEND-VALIDATION GUARD FOR BANNER SLOT #2
+    if (!checkLockedSlot2RewardGuard()) {
+        return false;
+    }
+
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
 
     // Prioritize active in-memory custom pinned GPS, fallback to profile GPS or hidden inputs
@@ -17647,23 +17820,6 @@ function handleBannerSlideClick(slideIndex, bannerId) {
                 sessionStorage.setItem('banner2SpendOfferActive', 'true');
                 sessionStorage.removeItem('banner2SpendBarDismissed');
             } catch (e) { }
-            const minSpend = Number(banner.minSpend) || 699;
-            const maxQty = (typeof getCustomerMaxQtyPerOffer === 'function') ? getCustomerMaxQtyPerOffer() : 1;
-            const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
-            const rewardTitle = isPizza
-                ? `${(banner.rewardPizzaSize || 'medium').charAt(0).toUpperCase() + (banner.rewardPizzaSize || 'medium').slice(1)} Pizza`
-                : (getCategoryDisplayName(banner.rewardCategory) || 'Gift');
-
-            // Immediately evaluate current paid cart subtotal
-            const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
-                .filter(item => !item.isFreeGift && !item.isBogoReward)
-                .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
-
-            const totalClaimedGifts = (Array.isArray(cart) ? cart : [])
-                .filter(item => item.isFreeGift)
-                .reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
-
-            const maxUnlockedTiers = Math.min(maxQty, Math.floor(qualifyingPaidTotal / minSpend));
 
             if (typeof updateSpendHungerBar === 'function') {
                 updateSpendHungerBar();
@@ -17672,22 +17828,10 @@ function handleBannerSlideClick(slideIndex, bannerId) {
                 updateCartUI();
             }
 
-            if (maxUnlockedTiers > totalClaimedGifts) {
-                // Has an unclaimed unlocked gift -> launch modal
-                if (typeof openFreeGiftSelectionModal === 'function') {
-                    openFreeGiftSelectionModal();
-                }
-            } else if (totalClaimedGifts > 0 && totalClaimedGifts >= maxQty) {
-                showToast(`Max limit of ${maxQty} free gifts reached!`);
-            } else if (maxUnlockedTiers > 0 && totalClaimedGifts >= maxUnlockedTiers) {
-                // Already claimed for current tier; prevent free stacking
-                const nextTier = totalClaimedGifts + 1;
-                const remaining = (nextTier * minSpend) - qualifyingPaidTotal;
-                showToast(`Tier ${totalClaimedGifts} Unlocked! Add ₹${remaining} more to unlock your ${getOrdinal(nextTier)} FREE ${rewardTitle}!`);
-            } else {
-                // Below tier 1
-                const deficit = minSpend - qualifyingPaidTotal;
-                showToast(`🎉 Offer Activated! Add ₹${deficit} more to unlock your FREE ${rewardTitle}!`);
+            // Immediately open reward selection modal displaying all available items belonging to eligibleCategory
+            // Do NOT wait for cart to reach minSpend!
+            if (typeof openFreeGiftSelectionModal === 'function') {
+                openFreeGiftSelectionModal();
             }
         };
 
@@ -18138,19 +18282,24 @@ let currentFreeGiftState = {
     eligibleItems: [],
     slotConfig: null
 };
+window.getCurrentFreeGiftState = () => currentFreeGiftState;
 
 function getBannerSlot2Config() {
     let banners = [];
-    try {
-        const saved = localStorage.getItem('perfetto_daily_banners');
-        if (saved) {
-            banners = JSON.parse(saved);
-        }
-    } catch (e) { }
+    if (window.__currentActiveBanners && Array.isArray(window.__currentActiveBanners) && window.__currentActiveBanners.length >= 2) {
+        banners = window.__currentActiveBanners;
+    } else {
+        try {
+            const saved = localStorage.getItem('perfetto_daily_banners');
+            if (saved) {
+                banners = JSON.parse(saved);
+            }
+        } catch (e) { }
+    }
     if (!Array.isArray(banners) || banners.length < 2) {
         banners = typeof DEFAULT_DAILY_BANNERS !== 'undefined' ? DEFAULT_DAILY_BANNERS : [];
     }
-    const b2 = banners[1] || {};
+    const b2 = banners.find(b => b && b.id === 'b2') || banners[1] || {};
     const cat = b2.rewardCategory || 'Shake';
     const isPizza = cat.toLowerCase() === 'pizza';
     return {
@@ -18158,6 +18307,7 @@ function getBannerSlot2Config() {
         url: b2.url || '',
         minSpend: Number(b2.minSpend) || 699,
         rewardCategory: cat,
+        eligibleCategory: cat,
         rewardType: isPizza ? 'pizza' : (b2.rewardType || 'category'),
         rewardPizzaSize: isPizza ? (b2.rewardPizzaSize || 'medium') : '',
         enabled: b2.enabled !== false
@@ -18183,50 +18333,49 @@ function openFreeGiftSelectionModal(editIndex) {
     currentFreeGiftState.selectedAddons = { cheese: false, spicy: false, mayo: false, iceCream: false };
 
     const baseMinSpend = Number(config.minSpend) || 699;
-    const maxQty = (typeof getCustomerMaxQtyPerOffer === 'function') ? getCustomerMaxQtyPerOffer() : 1;
     const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
         .filter(item => !item.isFreeGift && !item.isBogoReward)
         .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
-    const maxUnlockedTiers = Math.min(maxQty, Math.floor(qualifyingPaidTotal / baseMinSpend));
-    const totalClaimedGifts = (Array.isArray(cart) ? cart : [])
-        .filter(item => item.isFreeGift)
-        .reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
 
     const isEditing = (typeof editIndex === 'number' && editIndex >= 0 && cart[editIndex] && cart[editIndex].isFreeGift);
     window.__editingFreeGiftIndex = isEditing ? editIndex : null;
 
-    if (!isEditing && totalClaimedGifts >= maxUnlockedTiers) {
-        if (maxUnlockedTiers === 0) {
-            showToast(`⚠️ Paid cart total must be at least ₹${baseMinSpend} to unlock a free gift.`);
-        } else if (totalClaimedGifts >= maxQty) {
-            showToast(`Max limit of ${maxQty} free gifts reached!`);
-        } else {
-            const nextTier = totalClaimedGifts + 1;
-            const deficit = (nextTier * baseMinSpend) - qualifyingPaidTotal;
-            showToast(`Add ₹${deficit} more to unlock your ${getOrdinal(nextTier)} FREE gift!`);
+    // If not explicitly editing, check if user already has a free gift in cart
+    if (!isEditing && Array.isArray(cart)) {
+        const existingGiftIdx = cart.findIndex(item => item && item.isFreeGift);
+        if (existingGiftIdx > -1) {
+            window.__editingFreeGiftIndex = existingGiftIdx;
         }
-        return;
     }
+
+    const isPizza = config.rewardType === 'pizza' || isCategoryMatch(config.rewardCategory, 'Pizza');
+    const eligibleCategory = isPizza
+        ? `${(config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
+        : (getCategoryDisplayName(config.rewardCategory) || config.rewardCategory || 'Reward');
 
     const titleEl = document.getElementById('free-gift-modal-title');
     const subtitleEl = document.getElementById('free-gift-modal-subtitle');
     const badgeTextEl = document.getElementById('free-gift-badge-text');
+    const confirmBtn = document.getElementById('btn-confirm-free-gift');
 
-    const isPizza = config.rewardType === 'pizza' || isCategoryMatch(config.rewardCategory, 'Pizza');
-    const rewardName = isPizza
-        ? `${(config.rewardPizzaSize || 'Medium').charAt(0).toUpperCase() + (config.rewardPizzaSize || 'Medium').slice(1)} Pizza`
-        : (getCategoryDisplayName(config.rewardCategory) || 'Gift');
+    if (badgeTextEl) {
+        badgeTextEl.textContent = qualifyingPaidTotal >= baseMinSpend
+            ? `Reward Unlocked (100% FREE)`
+            : `Spend ₹${baseMinSpend}+ to Unlock`;
+    }
 
-    if (isEditing) {
-        const targetGift = cart[editIndex];
-        if (badgeTextEl) badgeTextEl.textContent = `Swap Free ${rewardName}`;
-        if (titleEl) titleEl.textContent = `Swap Your Free ${rewardName}`;
-        if (subtitleEl) subtitleEl.textContent = `Select any item below to replace "${targetGift.baseName || targetGift.name}":`;
-    } else {
-        const giftNum = totalClaimedGifts + 1;
-        if (badgeTextEl) badgeTextEl.textContent = `Tier ${giftNum} Free Reward (${giftNum}/${maxUnlockedTiers} Unlocked)`;
-        if (titleEl) titleEl.textContent = `Choose Your ${getOrdinal(giftNum)} Free ${rewardName}`;
-        if (subtitleEl) subtitleEl.textContent = `Tier ${giftNum} unlocked for spending ₹${giftNum * baseMinSpend}+ on paid items! Pick your reward below:`;
+    // Modal Title: CHOOSE YOUR FREE ${eligibleCategory.toUpperCase()}
+    if (titleEl) {
+        titleEl.textContent = `CHOOSE YOUR FREE ${eligibleCategory.toUpperCase()}`;
+    }
+
+    // Dynamic note: Unlocks 100% FREE on orders of ₹${minSpend} or more
+    if (subtitleEl) {
+        subtitleEl.textContent = `Unlocks 100% FREE on orders of ₹${baseMinSpend} or more`;
+    }
+
+    if (confirmBtn) {
+        confirmBtn.innerHTML = `<i class="fa-solid fa-gift"></i> Add to Cart / Claim Reward`;
     }
 
     // Fetch eligible items
@@ -18252,8 +18401,9 @@ function openFreeGiftSelectionModal(editIndex) {
     currentFreeGiftState.eligibleItems = eligible;
 
     // Check if editing or already had a gift in cart to preselect
-    if (isEditing && cart[editIndex]) {
-        const targetGift = cart[editIndex];
+    const activeEditIdx = window.__editingFreeGiftIndex;
+    if (typeof activeEditIdx === 'number' && activeEditIdx >= 0 && cart[activeEditIdx]) {
+        const targetGift = cart[activeEditIdx];
         const found = eligible.find(i => i.name === targetGift.baseName || i.name === targetGift.name);
         currentFreeGiftState.selectedItem = found || eligible[0] || null;
     } else {
@@ -18459,31 +18609,11 @@ function confirmClaimFreeGift() {
     }
 
     const baseMinSpend = Number(slotConfig.minSpend) || 699;
-    const maxQty = (typeof getCustomerMaxQtyPerOffer === 'function') ? getCustomerMaxQtyPerOffer() : 1;
-    const qualifyingPaidTotal = cart
+    const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
         .filter(item => !item.isFreeGift && !item.isBogoReward)
         .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
 
-    const maxUnlockedTiers = Math.min(maxQty, Math.floor(qualifyingPaidTotal / baseMinSpend));
-    const totalClaimedGifts = cart
-        .filter(item => item.isFreeGift)
-        .reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
-
-    const isEditing = (typeof window.__editingFreeGiftIndex === 'number' && window.__editingFreeGiftIndex >= 0 && cart[window.__editingFreeGiftIndex] && cart[window.__editingFreeGiftIndex].isFreeGift);
-
-    if (!isEditing && totalClaimedGifts >= maxUnlockedTiers) {
-        if (maxUnlockedTiers === 0) {
-            showToast(`⚠️ Paid cart total must be at least ₹${baseMinSpend} to claim your free gift.`);
-        } else if (totalClaimedGifts >= maxQty) {
-            showToast(`Max limit of ${maxQty} free gifts reached!`);
-        } else {
-            const nextTier = totalClaimedGifts + 1;
-            const deficit = (nextTier * baseMinSpend) - qualifyingPaidTotal;
-            showToast(`Add ₹${deficit} more to unlock your ${getOrdinal(nextTier)} FREE gift!`);
-        }
-        closeFreeGiftModal();
-        return;
-    }
+    const isRewardUnlocked = (qualifyingPaidTotal >= baseMinSpend);
 
     // Determine base price and size
     let origBasePrice = Number(selectedItem.price) || 0;
@@ -18527,55 +18657,53 @@ function confirmClaimFreeGift() {
     const addonNames = addonsList.map(a => a.name);
     const fullItemName = addonNames.length > 0 ? `${baseItemName} (+${addonNames.join(', ')})` : baseItemName;
 
+    const rewardCategory = (slotConfig && (slotConfig.rewardCategory || slotConfig.eligibleCategory)) || selectedItem.category || 'Shake';
+
+    const giftCartItem = {
+        id: selectedItem.id || '',
+        baseId: selectedItem.id || '',
+        productId: selectedItem.id || '',
+        name: fullItemName,
+        baseName: baseItemName,
+        originalTitle: baseItemName,
+        displayName: baseItemName,
+        displayTitle: baseItemName,
+        size: isPizza ? pizzaSizeKey : undefined,
+        price: isRewardUnlocked ? addonsPrice : 0,
+        basePrice: 0,
+        originalPrice: origBasePrice + addonsPrice,
+        qty: 1,
+        img: selectedItem.img || '',
+        addons: addonsList,
+        isFreeGift: true,
+        isSlot2SpendReward: true,
+        minSpendRequired: baseMinSpend,
+        eligibleCategory: rewardCategory,
+        isBannerDeal: true,
+        bannerSlot: 2
+    };
+
+    const isEditing = (typeof window.__editingFreeGiftIndex === 'number' && window.__editingFreeGiftIndex >= 0 && cart[window.__editingFreeGiftIndex] && cart[window.__editingFreeGiftIndex].isFreeGift);
+
     if (isEditing) {
-        cart[window.__editingFreeGiftIndex] = {
-            id: selectedItem.id || '',
-            baseId: selectedItem.id || '',
-            productId: selectedItem.id || '',
-            name: fullItemName,
-            baseName: baseItemName,
-            originalTitle: baseItemName,
-            displayName: baseItemName,
-            displayTitle: baseItemName,
-            price: addonsPrice,
-            basePrice: 0,
-            originalPrice: origBasePrice + addonsPrice,
-            qty: cart[window.__editingFreeGiftIndex].qty || 1,
-            img: selectedItem.img || '',
-            addons: addonsList,
-            isFreeGift: true,
-            isBannerDeal: true,
-            bannerSlot: 2
-        };
+        cart[window.__editingFreeGiftIndex] = giftCartItem;
         window.__editingFreeGiftIndex = null;
-        showToast(`🎁 Swapped Free ${baseItemName}!`);
+        showToast(`🎁 Updated Free ${baseItemName}!`);
     } else {
-        const existingGiftIdx = cart.findIndex(item => item.isFreeGift && item.name === fullItemName);
+        // Replace existing free gift in cart if one exists
+        const existingGiftIdx = cart.findIndex(item => item && item.isFreeGift);
         if (existingGiftIdx > -1) {
-            cart[existingGiftIdx].qty = (cart[existingGiftIdx].qty || 1) + 1;
+            cart[existingGiftIdx] = giftCartItem;
         } else {
-            cart.push({
-                id: selectedItem.id || '',
-                baseId: selectedItem.id || '',
-                productId: selectedItem.id || '',
-                name: fullItemName,
-                baseName: baseItemName,
-                originalTitle: baseItemName,
-                displayName: baseItemName,
-                displayTitle: baseItemName,
-                price: addonsPrice,
-                basePrice: 0,
-                originalPrice: origBasePrice + addonsPrice,
-                qty: 1,
-                img: selectedItem.img || '',
-                addons: addonsList,
-                isFreeGift: true,
-                isBannerDeal: true,
-                bannerSlot: 2
-            });
+            cart.push(giftCartItem);
         }
-        const newTotalClaimed = cart.filter(i => i.isFreeGift).reduce((s, i) => s + (Number(i.qty) || 1), 0);
-        showToast(`🎁 Claimed ${getOrdinal(newTotalClaimed)} Free ${baseItemName}!`);
+
+        if (isRewardUnlocked) {
+            showToast(`🎁 Claimed Free ${baseItemName}!`);
+        } else {
+            const deficit = baseMinSpend - qualifyingPaidTotal;
+            showToast(`🎁 Added to Cart! Add ₹${deficit} more to unlock for FREE!`, 3500);
+        }
     }
 
     saveCartToStorage();

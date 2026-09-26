@@ -1242,7 +1242,7 @@
                             <span class="spotlight-savings-tag" id="free-gift-breakdown-tag">Base Price: ₹0 (FREE)</span>
                         </div>
                         <button type="button" class="btn-confirm-free-gift" id="btn-confirm-free-gift" onclick="confirmClaimFreeGift()">
-                            <i class="fa-solid fa-gift"></i> Claim Free Gift
+                            <i class="fa-solid fa-gift"></i> Add to Cart / Claim Reward
                         </button>
                     </div>
                 </div>
@@ -1400,6 +1400,31 @@
                 </div>
                 <div class="offer-conflict-actions-box" id="offer-conflict-actions">
                     <!-- Dynamic action buttons injected via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- LOCKED REWARD CHECKOUT GUARD MODAL -->
+        <div class="checkout-modal-overlay offer-conflict-overlay" id="locked-reward-modal" aria-hidden="true" style="display: none;" onclick="handleLockedRewardBackdropClick(event)">
+            <div class="checkout-modal-card offer-conflict-card" role="dialog" aria-labelledby="locked-reward-title" onclick="event.stopPropagation()">
+                <div class="offer-conflict-icon-wrap" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1.5px solid rgba(245, 158, 11, 0.35);">
+                    <i class="fa-solid fa-lock" id="locked-reward-icon"></i>
+                </div>
+                <div class="offer-conflict-header">
+                    <h3 class="offer-conflict-title" id="locked-reward-title">Reward Target Not Reached</h3>
+                    <p class="offer-conflict-message" id="locked-reward-message">
+                        Add ₹799 more to get your free Cold Drinks or remove it to proceed.
+                    </p>
+                </div>
+                <div class="offer-conflict-actions-box" id="locked-reward-actions">
+                    <button type="button" id="btn-locked-reward-continue" class="offer-conflict-btn secondary btn-conflict-action btn-conflict-secondary" onclick="handleLockedRewardAction('continue')">
+                        <i class="fa-solid fa-cart-plus"></i>
+                        <span>Continue Shopping</span>
+                    </button>
+                    <button type="button" id="btn-locked-reward-drop" class="offer-conflict-btn primary btn-conflict-action btn-conflict-primary" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);" onclick="handleLockedRewardAction('drop')">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Remove Reward & Proceed</span>
+                    </button>
                 </div>
             </div>
         </div>
