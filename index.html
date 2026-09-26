@@ -100,40 +100,109 @@
 
     <!-- Account Settings Divider Border Unification & Store Notice Single-Line Truncation -->
     <style id="account-settings-divider-and-notice-styles">
-        /* Unify row divider logic across all items inside Account Settings */
+        /* Unify row divider logic across standard items inside Account Settings */
         .account-settings-card,
         .settings-list,
         .menu-list-group {
             position: relative;
         }
 
-        .menu-list-group .menu-item-row,
-        .account-settings-card .menu-item-row,
-        .settings-list .menu-item-row {
+        .menu-list-group .menu-item-row:not(.profile-notice-row),
+        .account-settings-card .menu-item-row:not(.profile-notice-row),
+        .settings-list .menu-item-row:not(.profile-notice-row) {
             display: flex;
             align-items: center;
             gap: 14px;
             padding: 12px 0 !important;
             border-bottom: 1px solid var(--border-color) !important;
             border-top: none !important;
+            border-left: none !important;
+            border-right: none !important;
             margin-top: 0 !important;
             min-height: 62px;
             box-sizing: border-box;
             cursor: pointer;
         }
 
-        /* Inactive Store Notice Row: Single bottom divider line */
+        /* Inactive Store Notice Row: Single bottom divider line matching standard rows */
         .menu-item-row.profile-notice-inactive-row {
             border-bottom: 1px solid var(--border-color) !important;
             border-top: none !important;
+            border-left: none !important;
+            border-right: none !important;
             margin: 0 !important;
             padding: 12px 0 !important;
+        }
+
+        /* Active Store Notice Card at Top: Fully enclosed rounded highlight box */
+        .menu-list-group .menu-item-row.profile-notice-row,
+        .account-settings-card .menu-item-row.profile-notice-row,
+        .settings-list .menu-item-row.profile-notice-row,
+        .menu-item-row.profile-notice-row,
+        #profile-store-notice-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            border: 1px solid rgba(245, 158, 11, 0.35) !important;
+            border-radius: 14px !important;
+            padding: 12px 14px !important;
+            background: rgba(254, 243, 199, 0.35) !important;
+            background-color: rgba(254, 243, 199, 0.35) !important;
+            margin-top: 4px !important;
+            margin-bottom: 12px !important;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08) !important;
+            transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+            min-height: auto !important;
+            cursor: pointer;
+        }
+
+        .menu-list-group .menu-item-row.profile-notice-row:hover,
+        .account-settings-card .menu-item-row.profile-notice-row:hover,
+        .settings-list .menu-item-row.profile-notice-row:hover,
+        .menu-item-row.profile-notice-row:hover,
+        #profile-store-notice-row:hover {
+            background: rgba(254, 243, 199, 0.5) !important;
+            background-color: rgba(254, 243, 199, 0.5) !important;
+            border-color: rgba(245, 158, 11, 0.55) !important;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.16) !important;
+            transform: translateY(-1px);
+        }
+
+        .menu-item-row.profile-notice-row:active,
+        #profile-store-notice-row:active {
+            transform: translateY(0);
+        }
+
+        [data-theme="dark"] .menu-list-group .menu-item-row.profile-notice-row,
+        [data-theme="dark"] .account-settings-card .menu-item-row.profile-notice-row,
+        [data-theme="dark"] .settings-list .menu-item-row.profile-notice-row,
+        [data-theme="dark"] .menu-item-row.profile-notice-row,
+        [data-theme="dark"] #profile-store-notice-row {
+            background: rgba(245, 158, 11, 0.14) !important;
+            background-color: rgba(245, 158, 11, 0.14) !important;
+            border: 1px solid rgba(245, 158, 11, 0.35) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+        }
+
+        [data-theme="dark"] .menu-list-group .menu-item-row.profile-notice-row:hover,
+        [data-theme="dark"] .account-settings-card .menu-item-row.profile-notice-row:hover,
+        [data-theme="dark"] .settings-list .menu-item-row.profile-notice-row:hover,
+        [data-theme="dark"] .menu-item-row.profile-notice-row:hover,
+        [data-theme="dark"] #profile-store-notice-row:hover {
+            background: rgba(245, 158, 11, 0.22) !important;
+            background-color: rgba(245, 158, 11, 0.22) !important;
+            border-color: rgba(245, 158, 11, 0.6) !important;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
         }
 
         /* Dedicated Log Out Row: Remove redundant top border, uniform padding, no bottom border */
         .menu-item-row.menu-item-logout,
         #menu-item-logout {
             border-top: none !important;
+            border-left: none !important;
+            border-right: none !important;
             margin-top: 0 !important;
             padding-top: 12px !important;
             padding-bottom: 12px !important;
@@ -141,10 +210,10 @@
         }
 
         /* Very last child in container has strictly no bottom border */
-        .menu-list-group > .menu-item-row:last-child,
-        .account-settings-card > .menu-item-row:last-child,
-        .settings-list > .menu-item-row:last-child,
-        .menu-item-row:last-child {
+        .menu-list-group > .menu-item-row:last-child:not(.profile-notice-row),
+        .account-settings-card > .menu-item-row:last-child:not(.profile-notice-row),
+        .settings-list > .menu-item-row:last-child:not(.profile-notice-row),
+        .menu-item-row:last-child:not(.profile-notice-row) {
             border-bottom: none !important;
         }
 

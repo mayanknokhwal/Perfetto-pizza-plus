@@ -8851,10 +8851,8 @@ let storeNoticeRealtimeUnsubscribe = null;
 
 function updateStoreNoticeUI() {
     try {
-        if (!customerStoreNotice) {
-            const stored = localStorage.getItem('perfetto_store_notice');
-            if (stored) customerStoreNotice = JSON.parse(stored);
-        }
+        const stored = localStorage.getItem('perfetto_store_notice');
+        if (stored) customerStoreNotice = JSON.parse(stored);
     } catch (e) {}
 
     const homeBadgeWrapper = document.getElementById('home-store-notice-wrapper');
@@ -8900,16 +8898,19 @@ function updateStoreNoticeUI() {
                     orderHistoryRow.parentNode.insertBefore(profileNoticeRow, orderHistoryRow);
                 } catch (e) {}
             }
+            profileNoticeRow.classList.add('profile-notice-row');
             profileNoticeRow.style.display = 'flex';
             const previewEl = document.getElementById('profile-notice-preview-text');
             if (previewEl && content) {
                 const cleanText = content.replace(/\s+/g, ' ').trim();
                 if (cleanText) {
                     previewEl.textContent = cleanText;
+                    previewEl.title = cleanText;
                     previewEl.removeAttribute('data-i18n');
                 }
             } else if (previewEl) {
                 previewEl.textContent = typeof t === 'function' ? t('store_notice_sub') : 'Important updates & announcements';
+                previewEl.removeAttribute('title');
             }
         }
         if (profileNoticeInactiveRow) {
