@@ -9256,7 +9256,8 @@ window.initStoreNoticeModal = initStoreNoticeModal;
 
 // REAL-TIME CROSS-TAB STORAGE SYNCHRONIZATION
 window.addEventListener('storage', (e) => {
-    if (!e.key || e.key === SHOP_STATUS_KEY || e.key === OPENING_TIME_KEY || e.key === CLOSING_TIME_KEY || e.key === AUTO_SCHEDULE_KEY || e.key === MANUAL_OVERRIDE_KEY) {
+    try {
+        if (!e.key || e.key === SHOP_STATUS_KEY || e.key === OPENING_TIME_KEY || e.key === CLOSING_TIME_KEY || e.key === AUTO_SCHEDULE_KEY || e.key === MANUAL_OVERRIDE_KEY) {
         checkAndUpdateShopStatusUI();
     }
     if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY) {
@@ -9311,6 +9312,9 @@ window.addEventListener('storage', (e) => {
     if (!e.key || e.key === CART_STORAGE_KEY) {
         cart = loadCartFromStorage();
         updateCartUI();
+    }
+    } catch (storageErr) {
+        console.warn('Cross-tab storage sync error caught:', storageErr);
     }
 });
 
@@ -13806,6 +13810,8 @@ let customerTempCoords = { lat: 29.533736, lng: 73.447895 }; // Raisingh Nagar d
 let currentCustomerGps = null; // Confirmed coords { lat: number, lng: number }
 let lastGpsAccuracyMeters = null; // Accuracy in meters from Geolocation API
 const MAX_ALLOWED_ACCURACY_METERS = 250; // Threshold for precise location (anything higher is approximate/rough IP/cell fix)
+let mapModalInitTimer = null;
+let mapModalSettleTimer = null;
 
 // Calculate dynamic square bounding box centered on store with maxBounds
 function getStoreDeliveryBoundingBox() {
@@ -13885,353 +13891,445 @@ function pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold) {
 }
 
 function openCustomerMapModal() {
-    if (typeof saveProfileFormDraft === 'function') {
-        saveProfileFormDraft();
-    }
-    const modal = document.getElementById('customer-map-modal');
-    const openBtn = document.getElementById('btn-open-map-modal');
-    const openBtnText = document.getElementById('gps-btn-text');
-    if (!modal) return;
+    try {
+        if (typeof saveProfileFormDraft === 'function') {
+            saveProfileFormDraft();
+        }
+        const modal = document.getElementById('customer-map-modal');
+        const openBtn = document.getElementById('btn-open-map-modal');
+        const openBtnText = document.getElementById('gps-btn-text');
+        if (!modal) return;
 
-    // Check if we already have confirmed or saved coordinates
-    const latHidden = document.getElementById('customer-gps-lat');
-    const lngHidden = document.getElementById('customer-gps-lng');
-    const hasExistingCoords = (latHidden && latHidden.value && lngHidden && lngHidden.value) || currentCustomerGps;
+        // Check if we already have confirmed or saved coordinates
+        const latHidden = document.getElementById('customer-gps-lat');
+        const lngHidden = document.getElementById('customer-gps-lng');
+        const hasExistingCoords = (latHidden && latHidden.value && lngHidden && lngHidden.value) || currentCustomerGps;
 
-    // If geolocation is available and no existing coords, try detecting live GPS
-    if (!hasExistingCoords && navigator.geolocation) {
-        if (openBtn) openBtn.disabled = true;
-        if (openBtnText) openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
+        const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+        const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const liveLat = parseFloat(position.coords.latitude.toFixed(6));
-                const liveLng = parseFloat(position.coords.longitude.toFixed(6));
-                lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
-
-                resetOpenMapButton(openBtn, openBtnText);
-
-                // If accuracy is high/rough, clamp to delivery zone if needed and open modal for manual adjustment
-                const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
-                let initialLat = liveLat;
-                let initialLng = liveLng;
-                if (!radiusCheck.isAllowed) {
-                    const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
-                    initialLat = clamped.lat;
-                    initialLng = clamped.lng;
-                }
-
-                launchCustomerMapModal(initialLat, initialLng);
-            },
-            (error) => {
-                console.warn('Initial GPS detection fallback:', error);
-                resetOpenMapButton(openBtn, openBtnText);
-                lastGpsAccuracyMeters = null;
-
-                // Fallback to store/default coordinates so user can still manually pin
-                const storeLat = getRestaurantLat();
-                const storeLng = getRestaurantLng();
-                launchCustomerMapModal(storeLat, storeLng);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 8000,
-                maximumAge: 60000
-            }
-        );
-    } else {
-        let initialLat = getRestaurantLat();
-        let initialLng = getRestaurantLng();
-
+        let fallbackLat = storeLat;
+        let fallbackLng = storeLng;
         if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
-            initialLat = parseFloat(latHidden.value) || initialLat;
-            initialLng = parseFloat(lngHidden.value) || initialLng;
-        } else if (currentCustomerGps) {
-            initialLat = currentCustomerGps.lat;
-            initialLng = currentCustomerGps.lng;
+            fallbackLat = parseFloat(latHidden.value) || storeLat;
+            fallbackLng = parseFloat(lngHidden.value) || storeLng;
+        } else if (currentCustomerGps && currentCustomerGps.lat && currentCustomerGps.lng) {
+            fallbackLat = parseFloat(currentCustomerGps.lat) || storeLat;
+            fallbackLng = parseFloat(currentCustomerGps.lng) || storeLng;
         }
 
-        launchCustomerMapModal(initialLat, initialLng);
+        // If geolocation is available and no existing confirmed coords, try detecting live GPS single-shot
+        if (!hasExistingCoords && navigator.geolocation) {
+            if (openBtn) openBtn.disabled = true;
+            if (openBtnText) openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
+
+            let isHandled = false;
+
+            const handleFallback = (reason) => {
+                if (isHandled) return;
+                isHandled = true;
+                if (fallbackGpsTimer) {
+                    clearTimeout(fallbackGpsTimer);
+                    fallbackGpsTimer = null;
+                }
+                console.warn('GPS detection fallback triggered:', reason);
+                resetOpenMapButton(openBtn, openBtnText);
+                lastGpsAccuracyMeters = null;
+                if (typeof showToast === 'function') {
+                    showToast('Unable to auto-detect location. Please tap on the map to pin your location manually.');
+                }
+                launchCustomerMapModal(fallbackLat, fallbackLng);
+            };
+
+            let fallbackGpsTimer = setTimeout(() => {
+                handleFallback('Timeout (8s)');
+            }, 8000);
+
+            try {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        if (isHandled) return;
+                        isHandled = true;
+                        if (fallbackGpsTimer) {
+                            clearTimeout(fallbackGpsTimer);
+                            fallbackGpsTimer = null;
+                        }
+                        resetOpenMapButton(openBtn, openBtnText);
+
+                        try {
+                            const liveLat = parseFloat(position.coords.latitude.toFixed(6));
+                            const liveLng = parseFloat(position.coords.longitude.toFixed(6));
+                            lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
+
+                            // If accuracy is high/rough, clamp to delivery zone if needed and open modal for manual adjustment
+                            const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
+                            let initialLat = liveLat;
+                            let initialLng = liveLng;
+                            if (!radiusCheck.isAllowed) {
+                                const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
+                                initialLat = clamped.lat;
+                                initialLng = clamped.lng;
+                            }
+
+                            launchCustomerMapModal(initialLat, initialLng);
+                        } catch (posErr) {
+                            console.error('Error processing GPS position:', posErr);
+                            handleFallback(posErr.message);
+                        }
+                    },
+                    (error) => {
+                        handleFallback(error ? error.message || error.code : 'Geolocation error');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 8000,
+                        maximumAge: 30000
+                    }
+                );
+            } catch (geoCallErr) {
+                console.error('Error calling getCurrentPosition:', geoCallErr);
+                handleFallback(geoCallErr.message);
+            }
+        } else {
+            resetOpenMapButton(openBtn, openBtnText);
+            launchCustomerMapModal(fallbackLat, fallbackLng);
+        }
+    } catch (e) {
+        console.error('Unhandled exception in openCustomerMapModal:', e);
+        const openBtn = document.getElementById('btn-open-map-modal');
+        const openBtnText = document.getElementById('gps-btn-text');
+        resetOpenMapButton(openBtn, openBtnText);
+        const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+        const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
+        launchCustomerMapModal(storeLat, storeLng);
     }
 }
 
 function resetOpenMapButton(btn, btnText) {
-    if (btn) btn.disabled = false;
-    if (btnText) {
-        const isVerified = currentCustomerGps !== null || (document.getElementById('customer-gps-lat')?.value);
-        btnText.innerHTML = isVerified ? '<i class="fa-solid fa-map-pin"></i> Change Location on Map' : '<i class="fa-solid fa-map"></i> Open Location Map';
-    }
+    try {
+        if (btn) btn.disabled = false;
+        if (btnText) {
+            const isVerified = currentCustomerGps !== null || (document.getElementById('customer-gps-lat')?.value);
+            btnText.innerHTML = isVerified ? '<i class="fa-solid fa-map-pin"></i> Change Location on Map' : '<i class="fa-solid fa-map"></i> Open Location Map';
+        }
+    } catch (_) {}
 }
 
 function launchCustomerMapModal(initialLat, initialLng) {
-    const modal = document.getElementById('customer-map-modal');
-    if (!modal) return;
+    try {
+        const modal = document.getElementById('customer-map-modal');
+        if (!modal) return;
 
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-
-    customerTempCoords = { lat: initialLat, lng: initialLng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
-    updateMapModalCoordsDisplay(initialLat, initialLng);
-
-    setTimeout(() => {
-        initCustomerLeafletMap(initialLat, initialLng);
-        if (customerLeafletMap) {
-            customerLeafletMap.invalidateSize();
-            const { bounds } = getStoreDeliveryBoundingBox();
-            const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
-            customerLeafletMap.setMaxBounds(squareBounds);
-            customerLeafletMap.options.maxBounds = squareBounds;
-            customerLeafletMap.options.maxBoundsViscosity = 1.0;
-            const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
-            if (computedMinZoom && !isNaN(computedMinZoom)) {
-                customerLeafletMap.setMinZoom(computedMinZoom);
-            }
+        // Clear any previous pending timers to prevent leaks & multiple runs
+        if (mapModalInitTimer) {
+            clearTimeout(mapModalInitTimer);
+            mapModalInitTimer = null;
         }
-    }, 150);
-
-    setTimeout(() => {
-        if (customerLeafletMap) {
-            customerLeafletMap.invalidateSize();
-            const { bounds } = getStoreDeliveryBoundingBox();
-            const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
-            customerLeafletMap.setMaxBounds(squareBounds);
-            customerLeafletMap.options.maxBounds = squareBounds;
-            customerLeafletMap.options.maxBoundsViscosity = 1.0;
-            const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
-            if (computedMinZoom && !isNaN(computedMinZoom)) {
-                customerLeafletMap.setMinZoom(computedMinZoom);
-            }
+        if (mapModalSettleTimer) {
+            clearTimeout(mapModalSettleTimer);
+            mapModalSettleTimer = null;
         }
-    }, 350);
+
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+
+        customerTempCoords = { lat: initialLat, lng: initialLng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
+        updateMapModalCoordsDisplay(initialLat, initialLng);
+
+        mapModalInitTimer = setTimeout(() => {
+            try {
+                initCustomerLeafletMap(initialLat, initialLng);
+            } catch (err) {
+                console.error('Failed to initialize customer leaflet map:', err);
+            }
+        }, 120);
+
+        mapModalSettleTimer = setTimeout(() => {
+            try {
+                if (customerLeafletMap && typeof customerLeafletMap.invalidateSize === 'function') {
+                    customerLeafletMap.invalidateSize({ pan: false });
+                }
+            } catch (err) {
+                console.warn('Map settle error:', err);
+            }
+        }, 320);
+    } catch (e) {
+        console.error('Error in launchCustomerMapModal:', e);
+    }
 }
 
 function closeCustomerMapModal() {
-    const modal = document.getElementById('customer-map-modal');
-    if (modal) {
-        modal.style.display = 'none';
-        modal.setAttribute('aria-hidden', 'true');
-    }
-    if (typeof restoreProfileFormDraft === 'function') {
-        restoreProfileFormDraft();
+    try {
+        if (mapModalInitTimer) {
+            clearTimeout(mapModalInitTimer);
+            mapModalInitTimer = null;
+        }
+        if (mapModalSettleTimer) {
+            clearTimeout(mapModalSettleTimer);
+            mapModalSettleTimer = null;
+        }
+        const modal = document.getElementById('customer-map-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+        }
+        if (typeof restoreProfileFormDraft === 'function') {
+            restoreProfileFormDraft();
+        }
+    } catch (e) {
+        console.warn('Error in closeCustomerMapModal:', e);
     }
 }
 
 function initCustomerLeafletMap(lat, lng) {
-    const mapContainer = document.getElementById('customer-location-map');
-    if (!mapContainer || typeof L === 'undefined') return;
+    try {
+        const mapContainer = document.getElementById('customer-location-map');
+        if (!mapContainer || typeof L === 'undefined') return;
 
-    const customMarkerHtml = `
-        <div style="
-            background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
-            width: 36px;
-            height: 36px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 14px rgba(255, 107, 0, 0.6);
-            border: 2.5px solid #ffffff;
-        ">
-            <i class="fa-solid fa-house-chimney" style="
-                transform: rotate(45deg);
-                color: #ffffff;
-                font-size: 15px;
-            "></i>
-        </div>
-    `;
+        const customMarkerHtml = `
+            <div style="
+                background: linear-gradient(135deg, #ff6b00 0%, #ff385c 100%);
+                width: 36px;
+                height: 36px;
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 14px rgba(255, 107, 0, 0.6);
+                border: 2.5px solid #ffffff;
+            ">
+                <i class="fa-solid fa-house-chimney" style="
+                    transform: rotate(45deg);
+                    color: #ffffff;
+                    font-size: 15px;
+                "></i>
+            </div>
+        `;
 
-    const customIcon = L.divIcon({
-        className: 'customer-delivery-marker',
-        html: customMarkerHtml,
-        iconSize: [36, 36],
-        iconAnchor: [18, 36],
-        popupAnchor: [0, -36]
-    });
-
-    const { bounds, storeLat, storeLng, deliveryRadius } = getStoreDeliveryBoundingBox();
-    const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
-
-    const storeMarkerHtml = `
-        <div style="
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            width: 38px;
-            height: 38px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
-            border: 2.5px solid #ff6b00;
-        ">
-            <i class="fa-solid fa-pizza-slice" style="
-                transform: rotate(45deg);
-                color: #ff6b00;
-                font-size: 16px;
-            "></i>
-        </div>
-    `;
-
-    const storeIcon = L.divIcon({
-        className: 'store-location-marker',
-        html: storeMarkerHtml,
-        iconSize: [38, 38],
-        iconAnchor: [19, 38],
-        popupAnchor: [0, -38]
-    });
-
-    if (!customerLeafletMap) {
-        customerLeafletMap = L.map('customer-location-map', {
-            center: [lat, lng],
-            zoom: 15,
-            maxBounds: squareBounds,
-            maxBoundsViscosity: 1.0,
-            zoomControl: true
+        const customIcon = L.divIcon({
+            className: 'customer-delivery-marker',
+            html: customMarkerHtml,
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -36]
         });
-        deliveryMap = customerLeafletMap;
-        window.deliveryMap = customerLeafletMap;
-        window.customerLeafletMap = customerLeafletMap;
 
-        // Compute dynamic minZoom that fits bounding square within viewport
-        const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
-        if (computedMinZoom && !isNaN(computedMinZoom)) {
-            customerLeafletMap.setMinZoom(computedMinZoom);
-        }
+        const { bounds, storeLat, storeLng, deliveryRadius } = getStoreDeliveryBoundingBox();
+        const squareBounds = L.latLngBounds(bounds[0], bounds[1]);
+        const paddedBounds = squareBounds.pad(0.35); // Generous padding eliminates boundary bounce recursion
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(customerLeafletMap);
-
-        // Store Location Marker
-        customerStoreMarker = L.marker([storeLat, storeLng], {
-            icon: storeIcon,
-            zIndexOffset: 500
-        }).addTo(customerLeafletMap);
-
-        customerStoreMarker.bindPopup(`
-            <div style="text-align: center; padding: 4px;">
-                <strong style="color: #ff6b00; font-size: 0.95rem;">🍕 Perfetto Pizza Store</strong><br>
-                <small style="color: #64748b; font-size: 0.76rem;">Kitchen & Pickup Hub</small>
+        const storeMarkerHtml = `
+            <div style="
+                background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                width: 38px;
+                height: 38px;
+                border-radius: 50% 50% 50% 0;
+                transform: rotate(-45deg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+                border: 2.5px solid #ff6b00;
+            ">
+                <i class="fa-solid fa-pizza-slice" style="
+                    transform: rotate(45deg);
+                    color: #ff6b00;
+                    font-size: 16px;
+                "></i>
             </div>
-        `);
+        `;
 
-        // Delivery Coverage Circle (Radius = deliveryRadius * 1000 meters)
-        customerCoverageCircle = L.circle([storeLat, storeLng], {
-            color: '#ff6b00',
-            weight: 2,
-            dashArray: '6, 6',
-            fillColor: '#ff6b00',
-            fillOpacity: 0.12,
-            radius: deliveryRadius * 1000
-        }).addTo(customerLeafletMap);
+        const storeIcon = L.divIcon({
+            className: 'store-location-marker',
+            html: storeMarkerHtml,
+            iconSize: [38, 38],
+            iconAnchor: [19, 38],
+            popupAnchor: [0, -38]
+        });
 
-        // Customer Location Marker
-        customerLocationMarker = L.marker([lat, lng], {
-            draggable: true,
-            icon: customIcon,
-            zIndexOffset: 1000
-        }).addTo(customerLeafletMap);
-        deliveryMapMarker = customerLocationMarker;
-        window.deliveryMapMarker = customerLocationMarker;
-        window.customerLocationMarker = customerLocationMarker;
+        if (!customerLeafletMap) {
+            if (mapContainer._leaflet_id) {
+                mapContainer._leaflet_id = null;
+            }
 
-        customerLocationMarker.bindPopup(`
-            <div style="text-align: center; padding: 4px;">
-                <strong style="color: #ff6b00; font-size: 0.9rem;">📍 Your Delivery Location</strong><br>
-                <small style="color: #64748b; font-size: 0.72rem;">Drag or tap anywhere to fine-tune</small>
-            </div>
-        `);
+            customerLeafletMap = L.map('customer-location-map', {
+                center: [lat, lng],
+                zoom: 15,
+                maxBounds: paddedBounds,
+                maxBoundsViscosity: 0.2, // Soft bounds prevent endless recursion
+                zoomControl: true
+            });
+            deliveryMap = customerLeafletMap;
+            window.deliveryMap = customerLeafletMap;
+            window.customerLeafletMap = customerLeafletMap;
 
-        const handleMarkerDrag = (e) => {
-            const pos = e.target.getLatLng();
-            const curLat = parseFloat(pos.lat.toFixed(6));
-            const curLng = parseFloat(pos.lng.toFixed(6));
-            customerTempCoords = { lat: curLat, lng: curLng, isLiveGps: false };
-            updateMapModalCoordsDisplay(curLat, curLng);
-        };
-
-        const handleMarkerDragEnd = (e) => {
-            const pos = e.target.getLatLng();
-            let newLat = parseFloat(pos.lat.toFixed(6));
-            let newLng = parseFloat(pos.lng.toFixed(6));
-
-            // Manual Drag Protection Against In-Store Fraud:
-            const inStoreThreshold = getInStoreThreshold();
-            const pushed = pushCoordsOutOfInStoreZone(newLat, newLng, inStoreThreshold);
-            if (pushed.wasPushed) {
-                newLat = pushed.lat;
-                newLng = pushed.lng;
-                if (customerLocationMarker) {
-                    customerLocationMarker.setLatLng([newLat, newLng]);
+            // Safe dynamic minZoom calculation with strict sanity checks
+            try {
+                const mapSize = customerLeafletMap.getSize();
+                if (mapSize && mapSize.x > 100 && mapSize.y > 100) {
+                    const computedMinZoom = customerLeafletMap.getBoundsZoom(paddedBounds, false);
+                    if (Number.isFinite(computedMinZoom) && computedMinZoom >= 9 && computedMinZoom <= 15) {
+                        customerLeafletMap.setMinZoom(Math.max(10, Math.floor(computedMinZoom)));
+                    } else {
+                        customerLeafletMap.setMinZoom(11);
+                    }
+                } else {
+                    customerLeafletMap.setMinZoom(11);
                 }
-                showToast(`📍 In-Store (₹0 delivery) requires live GPS verification. Pin placed in Zone 1 (${(inStoreThreshold + 0.01).toFixed(2)} km).`);
+            } catch (_) {
+                customerLeafletMap.setMinZoom(11);
             }
 
-            customerTempCoords = { lat: newLat, lng: newLng, isLiveGps: false };
-            updateMapModalCoordsDisplay(newLat, newLng);
-        };
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(customerLeafletMap);
 
-        customerLocationMarker.on('drag', handleMarkerDrag);
-        customerLocationMarker.on('dragend', handleMarkerDragEnd);
+            // Store Location Marker
+            customerStoreMarker = L.marker([storeLat, storeLng], {
+                icon: storeIcon,
+                zIndexOffset: 500
+            }).addTo(customerLeafletMap);
 
-        customerLeafletMap.on('click', (e) => {
-            const pos = e.latlng;
-            let newLat = parseFloat(pos.lat.toFixed(6));
-            let newLng = parseFloat(pos.lng.toFixed(6));
+            customerStoreMarker.bindPopup(`
+                <div style="text-align: center; padding: 4px;">
+                    <strong style="color: #ff6b00; font-size: 0.95rem;">🍕 Perfetto Pizza Store</strong><br>
+                    <small style="color: #64748b; font-size: 0.76rem;">Kitchen & Pickup Hub</small>
+                </div>
+            `);
 
-            // Manual Drag Protection Against In-Store Fraud:
+            // Delivery Coverage Circle (Radius = deliveryRadius * 1000 meters)
+            customerCoverageCircle = L.circle([storeLat, storeLng], {
+                color: '#ff6b00',
+                weight: 2,
+                dashArray: '6, 6',
+                fillColor: '#ff6b00',
+                fillOpacity: 0.12,
+                radius: deliveryRadius * 1000
+            }).addTo(customerLeafletMap);
+
+            // Customer Location Marker
+            customerLocationMarker = L.marker([lat, lng], {
+                draggable: true,
+                icon: customIcon,
+                zIndexOffset: 1000
+            }).addTo(customerLeafletMap);
+            deliveryMapMarker = customerLocationMarker;
+            window.deliveryMapMarker = customerLocationMarker;
+            window.customerLocationMarker = customerLocationMarker;
+
+            customerLocationMarker.bindPopup(`
+                <div style="text-align: center; padding: 4px;">
+                    <strong style="color: #ff6b00; font-size: 0.9rem;">📍 Your Delivery Location</strong><br>
+                    <small style="color: #64748b; font-size: 0.72rem;">Drag or tap anywhere to fine-tune</small>
+                </div>
+            `);
+
+            const handleMarkerDrag = (e) => {
+                try {
+                    const pos = e.target.getLatLng();
+                    const curLat = parseFloat(pos.lat.toFixed(6));
+                    const curLng = parseFloat(pos.lng.toFixed(6));
+                    customerTempCoords = { lat: curLat, lng: curLng, isLiveGps: false };
+                    updateMapModalCoordsDisplay(curLat, curLng);
+                } catch (dragErr) {
+                    console.warn('Marker drag error:', dragErr);
+                }
+            };
+
+            const handleMarkerDragEnd = (e) => {
+                try {
+                    const pos = e.target.getLatLng();
+                    let newLat = parseFloat(pos.lat.toFixed(6));
+                    let newLng = parseFloat(pos.lng.toFixed(6));
+
+                    // Manual Drag Protection Against In-Store Fraud:
+                    const inStoreThreshold = getInStoreThreshold();
+                    const pushed = pushCoordsOutOfInStoreZone(newLat, newLng, inStoreThreshold);
+                    if (pushed.wasPushed) {
+                        newLat = pushed.lat;
+                        newLng = pushed.lng;
+                        if (customerLocationMarker) {
+                            customerLocationMarker.setLatLng([newLat, newLng]);
+                        }
+                        showToast(`📍 In-Store (₹0 delivery) requires live GPS verification. Pin placed in Zone 1 (${(inStoreThreshold + 0.01).toFixed(2)} km).`);
+                    }
+
+                    customerTempCoords = { lat: newLat, lng: newLng, isLiveGps: false };
+                    updateMapModalCoordsDisplay(newLat, newLng);
+                } catch (dragEndErr) {
+                    console.warn('Marker dragend error:', dragEndErr);
+                }
+            };
+
+            customerLocationMarker.on('drag', handleMarkerDrag);
+            customerLocationMarker.on('dragend', handleMarkerDragEnd);
+
+            customerLeafletMap.on('click', (e) => {
+                try {
+                    const pos = e.latlng;
+                    let newLat = parseFloat(pos.lat.toFixed(6));
+                    let newLng = parseFloat(pos.lng.toFixed(6));
+
+                    // Manual Drag Protection Against In-Store Fraud:
+                    const inStoreThreshold = getInStoreThreshold();
+                    const pushed = pushCoordsOutOfInStoreZone(newLat, newLng, inStoreThreshold);
+                    if (pushed.wasPushed) {
+                        newLat = pushed.lat;
+                        newLng = pushed.lng;
+                        showToast(`📍 In-Store (₹0 delivery) requires live GPS verification. Pin placed in Zone 1 (${(inStoreThreshold + 0.01).toFixed(2)} km).`);
+                    }
+
+                    customerTempCoords = { lat: newLat, lng: newLng, isLiveGps: false };
+                    if (customerLocationMarker) {
+                        customerLocationMarker.setLatLng([newLat, newLng]);
+                    }
+                    updateMapModalCoordsDisplay(newLat, newLng);
+                } catch (clickErr) {
+                    console.warn('Map click error:', clickErr);
+                }
+            });
+        } else {
             const inStoreThreshold = getInStoreThreshold();
-            const pushed = pushCoordsOutOfInStoreZone(newLat, newLng, inStoreThreshold);
-            if (pushed.wasPushed) {
-                newLat = pushed.lat;
-                newLng = pushed.lng;
-                showToast(`📍 In-Store (₹0 delivery) requires live GPS verification. Pin placed in Zone 1 (${(inStoreThreshold + 0.01).toFixed(2)} km).`);
+            if (!customerTempCoords?.isLiveGps) {
+                const pushed = pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold);
+                if (pushed.wasPushed) {
+                    lat = pushed.lat;
+                    lng = pushed.lng;
+                }
+            }
+            customerTempCoords = { lat, lng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
+
+            customerLeafletMap.setMaxBounds(paddedBounds);
+            customerLeafletMap.options.maxBounds = paddedBounds;
+            customerLeafletMap.options.maxBoundsViscosity = 0.2;
+
+            try {
+                customerLeafletMap.invalidateSize({ pan: false });
+                customerLeafletMap.setView([lat, lng], 15, { animate: false });
+            } catch (setViewErr) {
+                console.warn('Map setView error:', setViewErr);
             }
 
-            customerTempCoords = { lat: newLat, lng: newLng, isLiveGps: false };
             if (customerLocationMarker) {
-                customerLocationMarker.setLatLng([newLat, newLng]);
+                customerLocationMarker.setLatLng([lat, lng]);
             }
-            updateMapModalCoordsDisplay(newLat, newLng);
-        });
-    } else {
-        const inStoreThreshold = getInStoreThreshold();
-        if (!customerTempCoords?.isLiveGps) {
-            const pushed = pushCoordsOutOfInStoreZone(lat, lng, inStoreThreshold);
-            if (pushed.wasPushed) {
-                lat = pushed.lat;
-                lng = pushed.lng;
+            deliveryMap = customerLeafletMap;
+            deliveryMapMarker = customerLocationMarker;
+            window.deliveryMap = customerLeafletMap;
+            window.deliveryMapMarker = customerLocationMarker;
+            if (customerStoreMarker) {
+                customerStoreMarker.setLatLng([storeLat, storeLng]);
             }
+            if (customerCoverageCircle) {
+                customerCoverageCircle.setLatLng([storeLat, storeLng]);
+                customerCoverageCircle.setRadius(deliveryRadius * 1000);
+            }
+            updateMapModalCoordsDisplay(lat, lng);
         }
-        customerTempCoords = { lat, lng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
-
-        customerLeafletMap.setMaxBounds(squareBounds);
-        customerLeafletMap.options.maxBounds = squareBounds;
-        customerLeafletMap.options.maxBoundsViscosity = 1.0;
-        const computedMinZoom = customerLeafletMap.getBoundsZoom(squareBounds, false);
-        if (computedMinZoom && !isNaN(computedMinZoom)) {
-            customerLeafletMap.setMinZoom(computedMinZoom);
-        }
-
-        customerLeafletMap.invalidateSize();
-        customerLeafletMap.setView([lat, lng], 15);
-        if (customerLocationMarker) {
-            customerLocationMarker.setLatLng([lat, lng]);
-        }
-        deliveryMap = customerLeafletMap;
-        deliveryMapMarker = customerLocationMarker;
-        window.deliveryMap = customerLeafletMap;
-        window.deliveryMapMarker = customerLocationMarker;
-        if (customerStoreMarker) {
-            customerStoreMarker.setLatLng([storeLat, storeLng]);
-        }
-        if (customerCoverageCircle) {
-            customerCoverageCircle.setLatLng([storeLat, storeLng]);
-            customerCoverageCircle.setRadius(deliveryRadius * 1000);
-        }
-        updateMapModalCoordsDisplay(lat, lng);
+    } catch (mapInitErr) {
+        console.error('initCustomerLeafletMap error caught:', mapInitErr);
     }
 }
 
@@ -14314,7 +14412,22 @@ function handleDetectLiveGps() {
     const btn = document.getElementById('btn-detect-live-gps') || document.querySelector('.btn-detect-live-gps');
     const btnText = document.getElementById('detect-gps-btn-text') || (btn ? btn.querySelector('span') : null);
 
+    const resetDetectGpsBtn = () => {
+        try {
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('loading', 'btn-loading', 'is-loading');
+                const spinner = btn.querySelector('.btn-spinner, .spinner');
+                if (spinner) spinner.remove();
+            }
+            if (btnText) {
+                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
+            }
+        } catch (_) {}
+    };
+
     if (!navigator.geolocation) {
+        resetDetectGpsBtn();
         showToast('⚠️ Geolocation is not supported on this device/browser.');
         return;
     }
@@ -14327,140 +14440,135 @@ function handleDetectLiveGps() {
 
     showToast('📡 Detecting your current live coordinates...');
 
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const rawLat = position.coords.latitude;
-            const rawLng = position.coords.longitude;
-            let lat = parseFloat(rawLat.toFixed(6));
-            let lng = parseFloat(rawLng.toFixed(6));
-            const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
-            lastGpsAccuracyMeters = accuracy;
+    let isHandled = false;
 
-            // 1. Unconditionally reset the button text back to "Re-detect Live GPS" and remove loading spinner classes.
-            if (btn) {
-                btn.disabled = false;
-                btn.classList.remove('loading', 'btn-loading', 'is-loading');
-                const spinner = btn.querySelector('.btn-spinner, .spinner');
-                if (spinner) spinner.remove();
-            }
-            if (btnText) {
-                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
-            }
-
-            // 2. Calculate the fresh distance from store coordinates using calculateDistanceHaversine.
-            const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
-            const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
-            const dist = parseFloat(calculateDistanceHaversine(storeLat, storeLng, lat, lng).toFixed(2));
-
-            // Sync deliveryMap and deliveryMapMarker references
-            if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap) {
-                deliveryMap = customerLeafletMap;
-                window.deliveryMap = customerLeafletMap;
-            }
-            if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker) {
-                deliveryMapMarker = customerLocationMarker;
-                window.deliveryMapMarker = customerLocationMarker;
-            }
-
-            // 3. Update the active marker position (deliveryMapMarker.setLatLng([lat, lng])) and pan/zoom the map view to the new center (deliveryMap.setView([lat, lng], 16)).
-            if (typeof deliveryMapMarker !== 'undefined' && deliveryMapMarker && typeof deliveryMapMarker.setLatLng === 'function') {
-                deliveryMapMarker.setLatLng([lat, lng]);
-                if (typeof deliveryMapMarker.openPopup === 'function') {
-                    deliveryMapMarker.openPopup();
-                }
-            } else if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker && typeof customerLocationMarker.setLatLng === 'function') {
-                customerLocationMarker.setLatLng([lat, lng]);
-                if (typeof customerLocationMarker.openPopup === 'function') {
-                    customerLocationMarker.openPopup();
-                }
-            }
-
-            if (typeof deliveryMap !== 'undefined' && deliveryMap && typeof deliveryMap.setView === 'function') {
-                if (typeof deliveryMap.invalidateSize === 'function') {
-                    deliveryMap.invalidateSize();
-                }
-                deliveryMap.setView([lat, lng], 16);
-                if (typeof deliveryMap.panTo === 'function') {
-                    deliveryMap.panTo([lat, lng], { animate: true });
-                }
-            } else if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap && typeof customerLeafletMap.setView === 'function') {
-                if (typeof customerLeafletMap.invalidateSize === 'function') {
-                    customerLeafletMap.invalidateSize();
-                }
-                customerLeafletMap.setView([lat, lng], 16);
-                if (typeof customerLeafletMap.panTo === 'function') {
-                    customerLeafletMap.panTo([lat, lng], { animate: true });
-                }
-            }
-
-            customerTempCoords = { lat, lng, isLiveGps: true };
-
-            // 4. Immediately update the bottom text badge (e.g., .delivery-zone-status / #delivery-zone-info) with the newly calculated distance: "Within Delivery Zone ({dist} km from store)".
-            const banner = document.getElementById('map-zone-status-banner') || document.querySelector('.map-zone-status-banner');
-            const icon = document.getElementById('zone-status-icon');
-            const text = document.getElementById('zone-status-text');
-
-            if (banner) {
-                banner.className = 'map-zone-status-banner in-zone';
-            }
-            if (icon) {
-                icon.className = 'fa-solid fa-circle-check';
-            }
-            if (text) {
-                text.textContent = `Within Delivery Zone (${dist} km from store)`;
-            }
-
-            document.querySelectorAll('.delivery-zone-status, #delivery-zone-info, .delivery-zone-info, #zone-status-text').forEach(el => {
-                if (el) {
-                    el.textContent = `Within Delivery Zone (${dist} km from store)`;
-                }
-            });
-
-            updateMapModalCoordsDisplay(lat, lng);
-
-            // 5. Update hidden input fields #customer-gps-lat, #customer-gps-lng, and set #customer-gps-is-live to "true".
-            const latHidden = document.getElementById('customer-gps-lat');
-            const lngHidden = document.getElementById('customer-gps-lng');
-            const isLiveHidden = document.getElementById('customer-gps-is-live');
-            if (latHidden) latHidden.value = String(lat);
-            if (lngHidden) lngHidden.value = String(lng);
-            if (isLiveHidden) isLiveHidden.value = 'true';
-
-            currentCustomerGps = { lat, lng, isLiveGps: true };
-
-            if (typeof saveProfileFormDraft === 'function') {
-                saveProfileFormDraft();
-                if (profileFormDraft) {
-                    profileFormDraft.lat = String(lat);
-                    profileFormDraft.lng = String(lng);
-                    profileFormDraft.isLiveGps = true;
-                }
-            }
-
-            showToast(`📍 Live GPS detected (${dist} km from store)!`);
-        },
-        (error) => {
-            console.error('Geolocation Error:', error);
-            // In error/timeout fallback:
-            // Restore button state cleanly and show a helpful toast ("Could not fetch fresh GPS. Please check location permissions.")
-            if (btn) {
-                btn.disabled = false;
-                btn.classList.remove('loading', 'btn-loading', 'is-loading');
-                const spinner = btn.querySelector('.btn-spinner, .spinner');
-                if (spinner) spinner.remove();
-            }
-            if (btnText) {
-                btnText.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Re-detect Live GPS';
-            }
-
-            showToast('Could not fetch fresh GPS. Please check location permissions.');
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
+    const handleFallback = (reason) => {
+        if (isHandled) return;
+        isHandled = true;
+        if (liveGpsTimer) {
+            clearTimeout(liveGpsTimer);
+            liveGpsTimer = null;
         }
-    );
+        console.warn('Live GPS detection fallback triggered:', reason);
+        resetDetectGpsBtn();
+        showToast('Unable to auto-detect location. Please tap on the map to pin your location manually.');
+    };
+
+    let liveGpsTimer = setTimeout(() => {
+        handleFallback('Timeout (8s)');
+    }, 8000);
+
+    try {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                if (isHandled) return;
+                isHandled = true;
+                if (liveGpsTimer) {
+                    clearTimeout(liveGpsTimer);
+                    liveGpsTimer = null;
+                }
+                resetDetectGpsBtn();
+
+                try {
+                    const rawLat = position.coords.latitude;
+                    const rawLng = position.coords.longitude;
+                    let lat = parseFloat(rawLat.toFixed(6));
+                    let lng = parseFloat(rawLng.toFixed(6));
+                    const accuracy = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
+                    lastGpsAccuracyMeters = accuracy;
+
+                    // Calculate the fresh distance from store coordinates
+                    const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+                    const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
+                    const dist = parseFloat(calculateDistanceHaversine(storeLat, storeLng, lat, lng).toFixed(2));
+
+                    // Sync references
+                    if (typeof customerLeafletMap !== 'undefined' && customerLeafletMap) {
+                        deliveryMap = customerLeafletMap;
+                        window.deliveryMap = customerLeafletMap;
+                    }
+                    if (typeof customerLocationMarker !== 'undefined' && customerLocationMarker) {
+                        deliveryMapMarker = customerLocationMarker;
+                        window.deliveryMapMarker = customerLocationMarker;
+                    }
+
+                    if (customerLocationMarker && typeof customerLocationMarker.setLatLng === 'function') {
+                        customerLocationMarker.setLatLng([lat, lng]);
+                        if (typeof customerLocationMarker.openPopup === 'function') {
+                            try { customerLocationMarker.openPopup(); } catch (_) {}
+                        }
+                    }
+
+                    if (customerLeafletMap && typeof customerLeafletMap.setView === 'function') {
+                        try {
+                            customerLeafletMap.invalidateSize({ pan: false });
+                            customerLeafletMap.setView([lat, lng], 16, { animate: false });
+                        } catch (mapErr) {
+                            console.warn('Map view update error:', mapErr);
+                        }
+                    }
+
+                    customerTempCoords = { lat, lng, isLiveGps: true };
+
+                    const banner = document.getElementById('map-zone-status-banner') || document.querySelector('.map-zone-status-banner');
+                    const icon = document.getElementById('zone-status-icon');
+                    const text = document.getElementById('zone-status-text');
+
+                    if (banner) {
+                        banner.className = 'map-zone-status-banner in-zone';
+                    }
+                    if (icon) {
+                        icon.className = 'fa-solid fa-circle-check';
+                    }
+                    if (text) {
+                        text.textContent = `Within Delivery Zone (${dist} km from store)`;
+                    }
+
+                    document.querySelectorAll('.delivery-zone-status, #delivery-zone-info, .delivery-zone-info, #zone-status-text').forEach(el => {
+                        if (el) {
+                            el.textContent = `Within Delivery Zone (${dist} km from store)`;
+                        }
+                    });
+
+                    updateMapModalCoordsDisplay(lat, lng);
+
+                    const latHidden = document.getElementById('customer-gps-lat');
+                    const lngHidden = document.getElementById('customer-gps-lng');
+                    const isLiveHidden = document.getElementById('customer-gps-is-live');
+                    if (latHidden) latHidden.value = String(lat);
+                    if (lngHidden) lngHidden.value = String(lng);
+                    if (isLiveHidden) isLiveHidden.value = 'true';
+
+                    currentCustomerGps = { lat, lng, isLiveGps: true };
+
+                    if (typeof saveProfileFormDraft === 'function') {
+                        saveProfileFormDraft();
+                        if (profileFormDraft) {
+                            profileFormDraft.lat = String(lat);
+                            profileFormDraft.lng = String(lng);
+                            profileFormDraft.isLiveGps = true;
+                        }
+                    }
+
+                    showToast(`📍 Live GPS detected (${dist} km from store)!`);
+                } catch (posProcessErr) {
+                    console.error('Error processing live GPS coordinates:', posProcessErr);
+                    handleFallback(posProcessErr.message);
+                }
+            },
+            (error) => {
+                handleFallback(error ? error.message || error.code : 'Geolocation error');
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 8000,
+                maximumAge: 0
+            }
+        );
+    } catch (e) {
+        console.error('Error executing getCurrentPosition in handleDetectLiveGps:', e);
+        handleFallback(e.message);
+    }
 }
 
 const detectCurrentCustomerLocation = handleDetectLiveGps;
@@ -21681,38 +21789,42 @@ function initCustomerSearchEvents() {
 // --------------------------------------------------------------------------
 function setupLocalStorageSync() {
     window.addEventListener('storage', (e) => {
-        // 1. Shop Status changed by Admin
-        if (!e.key || e.key === SHOP_STATUS_KEY) {
-            checkAndUpdateShopStatusUI();
-            updateCartUI();
-        }
-        // 2. Thresholds or Zone Charges changed by Admin (Min Order, Free Delivery, Zones, Restaurant Coords, Delivery Radius)
-        if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === ZONE_CHARGES_KEY || e.key === RESTAURANT_LAT_KEY || e.key === RESTAURANT_LNG_KEY || e.key === DELIVERY_RADIUS_KEY) {
-            updateCartUI();
-            updateProfileTotalsUI();
-        }
-        // 3. Menu, Category Discounts, or Addons changed by Admin
-        if (!e.key || e.key === MENU_STORAGE_KEY || e.key === 'perfetto_category_discounts' || e.key === 'perfetto_category_addons') {
-            if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
-                openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+        try {
+            // 1. Shop Status changed by Admin
+            if (!e.key || e.key === SHOP_STATUS_KEY) {
+                checkAndUpdateShopStatusUI();
+                updateCartUI();
             }
-        }
-        // 4. Orders changed by Staff or another tab
-        if (!e.key || e.key === 'perfettoCustomerOrders') {
-            if (activeTabName === 'profile') {
+            // 2. Thresholds or Zone Charges changed by Admin (Min Order, Free Delivery, Zones, Restaurant Coords, Delivery Radius)
+            if (!e.key || e.key === MIN_ORDER_KEY || e.key === FREE_DELIVERY_KEY || e.key === ZONE_CHARGES_KEY || e.key === RESTAURANT_LAT_KEY || e.key === RESTAURANT_LNG_KEY || e.key === DELIVERY_RADIUS_KEY) {
+                updateCartUI();
                 updateProfileTotalsUI();
-                renderOrderHistoryDetails();
             }
-        }
-        // 5. Customer Profile or Verified Phone changed
-        if (!e.key || e.key === DELIVERY_PROFILE_KEY || e.key === VERIFIED_PHONE_STORAGE_KEY || e.key === VERIFIED_PHONE_STATE_KEY || e.key === 'perfetto_user_phone' || e.key === 'perfetto_auth_verified') {
-            initPhoneVerificationState();
-            updateCartUI();
-            updateProfileTotalsUI();
-        }
-        // 6. Customer Care Phone or Visibility changed by Admin
-        if (!e.key || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY) {
-            updateCustomerCareModalUI();
+            // 3. Menu, Category Discounts, or Addons changed by Admin
+            if (!e.key || e.key === MENU_STORAGE_KEY || e.key === 'perfetto_category_discounts' || e.key === 'perfetto_category_addons') {
+                if (lastCategoryState.categoryName && activeTabName === 'category-detail') {
+                    openCategoryDetail(lastCategoryState.categoryName, lastCategoryState.categoryImg, true, true);
+                }
+            }
+            // 4. Orders changed by Staff or another tab
+            if (!e.key || e.key === 'perfettoCustomerOrders') {
+                if (activeTabName === 'profile') {
+                    updateProfileTotalsUI();
+                    renderOrderHistoryDetails();
+                }
+            }
+            // 5. Customer Profile or Verified Phone changed
+            if (!e.key || e.key === DELIVERY_PROFILE_KEY || e.key === VERIFIED_PHONE_STORAGE_KEY || e.key === VERIFIED_PHONE_STATE_KEY || e.key === 'perfetto_user_phone' || e.key === 'perfetto_auth_verified') {
+                initPhoneVerificationState();
+                updateCartUI();
+                updateProfileTotalsUI();
+            }
+            // 6. Customer Care Phone or Visibility changed by Admin
+            if (!e.key || e.key === CUSTOMER_CARE_PHONE_KEY || e.key === CUSTOMER_CARE_ENABLED_KEY) {
+                updateCustomerCareModalUI();
+            }
+        } catch (storageErr) {
+            console.warn('setupLocalStorageSync error caught:', storageErr);
         }
     });
 }
@@ -23391,14 +23503,16 @@ window.addEventListener('pagehide', cleanupAllCustomerListeners);
 
 // Global Error & Promise Rejection Safety Boundaries
 window.addEventListener('unhandledrejection', (event) => {
-    console.warn('🛡️ [Perfetto App] Unhandled Promise Rejection intercepted:', event.reason);
-    if (event.reason && (event.reason.message?.includes('Failed to fetch') || event.reason.message?.includes('NetworkError') || event.reason.name === 'AbortError')) {
-        event.preventDefault(); // Suppress harmless network connection aborts
-    }
+    console.warn('🛡️ [Perfetto App] Unhandled Promise Rejection intercepted:', event?.reason);
+    try {
+        if (event && typeof event.preventDefault === 'function') {
+            event.preventDefault(); // Suppress unhandled promise rejections from crashing the tab
+        }
+    } catch (_) {}
 });
 
 window.addEventListener('error', (event) => {
-    console.warn('🛡️ [Perfetto App] Runtime Error intercepted:', event.message);
+    console.warn('🛡️ [Perfetto App] Runtime Error intercepted:', event?.message);
 });
 
 // --------------------------------------------------------------------------
