@@ -714,6 +714,7 @@ const MENU_CATEGORY_MAP = {
     "desserts": { key: "Desserts", name: "Desserts" },
     "shake": { key: "Shake", name: "Shakes" },
     "shakes": { key: "Shake", name: "Shakes" },
+    "coffee": { key: "Hot Cold Coffee", name: "Hot & Cold Coffee" },
     "hot cold coffee": { key: "Hot Cold Coffee", name: "Hot & Cold Coffee" },
     "hot & cold coffee": { key: "Hot Cold Coffee", name: "Hot & Cold Coffee" },
     "mojito": { key: "Mojito", name: "Mojito" },
@@ -722,6 +723,7 @@ const MENU_CATEGORY_MAP = {
     "rice": { key: "Rice", name: "Rice" },
     "salad": { key: "Salad", name: "Salad" },
     "sandwich": { key: "Sandwich", name: "Sandwich" },
+    "side order": { key: "Side Orders", name: "Side Orders" },
     "side orders": { key: "Side Orders", name: "Side Orders" },
     "spring rolls": { key: "Spring Rolls", name: "Spring Rolls" },
     "wrap": { key: "Wrap", name: "Wrap" }
@@ -18450,14 +18452,15 @@ function getCurrentBogoComboState() {
 window.getCurrentBogoComboState = getCurrentBogoComboState;
 
 function getBannerSlot3Config(overrideBanner = null) {
-    let b3 = null;
+    let b3 = {};
     if (overrideBanner && typeof overrideBanner === 'object') {
-        b3 = overrideBanner;
+        b3 = { ...overrideBanner };
     }
-    if (!b3 && typeof window !== 'undefined' && Array.isArray(window.__currentActiveBanners)) {
-        b3 = window.__currentActiveBanners.find(b => b && (b.id === 'b3' || b.bannerSlot === 3));
+    if ((!b3.buyCategory && !b3.rewardCategory && !b3.freeCategory) && typeof window !== 'undefined' && Array.isArray(window.__currentActiveBanners)) {
+        const found = window.__currentActiveBanners.find(b => b && (b.id === 'b3' || b.bannerSlot === 3));
+        if (found) b3 = { ...found, ...b3 };
     }
-    if (!b3) {
+    if (!b3.buyCategory && !b3.rewardCategory && !b3.freeCategory) {
         let banners = [];
         try {
             const saved = localStorage.getItem('perfetto_daily_banners');
@@ -18466,11 +18469,13 @@ function getBannerSlot3Config(overrideBanner = null) {
             }
         } catch (e) { }
         if (Array.isArray(banners)) {
-            b3 = banners.find(b => b && (b.id === 'b3' || b.bannerSlot === 3)) || banners[2];
+            const found = banners.find(b => b && (b.id === 'b3' || b.bannerSlot === 3)) || banners[2];
+            if (found) b3 = { ...found, ...b3 };
         }
     }
-    if (!b3 && typeof DEFAULT_DAILY_BANNERS !== 'undefined') {
-        b3 = DEFAULT_DAILY_BANNERS.find(b => b && b.id === 'b3') || DEFAULT_DAILY_BANNERS[2];
+    if (!b3.buyCategory && !b3.rewardCategory && !b3.freeCategory && typeof DEFAULT_DAILY_BANNERS !== 'undefined') {
+        const found = DEFAULT_DAILY_BANNERS.find(b => b && b.id === 'b3') || DEFAULT_DAILY_BANNERS[2];
+        if (found) b3 = { ...found, ...b3 };
     }
     b3 = b3 || {};
 
@@ -18495,7 +18500,47 @@ function getBannerSlot3Config(overrideBanner = null) {
 }
 window.getBannerSlot3Config = getBannerSlot3Config;
 
-function openBogoComboModal(slotConfig = null) {
+async function fetchBannerSlot3ConfigFromFirestore() {
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || (typeof customerFirestore !== 'undefined' ? customerFirestore : null);
+    if (!fs) return null;
+    try {
+        const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(null), 1500));
+        const fetchPromise = (async () => {
+            const [s3Snap, dbSnap] = await Promise.allSettled([
+                fs.collection('banners').doc('slot3').get(),
+                fs.collection('settings').doc('daily_banners').get()
+            ]);
+            if (s3Snap.status === 'fulfilled' && s3Snap.value && s3Snap.value.exists) {
+                return s3Snap.value.data();
+            } else if (dbSnap.status === 'fulfilled' && dbSnap.value && dbSnap.value.exists) {
+                const dbData = dbSnap.value.data();
+                if (dbData.slot3 && typeof dbData.slot3 === 'object') {
+                    return dbData.slot3;
+                } else if (Array.isArray(dbData.banners) && dbData.banners[2]) {
+                    return dbData.banners[2];
+                }
+            }
+            return null;
+        })();
+        return await Promise.race([fetchPromise, timeoutPromise]);
+    } catch (e) {
+        console.warn('⚠️ [BOGO Slot 3] Firestore fetch notice:', e.message);
+        return null;
+    }
+}
+window.fetchBannerSlot3ConfigFromFirestore = fetchBannerSlot3ConfigFromFirestore;
+
+function formatCategoryHeader(cat) {
+    if (!cat) return '';
+    const s = String(cat).trim();
+    if (typeof isCategoryMatch === 'function' && isCategoryMatch(s, 'Hot Cold Coffee')) {
+        return 'HOT & COLD COFFEE';
+    }
+    return s.toUpperCase();
+}
+window.formatCategoryHeader = formatCategoryHeader;
+
+async function openBogoComboModal(slotConfig = null) {
     const modal = document.getElementById('bogo-combo-modal');
     if (!modal) return;
 
@@ -18508,44 +18553,93 @@ function openBogoComboModal(slotConfig = null) {
         return;
     }
 
-    const config = getBannerSlot3Config(slotConfig);
+    // Dynamic Firestore Fetch: If no explicit categories are passed in slotConfig,
+    // fetch live Slot #3 banner configuration from Firestore
+    let activeSlotData = {};
+    const hasExplicitCategories = slotConfig && typeof slotConfig === 'object' && Boolean(slotConfig.buyCategory || slotConfig.rewardCategory || slotConfig.freeCategory);
+
+    if (!hasExplicitCategories) {
+        const firestoreSlot3 = await fetchBannerSlot3ConfigFromFirestore();
+        if (firestoreSlot3) {
+            activeSlotData = firestoreSlot3;
+            try {
+                const rawStored = localStorage.getItem('perfetto_daily_banners');
+                let storedBanners = rawStored ? JSON.parse(rawStored) : [];
+                if (Array.isArray(storedBanners) && storedBanners.length >= 3) {
+                    storedBanners[2] = { ...storedBanners[2], ...firestoreSlot3, id: 'b3' };
+                    localStorage.setItem('perfetto_daily_banners', JSON.stringify(storedBanners));
+                }
+                if (Array.isArray(window.__currentActiveBanners)) {
+                    const idx = window.__currentActiveBanners.findIndex(b => b && (b.id === 'b3' || b.bannerSlot === 3));
+                    if (idx !== -1) {
+                        window.__currentActiveBanners[idx] = { ...window.__currentActiveBanners[idx], ...firestoreSlot3, id: 'b3' };
+                    }
+                }
+            } catch (syncErr) { }
+        } else {
+            activeSlotData = slotConfig || {};
+        }
+    } else {
+        activeSlotData = slotConfig;
+    }
+
+    const config = getBannerSlot3Config(activeSlotData);
     if (config.enabled === false) {
         showToast('BOGO Combo Deal is currently inactive.');
         return;
     }
 
+    const buyCategory = config.buyCategory || 'Pasta';
+    const freeCategory = config.freeCategory || config.rewardCategory || 'Momos';
+    const buyQty = config.buyQty || 2;
+    const freeQty = config.freeQty || 1;
+
     const allItems = (typeof getAllCustomerMenuItems === 'function') ? getAllCustomerMenuItems() : [];
 
-    // Step 1: Paid items strictly belonging to buyCategory (pizza strictly excluded)
-    const buyCat = config.buyCategory || 'Pasta';
+    // Helper to test if item category matches target category
+    const isCategoryProductMatch = (itemCat, targetCat) => {
+        if (!itemCat || !targetCat) return false;
+        const iCat = String(itemCat).trim();
+        const tCat = String(targetCat).trim();
+        if (iCat === tCat) return true;
+        if (iCat.toLowerCase() === tCat.toLowerCase()) return true;
+        if (typeof isCategoryMatch === 'function' && isCategoryMatch(iCat, tCat)) return true;
+        if (typeof getCategoryStandardKey === 'function') {
+            const k1 = getCategoryStandardKey(iCat).toLowerCase();
+            const k2 = getCategoryStandardKey(tCat).toLowerCase();
+            if (k1 && k2 && k1 === k2) return true;
+        }
+        return false;
+    };
+
+    // Step 1: Paid items strictly belonging to dynamic buyCategory (pizza strictly excluded)
     let buyItems = allItems.filter(item => {
-        return isCategoryMatch(item.category, buyCat) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
+        return (item.category === buyCategory || isCategoryProductMatch(item.category, buyCategory)) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
     });
     if (buyItems.length === 0 && typeof categorySubItems !== 'undefined') {
-        const matchedKey = Object.keys(categorySubItems).find(k => isCategoryMatch(k, buyCat) && !isCategoryMatch(k, 'Pizza'));
+        const matchedKey = Object.keys(categorySubItems).find(k => (k === buyCategory || isCategoryProductMatch(k, buyCategory)) && !isCategoryMatch(k, 'Pizza'));
         if (matchedKey && Array.isArray(categorySubItems[matchedKey])) {
             buyItems = categorySubItems[matchedKey].filter(i => isProductAvailable(i));
         }
     }
 
-    // Step 2: Free reward items strictly belonging to freeCategory (pizza strictly excluded)
-    const freeCat = config.freeCategory || config.rewardCategory || 'Momos';
+    // Step 2: Free reward items strictly belonging to dynamic freeCategory (pizza strictly excluded)
     let rewardItems = allItems.filter(item => {
-        return isCategoryMatch(item.category, freeCat) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
+        return (item.category === freeCategory || isCategoryProductMatch(item.category, freeCategory)) && !isCategoryMatch(item.category, 'Pizza') && isProductAvailable(item);
     });
     if (rewardItems.length === 0 && typeof categorySubItems !== 'undefined') {
-        const matchedKey = Object.keys(categorySubItems).find(k => isCategoryMatch(k, freeCat) && !isCategoryMatch(k, 'Pizza'));
+        const matchedKey = Object.keys(categorySubItems).find(k => (k === freeCategory || isCategoryProductMatch(k, freeCategory)) && !isCategoryMatch(k, 'Pizza'));
         if (matchedKey && Array.isArray(categorySubItems[matchedKey])) {
             rewardItems = categorySubItems[matchedKey].filter(i => isProductAvailable(i));
         }
     }
 
     if (buyItems.length === 0) {
-        showToast(`No qualifying items currently available for category "${getCategoryDisplayName(buyCat)}".`);
+        showToast(`No qualifying items currently available for category "${getCategoryDisplayName(buyCategory)}".`);
         return;
     }
     if (rewardItems.length === 0) {
-        showToast(`No free reward items currently available for category "${getCategoryDisplayName(freeCat)}".`);
+        showToast(`No free reward items currently available for category "${getCategoryDisplayName(freeCategory)}".`);
         return;
     }
 
@@ -18558,6 +18652,16 @@ function openBogoComboModal(slotConfig = null) {
         selectedFreeItem: rewardItems[0] || null,
         selectedAddons: { cheese: false, spicy: false, mayo: false, iceCream: false }
     };
+
+    // Update modal headers dynamically
+    const step1TitleEl = document.getElementById('bogo-step1-title');
+    if (step1TitleEl) {
+        step1TitleEl.textContent = `PLEASE SELECT YOUR ${buyQty} ${formatCategoryHeader(buyCategory)}`;
+    }
+    const step2TitleEl = document.getElementById('bogo-step2-title');
+    if (step2TitleEl) {
+        step2TitleEl.textContent = `CHOOSE YOUR ${freeQty} FREE ${formatCategoryHeader(freeCategory)}`;
+    }
 
     // If combo is already in cart, pre-populate current selection so user can edit/replace
     const existingReward = (Array.isArray(cart) ? cart : []).find(i => i.isBogoCombo && i.isBogoReward);
@@ -18658,7 +18762,7 @@ function renderBogoStep1UI() {
 
     const titleEl = document.getElementById('bogo-step1-title');
     if (titleEl) {
-        titleEl.textContent = `PLEASE SELECT YOUR ${config.buyQty} ${(config.buyCategory || 'Pasta').toUpperCase()}`;
+        titleEl.textContent = `PLEASE SELECT YOUR ${config.buyQty} ${formatCategoryHeader(config.buyCategory || 'Pasta')}`;
     }
 
     const totalSelected = getBogoSelectedPaidTotal();
@@ -18833,8 +18937,7 @@ function renderBogoStep2UI() {
 
     const titleEl = document.getElementById('bogo-step2-title');
     if (titleEl) {
-        const freeCat = (config.freeCategory || config.rewardCategory || 'Momos').toUpperCase();
-        titleEl.textContent = `CHOOSE YOUR ${config.freeQty} FREE ${freeCat}`;
+        titleEl.textContent = `CHOOSE YOUR ${config.freeQty} FREE ${formatCategoryHeader(config.freeCategory || config.rewardCategory || 'Momos')}`;
     }
 
     const countValEl = document.getElementById('bogo-step2-count-val');
