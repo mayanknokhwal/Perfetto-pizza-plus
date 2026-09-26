@@ -4606,12 +4606,14 @@ button.btn-disabled-stock {
     position: relative;
     width: 100%;
     height: 300px;
-    background-color: #e5e7eb;
+    min-height: 280px;
+    background-color: #f1f5f9;
 }
 
 #customer-location-map {
     width: 100%;
     height: 100%;
+    min-height: 280px;
     z-index: 10;
 }
 

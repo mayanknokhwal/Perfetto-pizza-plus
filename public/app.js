@@ -11946,7 +11946,39 @@ let profileFormDraft = {
 };
 window.profileFormDraft = profileFormDraft;
 
+// Two-way in-memory address state to isolate GPS from user typing
+function setupAddressInputTwoWayBinding() {
+    const fields = [
+        { id: 'customer-fullname', key: 'fullName' },
+        { id: 'customer-phone', key: 'phone' },
+        { id: 'customer-colony-name', key: 'colonyName' },
+        { id: 'customer-nearby', key: 'nearBy' },
+        { id: 'customer-street-name', key: 'streetName' },
+        { id: 'customer-ward-no', key: 'wardNo' },
+        { id: 'customer-email', key: 'email' }
+    ];
+
+    fields.forEach(({ id, key }) => {
+        const input = document.getElementById(id);
+        if (input && !input.dataset.twoWayBound) {
+            input.dataset.twoWayBound = 'true';
+            input.addEventListener('input', (e) => {
+                input.dataset.userEdited = 'true';
+                if (!profileFormDraft) profileFormDraft = {};
+                profileFormDraft[key] = e.target.value;
+                window.profileFormDraft = profileFormDraft;
+                if (e.target.value.trim() !== '') {
+                    input.classList.remove('invalid-field');
+                }
+            });
+        }
+    });
+}
+window.setupAddressInputTwoWayBinding = setupAddressInputTwoWayBinding;
+
 function saveProfileFormDraft() {
+    if (!profileFormDraft) profileFormDraft = {};
+
     const fullNameInput = document.getElementById('customer-fullname');
     const phoneInput = document.getElementById('customer-phone');
     const colonyInput = document.getElementById('customer-colony-name');
@@ -11962,21 +11994,28 @@ function saveProfileFormDraft() {
 
     const isOtpBoxVisible = otpBox ? (otpBox.style.display !== 'none' && otpBox.style.display !== '') : false;
 
-    profileFormDraft = {
-        fullName: fullNameInput && fullNameInput.value ? fullNameInput.value : (profileFormDraft.fullName || ''),
-        phone: phoneInput && phoneInput.value ? phoneInput.value : (profileFormDraft.phone || ''),
-        colonyName: colonyInput && colonyInput.value ? colonyInput.value : (profileFormDraft.colonyName || ''),
-        nearBy: nearbyInput && nearbyInput.value ? nearbyInput.value : (profileFormDraft.nearBy || ''),
-        streetName: streetInput && streetInput.value ? streetInput.value : (profileFormDraft.streetName || ''),
-        wardNo: wardInput && wardInput.value ? wardInput.value : (profileFormDraft.wardNo || ''),
-        email: emailInput && emailInput.value ? emailInput.value : (profileFormDraft.email || ''),
-        isOtpBoxVisible: isOtpBoxVisible || (otpResendCountdown > 0) || Boolean(profileFormDraft.isOtpBoxVisible),
-        otpValue: otpInput && otpInput.value ? otpInput.value : (profileFormDraft.otpValue || ''),
-        hasOtpBeenRequested: (otpResendCountdown > 0) || isOtpBoxVisible || Boolean(profileFormDraft.hasOtpBeenRequested),
-        lat: latHidden && latHidden.value ? latHidden.value : (currentCustomerGps ? String(currentCustomerGps.lat) : (profileFormDraft.lat || '')),
-        lng: lngHidden && lngHidden.value ? lngHidden.value : (currentCustomerGps ? String(currentCustomerGps.lng) : (profileFormDraft.lng || '')),
-        isLiveGps: isLiveHidden && isLiveHidden.value === 'true' ? true : (currentCustomerGps ? Boolean(currentCustomerGps.isLiveGps) : Boolean(profileFormDraft.isLiveGps))
-    };
+    // Read directly from DOM input values if present without falling back to stale draft values
+    if (fullNameInput) profileFormDraft.fullName = fullNameInput.value;
+    if (phoneInput) profileFormDraft.phone = phoneInput.value;
+    if (colonyInput) profileFormDraft.colonyName = colonyInput.value;
+    if (nearbyInput) profileFormDraft.nearBy = nearbyInput.value;
+    if (streetInput) profileFormDraft.streetName = streetInput.value;
+    if (wardInput) profileFormDraft.wardNo = wardInput.value;
+    if (emailInput) profileFormDraft.email = emailInput.value;
+
+    profileFormDraft.isOtpBoxVisible = isOtpBoxVisible || (otpResendCountdown > 0) || Boolean(profileFormDraft.isOtpBoxVisible);
+    if (otpInput && otpInput.value) profileFormDraft.otpValue = otpInput.value;
+    profileFormDraft.hasOtpBeenRequested = (otpResendCountdown > 0) || isOtpBoxVisible || Boolean(profileFormDraft.hasOtpBeenRequested);
+
+    if (latHidden && latHidden.value) profileFormDraft.lat = latHidden.value;
+    else if (currentCustomerGps && currentCustomerGps.lat) profileFormDraft.lat = String(currentCustomerGps.lat);
+
+    if (lngHidden && lngHidden.value) profileFormDraft.lng = lngHidden.value;
+    else if (currentCustomerGps && currentCustomerGps.lng) profileFormDraft.lng = String(currentCustomerGps.lng);
+
+    if (isLiveHidden && isLiveHidden.value) profileFormDraft.isLiveGps = (isLiveHidden.value === 'true');
+    else if (currentCustomerGps) profileFormDraft.isLiveGps = Boolean(currentCustomerGps.isLiveGps);
+
     window.profileFormDraft = profileFormDraft;
     return profileFormDraft;
 }
@@ -12003,25 +12042,26 @@ function restoreProfileFormDraft() {
     const mapBtn = document.getElementById('btn-open-map-modal');
     const gpsBtnText = document.getElementById('gps-btn-text');
 
-    if (fullNameInput && profileFormDraft.fullName) {
+    // ONLY populate input fields if user is NOT currently focusing on them AND field has not been edited by user in this session
+    if (fullNameInput && document.activeElement !== fullNameInput && !fullNameInput.dataset.userEdited && !fullNameInput.value && profileFormDraft.fullName) {
         fullNameInput.value = profileFormDraft.fullName;
     }
-    if (phoneInput && profileFormDraft.phone) {
+    if (phoneInput && document.activeElement !== phoneInput && !phoneInput.dataset.userEdited && !phoneInput.value && profileFormDraft.phone) {
         phoneInput.value = profileFormDraft.phone;
     }
-    if (colonyInput && profileFormDraft.colonyName) {
+    if (colonyInput && document.activeElement !== colonyInput && !colonyInput.dataset.userEdited && !colonyInput.value && profileFormDraft.colonyName) {
         colonyInput.value = profileFormDraft.colonyName;
     }
-    if (nearbyInput && profileFormDraft.nearBy) {
+    if (nearbyInput && document.activeElement !== nearbyInput && !nearbyInput.dataset.userEdited && !nearbyInput.value && profileFormDraft.nearBy) {
         nearbyInput.value = profileFormDraft.nearBy;
     }
-    if (streetInput && profileFormDraft.streetName) {
+    if (streetInput && document.activeElement !== streetInput && !streetInput.dataset.userEdited && !streetInput.value && profileFormDraft.streetName) {
         streetInput.value = profileFormDraft.streetName;
     }
-    if (wardInput && profileFormDraft.wardNo) {
+    if (wardInput && document.activeElement !== wardInput && !wardInput.dataset.userEdited && !wardInput.value && profileFormDraft.wardNo) {
         wardInput.value = profileFormDraft.wardNo;
     }
-    if (emailInput && profileFormDraft.email) {
+    if (emailInput && document.activeElement !== emailInput && !emailInput.dataset.userEdited && !emailInput.value && profileFormDraft.email) {
         emailInput.value = profileFormDraft.email;
     }
 
@@ -12145,6 +12185,7 @@ function initEditProfileModal() {
     });
 
     // Real-time synchronization of profile form inputs to draft
+    setupAddressInputTwoWayBinding();
     const form = document.getElementById('delivery-details-form');
     if (form && !form.dataset.draftBound) {
         form.dataset.draftBound = 'true';
@@ -13900,99 +13941,71 @@ function openCustomerMapModal() {
         const openBtnText = document.getElementById('gps-btn-text');
         if (!modal) return;
 
-        // Check if we already have confirmed or saved coordinates
+        // Immediately reset open map button state so it is never stuck in loading
+        resetOpenMapButton(openBtn, openBtnText);
+
+        // Determine starting coordinates (stored GPS or store fallback)
         const latHidden = document.getElementById('customer-gps-lat');
         const lngHidden = document.getElementById('customer-gps-lng');
-        const hasExistingCoords = (latHidden && latHidden.value && lngHidden && lngHidden.value) || currentCustomerGps;
 
         const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
         const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
 
-        let fallbackLat = storeLat;
-        let fallbackLng = storeLng;
+        let initialLat = storeLat;
+        let initialLng = storeLng;
         if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
-            fallbackLat = parseFloat(latHidden.value) || storeLat;
-            fallbackLng = parseFloat(lngHidden.value) || storeLng;
+            initialLat = parseFloat(latHidden.value) || storeLat;
+            initialLng = parseFloat(lngHidden.value) || storeLng;
         } else if (currentCustomerGps && currentCustomerGps.lat && currentCustomerGps.lng) {
-            fallbackLat = parseFloat(currentCustomerGps.lat) || storeLat;
-            fallbackLng = parseFloat(currentCustomerGps.lng) || storeLng;
+            initialLat = parseFloat(currentCustomerGps.lat) || storeLat;
+            initialLng = parseFloat(currentCustomerGps.lng) || storeLng;
         }
 
-        // If geolocation is available and no existing confirmed coords, try detecting live GPS single-shot
+        // Open the modal right away so the user immediately sees the interactive map and draggable marker
+        launchCustomerMapModal(initialLat, initialLng);
+
+        // If no confirmed location yet and browser supports geolocation, query gently in background without blocking UI
+        const hasExistingCoords = Boolean(latHidden && latHidden.value && lngHidden && lngHidden.value) || Boolean(currentCustomerGps && currentCustomerGps.lat);
         if (!hasExistingCoords && navigator.geolocation) {
-            if (openBtn) openBtn.disabled = true;
-            if (openBtnText) openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    try {
+                        const liveLat = parseFloat(position.coords.latitude.toFixed(6));
+                        const liveLng = parseFloat(position.coords.longitude.toFixed(6));
+                        lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
 
-            let isHandled = false;
-
-            const handleFallback = (reason) => {
-                if (isHandled) return;
-                isHandled = true;
-                if (fallbackGpsTimer) {
-                    clearTimeout(fallbackGpsTimer);
-                    fallbackGpsTimer = null;
-                }
-                console.warn('GPS detection fallback triggered:', reason);
-                resetOpenMapButton(openBtn, openBtnText);
-                lastGpsAccuracyMeters = null;
-                if (typeof showToast === 'function') {
-                    showToast('Unable to auto-detect location. Please tap on the map to pin your location manually.');
-                }
-                launchCustomerMapModal(fallbackLat, fallbackLng);
-            };
-
-            let fallbackGpsTimer = setTimeout(() => {
-                handleFallback('Timeout (8s)');
-            }, 8000);
-
-            try {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        if (isHandled) return;
-                        isHandled = true;
-                        if (fallbackGpsTimer) {
-                            clearTimeout(fallbackGpsTimer);
-                            fallbackGpsTimer = null;
+                        const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
+                        let finalLat = liveLat;
+                        let finalLng = liveLng;
+                        if (!radiusCheck.isAllowed) {
+                            const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
+                            finalLat = clamped.lat;
+                            finalLng = clamped.lng;
                         }
-                        resetOpenMapButton(openBtn, openBtnText);
 
-                        try {
-                            const liveLat = parseFloat(position.coords.latitude.toFixed(6));
-                            const liveLng = parseFloat(position.coords.longitude.toFixed(6));
-                            lastGpsAccuracyMeters = typeof position.coords.accuracy === 'number' ? position.coords.accuracy : null;
+                        customerTempCoords = { lat: finalLat, lng: finalLng, isLiveGps: true };
+                        updateMapModalCoordsDisplay(finalLat, finalLng);
 
-                            // If accuracy is high/rough, clamp to delivery zone if needed and open modal for manual adjustment
-                            const radiusCheck = isWithinDeliveryRadius(liveLat, liveLng);
-                            let initialLat = liveLat;
-                            let initialLng = liveLng;
-                            if (!radiusCheck.isAllowed) {
-                                const clamped = clampCoordsToDeliveryRadius(liveLat, liveLng);
-                                initialLat = clamped.lat;
-                                initialLng = clamped.lng;
-                            }
-
-                            launchCustomerMapModal(initialLat, initialLng);
-                        } catch (posErr) {
-                            console.error('Error processing GPS position:', posErr);
-                            handleFallback(posErr.message);
+                        if (customerLocationMarker) {
+                            customerLocationMarker.setLatLng([finalLat, finalLng]);
                         }
-                    },
-                    (error) => {
-                        handleFallback(error ? error.message || error.code : 'Geolocation error');
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 8000,
-                        maximumAge: 30000
+                        if (customerLeafletMap) {
+                            customerLeafletMap.setView([finalLat, finalLng], 16, { animate: false });
+                            refreshCustomerLeafletMap(finalLat, finalLng);
+                        }
+                    } catch (e) {
+                        console.warn('Background geolocation parse notice:', e);
                     }
-                );
-            } catch (geoCallErr) {
-                console.error('Error calling getCurrentPosition:', geoCallErr);
-                handleFallback(geoCallErr.message);
-            }
-        } else {
-            resetOpenMapButton(openBtn, openBtnText);
-            launchCustomerMapModal(fallbackLat, fallbackLng);
+                },
+                (err) => {
+                    console.warn('Background geolocation silent fallback:', err?.message || err);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 8000,
+                    maximumAge: 30000
+                }
+            );
         }
     } catch (e) {
         console.error('Unhandled exception in openCustomerMapModal:', e);
@@ -14007,13 +14020,46 @@ function openCustomerMapModal() {
 
 function resetOpenMapButton(btn, btnText) {
     try {
-        if (btn) btn.disabled = false;
-        if (btnText) {
-            const isVerified = currentCustomerGps !== null || (document.getElementById('customer-gps-lat')?.value);
-            btnText.innerHTML = isVerified ? '<i class="fa-solid fa-map-pin"></i> Change Location on Map' : '<i class="fa-solid fa-map"></i> Open Location Map';
+        const openBtn = btn || document.getElementById('btn-open-map-modal');
+        const textEl = btnText || document.getElementById('gps-btn-text');
+        if (openBtn) {
+            openBtn.disabled = false;
+            openBtn.classList.remove('loading', 'btn-loading', 'is-loading');
+            const spinner = openBtn.querySelector('.btn-spinner, .spinner');
+            if (spinner) spinner.remove();
+        }
+        if (textEl) {
+            const latHidden = document.getElementById('customer-gps-lat');
+            const lngHidden = document.getElementById('customer-gps-lng');
+            const isVerified = Boolean((latHidden && latHidden.value && lngHidden && lngHidden.value) || (currentCustomerGps && currentCustomerGps.lat));
+            textEl.innerHTML = isVerified ? '<i class="fa-solid fa-map-pin"></i> Change Location on Map' : '<i class="fa-solid fa-map"></i> Open Location Map';
         }
     } catch (_) {}
 }
+window.resetOpenMapButton = resetOpenMapButton;
+
+function refreshCustomerLeafletMap(lat, lng) {
+    if (!customerLeafletMap) return;
+    try {
+        customerLeafletMap.invalidateSize({ pan: false, debounceMoveend: false });
+        const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+        const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
+        const targetLat = (typeof lat === 'number' && !isNaN(lat)) ? lat : (customerTempCoords?.lat || storeLat);
+        const targetLng = (typeof lng === 'number' && !isNaN(lng)) ? lng : (customerTempCoords?.lng || storeLng);
+        customerLeafletMap.setView([targetLat, targetLng], 15, { animate: false });
+        if (customerLocationMarker) {
+            customerLocationMarker.setLatLng([targetLat, targetLng]);
+        }
+        customerLeafletMap.eachLayer((layer) => {
+            if (layer instanceof L.TileLayer && typeof layer.redraw === 'function') {
+                layer.redraw();
+            }
+        });
+    } catch (e) {
+        console.warn('Map refresh notice:', e);
+    }
+}
+window.refreshCustomerLeafletMap = refreshCustomerLeafletMap;
 
 function launchCustomerMapModal(initialLat, initialLng) {
     try {
@@ -14036,23 +14082,39 @@ function launchCustomerMapModal(initialLat, initialLng) {
         customerTempCoords = { lat: initialLat, lng: initialLng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
         updateMapModalCoordsDisplay(initialLat, initialLng);
 
+        // Initialize Leaflet map immediately so container and canvas are instantiated
+        initCustomerLeafletMap(initialLat, initialLng);
+
+        // Immediate tick size recalculation
+        requestAnimationFrame(() => {
+            refreshCustomerLeafletMap(initialLat, initialLng);
+        });
+
+        // Mid-animation refresh (120ms)
         mapModalInitTimer = setTimeout(() => {
             try {
-                initCustomerLeafletMap(initialLat, initialLng);
+                refreshCustomerLeafletMap(initialLat, initialLng);
             } catch (err) {
-                console.error('Failed to initialize customer leaflet map:', err);
+                console.error('Failed to refresh customer leaflet map:', err);
             }
         }, 120);
 
+        // Post-animation settle refresh (340ms) - ensures tile recalculation after CSS slideUp finishes
         mapModalSettleTimer = setTimeout(() => {
             try {
-                if (customerLeafletMap && typeof customerLeafletMap.invalidateSize === 'function') {
-                    customerLeafletMap.invalidateSize({ pan: false });
-                }
+                refreshCustomerLeafletMap(initialLat, initialLng);
             } catch (err) {
                 console.warn('Map settle error:', err);
             }
-        }, 320);
+        }, 340);
+
+        // Also hook animationend on modal card for guaranteed recalculation
+        const modalCard = modal.querySelector('.customer-map-modal-card');
+        if (modalCard) {
+            modalCard.addEventListener('animationend', () => {
+                refreshCustomerLeafletMap(initialLat, initialLng);
+            }, { once: true });
+        }
     } catch (e) {
         console.error('Error in launchCustomerMapModal:', e);
     }
@@ -14073,9 +14135,7 @@ function closeCustomerMapModal() {
             modal.style.display = 'none';
             modal.setAttribute('aria-hidden', 'true');
         }
-        if (typeof restoreProfileFormDraft === 'function') {
-            restoreProfileFormDraft();
-        }
+        resetOpenMapButton();
     } catch (e) {
         console.warn('Error in closeCustomerMapModal:', e);
     }
@@ -14183,6 +14243,10 @@ function initCustomerLeafletMap(lat, lng) {
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
+                keepBuffer: 6,
+                updateWhenIdle: false,
+                updateWhenZooming: true,
+                crossOrigin: true,
                 attribution: '&copy; OpenStreetMap'
             }).addTo(customerLeafletMap);
 
@@ -14305,12 +14369,7 @@ function initCustomerLeafletMap(lat, lng) {
             customerLeafletMap.options.maxBounds = paddedBounds;
             customerLeafletMap.options.maxBoundsViscosity = 0.2;
 
-            try {
-                customerLeafletMap.invalidateSize({ pan: false });
-                customerLeafletMap.setView([lat, lng], 15, { animate: false });
-            } catch (setViewErr) {
-                console.warn('Map setView error:', setViewErr);
-            }
+            refreshCustomerLeafletMap(lat, lng);
 
             if (customerLocationMarker) {
                 customerLocationMarker.setLatLng([lat, lng]);
@@ -14666,16 +14725,12 @@ function handleConfirmMapLocation() {
     } catch (e) { }
 
     closeCustomerMapModal();
+    resetOpenMapButton(mapBtn, gpsBtnText);
     showToast(`📍 Delivery location confirmed (${radiusCheck.distanceKm} km from store)!`);
 
     // Recalculate dynamic delivery fee & update cart / profile UI in real-time
     updateCartUI();
     updateProfileTotalsUI();
-
-    // Re-verify that form fields and active OTP box remain 100% restored and intact
-    if (typeof restoreProfileFormDraft === 'function') {
-        restoreProfileFormDraft();
-    }
 
     // If checkout modal is open, re-render checkout modal with newly confirmed location
     const checkoutModal = document.getElementById('checkout-modal');
@@ -15931,11 +15986,17 @@ function renderProfileHeaderAndInputs(profile) {
 
         if (isVerifiedUser) {
             if (fullNameInput) {
-                fullNameInput.value = profile.fullName || '';
+                if (!fullNameInput.dataset.userEdited && document.activeElement !== fullNameInput) {
+                    fullNameInput.value = (profileFormDraft && profileFormDraft.fullName !== undefined) ? profileFormDraft.fullName : (profile.fullName || '');
+                }
                 fullNameInput.readOnly = false;
                 fullNameInput.disabled = false;
             }
-            if (emailInput) emailInput.value = profile.email || '';
+            if (emailInput) {
+                if (!emailInput.dataset.userEdited && document.activeElement !== emailInput) {
+                    emailInput.value = (profileFormDraft && profileFormDraft.email !== undefined) ? profileFormDraft.email : (profile.email || '');
+                }
+            }
             if (phoneInput) {
                 phoneInput.value = profile.phone || storedVerifiedPhone || '';
                 phoneInput.readOnly = true;
@@ -15943,27 +16004,42 @@ function renderProfileHeaderAndInputs(profile) {
                 phoneInput.style.cursor = 'not-allowed';
             }
             if (colonyInput) {
-                colonyInput.value = profile.colonyName || '';
+                if (!colonyInput.dataset.userEdited && document.activeElement !== colonyInput) {
+                    colonyInput.value = (profileFormDraft && profileFormDraft.colonyName !== undefined) ? profileFormDraft.colonyName : (profile.colonyName || '');
+                }
                 colonyInput.readOnly = false;
                 colonyInput.disabled = false;
             }
             if (nearbyInput) {
-                nearbyInput.value = profile.nearBy || '';
+                if (!nearbyInput.dataset.userEdited && document.activeElement !== nearbyInput) {
+                    nearbyInput.value = (profileFormDraft && profileFormDraft.nearBy !== undefined) ? profileFormDraft.nearBy : (profile.nearBy || '');
+                }
                 nearbyInput.readOnly = false;
                 nearbyInput.disabled = false;
             }
             if (streetInput) {
-                streetInput.value = profile.streetName || '';
+                if (!streetInput.dataset.userEdited && document.activeElement !== streetInput) {
+                    streetInput.value = (profileFormDraft && profileFormDraft.streetName !== undefined) ? profileFormDraft.streetName : (profile.streetName || '');
+                }
                 streetInput.readOnly = false;
                 streetInput.disabled = false;
             }
             if (wardInput) {
-                wardInput.value = profile.wardNo || '';
+                if (!wardInput.dataset.userEdited && document.activeElement !== wardInput) {
+                    wardInput.value = (profileFormDraft && profileFormDraft.wardNo !== undefined) ? profileFormDraft.wardNo : (profile.wardNo || '');
+                }
                 wardInput.readOnly = false;
                 wardInput.disabled = false;
             }
-            if (!profile.fullName && fullNameInput) {
-                setTimeout(() => fullNameInput.focus(), 100);
+            if (!profile.fullName && fullNameInput && !fullNameInput.value) {
+                setTimeout(() => {
+                    if (document.activeElement !== fullNameInput && !document.querySelector('#profile-edit-modal input:focus')) {
+                        fullNameInput.focus();
+                    }
+                }, 100);
+            }
+            if (typeof setupAddressInputTwoWayBinding === 'function') {
+                setupAddressInputTwoWayBinding();
             }
         } else {
             if (phoneInput) {
@@ -15975,6 +16051,9 @@ function renderProfileHeaderAndInputs(profile) {
             if (verifyBtn) {
                 const currentLen = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').length : 0;
                 verifyBtn.disabled = currentLen !== 10 || (otpResendCountdown > 0);
+            }
+            if (typeof setupAddressInputTwoWayBinding === 'function') {
+                setupAddressInputTwoWayBinding();
             }
         }
     } else {
@@ -16016,18 +16095,35 @@ function renderProfileHeaderAndInputs(profile) {
             const wardInput = document.getElementById('customer-ward-no');
             const emailInput = document.getElementById('customer-email');
             const phoneInput = document.getElementById('customer-phone');
-            if (fullNameInput) fullNameInput.value = '';
-            if (emailInput) emailInput.value = '';
+
+            // Protect customer inputs: never wipe if user has typed or is actively typing
+            if (fullNameInput && !fullNameInput.dataset.userEdited && document.activeElement !== fullNameInput) {
+                fullNameInput.value = (profileFormDraft && profileFormDraft.fullName !== undefined) ? profileFormDraft.fullName : '';
+            }
+            if (emailInput && !emailInput.dataset.userEdited && document.activeElement !== emailInput) {
+                emailInput.value = (profileFormDraft && profileFormDraft.email !== undefined) ? profileFormDraft.email : '';
+            }
             if (phoneInput) {
-                phoneInput.value = currentInputPhone || '';
+                phoneInput.value = currentInputPhone || (profileFormDraft && profileFormDraft.phone) || '';
                 phoneInput.readOnly = false;
                 phoneInput.style.backgroundColor = '';
                 phoneInput.style.cursor = '';
             }
-            if (colonyInput) colonyInput.value = '';
-            if (nearbyInput) nearbyInput.value = '';
-            if (streetInput) streetInput.value = '';
-            if (wardInput) wardInput.value = '';
+            if (colonyInput && !colonyInput.dataset.userEdited && document.activeElement !== colonyInput) {
+                colonyInput.value = (profileFormDraft && profileFormDraft.colonyName !== undefined) ? profileFormDraft.colonyName : '';
+            }
+            if (nearbyInput && !nearbyInput.dataset.userEdited && document.activeElement !== nearbyInput) {
+                nearbyInput.value = (profileFormDraft && profileFormDraft.nearBy !== undefined) ? profileFormDraft.nearBy : '';
+            }
+            if (streetInput && !streetInput.dataset.userEdited && document.activeElement !== streetInput) {
+                streetInput.value = (profileFormDraft && profileFormDraft.streetName !== undefined) ? profileFormDraft.streetName : '';
+            }
+            if (wardInput && !wardInput.dataset.userEdited && document.activeElement !== wardInput) {
+                wardInput.value = (profileFormDraft && profileFormDraft.wardNo !== undefined) ? profileFormDraft.wardNo : '';
+            }
+            if (typeof setupAddressInputTwoWayBinding === 'function') {
+                setupAddressInputTwoWayBinding();
+            }
         }
     }
 }
