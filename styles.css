@@ -1234,10 +1234,11 @@ body.shop-closed #btn-pay-online {
 
 /* 6. Dedicated Log Out Item: Soft Crimson / Red accent */
 .menu-item-row.menu-item-logout {
-    border-top: 1px solid var(--border-color);
-    margin-top: 6px;
-    padding-top: 14px;
-    padding-bottom: 10px;
+    border-top: none;
+    border-bottom: none;
+    margin-top: 0;
+    padding-top: 12px;
+    padding-bottom: 12px;
     transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -7962,6 +7963,11 @@ button.btn-disabled-stock {
     color: var(--text-muted);
     margin-top: 2px;
     line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
 }
 
 /* Golden Chevron Arrow */
@@ -7990,7 +7996,7 @@ button.btn-disabled-stock {
     padding: 12px 0;
     margin: 0;
     box-shadow: none;
-    border-bottom: none;
+    border-bottom: 1px solid var(--border-color);
     transition: all 0.2s ease;
 }
 
@@ -8039,6 +8045,11 @@ button.btn-disabled-stock {
     font-size: 0.75rem;
     color: var(--text-muted);
     margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
 }
 
 .menu-item-row.profile-notice-inactive-row .item-arrow {

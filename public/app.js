@@ -314,6 +314,33 @@ const DEFAULT_CUSTOMER_CARE_PHONE = '9414503886';
 var isPhoneVerified = false;
 var currentTargetPhone = null;
 var currentUserProfile = null;
+var currentUser = null;
+var customerPhone = null;
+var activeDeliveryAddress = null;
+var walletBalance = 0;
+var walletTransactions = [];
+if (typeof window !== 'undefined') {
+    window.currentUser = currentUser;
+    window.customerPhone = customerPhone;
+    window.activeDeliveryAddress = activeDeliveryAddress;
+    window.walletBalance = walletBalance;
+    window.walletTransactions = walletTransactions;
+}
+
+// Transparent element ID resolution fallback for walletTransactionsList / profile-wallet-tx-list
+if (typeof document !== 'undefined') {
+    const _origGetElementById = document.getElementById.bind(document);
+    document.getElementById = function (id) {
+        let el = _origGetElementById(id);
+        if (!el && id === 'profile-wallet-tx-list') {
+            return _origGetElementById('walletTransactionsList');
+        }
+        if (!el && id === 'walletTransactionsList') {
+            return _origGetElementById('profile-wallet-tx-list');
+        }
+        return el;
+    };
+}
 
 // --------------------------------------------------------------------------
 // CLIENT-SIDE STATE PURGE & ONE-TIME RESET EPOCH ENGINE
@@ -8564,7 +8591,7 @@ function updateProfileWalletUI() {
 window.updateProfileWalletUI = updateProfileWalletUI;
 
 function toggleWalletLedgerView() {
-    const list = document.getElementById('profile-wallet-tx-list');
+    const list = document.getElementById('walletTransactionsList') || document.getElementById('profile-wallet-tx-list');
     const arrow = document.getElementById('arrow-wallet-ledger');
     if (!list) return;
 
@@ -8587,8 +8614,17 @@ function toggleWalletLedgerView() {
 window.toggleWalletLedgerView = toggleWalletLedgerView;
 
 function renderProfileWalletTxList() {
-    const container = document.getElementById('profile-wallet-tx-list');
+    const container = document.getElementById('walletTransactionsList') || document.getElementById('profile-wallet-tx-list');
     if (!container) return;
+
+    const verifiedPhone = (customerPhone && String(customerPhone).trim().length === 10)
+        ? String(customerPhone).trim()
+        : (typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null);
+
+    if (!currentUser && !verifiedPhone) {
+        container.innerHTML = '';
+        return;
+    }
 
     try {
         if (currentCustomerWallet && (!currentCustomerWallet.transactions || !Array.isArray(currentCustomerWallet.transactions))) {
@@ -8820,10 +8856,8 @@ let storeNoticeRealtimeUnsubscribe = null;
 
 function updateStoreNoticeUI() {
     try {
-        if (!customerStoreNotice) {
-            const stored = localStorage.getItem('perfetto_store_notice');
-            if (stored) customerStoreNotice = JSON.parse(stored);
-        }
+        const stored = localStorage.getItem('perfetto_store_notice');
+        if (stored) customerStoreNotice = JSON.parse(stored);
     } catch (e) {}
 
     const homeBadgeWrapper = document.getElementById('home-store-notice-wrapper');
@@ -8860,7 +8894,7 @@ function updateStoreNoticeUI() {
     // 2. Profile Screen Conditional Notice Placement:
     // When active: true -> Prominently show notice card inside "ACCOUNT SETTINGS" at top directly above Order History (#profile-store-notice-row).
     //                     Hide the bottom inactive row (#profile-store-notice-inactive-row).
-    // When active: false -> Hide active row above Order History and ensure it drops to the bottom.
+    // When active: false -> Hide active row above Order History.
     //                      Display store notice entry at the bottom, strictly beneath "Info & Legal Policies" (#profile-store-notice-inactive-row).
     if (isActive && hasNoticeContent) {
         if (profileNoticeRow) {
@@ -8869,16 +8903,19 @@ function updateStoreNoticeUI() {
                     orderHistoryRow.parentNode.insertBefore(profileNoticeRow, orderHistoryRow);
                 } catch (e) {}
             }
+            profileNoticeRow.classList.add('profile-notice-row');
             profileNoticeRow.style.display = 'flex';
             const previewEl = document.getElementById('profile-notice-preview-text');
             if (previewEl && content) {
                 const cleanText = content.replace(/\s+/g, ' ').trim();
                 if (cleanText) {
-                    previewEl.textContent = cleanText.length > 55 ? cleanText.substring(0, 52) + '...' : cleanText;
+                    previewEl.textContent = cleanText;
+                    previewEl.title = cleanText;
                     previewEl.removeAttribute('data-i18n');
                 }
             } else if (previewEl) {
                 previewEl.textContent = typeof t === 'function' ? t('store_notice_sub') : 'Important updates & announcements';
+                previewEl.removeAttribute('title');
             }
         }
         if (profileNoticeInactiveRow) {
@@ -8887,9 +8924,9 @@ function updateStoreNoticeUI() {
     } else {
         if (profileNoticeRow) {
             profileNoticeRow.style.display = 'none';
-            if (orderHistoryRow && orderHistoryRow.parentNode) {
+            if (orderHistoryRow && orderHistoryRow.parentNode && profileNoticeRow.nextElementSibling !== orderHistoryRow) {
                 try {
-                    orderHistoryRow.parentNode.appendChild(profileNoticeRow);
+                    orderHistoryRow.parentNode.insertBefore(profileNoticeRow, orderHistoryRow);
                 } catch (e) {}
             }
         }
@@ -8898,7 +8935,7 @@ function updateStoreNoticeUI() {
             const previewInactiveEl = document.getElementById('profile-notice-inactive-preview-text');
             if (previewInactiveEl) {
                 previewInactiveEl.textContent = (content && content.trim().length > 0)
-                    ? (content.replace(/\s+/g, ' ').trim().substring(0, 55) + '...')
+                    ? content.replace(/\s+/g, ' ').trim()
                     : (typeof t === 'function' ? t('store_policy_notice_sub') : 'Store guidelines, terms reference & updates');
             }
         }
@@ -10340,6 +10377,9 @@ function getSavedDeliveryProfile() {
         if (!profile && typeof currentUserProfile !== 'undefined' && currentUserProfile) {
             profile = currentUserProfile;
         }
+        if (!profile && typeof currentUser !== 'undefined' && currentUser) {
+            profile = currentUser;
+        }
         if (!profile) {
             profile = safeStorage.getJSON('perfettoSavedProfile', null);
         }
@@ -10352,7 +10392,10 @@ function getSavedDeliveryProfile() {
             const streetName = (profile.streetName || (profile.address && profile.address.streetName) || '').trim();
             const wardNo = (profile.wardNo || (profile.address && profile.address.wardNo) || '').trim();
             const storedVerifiedPhone = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : null;
-            const isVerified = Boolean(storedVerifiedPhone && phone && phone === storedVerifiedPhone);
+            const isVerified = Boolean(
+                (storedVerifiedPhone && phone && phone === storedVerifiedPhone) ||
+                (typeof isPhoneVerified !== 'undefined' && isPhoneVerified && customerPhone && customerPhone === phone)
+            );
             let gpsLat = profile.gpsLat !== undefined && profile.gpsLat !== null ? parseFloat(profile.gpsLat) : null;
             let gpsLng = profile.gpsLng !== undefined && profile.gpsLng !== null ? parseFloat(profile.gpsLng) : null;
             if ((gpsLat === null || isNaN(gpsLat)) && profile.gps && profile.gps.lat !== undefined && profile.gps.lat !== null) {
@@ -10404,6 +10447,42 @@ async function processCheckout() {
         return;
     }
 
+    // CHECKOUT AUTHENTICATION GUARD (Block Unverified Order Placement):
+    // Check if an active, OTP-verified customer session exists (currentUser and customerPhone)
+    const activePhone = (customerPhone && String(customerPhone).trim().length === 10)
+        ? String(customerPhone).trim()
+        : (typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null);
+
+    const hasActiveVerifiedSession = Boolean(
+        currentUser &&
+        activePhone &&
+        (isPhoneVerified || (typeof getStoredVerifiedPhone === 'function' && getStoredVerifiedPhone() === activePhone))
+    );
+
+    if (!hasActiveVerifiedSession) {
+        // Prevent the "Review & Place Order" modal from opening
+        const checkoutModal = document.getElementById('checkout-modal');
+        if (checkoutModal) {
+            checkoutModal.style.display = 'none';
+            checkoutModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+
+        // Display a clean toast message: "Please verify your mobile number to place an order"
+        showToast("Please verify your mobile number to place an order");
+
+        // Automatically trigger and open the Profile/Login modal with focus on the mobile number field
+        openEditProfileModal();
+        setTimeout(() => {
+            const phoneInput = document.getElementById('customer-phone');
+            if (phoneInput) {
+                phoneInput.focus();
+                if (typeof phoneInput.select === 'function') phoneInput.select();
+            }
+        }, 120);
+        return;
+    }
+
     // Checkout Price & Availability Verification: Verify against latest fetched menu data
     const verification = await verifyLatestMenuPricesAndAvailabilityBeforeCheckout();
     if (!verification.valid) {
@@ -10416,6 +10495,48 @@ async function processCheckout() {
     if (currentSubtotal < minOrderVal) {
         showToast(`Minimum order value: ${formatPrice(minOrderVal)}`);
         return;
+    }
+
+    // Allow opening the order placement modal ONLY when phone verification has successfully completed and delivery address is saved
+    const savedProfile = getSavedDeliveryProfile();
+    const hasCompleteSavedAddress = Boolean(
+        savedProfile &&
+        savedProfile.isVerified &&
+        savedProfile.fullName &&
+        savedProfile.colonyName &&
+        savedProfile.nearBy &&
+        savedProfile.streetName &&
+        savedProfile.wardNo &&
+        (savedProfile.gpsLat !== null && savedProfile.gpsLng !== null && !isNaN(savedProfile.gpsLat) && !isNaN(savedProfile.gpsLng))
+    );
+
+    if (!hasCompleteSavedAddress) {
+        // Prevent the "Review & Place Order" modal from opening
+        const checkoutModal = document.getElementById('checkout-modal');
+        if (checkoutModal) {
+            checkoutModal.style.display = 'none';
+            checkoutModal.setAttribute('aria-hidden', 'true');
+        }
+
+        showToast("Please complete and save your delivery address to place an order.");
+        openEditProfileModal();
+        return;
+    }
+
+    // Check delivery radius boundary
+    const coords = (savedProfile.gpsLat !== null && savedProfile.gpsLng !== null)
+        ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
+        : (currentCustomerGps || null);
+
+    if (coords && !isNaN(coords.lat) && !isNaN(coords.lng)) {
+        const radiusCheck = isWithinDeliveryRadius(coords.lat, coords.lng);
+        if (!radiusCheck.isAllowed) {
+            const errMsg = `Selected location is outside our delivery radius of ${radiusCheck.maxRadiusKm} km (You are ${radiusCheck.distanceKm} km away).`;
+            showToast(`🚫 ${errMsg}`);
+            alert(`${errMsg}\n\nPlease move your marker to a valid nearby pick-up/delivery spot within the allowed zone.`);
+            launchCustomerMapModal(coords.lat, coords.lng);
+            return;
+        }
     }
 
     // Sync computed Grand Total into button data attributes before opening review order modal
@@ -10432,34 +10553,7 @@ async function processCheckout() {
         btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
     });
 
-    // Check if delivery profile already exists and is complete
-    const savedProfile = getSavedDeliveryProfile();
-    if (savedProfile) {
-        // Check delivery radius boundary
-        const coords = (savedProfile.gpsLat !== null && savedProfile.gpsLng !== null)
-            ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
-            : (currentCustomerGps || null);
-
-        if (coords && !isNaN(coords.lat) && !isNaN(coords.lng)) {
-            const radiusCheck = isWithinDeliveryRadius(coords.lat, coords.lng);
-            if (!radiusCheck.isAllowed) {
-                const errMsg = `Selected location is outside our delivery radius of ${radiusCheck.maxRadiusKm} km (You are ${radiusCheck.distanceKm} km away).`;
-                showToast(`🚫 ${errMsg}`);
-                alert(`${errMsg}\n\nPlease move your marker to a valid nearby pick-up/delivery spot within the allowed zone.`);
-                launchCustomerMapModal(coords.lat, coords.lng);
-                return;
-            }
-        }
-
-        openCheckoutModal(savedProfile);
-        return;
-    }
-
-    // If missing or incomplete, redirect directly to Profile tab form and open it!
-    showProfileRedirectNotice(true);
-    switchTab('profile', true);
-    updateProfileTotalsUI();
-    toggleEditProfileForm(true);
+    openCheckoutModal(savedProfile);
 }
 
 function handleAdjustLocationFromCheckout() {
@@ -14448,6 +14542,128 @@ function startOtpResendTimer(seconds = 59) {
     }, 1000);
 }
 
+async function syncCustomerPhoneSession(cleanPhone) {
+    if (!cleanPhone) return;
+    const cleanDigits = String(cleanPhone).replace(/[^0-9]/g, '').slice(-10);
+    if (cleanDigits.length !== 10) return;
+
+    customerPhone = cleanDigits;
+    window.customerPhone = cleanDigits;
+    isPhoneVerified = true;
+    setStoredPhoneVerified(cleanDigits, true);
+    applyPhoneVerifiedUI(true, cleanDigits);
+
+    let restored = null;
+    if (typeof restoreUserProfileFromFirestore === 'function') {
+        try {
+            restored = await restoreUserProfileFromFirestore(cleanDigits, { force: true, forceAuth: true });
+        } catch (e) {
+            console.warn('Profile restore error:', e);
+        }
+    }
+
+    const fs = getCustomerFirestore() || customerFirestore;
+
+    if (restored) {
+        // Existing customer with pre-saved profile and orders
+        currentUser = restored;
+        currentUserProfile = restored;
+        activeDeliveryAddress = {
+            fullName: restored.fullName,
+            phone: cleanDigits,
+            colonyName: restored.colonyName,
+            nearBy: restored.nearBy,
+            streetName: restored.streetName,
+            wardNo: restored.wardNo,
+            gpsLat: restored.gpsLat,
+            gpsLng: restored.gpsLng
+        };
+        walletBalance = currentCustomerWallet ? Number(currentCustomerWallet.balance || 0) : 0;
+        walletTransactions = (currentCustomerWallet && Array.isArray(currentCustomerWallet.transactions)) ? currentCustomerWallet.transactions : [];
+    } else {
+        // Check if a wallet document exists at wallets/{cleanDigits}
+        let walletDocData = null;
+        if (fs) {
+            try {
+                const wSnap = await fs.collection('wallets').doc(cleanDigits).get();
+                if (wSnap.exists && wSnap.data()) {
+                    walletDocData = wSnap.data();
+                }
+            } catch (wErr) {
+                console.warn('Wallet fetch error:', wErr);
+            }
+        }
+
+        if (walletDocData) {
+            // Existing customer with wallet doc
+            const valid = calculateValidWalletBalance(walletDocData);
+            const serverTx = Array.isArray(walletDocData.transactions) ? walletDocData.transactions : (Array.isArray(walletDocData.walletTransactions) ? walletDocData.walletTransactions : []);
+            currentCustomerWallet = {
+                ...walletDocData,
+                ...valid,
+                phone: cleanDigits,
+                transactions: serverTx.slice(0, 15)
+            };
+            walletBalance = Number(currentCustomerWallet.balance || 0);
+            walletTransactions = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
+            currentUser = { phone: cleanDigits, isVerified: true };
+            currentUserProfile = currentUser;
+            activeDeliveryAddress = null;
+
+            localStorage.setItem('perfetto_wallet_balance', String(walletBalance));
+            localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+            localStorage.setItem(`perfetto_wallet_balance_${cleanDigits}`, String(walletBalance));
+            localStorage.setItem(`perfetto_customer_wallet_${cleanDigits}`, JSON.stringify(currentCustomerWallet));
+            safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
+        } else {
+            // New Customer: Initialize with ₹0 wallet balance, empty ledger, and prompt for delivery details
+            walletBalance = 0;
+            walletTransactions = [];
+            currentCustomerWallet = { phone: cleanDigits, balance: 0, nonExpiredBalance: 0, transactions: [] };
+            currentUser = { phone: cleanDigits, isVerified: true };
+            currentUserProfile = currentUser;
+            activeDeliveryAddress = null;
+
+            localStorage.setItem('perfetto_wallet_balance', '0');
+            localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
+            localStorage.setItem(`perfetto_wallet_balance_${cleanDigits}`, '0');
+            localStorage.setItem(`perfetto_customer_wallet_${cleanDigits}`, JSON.stringify(currentCustomerWallet));
+            safeStorage.setJSON('perfetto_customer_wallet', currentCustomerWallet);
+
+            const statOrders = document.getElementById('stat-total-orders');
+            if (statOrders) statOrders.textContent = '0';
+
+            // Prompt for delivery details
+            openEditProfileModal();
+            setTimeout(() => {
+                const nameInput = document.getElementById('customer-fullname');
+                if (nameInput) nameInput.focus();
+            }, 150);
+        }
+    }
+
+    // Keep globals & window variables strictly synced
+    window.currentUser = currentUser;
+    window.customerPhone = customerPhone;
+    window.activeDeliveryAddress = activeDeliveryAddress;
+    window.walletBalance = walletBalance;
+    window.walletTransactions = walletTransactions;
+
+    // Refresh UI components
+    renderProfileHeaderAndInputs(currentUser);
+    updateProfileTotalsUI();
+    updateProfileWalletUI();
+    renderProfileWalletTxList();
+    renderOrderHistoryDetails();
+    updateCheckoutWalletUI();
+    updateCartUI();
+
+    if (typeof listenToCustomerWalletRealtime === 'function') {
+        listenToCustomerWalletRealtime(cleanDigits);
+    }
+}
+window.syncCustomerPhoneSession = syncCustomerPhoneSession;
+
 async function handleVerifyOtp() {
     const otpInput = document.getElementById('otp-input');
     const phoneInput = document.getElementById('customer-phone');
@@ -14470,11 +14686,13 @@ async function handleVerifyOtp() {
         submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
     }
 
-    const onVerifySuccess = (data) => {
+    const onVerifySuccess = async (data) => {
         console.log('MSG91 OTP Verify Success:', data);
         const cleanDigits = (phoneInput ? phoneInput.value : '').replace(/[^0-9]/g, '').slice(-10) || (currentTargetPhone ? currentTargetPhone.slice(-10) : '');
 
         isPhoneVerified = true;
+        customerPhone = cleanDigits;
+        window.customerPhone = cleanDigits;
         setStoredPhoneVerified(cleanDigits, true);
         applyPhoneVerifiedUI(true, cleanDigits);
 
@@ -14499,22 +14717,10 @@ async function handleVerifyOtp() {
             profileFormDraft.otpValue = '';
         }
 
-        // Retrieve and restore user profile, address & wallet strictly after successful OTP confirmation
-        if (typeof restoreUserProfileFromFirestore === 'function') {
-            restoreUserProfileFromFirestore(cleanDigits, { force: true, forceAuth: true }).then((restored) => {
-                if (restored) {
-                    renderProfileHeaderAndInputs(restored);
-                }
-                updateProfileTotalsUI();
-                updateProfileWalletUI();
-                updateCartUI();
-            });
-        }
-        if (typeof listenToCustomerWalletRealtime === 'function') {
-            listenToCustomerWalletRealtime(cleanDigits);
-        }
-
         showToast('🎉 Mobile number verified successfully!');
+
+        // Seamless single-step phone auth & sync
+        await syncCustomerPhoneSession(cleanDigits);
     };
 
     const onVerifyFailure = (error) => {
@@ -14689,6 +14895,25 @@ function handleSaveProfile(event) {
         gpsLat: latVal,
         gpsLng: lngVal
     };
+
+    currentUser = profile;
+    currentUserProfile = profile;
+    customerPhone = cleanPhone;
+    activeDeliveryAddress = {
+        fullName: profile.fullName,
+        phone: cleanPhone,
+        colonyName: profile.colonyName,
+        nearBy: profile.nearBy,
+        streetName: profile.streetName,
+        wardNo: profile.wardNo,
+        gpsLat: profile.gpsLat,
+        gpsLng: profile.gpsLng
+    };
+    if (typeof window !== 'undefined') {
+        window.currentUser = currentUser;
+        window.customerPhone = customerPhone;
+        window.activeDeliveryAddress = activeDeliveryAddress;
+    }
 
     try {
         localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(profile));
@@ -16427,7 +16652,7 @@ function closeUserLogoutModal() {
 function executeUserLogout() {
     closeUserLogoutModal();
 
-    // 1. Detach and unsubscribe any active Firestore real-time snapshot listeners for the current user's profile and wallet
+    // 1. Detach and unsubscribe any active Firestore real-time snapshot listeners (profile listener, wallet listener, active order listener)
     if (customerWalletRealtimeUnsubscribe) {
         try { customerWalletRealtimeUnsubscribe(); } catch (e) {}
         customerWalletRealtimeUnsubscribe = null;
@@ -16435,6 +16660,11 @@ function executeUserLogout() {
     if (customerUserRealtimeUnsubscribe) {
         try { customerUserRealtimeUnsubscribe(); } catch (e) {}
         customerUserRealtimeUnsubscribe = null;
+    }
+    if (typeof customerPhoneOrdersUnsubscribe === 'function') {
+        try { customerPhoneOrdersUnsubscribe(); } catch (e) {}
+        customerPhoneOrdersUnsubscribe = null;
+        customerPhoneOrdersCurrentQueryPhone = null;
     }
     activeWalletListeningPhone = null;
 
@@ -16447,64 +16677,47 @@ function executeUserLogout() {
         customerOrdersUnsubscribeMap.clear();
     }
 
-    // 2. Wipe all customer-specific credentials from storage: remove keys for current user, phone, profile address, active cart, and local wallet cache
-    const keysToRemove = [
-        'customerDeliveryProfile',
-        'perfettoCustomerProfile',
-        'perfettoSavedProfile',
-        'perfetto_verified_phone',
-        'perfetto_phone_verification_state',
-        'perfetto_customer_phone',
-        'perfetto_customer_session',
-        'perfetto_customer_wallet',
-        'perfetto_wallet_balance',
-        'perfetto_wallet_hold',
-        'RESET_WALLET_LEDGER',
-        'perfetto_scratch_cards',
-        'perfetto_unclaimed_scratch_cards',
-        'perfetto_pizza_cart',
-        'perfettoCart',
-        'perfetto_cart',
-        'perfettoCustomerOrders',
-        'perfettoClearedOrderIds',
-        'clearedOrderIds'
-    ];
-    keysToRemove.forEach(k => {
-        try { localStorage.removeItem(k); } catch (e) {}
-        try { sessionStorage.removeItem(k); } catch (e) {}
-        if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.removeItem === 'function') {
-            try { safeStorage.removeItem(k); } catch (e) {}
-        }
-        if (typeof safeSessionStorage !== 'undefined' && safeSessionStorage && typeof safeSessionStorage.removeItem === 'function') {
-            try { safeSessionStorage.removeItem(k); } catch (e) {}
-        }
-    });
+    // 2. Clear all client storage thoroughly: localStorage.clear(); sessionStorage.clear();
+    try { localStorage.clear(); } catch (e) {}
+    try { sessionStorage.clear(); } catch (e) {}
+    if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.clear === 'function') {
+        try { safeStorage.clear(); } catch (e) {}
+    }
+    if (typeof safeSessionStorage !== 'undefined' && safeSessionStorage && typeof safeSessionStorage.clear === 'function') {
+        try { safeSessionStorage.clear(); } catch (e) {}
+    }
 
-    // Clear any phone-indexed profile entries
-    try {
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-            const key = localStorage.key(i);
-            if (key && (
-                key.startsWith('customerDeliveryProfile_') || 
-                key.startsWith('perfettoCustomerProfile_') ||
-                key.startsWith('wallet_') ||
-                key.startsWith('user_')
-            )) {
-                localStorage.removeItem(key);
-            }
-        }
-    } catch (e) {}
-
-    // 3. Reset in-memory application variables: currentUser = null, walletBalance = 0, walletTransactions = [], cart = []
+    // 3. Reset in-memory state variables:
+    // currentUser = null; customerPhone = null; activeDeliveryAddress = null; walletBalance = 0; walletTransactions = []; cart = [];
+    currentUser = null;
+    customerPhone = null;
+    activeDeliveryAddress = null;
+    walletBalance = 0;
+    walletTransactions = [];
     if (typeof cart !== 'undefined' && Array.isArray(cart)) {
         cart.length = 0;
+    } else {
+        cart = [];
     }
+    if (typeof window !== 'undefined') {
+        window.currentUser = null;
+        window.customerPhone = null;
+        window.activeDeliveryAddress = null;
+        window.walletBalance = 0;
+        window.walletTransactions = [];
+        window.cart = cart;
+    }
+
     isPhoneVerified = false;
     currentTargetPhone = null;
     currentUserProfile = null;
     currentCustomerGps = null;
     currentCustomerWallet = { balance: 0, nonExpiredBalance: 0, transactions: [] };
     customerScratchCards = [];
+    isCheckoutAddressConfirmed = false;
+    appliedWalletDiscountAmount = 0;
+    isWalletRedemptionSelected = false;
+
     if (typeof profileFormDraft !== 'undefined' && profileFormDraft) {
         profileFormDraft.fullName = '';
         profileFormDraft.phone = '';
@@ -16521,37 +16734,176 @@ function executeUserLogout() {
         profileFormDraft.isLiveGps = false;
     }
 
-    // 4. Reset Profile view to unauthenticated state (clear displayed name, clear phone number, show ₹0 balance with no past ledger entries)
-    renderProfileHeaderAndInputs(null);
-    updateProfileTotalsUI();
-    updateProfileWalletUI();
-    updateCheckoutWalletUI();
-    renderOrderHistoryDetails();
-    updateCartUI();
-    if (typeof updateCartCount === 'function') updateCartCount();
-
-    // Reset phone inputs in delivery details modal
-    const phoneInput = document.getElementById('customer-phone');
-    if (phoneInput) {
-        phoneInput.value = '';
-        phoneInput.readOnly = false;
-        phoneInput.style.backgroundColor = 'var(--bg-input)';
-        phoneInput.style.cursor = 'text';
+    // 4. Clean up DOM:
+    // 4A. Empty the wallet transactions container (#walletTransactionsList.innerHTML = '')
+    const walletTxList = document.getElementById('walletTransactionsList');
+    if (walletTxList) {
+        walletTxList.innerHTML = '';
+        walletTxList.style.display = 'none';
     }
+    const profileWalletTxList = document.getElementById('profile-wallet-tx-list');
+    if (profileWalletTxList) {
+        profileWalletTxList.innerHTML = '';
+        profileWalletTxList.style.display = 'none';
+    }
+    const arrowWallet = document.getElementById('arrow-wallet-ledger');
+    if (arrowWallet) arrowWallet.className = 'fa-solid fa-chevron-down';
+
+    // 4B. Reset cart UI badges, cart items container, and grand total back to ₹0
+    if (cartBadge) {
+        cartBadge.textContent = '0';
+        cartBadge.style.display = 'none';
+    }
+    const floatingCount = document.getElementById('floating-cart-count');
+    if (floatingCount) floatingCount.textContent = '0 ITEMS';
+    const floatingTotal = document.getElementById('floating-cart-total');
+    if (floatingTotal) floatingTotal.textContent = '₹0';
+    const floatingBar = document.getElementById('floating-cart-bar');
+    if (floatingBar) floatingBar.style.display = 'none';
+
+    if (cartContainer) {
+        cartContainer.innerHTML = `
+            <div class="empty-cart-view">
+                <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
+                <h4>${typeof t === 'function' ? t('cart_empty_title') : 'Your cart is empty'}</h4>
+                <p>${typeof t === 'function' ? t('cart_empty_desc') : 'Browse categories on Home and add items to your cart!'}</p>
+            </div>
+        `;
+    }
+    const cartSubtotalEl = document.getElementById('cart-subtotal');
+    if (cartSubtotalEl) cartSubtotalEl.textContent = '₹0';
+    const cartDeliveryEl = document.getElementById('cart-delivery');
+    if (cartDeliveryEl) cartDeliveryEl.textContent = '₹0';
+    const cartTotalEl = document.getElementById('cart-total');
+    if (cartTotalEl) cartTotalEl.textContent = '₹0';
+    const freeGiftContainer = document.getElementById('cart-free-gift-container');
+    if (freeGiftContainer) {
+        freeGiftContainer.style.display = 'none';
+        freeGiftContainer.innerHTML = '';
+    }
+
+    // 4C. Reset checkout address fields to empty/blank state so no stale name, phone, or colony persists
+    const checkoutAddressContent = document.getElementById('checkout-address-content');
+    if (checkoutAddressContent) {
+        checkoutAddressContent.innerHTML = '';
+    }
+    const checkoutItemCount = document.getElementById('checkout-item-count');
+    if (checkoutItemCount) checkoutItemCount.textContent = '0';
+    const checkoutSubtotal = document.getElementById('checkout-subtotal');
+    if (checkoutSubtotal) checkoutSubtotal.textContent = '₹0';
+    const checkoutDelivery = document.getElementById('checkout-delivery');
+    if (checkoutDelivery) checkoutDelivery.textContent = '₹0';
+    const checkoutTotal = document.getElementById('checkout-total');
+    if (checkoutTotal) checkoutTotal.textContent = '₹0';
+    const checkoutWalletAvailable = document.getElementById('checkout-wallet-available-val');
+    if (checkoutWalletAvailable) checkoutWalletAvailable.textContent = '₹0';
+    const checkoutWalletDiscountRow = document.getElementById('checkout-wallet-discount-row');
+    if (checkoutWalletDiscountRow) checkoutWalletDiscountRow.style.display = 'none';
+    const checkoutWalletCard = document.getElementById('checkout-wallet-card');
+    if (checkoutWalletCard) checkoutWalletCard.style.display = 'none';
+
+    const inputIdsToClear = [
+        'customer-fullname',
+        'customer-phone',
+        'customer-colony-name',
+        'customer-nearby',
+        'customer-street-name',
+        'customer-ward-no',
+        'customer-gps-lat',
+        'customer-gps-lng',
+        'customer-gps-is-live',
+        'otp-input'
+    ];
+    inputIdsToClear.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = '';
+            if (id === 'customer-phone') {
+                el.readOnly = false;
+                el.style.backgroundColor = 'var(--bg-input)';
+                el.style.cursor = 'text';
+            }
+        }
+    });
+
+    const phoneVerifiedBadge = document.getElementById('phone-verified-badge');
+    if (phoneVerifiedBadge) phoneVerifiedBadge.style.display = 'none';
+
+    const btnRequestOtp = document.getElementById('btn-request-otp');
+    if (btnRequestOtp) {
+        btnRequestOtp.disabled = true;
+        btnRequestOtp.classList.remove('btn-cooldown-locked');
+        btnRequestOtp.style.pointerEvents = '';
+        btnRequestOtp.style.cursor = '';
+        btnRequestOtp.style.opacity = '';
+        btnRequestOtp.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span class="verify-text">Verify</span>';
+    }
+
     const otpBox = document.getElementById('otp-verification-box');
     if (otpBox) otpBox.style.display = 'none';
 
-    // Reset saved address preview box
+    const gpsStatusBadge = document.getElementById('gps-status-badge');
+    if (gpsStatusBadge) gpsStatusBadge.style.display = 'none';
+    const gpsCoordsDisplay = document.getElementById('gps-coordinates-display');
+    if (gpsCoordsDisplay) gpsCoordsDisplay.style.display = 'none';
+
     const addressBox = document.getElementById('saved-address-text-content');
     if (addressBox) {
         addressBox.innerHTML = '<p class="empty-address-msg" data-i18n="no_address_saved">No delivery address saved yet. Tap "Edit Profile" above to enter your address.</p>';
     }
 
-    // Reset unclaimed scratch cards banner
     const scratchBanner = document.getElementById('profile-scratch-unclaimed-banner');
     if (scratchBanner) scratchBanner.style.display = 'none';
 
-    // 5. Ensure that upon returning to home or cart, the app behaves as a fresh anonymous visitor
+    // 4D. Reset profile screen view
+    renderProfileHeaderAndInputs(null);
+    const statOrders = document.getElementById('stat-total-orders');
+    if (statOrders) statOrders.textContent = '0';
+    const profileWalletVal = document.getElementById('profile-wallet-val');
+    if (profileWalletVal) profileWalletVal.textContent = '₹0';
+    const profilePointsVal = document.getElementById('profile-points-val');
+    if (profilePointsVal) profilePointsVal.textContent = '0 pts';
+
+    const orderHistoryList = document.getElementById('order-history-list');
+    if (orderHistoryList) {
+        orderHistoryList.innerHTML = `
+            <div class="empty-cart-view" style="margin-top: 20px;">
+                <i class="fa-solid fa-clock-rotate-left empty-cart-icon"></i>
+                <h4 data-i18n="no_past_orders">No past orders</h4>
+                <p data-i18n="past_orders_hint">Your completed and past orders will appear here.</p>
+            </div>
+        `;
+    }
+
+    const activeOrdersContainer = document.getElementById('active-orders-container');
+    if (activeOrdersContainer) {
+        activeOrdersContainer.innerHTML = '';
+        activeOrdersContainer.style.display = 'none';
+    }
+
+    updateProfileTotalsUI();
+    updateProfileWalletUI();
+    updateCheckoutWalletUI();
+    updateCartUI();
+    if (typeof updateCartCount === 'function') updateCartCount();
+
+    // Explicitly enforce empty wallet transactions container on logout:
+    // Empty the wallet transactions container (#walletTransactionsList.innerHTML = '')
+    const finalWalletList = document.getElementById('walletTransactionsList') || document.getElementById('profile-wallet-tx-list');
+    if (finalWalletList) {
+        finalWalletList.innerHTML = '';
+        finalWalletList.style.display = 'none';
+    }
+    if (document.getElementById('walletTransactionsList')) {
+        document.getElementById('walletTransactionsList').innerHTML = '';
+        document.getElementById('walletTransactionsList').style.display = 'none';
+    }
+    if (document.getElementById('profile-wallet-tx-list')) {
+        document.getElementById('profile-wallet-tx-list').innerHTML = '';
+        document.getElementById('profile-wallet-tx-list').style.display = 'none';
+    }
+
+    // 5. User feedback
     showToast('👋 You have been logged out successfully.');
 }
 
@@ -22288,8 +22640,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Cross-Device Profile & Address Automatic Sync strictly for active verified session
     const verifiedPhone = getStoredVerifiedPhone();
     if (verifiedPhone) {
-        restoreUserProfileFromFirestore(verifiedPhone, { silent: true });
-        listenToCustomerWalletRealtime(verifiedPhone);
+        if (typeof syncCustomerPhoneSession === 'function') {
+            syncCustomerPhoneSession(verifiedPhone);
+        } else {
+            restoreUserProfileFromFirestore(verifiedPhone, { silent: true });
+            listenToCustomerWalletRealtime(verifiedPhone);
+        }
     }
 
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;

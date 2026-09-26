@@ -1234,10 +1234,11 @@ body.shop-closed #btn-pay-online {
 
 /* 6. Dedicated Log Out Item: Soft Crimson / Red accent */
 .menu-item-row.menu-item-logout {
-    border-top: 1px solid var(--border-color);
-    margin-top: 6px;
-    padding-top: 14px;
-    padding-bottom: 10px;
+    border-top: none;
+    border-bottom: none;
+    margin-top: 0;
+    padding-top: 12px;
+    padding-bottom: 12px;
     transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -7885,19 +7886,24 @@ button.btn-disabled-stock {
    Clean White-Card Base with Warm Golden / Amber Accents
    -------------------------------------------------------------------------- */
 .menu-item-row.profile-notice-row {
-    background-color: var(--bg-surface);
-    border-radius: 16px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 14px; /* border-radius: 16px; */
     padding: 12px 14px;
-    margin-bottom: 8px;
-    border: 1px solid rgba(245, 158, 11, 0.26);
+    background: rgba(254, 243, 199, 0.35);
+    background-color: rgba(254, 243, 199, 0.35);
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 4px;
+    margin-bottom: 12px;
     box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08);
     transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     cursor: pointer;
 }
 
 .menu-item-row.profile-notice-row:hover {
-    background-color: var(--bg-surface);
-    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(254, 243, 199, 0.5);
+    background-color: rgba(254, 243, 199, 0.5);
+    border-color: rgba(245, 158, 11, 0.55);
     box-shadow: 0 4px 14px rgba(245, 158, 11, 0.16);
     transform: translateY(-1px);
 }
@@ -7907,12 +7913,15 @@ button.btn-disabled-stock {
 }
 
 [data-theme="dark"] .menu-item-row.profile-notice-row {
-    background-color: var(--bg-surface-elevated);
-    border-color: rgba(245, 158, 11, 0.32);
+    background: rgba(245, 158, 11, 0.14);
+    background-color: rgba(245, 158, 11, 0.14);
+    border: 1px solid rgba(245, 158, 11, 0.35);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 [data-theme="dark"] .menu-item-row.profile-notice-row:hover {
+    background: rgba(245, 158, 11, 0.22);
+    background-color: rgba(245, 158, 11, 0.22);
     border-color: rgba(245, 158, 11, 0.6);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
@@ -7954,6 +7963,11 @@ button.btn-disabled-stock {
     color: var(--text-muted);
     margin-top: 2px;
     line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
 }
 
 /* Golden Chevron Arrow */
@@ -7982,7 +7996,7 @@ button.btn-disabled-stock {
     padding: 12px 0;
     margin: 0;
     box-shadow: none;
-    border-bottom: none;
+    border-bottom: 1px solid var(--border-color);
     transition: all 0.2s ease;
 }
 
@@ -8031,6 +8045,11 @@ button.btn-disabled-stock {
     font-size: 0.75rem;
     color: var(--text-muted);
     margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
 }
 
 .menu-item-row.profile-notice-inactive-row .item-arrow {
