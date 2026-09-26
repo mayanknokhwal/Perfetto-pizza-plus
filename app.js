@@ -453,7 +453,9 @@ function purgeClientAppState(options = { resetAuth: true, resetCart: true }) {
                     'perfettoCustomerProfile',
                     'perfettoSavedProfile',
                     'perfetto_verified_phone',
-                    'perfetto_phone_verification_state'
+                    'perfetto_phone_verification_state',
+                    'perfetto_user_phone',
+                    'perfetto_auth_verified'
                 ];
                 sessionKeys.forEach(k => {
                     localStorage.removeItem(k);
@@ -1294,15 +1296,48 @@ window.addBurgerCardToCart = function(itemId, itemName, basePrice, itemImg) {
 
 function getStoredVerifiedPhone() {
     try {
-        // Strictly check active session storage first
+        // 1. Check persistent localStorage verified customer phone session first
+        if (typeof localStorage !== 'undefined') {
+            const isVerifiedAuth = localStorage.getItem('perfetto_auth_verified') === 'true';
+            const userPhone = localStorage.getItem('perfetto_user_phone') || localStorage.getItem('perfetto_verified_phone');
+            if (isVerifiedAuth && userPhone) {
+                const clean = String(userPhone).replace(/[^0-9]/g, '').slice(-10);
+                if (clean.length === 10) return clean;
+            }
+        }
+
+        // 2. Check safeStorage (localStorage wrapper)
+        if (typeof safeStorage !== 'undefined') {
+            const safeAuth = safeStorage.getItem('perfetto_auth_verified') === 'true';
+            const safePhone = safeStorage.getItem('perfetto_user_phone') || safeStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
+            if (safeAuth && safePhone) {
+                const clean = String(safePhone).replace(/[^0-9]/g, '').slice(-10);
+                if (clean.length === 10) return clean;
+            }
+        }
+
+        // 3. Strictly check active session storage
         const sessionDirect = safeSessionStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
         if (sessionDirect && typeof sessionDirect === 'string') {
             const clean = sessionDirect.replace(/[^0-9]/g, '').slice(-10);
             if (clean.length === 10) return clean;
         }
 
-        // Check in-memory verified state if active in session
+        // 4. Check legacy localStorage verified phone key if authenticated
+        if (typeof localStorage !== 'undefined') {
+            const localDirect = localStorage.getItem(VERIFIED_PHONE_STORAGE_KEY);
+            if (localDirect && typeof localDirect === 'string') {
+                const clean = localDirect.replace(/[^0-9]/g, '').slice(-10);
+                if (clean.length === 10) return clean;
+            }
+        }
+
+        // 5. Check in-memory verified state if active in session
         if (typeof isPhoneVerified !== 'undefined' && isPhoneVerified) {
+            if (typeof customerPhone !== 'undefined' && customerPhone) {
+                const cleanPhone = String(customerPhone).replace(/[^0-9]/g, '').slice(-10);
+                if (cleanPhone.length === 10) return cleanPhone;
+            }
             const phoneInput = document.getElementById('customer-phone');
             const clean = phoneInput ? phoneInput.value.replace(/[^0-9]/g, '').slice(-10) : '';
             if (clean.length === 10) return clean;
@@ -1350,9 +1385,13 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
         if (isVerified) {
             safeStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
             safeSessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
+            safeStorage.setItem('perfetto_user_phone', cleanPhone);
+            safeStorage.setItem('perfetto_auth_verified', 'true');
             try {
                 if (typeof localStorage !== 'undefined') {
                     localStorage.setItem('perfetto_verified_phone', cleanPhone);
+                    localStorage.setItem('perfetto_user_phone', cleanPhone);
+                    localStorage.setItem('perfetto_auth_verified', 'true');
                 }
             } catch (e) {}
             safeStorage.setJSON(VERIFIED_PHONE_STATE_KEY, {
@@ -1383,6 +1422,15 @@ function setStoredPhoneVerified(phone, isVerified = true, shouldRestore = false)
             safeStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             safeSessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
             safeStorage.removeItem(VERIFIED_PHONE_STATE_KEY);
+            safeStorage.removeItem('perfetto_user_phone');
+            safeStorage.removeItem('perfetto_auth_verified');
+            try {
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.removeItem('perfetto_verified_phone');
+                    localStorage.removeItem('perfetto_user_phone');
+                    localStorage.removeItem('perfetto_auth_verified');
+                }
+            } catch (e) {}
             if (cleanPhone) {
                 safeStorage.removeItem(`customerDeliveryProfile_${cleanPhone}`);
             }
@@ -7015,6 +7063,70 @@ function listenToCustomerWalletRealtime(phone) {
 }
 window.listenToCustomerWalletRealtime = listenToCustomerWalletRealtime;
 
+let customerProfileRealtimeUnsubscribe = null;
+let activeProfileListeningPhone = null;
+
+function listenToCustomerProfileRealtime(phone) {
+    if (!phone) return;
+    const cleanPhone = String(phone).replace(/[^0-9]/g, '').slice(-10);
+    if (cleanPhone.length !== 10) return;
+
+    const fs = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || customerFirestore;
+    if (!fs) return;
+
+    if (activeProfileListeningPhone === cleanPhone && customerProfileRealtimeUnsubscribe) {
+        return;
+    }
+    activeProfileListeningPhone = cleanPhone;
+
+    if (customerProfileRealtimeUnsubscribe) {
+        try { customerProfileRealtimeUnsubscribe(); } catch (e) {}
+        customerProfileRealtimeUnsubscribe = null;
+    }
+
+    try {
+        const docRef = fs.collection('users').doc(`phone_${cleanPhone}`);
+        customerProfileRealtimeUnsubscribe = docRef.onSnapshot((docSnap) => {
+            if (docSnap.exists && docSnap.data()) {
+                const u = docSnap.data();
+                if (u.fullName || u.colonyName || u.address) {
+                    const currentLocal = (typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null) || {};
+                    const lat = (u.gps && u.gps.lat !== undefined && u.gps.lat !== null) ? parseFloat(u.gps.lat) : ((u.gpsLat !== undefined && u.gpsLat !== null) ? parseFloat(u.gpsLat) : null);
+                    const lng = (u.gps && u.gps.lng !== undefined && u.gps.lng !== null) ? parseFloat(u.gps.lng) : ((u.gpsLng !== undefined && u.gpsLng !== null) ? parseFloat(u.gpsLng) : null);
+                    const updated = {
+                        fullName: u.fullName || currentLocal.fullName || '',
+                        email: u.email || currentLocal.email || '',
+                        phone: cleanPhone,
+                        colonyName: u.address?.colonyName || u.colonyName || currentLocal.colonyName || '',
+                        nearBy: u.address?.nearBy || u.nearBy || currentLocal.nearBy || '',
+                        streetName: u.address?.streetName || u.streetName || currentLocal.streetName || '',
+                        wardNo: u.address?.wardNo || u.wardNo || currentLocal.wardNo || '',
+                        isVerified: true,
+                        gpsLat: (lat !== null && !isNaN(lat)) ? lat : (currentLocal.gpsLat || null),
+                        gpsLng: (lng !== null && !isNaN(lng)) ? lng : (currentLocal.gpsLng || null)
+                    };
+                    try {
+                        localStorage.setItem(DELIVERY_PROFILE_KEY, JSON.stringify(updated));
+                    } catch (e) {}
+                    currentUserProfile = updated;
+                    window.currentUserProfile = updated;
+                    activeDeliveryAddress = updated;
+                    window.activeDeliveryAddress = updated;
+                    renderProfileHeaderAndInputs(updated);
+                    if (typeof renderSavedAddressDetails === 'function') {
+                        renderSavedAddressDetails();
+                    }
+                }
+            }
+        }, (err) => {
+            console.warn('Real-time customer profile listener notice:', err.message);
+        });
+    } catch (e) {
+        console.warn('Error attaching customer profile listener:', e);
+    }
+}
+window.listenToCustomerProfileRealtime = listenToCustomerProfileRealtime;
+
 /**
  * Consolidated Single Source of Truth for Dynamic Scratch Card & Cashback Generation.
  *
@@ -11909,8 +12021,9 @@ function restoreProfileFormDraft() {
         emailInput.value = profileFormDraft.email;
     }
 
-    // Retain OTP verification box & active state if OTP was active or requested
-    if (profileFormDraft.isOtpBoxVisible || profileFormDraft.hasOtpBeenRequested || otpResendCountdown > 0 || isOtpSendingInProgress) {
+    // Retain OTP verification box & active state if OTP was active or requested strictly if user is not yet verified
+    const isAlreadyVerified = isPhoneVerified || (typeof getStoredVerifiedPhone === 'function' && Boolean(getStoredVerifiedPhone()));
+    if (!isAlreadyVerified && (profileFormDraft.isOtpBoxVisible || profileFormDraft.hasOtpBeenRequested || otpResendCountdown > 0 || isOtpSendingInProgress)) {
         if (otpBox) {
             otpBox.style.display = 'block';
         }
@@ -11919,6 +12032,10 @@ function restoreProfileFormDraft() {
         }
         if (typeof setOtpButtonsCooldownState === 'function') {
             setOtpButtonsCooldownState(otpResendCountdown > 0 || isOtpSendingInProgress);
+        }
+    } else {
+        if (otpBox) {
+            otpBox.style.display = 'none';
         }
     }
 
@@ -11975,11 +12092,16 @@ function openEditProfileModal() {
     const verifiedPhone = typeof getStoredVerifiedPhone === 'function' ? getStoredVerifiedPhone() : null;
     if (currentProfile && verifiedPhone && currentProfile.phone === verifiedPhone) {
         renderProfileHeaderAndInputs(currentProfile);
+    } else if (verifiedPhone) {
+        renderProfileHeaderAndInputs(currentUserProfile || { phone: verifiedPhone, isVerified: true });
     } else {
         renderProfileHeaderAndInputs(null);
     }
     // Restore any active user-entered draft (typed fields, active OTP box, confirmed GPS pin)
     restoreProfileFormDraft();
+    if (verifiedPhone) {
+        applyPhoneVerifiedUI(true, verifiedPhone);
+    }
 }
 
 function closeEditProfileModal() {
@@ -14525,6 +14647,10 @@ function handleChangePhoneNumber() {
         try { customerUserRealtimeUnsubscribe(); } catch (e) {}
         customerUserRealtimeUnsubscribe = null;
     }
+    if (typeof customerProfileRealtimeUnsubscribe === 'function') {
+        try { customerProfileRealtimeUnsubscribe(); } catch (e) {}
+        customerProfileRealtimeUnsubscribe = null;
+    }
 
     if (otpResendTimerId) {
         clearInterval(otpResendTimerId);
@@ -14828,15 +14954,27 @@ function startOtpResendTimer(seconds = 59) {
     }, 1000);
 }
 
-async function syncCustomerPhoneSession(cleanPhone) {
+async function syncCustomerPhoneSession(cleanPhone, options = {}) {
     if (!cleanPhone) return;
     const cleanDigits = String(cleanPhone).replace(/[^0-9]/g, '').slice(-10);
     if (cleanDigits.length !== 10) return;
 
     customerPhone = cleanDigits;
+    currentUser = cleanDigits;
     window.customerPhone = cleanDigits;
+    window.currentUser = cleanDigits;
     isPhoneVerified = true;
     window.isPhoneVerified = true;
+    currentTargetPhone = `91${cleanDigits}`;
+
+    try {
+        localStorage.setItem('perfetto_user_phone', cleanDigits);
+        localStorage.setItem('perfetto_auth_verified', 'true');
+        localStorage.setItem('perfetto_verified_phone', cleanDigits);
+        safeStorage.setItem('perfetto_user_phone', cleanDigits);
+        safeStorage.setItem('perfetto_auth_verified', 'true');
+    } catch (e) {}
+
     setStoredPhoneVerified(cleanDigits, true);
     applyPhoneVerifiedUI(true, cleanDigits);
 
@@ -14853,7 +14991,7 @@ async function syncCustomerPhoneSession(cleanPhone) {
 
     if (restored) {
         // Existing customer with pre-saved profile and orders
-        currentUser = restored;
+        currentUser = cleanDigits;
         currentUserProfile = restored;
         activeDeliveryAddress = {
             fullName: restored.fullName,
@@ -14896,11 +15034,13 @@ async function syncCustomerPhoneSession(cleanPhone) {
             };
             walletBalance = Number(currentCustomerWallet.balance || 0);
             walletTransactions = Array.isArray(currentCustomerWallet.transactions) ? currentCustomerWallet.transactions : [];
-            currentUser = { phone: cleanDigits, isVerified: true };
-            currentUserProfile = currentUser;
+            currentUser = cleanDigits;
+            currentUserProfile = { phone: cleanDigits, isVerified: true, ...currentCustomerWallet };
             activeDeliveryAddress = null;
 
             localStorage.setItem('perfetto_verified_phone', cleanDigits);
+            localStorage.setItem('perfetto_user_phone', cleanDigits);
+            localStorage.setItem('perfetto_auth_verified', 'true');
             localStorage.setItem('perfetto_wallet_balance', String(walletBalance));
             localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
             localStorage.setItem(`perfetto_wallet_balance_${cleanDigits}`, String(walletBalance));
@@ -14911,11 +15051,13 @@ async function syncCustomerPhoneSession(cleanPhone) {
             walletBalance = 0;
             walletTransactions = [];
             currentCustomerWallet = { phone: cleanDigits, balance: 0, nonExpiredBalance: 0, transactions: [] };
-            currentUser = { phone: cleanDigits, isVerified: true };
-            currentUserProfile = currentUser;
+            currentUser = cleanDigits;
+            currentUserProfile = { phone: cleanDigits, isVerified: true };
             activeDeliveryAddress = null;
 
             localStorage.setItem('perfetto_verified_phone', cleanDigits);
+            localStorage.setItem('perfetto_user_phone', cleanDigits);
+            localStorage.setItem('perfetto_auth_verified', 'true');
             localStorage.setItem('perfetto_wallet_balance', '0');
             localStorage.setItem('perfetto_customer_wallet', JSON.stringify(currentCustomerWallet));
             localStorage.setItem(`perfetto_wallet_balance_${cleanDigits}`, '0');
@@ -14925,18 +15067,20 @@ async function syncCustomerPhoneSession(cleanPhone) {
             const statOrders = document.getElementById('stat-total-orders');
             if (statOrders) statOrders.textContent = '0';
 
-            // Prompt for delivery details
-            openEditProfileModal();
-            setTimeout(() => {
-                const nameInput = document.getElementById('customer-fullname');
-                if (nameInput) nameInput.focus();
-            }, 150);
+            // Prompt for delivery details only when directly verifying, not on background startup rehydration
+            if (!options.silent && !options.isLaunch) {
+                openEditProfileModal();
+                setTimeout(() => {
+                    const nameInput = document.getElementById('customer-fullname');
+                    if (nameInput) nameInput.focus();
+                }, 150);
+            }
         }
     }
 
     // Keep globals & window variables strictly synced
     window.currentUser = currentUser;
-    window.currentUserProfile = currentUser;
+    window.currentUserProfile = currentUserProfile;
     window.customerPhone = customerPhone;
     window.isPhoneVerified = true;
     window.activeDeliveryAddress = activeDeliveryAddress;
@@ -14944,7 +15088,7 @@ async function syncCustomerPhoneSession(cleanPhone) {
     window.walletTransactions = walletTransactions;
 
     // Refresh UI components
-    renderProfileHeaderAndInputs(currentUser);
+    renderProfileHeaderAndInputs(currentUserProfile || currentUser);
     updateProfileTotalsUI();
     updateProfileWalletUI();
     renderProfileWalletTxList();
@@ -14954,6 +15098,9 @@ async function syncCustomerPhoneSession(cleanPhone) {
 
     if (typeof listenToCustomerWalletRealtime === 'function') {
         listenToCustomerWalletRealtime(cleanDigits);
+    }
+    if (typeof listenToCustomerProfileRealtime === 'function') {
+        listenToCustomerProfileRealtime(cleanDigits);
     }
 }
 window.syncCustomerPhoneSession = syncCustomerPhoneSession;
@@ -14983,12 +15130,31 @@ async function handleVerifyOtp() {
     const onVerifySuccess = async (data) => {
         console.log('MSG91 OTP Verify Success:', data);
         const cleanDigits = (phoneInput ? phoneInput.value : '').replace(/[^0-9]/g, '').slice(-10) || (currentTargetPhone ? currentTargetPhone.slice(-10) : '');
+        const cleanPhone = cleanDigits;
 
+        // Immediate Session Persistence on OTP Success
+        try {
+            localStorage.setItem('perfetto_user_phone', cleanPhone);
+            localStorage.setItem('perfetto_auth_verified', 'true');
+            localStorage.setItem('perfetto_verified_phone', cleanPhone);
+            safeStorage.setItem('perfetto_user_phone', cleanPhone);
+            safeStorage.setItem('perfetto_auth_verified', 'true');
+            safeSessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanPhone);
+        } catch (e) {
+            console.warn('Failed saving verified phone to storage:', e);
+        }
+
+        // Update runtime state
+        customerPhone = cleanPhone;
+        currentUser = cleanPhone;
+        window.customerPhone = cleanPhone;
+        window.currentUser = cleanPhone;
         isPhoneVerified = true;
-        customerPhone = cleanDigits;
-        window.customerPhone = cleanDigits;
-        setStoredPhoneVerified(cleanDigits, true);
-        applyPhoneVerifiedUI(true, cleanDigits);
+        window.isPhoneVerified = true;
+        currentTargetPhone = `91${cleanPhone}`;
+
+        setStoredPhoneVerified(cleanPhone, true);
+        applyPhoneVerifiedUI(true, cleanPhone);
 
         if (otpResendTimerId) {
             clearInterval(otpResendTimerId);
@@ -15013,8 +15179,13 @@ async function handleVerifyOtp() {
 
         showToast('🎉 Mobile number verified successfully!');
 
+        // Attach real-time Firestore listener or fetch users/${cleanPhone} immediately
+        if (typeof listenToCustomerProfileRealtime === 'function') {
+            listenToCustomerProfileRealtime(cleanPhone);
+        }
+
         // Seamless single-step phone auth & sync
-        await syncCustomerPhoneSession(cleanDigits);
+        await syncCustomerPhoneSession(cleanPhone);
     };
 
     const onVerifyFailure = (error) => {
@@ -16955,12 +17126,17 @@ function executeUserLogout() {
         try { customerUserRealtimeUnsubscribe(); } catch (e) {}
         customerUserRealtimeUnsubscribe = null;
     }
+    if (customerProfileRealtimeUnsubscribe) {
+        try { customerProfileRealtimeUnsubscribe(); } catch (e) {}
+        customerProfileRealtimeUnsubscribe = null;
+    }
     if (typeof customerPhoneOrdersUnsubscribe === 'function') {
         try { customerPhoneOrdersUnsubscribe(); } catch (e) {}
         customerPhoneOrdersUnsubscribe = null;
         customerPhoneOrdersCurrentQueryPhone = null;
     }
     activeWalletListeningPhone = null;
+    activeProfileListeningPhone = null;
 
     if (typeof customerOrdersUnsubscribeMap !== 'undefined' && customerOrdersUnsubscribeMap && typeof customerOrdersUnsubscribeMap.forEach === 'function') {
         customerOrdersUnsubscribeMap.forEach((unsub) => {
@@ -16972,6 +17148,15 @@ function executeUserLogout() {
     }
 
     // 2. Clear all client storage thoroughly: localStorage.clear(); sessionStorage.clear();
+    try {
+        localStorage.removeItem('perfetto_user_phone');
+        localStorage.removeItem('perfetto_auth_verified');
+        localStorage.removeItem('perfetto_verified_phone');
+        safeStorage.removeItem('perfetto_user_phone');
+        safeStorage.removeItem('perfetto_auth_verified');
+        safeStorage.removeItem('perfetto_verified_phone');
+        safeSessionStorage.removeItem(VERIFIED_PHONE_STORAGE_KEY);
+    } catch (e) {}
     try { localStorage.clear(); } catch (e) {}
     try { sessionStorage.clear(); } catch (e) {}
     if (typeof safeStorage !== 'undefined' && safeStorage && typeof safeStorage.clear === 'function') {
@@ -17214,6 +17399,11 @@ function executeUserLogout() {
         finalPhoneInput.style.backgroundColor = 'var(--bg-input)';
         finalPhoneInput.style.cursor = 'text';
     }
+
+    applyPhoneVerifiedUI(false, '');
+    renderProfileHeaderAndInputs(null);
+    const subtextEl = document.getElementById('profile-display-subtext');
+    if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
 
     // 5. User feedback
     showToast('👋 You have been logged out successfully.');
@@ -21515,7 +21705,7 @@ function setupLocalStorageSync() {
             }
         }
         // 5. Customer Profile or Verified Phone changed
-        if (!e.key || e.key === DELIVERY_PROFILE_KEY || e.key === VERIFIED_PHONE_STORAGE_KEY || e.key === VERIFIED_PHONE_STATE_KEY) {
+        if (!e.key || e.key === DELIVERY_PROFILE_KEY || e.key === VERIFIED_PHONE_STORAGE_KEY || e.key === VERIFIED_PHONE_STATE_KEY || e.key === 'perfetto_user_phone' || e.key === 'perfetto_auth_verified') {
             initPhoneVerificationState();
             updateCartUI();
             updateProfileTotalsUI();
@@ -22870,6 +23060,106 @@ if (typeof window !== 'undefined') {
     setTimeout(dismissAppSplashScreen, 1200);
 }
 
+/**
+ * App Startup Session Rehydration Engine:
+ * Restores verified phone session from localStorage ('perfetto_auth_verified' === 'true' & 'perfetto_user_phone'),
+ * rehydrates in-memory auth state (customerPhone, currentUser, isPhoneVerified), updates UI headers/profile view,
+ * and fetches the user's Firestore document (wallets, order count, addresses) seamlessly in the background.
+ */
+async function rehydrateCustomerProfileOnLaunch() {
+    let isVerified = false;
+    let userPhone = null;
+    try {
+        isVerified = (localStorage.getItem('perfetto_auth_verified') === 'true');
+        userPhone = localStorage.getItem('perfetto_user_phone') || localStorage.getItem('perfetto_verified_phone');
+    } catch (e) {
+        console.warn('Error reading auth state from localStorage on launch:', e);
+    }
+
+    if (isVerified && userPhone) {
+        const cleanDigits = String(userPhone).replace(/[^0-9]/g, '').slice(-10);
+        if (cleanDigits.length === 10) {
+            // 1. Restore in-memory auth state
+            customerPhone = cleanDigits;
+            currentUser = cleanDigits;
+            isPhoneVerified = true;
+            currentTargetPhone = `91${cleanDigits}`;
+            window.customerPhone = cleanDigits;
+            window.currentUser = cleanDigits;
+            window.isPhoneVerified = true;
+
+            // Synchronize session storage & verified phone state
+            safeSessionStorage.setItem(VERIFIED_PHONE_STORAGE_KEY, cleanDigits);
+            setStoredPhoneVerified(cleanDigits, true, false);
+
+            // 2. Update UI headers / profile view from guest state to logged-in state
+            applyPhoneVerifiedUI(true, cleanDigits);
+
+            const phoneInput = document.getElementById('customer-phone');
+            if (phoneInput) {
+                phoneInput.value = cleanDigits;
+                phoneInput.readOnly = true;
+                phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
+                phoneInput.style.cursor = 'not-allowed';
+            }
+
+            const savedProfile = (typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null);
+            if (savedProfile && savedProfile.phone === cleanDigits) {
+                currentUserProfile = savedProfile;
+                window.currentUserProfile = savedProfile;
+                renderProfileHeaderAndInputs(savedProfile);
+                if (typeof renderSavedAddressDetails === 'function') {
+                    renderSavedAddressDetails();
+                }
+            } else {
+                currentUserProfile = { phone: cleanDigits, isVerified: true };
+                window.currentUserProfile = currentUserProfile;
+                renderProfileHeaderAndInputs(currentUserProfile);
+            }
+
+            const subtextEl = document.getElementById('profile-display-subtext');
+            if (subtextEl) {
+                subtextEl.textContent = `+91 ${cleanDigits}`;
+            }
+
+            updateProfileTotalsUI();
+            updateProfileWalletUI();
+
+            // 3. Fetch and populate user's Firestore document (wallets, order count, addresses) seamlessly in background
+            if (typeof syncCustomerPhoneSession === 'function') {
+                syncCustomerPhoneSession(cleanDigits, { silent: true, isLaunch: true });
+            } else if (typeof restoreUserProfileFromFirestore === 'function') {
+                restoreUserProfileFromFirestore(cleanDigits, { silent: true, forceAuth: true });
+            }
+
+            if (typeof listenToCustomerWalletRealtime === 'function') {
+                listenToCustomerWalletRealtime(cleanDigits);
+            }
+            if (typeof listenToCustomerProfileRealtime === 'function') {
+                listenToCustomerProfileRealtime(cleanDigits);
+            }
+            if (typeof listenToCustomerActiveOrders === 'function') {
+                listenToCustomerActiveOrders();
+            }
+            return true;
+        }
+    } else {
+        const legacyPhone = getStoredVerifiedPhone();
+        if (legacyPhone) {
+            if (typeof syncCustomerPhoneSession === 'function') {
+                syncCustomerPhoneSession(legacyPhone, { silent: true, isLaunch: true });
+            }
+        }
+    }
+    return false;
+}
+window.rehydrateCustomerProfileOnLaunch = rehydrateCustomerProfileOnLaunch;
+
+function initApp() {
+    return rehydrateCustomerProfileOnLaunch();
+}
+window.initApp = initApp;
+
 // --------------------------------------------------------------------------
 // INITIALIZATION ON DOM LOAD
 // --------------------------------------------------------------------------
@@ -22927,15 +23217,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchLiveSettingsFromBackend();
     fetchLiveNoticeFromBackend();
 
-    // 2. Cross-Device Profile & Address Automatic Sync strictly for active verified session
-    const verifiedPhone = getStoredVerifiedPhone();
-    if (verifiedPhone) {
-        if (typeof syncCustomerPhoneSession === 'function') {
-            syncCustomerPhoneSession(verifiedPhone);
-        } else {
-            restoreUserProfileFromFirestore(verifiedPhone, { silent: true });
-            listenToCustomerWalletRealtime(verifiedPhone);
-        }
+    // 2. Verified Customer Session Auto-Rehydration on App Launch
+    if (typeof rehydrateCustomerProfileOnLaunch === 'function') {
+        rehydrateCustomerProfileOnLaunch();
     }
 
     window.restoreUserProfileFromFirestore = restoreUserProfileFromFirestore;
