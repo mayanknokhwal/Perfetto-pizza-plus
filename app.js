@@ -9402,7 +9402,7 @@ window.getActiveBannerOfferTypes = getActiveBannerOfferTypes;
 
 function canClaimBannerOffer(offerType, currentCart = cart) {
     const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
-    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 2, 10);
+    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 1, 10);
 
     const activeOffers = getActiveBannerOfferTypes(currentCart);
     const normalizedType = (function (t) {
@@ -9423,9 +9423,60 @@ function canClaimBannerOffer(offerType, currentCart = cart) {
 }
 window.canClaimBannerOffer = canClaimBannerOffer;
 
+function checkAndPromptOfferConflict(offerType, onProceed) {
+    if (canClaimBannerOffer(offerType)) {
+        if (typeof onProceed === 'function') onProceed();
+        return true;
+    }
+
+    const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
+    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 1, 10);
+    const dealWord = maxClaimableOffers === 1 ? 'offer deal' : 'offer deals';
+    const message = `You can only use ${maxClaimableOffers} ${dealWord} per order. Do you want to replace your current offer with this new one?`;
+
+    showOfferConflictModal({
+        title: "Active Offer in Cart",
+        message: message,
+        iconType: "swap",
+        actions: [
+            {
+                label: "Keep Existing",
+                secondary: true,
+                id: "btn-offer-conflict-keep",
+                onClick: () => {
+                    // Closes modal, keeps the current cart and active offer untouched
+                }
+            },
+            {
+                label: "Replace Offer",
+                primary: true,
+                id: "btn-offer-conflict-replace",
+                icon: "fa-arrows-rotate",
+                onClick: () => {
+                    // Automatically purges previous banner deal items, free rewards, and target trackers from cart
+                    removeDailyOffersFromCart();
+                    // Updates cart subtotal, badges, and local session cleanly
+                    saveCartToStorage();
+                    updateCartUI();
+                    // Immediately triggers and launches the newly selected banner flow
+                    if (typeof onProceed === 'function') {
+                        onProceed();
+                    }
+                }
+            }
+        ]
+    });
+    return false;
+}
+window.checkAndPromptOfferConflict = checkAndPromptOfferConflict;
+
 function showOfferLimitToast() {
     const bannerSettings = (typeof getCustomerBannerSettings === 'function') ? getCustomerBannerSettings() : null;
-    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 2, 10);
+    const maxClaimableOffers = parseInt(bannerSettings?.maxClaimableOffers || bannerSettings?.maxOffersPerOrder || bannerSettings?.max_offers_per_order || 1, 10);
+    if (typeof checkAndPromptOfferConflict === 'function') {
+        checkAndPromptOfferConflict('bogoCombo');
+        return;
+    }
     showToast(`Limit reached: ${maxClaimableOffers} offer${maxClaimableOffers > 1 ? 's' : ''} per order`);
 }
 window.showOfferLimitToast = showOfferLimitToast;
@@ -17575,81 +17626,93 @@ function handleBannerSlideClick(slideIndex, bannerId) {
     if (isSlot1) {
         const targetId = (banner.targetProductId && String(banner.targetProductId).trim()) || 'shk-strawberry';
         const discountPct = Number(banner.discountPercent) >= 2 ? Number(banner.discountPercent) : 55;
+        const launchSlot1 = () => {
+            try {
+                sessionStorage.setItem('banner1OfferActive', 'true');
+            } catch (e) { }
+            openSpotlightBannerModal(targetId, discountPct);
+        };
+
         if (!canClaimBannerOffer('spotlight')) {
-            showOfferLimitToast();
+            checkAndPromptOfferConflict('spotlight', launchSlot1);
             return;
         }
-        try {
-            sessionStorage.setItem('banner1OfferActive', 'true');
-        } catch (e) { }
-        openSpotlightBannerModal(targetId, discountPct);
+        launchSlot1();
         return;
     }
 
     if (isSlot2 && Number(banner.minSpend) > 0) {
+        const launchSlot2 = () => {
+            try {
+                sessionStorage.setItem('banner2SpendOfferActive', 'true');
+                sessionStorage.removeItem('banner2SpendBarDismissed');
+            } catch (e) { }
+            const minSpend = Number(banner.minSpend) || 699;
+            const maxQty = (typeof getCustomerMaxQtyPerOffer === 'function') ? getCustomerMaxQtyPerOffer() : 1;
+            const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
+            const rewardTitle = isPizza
+                ? `${(banner.rewardPizzaSize || 'medium').charAt(0).toUpperCase() + (banner.rewardPizzaSize || 'medium').slice(1)} Pizza`
+                : (getCategoryDisplayName(banner.rewardCategory) || 'Gift');
+
+            // Immediately evaluate current paid cart subtotal
+            const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
+                .filter(item => !item.isFreeGift && !item.isBogoReward)
+                .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
+
+            const totalClaimedGifts = (Array.isArray(cart) ? cart : [])
+                .filter(item => item.isFreeGift)
+                .reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
+
+            const maxUnlockedTiers = Math.min(maxQty, Math.floor(qualifyingPaidTotal / minSpend));
+
+            if (typeof updateSpendHungerBar === 'function') {
+                updateSpendHungerBar();
+            }
+            if (typeof updateCartUI === 'function') {
+                updateCartUI();
+            }
+
+            if (maxUnlockedTiers > totalClaimedGifts) {
+                // Has an unclaimed unlocked gift -> launch modal
+                if (typeof openFreeGiftSelectionModal === 'function') {
+                    openFreeGiftSelectionModal();
+                }
+            } else if (totalClaimedGifts > 0 && totalClaimedGifts >= maxQty) {
+                showToast(`Max limit of ${maxQty} free gifts reached!`);
+            } else if (maxUnlockedTiers > 0 && totalClaimedGifts >= maxUnlockedTiers) {
+                // Already claimed for current tier; prevent free stacking
+                const nextTier = totalClaimedGifts + 1;
+                const remaining = (nextTier * minSpend) - qualifyingPaidTotal;
+                showToast(`Tier ${totalClaimedGifts} Unlocked! Add ₹${remaining} more to unlock your ${getOrdinal(nextTier)} FREE ${rewardTitle}!`);
+            } else {
+                // Below tier 1
+                const deficit = minSpend - qualifyingPaidTotal;
+                showToast(`🎉 Offer Activated! Add ₹${deficit} more to unlock your FREE ${rewardTitle}!`);
+            }
+        };
+
         if (!canClaimBannerOffer('freeGift')) {
-            showOfferLimitToast();
+            checkAndPromptOfferConflict('freeGift', launchSlot2);
             return;
         }
-        try {
-            sessionStorage.setItem('banner2SpendOfferActive', 'true');
-            sessionStorage.removeItem('banner2SpendBarDismissed');
-        } catch (e) { }
-        const minSpend = Number(banner.minSpend) || 699;
-        const maxQty = (typeof getCustomerMaxQtyPerOffer === 'function') ? getCustomerMaxQtyPerOffer() : 1;
-        const isPizza = isCategoryMatch(banner.rewardCategory, 'Pizza');
-        const rewardTitle = isPizza
-            ? `${(banner.rewardPizzaSize || 'medium').charAt(0).toUpperCase() + (banner.rewardPizzaSize || 'medium').slice(1)} Pizza`
-            : (getCategoryDisplayName(banner.rewardCategory) || 'Gift');
-
-        // Immediately evaluate current paid cart subtotal
-        const qualifyingPaidTotal = (Array.isArray(cart) ? cart : [])
-            .filter(item => !item.isFreeGift && !item.isBogoReward)
-            .reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.qty) || 0)), 0);
-
-        const totalClaimedGifts = (Array.isArray(cart) ? cart : [])
-            .filter(item => item.isFreeGift)
-            .reduce((sum, item) => sum + (Number(item.qty) || 1), 0);
-
-        const maxUnlockedTiers = Math.min(maxQty, Math.floor(qualifyingPaidTotal / minSpend));
-
-        if (typeof updateSpendHungerBar === 'function') {
-            updateSpendHungerBar();
-        }
-        if (typeof updateCartUI === 'function') {
-            updateCartUI();
-        }
-
-        if (maxUnlockedTiers > totalClaimedGifts) {
-            // Has an unclaimed unlocked gift -> launch modal
-            if (typeof openFreeGiftSelectionModal === 'function') {
-                openFreeGiftSelectionModal();
-            }
-        } else if (totalClaimedGifts > 0 && totalClaimedGifts >= maxQty) {
-            showToast(`Max limit of ${maxQty} free gifts reached!`);
-        } else if (maxUnlockedTiers > 0 && totalClaimedGifts >= maxUnlockedTiers) {
-            // Already claimed for current tier; prevent free stacking
-            const nextTier = totalClaimedGifts + 1;
-            const remaining = (nextTier * minSpend) - qualifyingPaidTotal;
-            showToast(`Tier ${totalClaimedGifts} Unlocked! Add ₹${remaining} more to unlock your ${getOrdinal(nextTier)} FREE ${rewardTitle}!`);
-        } else {
-            // Below tier 1
-            const deficit = minSpend - qualifyingPaidTotal;
-            showToast(`🎉 Offer Activated! Add ₹${deficit} more to unlock your FREE ${rewardTitle}!`);
-        }
+        launchSlot2();
         return;
     }
 
     const isSlot3 = (banner.id === 'b3');
     if (isSlot3) {
+        const launchSlot3 = () => {
+            // Do NOT redirect or scroll away. Open self-contained in-modal combo deal directly.
+            if (typeof openBogoComboModal === 'function') {
+                openBogoComboModal(banner);
+            }
+        };
+
         if (!canClaimBannerOffer('bogoCombo')) {
-            showOfferLimitToast();
+            checkAndPromptOfferConflict('bogoCombo', launchSlot3);
             return;
         }
-        // Do NOT redirect or scroll away. Open self-contained in-modal combo deal directly.
-        if (typeof openBogoComboModal === 'function') {
-            openBogoComboModal(banner);
-        }
+        launchSlot3();
         return;
     }
 }
@@ -17680,7 +17743,7 @@ let currentSpotlightState = {
 
 function openSpotlightBannerModal(targetProductId, discountPercent) {
     if (!canClaimBannerOffer('spotlight')) {
-        showOfferLimitToast();
+        checkAndPromptOfferConflict('spotlight', () => openSpotlightBannerModal(targetProductId, discountPercent));
         return;
     }
     try {
@@ -17957,7 +18020,7 @@ function claimSpotlightDealToCart() {
         return;
     }
     if (!canClaimBannerOffer('spotlight')) {
-        showOfferLimitToast();
+        checkAndPromptOfferConflict('spotlight', () => claimSpotlightDealToCart());
         return;
     }
 
@@ -18111,7 +18174,7 @@ function openFreeGiftSelectionModal(editIndex) {
     }
 
     if (!canClaimBannerOffer('freeGift')) {
-        showOfferLimitToast();
+        checkAndPromptOfferConflict('freeGift', () => openFreeGiftSelectionModal(editIndex));
         return;
     }
 
@@ -18391,7 +18454,7 @@ function confirmClaimFreeGift() {
     }
 
     if (!canClaimBannerOffer('freeGift')) {
-        showOfferLimitToast();
+        checkAndPromptOfferConflict('freeGift', () => confirmClaimFreeGift());
         return;
     }
 
@@ -18637,7 +18700,7 @@ async function openBogoComboModal(slotConfig = null) {
     }
 
     if (!canClaimBannerOffer('bogoCombo')) {
-        showOfferLimitToast();
+        checkAndPromptOfferConflict('bogoCombo', () => openBogoComboModal(slotConfig));
         return;
     }
 
@@ -19202,7 +19265,7 @@ function confirmClaimBogoCombo() {
     }
 
     if (!canClaimBannerOffer('bogoCombo')) {
-        showOfferLimitToast();
+        checkAndPromptOfferConflict('bogoCombo', () => confirmClaimBogoCombo());
         return;
     }
 
@@ -20117,7 +20180,17 @@ window.handleValueComboClick = handleValueComboClick;
 
 function isDailyOfferItem(item) {
     if (!item) return false;
-    return Boolean(item.isBannerDeal || item.isSpotlightDeal || item.isFreeGift || item.isBogoCombo || item.isBogoReward || item.isBogoQualifying);
+    return Boolean(
+        item.isBannerDeal || 
+        item.isSpotlightDeal || 
+        item.isFreeGift || 
+        item.isBogoCombo || 
+        item.isBogoReward || 
+        item.isBogoQualifying || 
+        item.isBogoDeal || 
+        item.bogoComboId || 
+        item.bannerSlot
+    );
 }
 window.isDailyOfferItem = isDailyOfferItem;
 
@@ -20200,8 +20273,9 @@ function showOfferConflictModal({ title, message, iconType = 'swap', actions = [
             ? 'offer-conflict-btn primary btn-conflict-action btn-conflict-primary'
             : 'offer-conflict-btn secondary btn-conflict-action btn-conflict-secondary';
         const iconHtml = act.icon ? `<i class="fa-solid ${act.icon}"></i>` : '';
+        const btnId = act.id || (isPrimary ? 'btn-offer-conflict-replace' : 'btn-offer-conflict-keep');
         actionsHtml += `
-            <button type="button" class="${btnClass}" onclick="handleOfferConflictAction(${idx})">
+            <button type="button" id="${btnId}" class="${btnClass}" onclick="handleOfferConflictAction(${idx})">
                 ${iconHtml}
                 <span>${escapeHtml(act.label)}</span>
             </button>
