@@ -8855,7 +8855,7 @@ function updateStoreNoticeUI() {
     // 2. Profile Screen Conditional Notice Placement:
     // When active: true -> Prominently show notice card inside "ACCOUNT SETTINGS" at top directly above Order History (#profile-store-notice-row).
     //                     Hide the bottom inactive row (#profile-store-notice-inactive-row).
-    // When active: false -> Hide active row above Order History and ensure it drops to the bottom.
+    // When active: false -> Hide active row above Order History.
     //                      Display store notice entry at the bottom, strictly beneath "Info & Legal Policies" (#profile-store-notice-inactive-row).
     if (isActive && hasNoticeContent) {
         if (profileNoticeRow) {
@@ -8869,7 +8869,7 @@ function updateStoreNoticeUI() {
             if (previewEl && content) {
                 const cleanText = content.replace(/\s+/g, ' ').trim();
                 if (cleanText) {
-                    previewEl.textContent = cleanText.length > 55 ? cleanText.substring(0, 52) + '...' : cleanText;
+                    previewEl.textContent = cleanText;
                     previewEl.removeAttribute('data-i18n');
                 }
             } else if (previewEl) {
@@ -8882,9 +8882,9 @@ function updateStoreNoticeUI() {
     } else {
         if (profileNoticeRow) {
             profileNoticeRow.style.display = 'none';
-            if (orderHistoryRow && orderHistoryRow.parentNode) {
+            if (orderHistoryRow && orderHistoryRow.parentNode && profileNoticeRow.nextElementSibling !== orderHistoryRow) {
                 try {
-                    orderHistoryRow.parentNode.appendChild(profileNoticeRow);
+                    orderHistoryRow.parentNode.insertBefore(profileNoticeRow, orderHistoryRow);
                 } catch (e) {}
             }
         }
@@ -8893,7 +8893,7 @@ function updateStoreNoticeUI() {
             const previewInactiveEl = document.getElementById('profile-notice-inactive-preview-text');
             if (previewInactiveEl) {
                 previewInactiveEl.textContent = (content && content.trim().length > 0)
-                    ? (content.replace(/\s+/g, ' ').trim().substring(0, 55) + '...')
+                    ? content.replace(/\s+/g, ' ').trim()
                     : (typeof t === 'function' ? t('store_policy_notice_sub') : 'Store guidelines, terms reference & updates');
             }
         }

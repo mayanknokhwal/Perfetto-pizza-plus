@@ -98,6 +98,85 @@
         }
     </style>
 
+    <!-- Account Settings Divider Border Unification & Store Notice Single-Line Truncation -->
+    <style id="account-settings-divider-and-notice-styles">
+        /* Unify row divider logic across all items inside Account Settings */
+        .account-settings-card,
+        .settings-list,
+        .menu-list-group {
+            position: relative;
+        }
+
+        .menu-list-group .menu-item-row,
+        .account-settings-card .menu-item-row,
+        .settings-list .menu-item-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 0 !important;
+            border-bottom: 1px solid var(--border-color) !important;
+            border-top: none !important;
+            margin-top: 0 !important;
+            min-height: 62px;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        /* Inactive Store Notice Row: Single bottom divider line */
+        .menu-item-row.profile-notice-inactive-row {
+            border-bottom: 1px solid var(--border-color) !important;
+            border-top: none !important;
+            margin: 0 !important;
+            padding: 12px 0 !important;
+        }
+
+        /* Dedicated Log Out Row: Remove redundant top border, uniform padding, no bottom border */
+        .menu-item-row.menu-item-logout,
+        #menu-item-logout {
+            border-top: none !important;
+            margin-top: 0 !important;
+            padding-top: 12px !important;
+            padding-bottom: 12px !important;
+            border-bottom: none !important;
+        }
+
+        /* Very last child in container has strictly no bottom border */
+        .menu-list-group > .menu-item-row:last-child,
+        .account-settings-card > .menu-item-row:last-child,
+        .settings-list > .menu-item-row:last-child,
+        .menu-item-row:last-child {
+            border-bottom: none !important;
+        }
+
+        /* Enable flex child text truncation without expanding parent */
+        .menu-item-row .menu-item-text {
+            flex: 1;
+            min-width: 0 !important;
+            overflow: hidden;
+        }
+
+        /* Strict Single-Line Text Truncation for Store Notice Subtitle */
+        .profile-notice-subtitle,
+        .profile-notice-muted-subtitle,
+        #profile-notice-preview-text,
+        #profile-notice-inactive-preview-text {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            max-width: 100% !important;
+            display: block !important;
+        }
+
+        /* Uniform single-line text and height symmetry across all settings items */
+        .menu-item-row .item-subtitle {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+            line-height: 1.25;
+        }
+    </style>
+
     <!-- Critical Startup Splash Styles (Pure Black #000000 Immediate Render - Zero Flash) -->
     <style id="app-splash-critical-css">
         html.splash-active,
@@ -587,10 +666,6 @@
                             onclick="openEditProfileModal()">
                             <i class="fa-solid fa-pen-to-square"></i> <span data-i18n="edit_profile">Edit Profile</span>
                         </button>
-                        <button type="button" class="btn-profile-logout" id="btn-header-logout"
-                            onclick="handleUserLogout()" aria-label="Log Out">
-                            <i class="fa-solid fa-arrow-right-from-bracket"></i> <span data-i18n="logout">Log Out</span>
-                        </button>
                     </div>
                 </div>
 
@@ -673,7 +748,7 @@
                 </div>
 
                 <!-- ACCOUNT SETTINGS (ORDER HISTORY, EDIT PROFILE & INFO/LEGAL) -->
-                <div class="menu-list-group">
+                <div class="menu-list-group account-settings-card settings-list">
                     <h4 class="group-title" data-i18n="account_settings">Account Settings</h4>
 
                     <!-- STORE NOTICE (Directly above Order History, active notice card) -->
