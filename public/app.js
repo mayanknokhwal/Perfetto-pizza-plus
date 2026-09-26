@@ -1350,11 +1350,13 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
     const verifyBtn = document.getElementById('btn-request-otp');
     const otpBox = document.getElementById('otp-verification-box');
     const phoneInput = document.getElementById('customer-phone');
+    const postAuthFields = document.getElementById('profile-post-auth-fields');
 
     if (changeBtn) changeBtn.style.display = 'none';
 
     if (verified) {
         isPhoneVerified = true;
+        if (postAuthFields) postAuthFields.style.display = 'block';
         if (badge) {
             badge.style.display = 'inline-flex';
             badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Verified';
@@ -1373,6 +1375,7 @@ function applyPhoneVerifiedUI(verified, phoneNumber = '') {
         }
     } else {
         isPhoneVerified = false;
+        if (postAuthFields) postAuthFields.style.display = 'none';
         if (badge) badge.style.display = 'none';
         if (changeBtn) changeBtn.style.display = 'none';
         if (verifyBtn) {
@@ -14842,11 +14845,12 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
         }
 
         // 2. Client SDK Fallback if API returned null
-        if (!u && customerFirestore && cleanPhone) {
+        const fsInstance = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || customerFirestore;
+        if (!u && fsInstance && cleanPhone) {
             try {
-                let snap = await customerFirestore.collection('users').doc(`phone_${cleanPhone}`).get();
+                let snap = await fsInstance.collection('users').doc(`phone_${cleanPhone}`).get();
                 if (!snap.exists) {
-                    snap = await customerFirestore.collection('users').doc(cleanPhone).get();
+                    snap = await fsInstance.collection('users').doc(cleanPhone).get();
                 }
                 if (snap.exists && snap.data()) {
                     u = snap.data();
@@ -15126,20 +15130,43 @@ function renderProfileHeaderAndInputs(profile) {
         const emailInput = document.getElementById('customer-email');
 
         if (isVerifiedUser) {
-            if (profile.fullName && fullNameInput && (!fullNameInput.value || !isEditModalOpen)) fullNameInput.value = profile.fullName;
-            if (profile.email && emailInput && (!emailInput.value || !isEditModalOpen)) emailInput.value = profile.email;
-            if (profile.phone && phoneInput && (!phoneInput.value || !isEditModalOpen)) {
-                phoneInput.value = profile.phone;
+            if (fullNameInput) {
+                fullNameInput.value = profile.fullName || '';
+                fullNameInput.readOnly = false;
+                fullNameInput.disabled = false;
+            }
+            if (emailInput) emailInput.value = profile.email || '';
+            if (phoneInput) {
+                phoneInput.value = profile.phone || storedVerifiedPhone || '';
                 phoneInput.readOnly = true;
                 phoneInput.style.backgroundColor = 'var(--bg-surface-elevated)';
                 phoneInput.style.cursor = 'not-allowed';
             }
-            if (profile.colonyName && colonyInput && (!colonyInput.value || !isEditModalOpen)) colonyInput.value = profile.colonyName;
-            if (profile.nearBy && nearbyInput && (!nearbyInput.value || !isEditModalOpen)) nearbyInput.value = profile.nearBy;
-            if (profile.streetName && streetInput && (!streetInput.value || !isEditModalOpen)) streetInput.value = profile.streetName;
-            if (profile.wardNo && wardInput && (!wardInput.value || !isEditModalOpen)) wardInput.value = profile.wardNo;
+            if (colonyInput) {
+                colonyInput.value = profile.colonyName || '';
+                colonyInput.readOnly = false;
+                colonyInput.disabled = false;
+            }
+            if (nearbyInput) {
+                nearbyInput.value = profile.nearBy || '';
+                nearbyInput.readOnly = false;
+                nearbyInput.disabled = false;
+            }
+            if (streetInput) {
+                streetInput.value = profile.streetName || '';
+                streetInput.readOnly = false;
+                streetInput.disabled = false;
+            }
+            if (wardInput) {
+                wardInput.value = profile.wardNo || '';
+                wardInput.readOnly = false;
+                wardInput.disabled = false;
+            }
+            if (!profile.fullName && fullNameInput) {
+                setTimeout(() => fullNameInput.focus(), 100);
+            }
         } else {
-            if (phoneInput && (!phoneInput.value || !isEditModalOpen)) {
+            if (phoneInput) {
                 phoneInput.value = currentInputPhone || (profile ? profile.phone : '') || '';
                 phoneInput.readOnly = false;
                 phoneInput.style.backgroundColor = 'var(--bg-input)';
@@ -15168,38 +15195,39 @@ function renderProfileHeaderAndInputs(profile) {
             if (subtextEl) subtextEl.textContent = '+91 Mobile Number';
             applyPhoneVerifiedUI(false, currentInputPhone);
 
-            const hasLatVal = latHidden && latHidden.value;
-            const hasLngVal = lngHidden && lngHidden.value;
-            if (!isEditModalOpen && !hasLatVal && !hasLngVal) {
-                currentCustomerGps = null;
-                if (statusBadge) {
-                    statusBadge.className = 'gps-status-badge';
-                    statusBadge.innerHTML = '';
-                    statusBadge.style.display = 'none';
-                }
-                if (coordsDisplay) coordsDisplay.style.display = 'none';
-                if (mapBtn) mapBtn.classList.remove('invalid-gps-btn');
-
-                const fullNameInput = document.getElementById('customer-fullname');
-                const colonyInput = document.getElementById('customer-colony-name');
-                const nearbyInput = document.getElementById('customer-nearby');
-                const streetInput = document.getElementById('customer-street-name');
-                const wardInput = document.getElementById('customer-ward-no');
-                const emailInput = document.getElementById('customer-email');
-                const phoneInput = document.getElementById('customer-phone');
-                if (fullNameInput) fullNameInput.value = '';
-                if (emailInput) emailInput.value = '';
-                if (phoneInput) {
-                    phoneInput.value = '';
-                    phoneInput.readOnly = false;
-                    phoneInput.style.backgroundColor = '';
-                    phoneInput.style.cursor = '';
-                }
-                if (colonyInput) colonyInput.value = '';
-                if (nearbyInput) nearbyInput.value = '';
-                if (streetInput) streetInput.value = '';
-                if (wardInput) wardInput.value = '';
+            currentCustomerGps = null;
+            if (statusBadge) {
+                statusBadge.className = 'gps-status-badge';
+                statusBadge.innerHTML = '';
+                statusBadge.style.display = 'none';
             }
+            if (coordsDisplay) coordsDisplay.style.display = 'none';
+            if (mapBtn) {
+                mapBtn.classList.remove('invalid-gps-btn', 'btn-gps-selected');
+                if (gpsBtnText) gpsBtnText.innerHTML = '<i class="fa-solid fa-map"></i> Open Location Map';
+            }
+            if (latHidden) latHidden.value = '';
+            if (lngHidden) lngHidden.value = '';
+
+            const fullNameInput = document.getElementById('customer-fullname');
+            const colonyInput = document.getElementById('customer-colony-name');
+            const nearbyInput = document.getElementById('customer-nearby');
+            const streetInput = document.getElementById('customer-street-name');
+            const wardInput = document.getElementById('customer-ward-no');
+            const emailInput = document.getElementById('customer-email');
+            const phoneInput = document.getElementById('customer-phone');
+            if (fullNameInput) fullNameInput.value = '';
+            if (emailInput) emailInput.value = '';
+            if (phoneInput) {
+                phoneInput.value = currentInputPhone || '';
+                phoneInput.readOnly = false;
+                phoneInput.style.backgroundColor = '';
+                phoneInput.style.cursor = '';
+            }
+            if (colonyInput) colonyInput.value = '';
+            if (nearbyInput) nearbyInput.value = '';
+            if (streetInput) streetInput.value = '';
+            if (wardInput) wardInput.value = '';
         }
     }
 }
@@ -22396,3 +22424,128 @@ window.updateSpendHungerBar = updateSpendHungerBar;
 window.checkAndSyncSettingsVersion = checkAndSyncSettingsVersion;
 window.dismissAppSplashScreen = dismissAppSplashScreen;
 window.updateAppSplashStatus = updateAppSplashStatus;
+
+/**
+ * Maintenance Routine: Clean Slate & Historical Test User Document Reset
+ * Wipes test customer documents from Firestore `users` and test ledgers from `wallets`.
+ * Also resets client localStorage keys for completely fresh state testing.
+ */
+async function cleanStaleTestUserProfiles(options = {}) {
+    console.log('[Cleanup] Starting clean slate test user and wallet reset...');
+    const results = {
+        deletedUsers: [],
+        deletedWallets: [],
+        clearedLocalKeys: []
+    };
+
+    const targetPhones = options.targetPhones || ['8290873256', '9414503886'];
+    const wipeAll = Boolean(options.wipeAll);
+
+    // 1. Client SDK / Firestore REST collection cleanup
+    try {
+        const fsInstance = (typeof getCustomerFirestore === 'function' ? getCustomerFirestore() : null) || customerFirestore;
+        if (fsInstance) {
+            // Cleanup Users Collection
+            const usersRef = fsInstance.collection('users');
+            if (wipeAll) {
+                const uSnap = await usersRef.get();
+                const uDocs = (uSnap && uSnap.docs) ? uSnap.docs : [];
+                for (const doc of uDocs) {
+                    try {
+                        await usersRef.doc(doc.id).delete();
+                        results.deletedUsers.push(doc.id);
+                    } catch (err) {
+                        console.warn(`[Cleanup] Failed to delete user ${doc.id}:`, err.message);
+                    }
+                }
+            } else {
+                for (const phone of targetPhones) {
+                    const docIds = [phone, `phone_${phone}`];
+                    for (const id of docIds) {
+                        try {
+                            const snap = await usersRef.doc(id).get();
+                            if (snap.exists) {
+                                await usersRef.doc(id).delete();
+                                results.deletedUsers.push(id);
+                            }
+                        } catch (err) {
+                            console.warn(`[Cleanup] Failed to delete user ${id}:`, err.message);
+                        }
+                    }
+                }
+            }
+
+            // Cleanup Wallets Collection
+            const walletsRef = fsInstance.collection('wallets');
+            if (wipeAll) {
+                const wSnap = await walletsRef.get();
+                const wDocs = (wSnap && wSnap.docs) ? wSnap.docs : [];
+                for (const doc of wDocs) {
+                    try {
+                        await walletsRef.doc(doc.id).delete();
+                        results.deletedWallets.push(doc.id);
+                    } catch (err) {
+                        console.warn(`[Cleanup] Failed to delete wallet ${doc.id}:`, err.message);
+                    }
+                }
+            } else {
+                for (const phone of targetPhones) {
+                    const docIds = [phone, `phone_${phone}`];
+                    for (const id of docIds) {
+                        try {
+                            const snap = await walletsRef.doc(id).get();
+                            if (snap.exists) {
+                                await walletsRef.doc(id).delete();
+                                results.deletedWallets.push(id);
+                            }
+                        } catch (err) {
+                            console.warn(`[Cleanup] Failed to delete wallet ${id}:`, err.message);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (dbErr) {
+        console.warn('[Cleanup] Firestore cleanup error:', dbErr.message);
+    }
+
+    // 2. Client Local Storage Cleanup
+    try {
+        const localKeysToWipe = [
+            'perfetto_verified_phone',
+            'perfettoSavedProfile',
+            'perfetto_saved_delivery_profile',
+            'perfettoCustomerDeliveryProfile',
+            'perfetto_customer_wallet',
+            'perfetto_wallet_balance',
+            'perfettoCustomerOrders',
+            'perfetto_customer_orders'
+        ];
+        targetPhones.forEach(phone => {
+            localKeysToWipe.push(`perfetto_wallet_balance_${phone}`);
+            localKeysToWipe.push(`perfetto_customer_wallet_${phone}`);
+            localKeysToWipe.push(`perfetto_phone_verified_${phone}`);
+        });
+
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && targetPhones.some(p => key.includes(p))) {
+                if (!localKeysToWipe.includes(key)) localKeysToWipe.push(key);
+            }
+        }
+
+        localKeysToWipe.forEach(key => {
+            if (localStorage.getItem(key) !== null) {
+                localStorage.removeItem(key);
+                results.clearedLocalKeys.push(key);
+            }
+        });
+    } catch (lsErr) {
+        console.warn('[Cleanup] LocalStorage reset notice:', lsErr.message);
+    }
+
+    console.log(`[Cleanup] Clean slate completed. Deleted users: ${results.deletedUsers.length}, Deleted wallets: ${results.deletedWallets.length}, Cleared local keys: ${results.clearedLocalKeys.length}`);
+    return results;
+}
+window.cleanStaleTestUserProfiles = cleanStaleTestUserProfiles;
+

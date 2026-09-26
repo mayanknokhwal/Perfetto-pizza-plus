@@ -1470,20 +1470,9 @@
                 <!-- MODAL BODY (SCROLLABLE) -->
                 <div class="checkout-modal-body profile-modal-body">
                     <form id="delivery-details-form" onsubmit="handleSaveProfile(event)" novalidate>
-                        <div class="form-grid-hyperlocal">
-                            <div class="hyperlocal-field">
-                                <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
-                                <div class="input-icon-group">
-                                    <i class="fa-solid fa-user"></i>
-                                    <input type="text" id="customer-fullname" required autocomplete="name"
-                                        placeholder="Your full name" maxlength="25"
-                                        oninput="handleFullNameInputChange(this)"
-                                        onkeydown="handleFullNameKeyDown(event)"
-                                        onpaste="handleFullNamePaste(event)">
-                                </div>
-                            </div>
-
-                            <div class="hyperlocal-field">
+                        <!-- TOP MOBILE NUMBER & OTP AUTH CONTAINER (MOBILE-FIRST) -->
+                        <div class="profile-auth-section" style="margin-bottom: 12px;">
+                            <div class="hyperlocal-field profile-phone-top-field">
                                 <label for="customer-phone"
                                     style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
                                     <span>Mobile Number <span class="req-star">*</span></span>
@@ -1507,18 +1496,18 @@
                                     </button>
                                 </div>
 
-                                <!-- OTP VERIFICATION CONTAINER (HIDDEN BY DEFAULT) -->
+                                <!-- OTP VERIFICATION CONTAINER (DIRECTLY BELOW MOBILE FIELD) -->
                                 <div class="otp-verification-wrapper" id="otp-verification-box" style="display: none;">
                                     <div class="otp-box-header">
                                         <span id="otp-status-title"><i class="fa-solid fa-shield-halved"></i> OTP
                                             Verification</span>
-                                        <span class="otp-mock-hint" id="otp-instructions-hint">Enter the <strong>OTP
+                                        <span class="otp-mock-hint" id="otp-instructions-hint">Enter the <strong>4-digit OTP
                                                 code</strong> sent to your number.</span>
                                     </div>
                                     <div class="otp-input-row">
-                                        <input type="text" id="otp-input" class="otp-input-field" maxlength="6"
+                                        <input type="text" id="otp-input" class="otp-input-field" maxlength="4"
                                             inputmode="numeric" placeholder="• • • •"
-                                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);">
+                                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);">
                                         <button type="button" class="btn-submit-otp" id="btn-submit-otp"
                                             onclick="handleVerifyOtp()">
                                             Confirm OTP
@@ -1534,74 +1523,91 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="hyperlocal-field">
-                                <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
-                                <div class="input-icon-group">
-                                    <i class="fa-solid fa-building"></i>
-                                    <input type="text" id="customer-colony-name" required placeholder="Colony / Area"
-                                        maxlength="30" oninput="if(this.value.length > 30) this.value = this.value.slice(0, 30);">
-                                </div>
-                            </div>
-
-                            <div class="hyperlocal-field">
-                                <label for="customer-nearby">Near By <span class="req-star">*</span></label>
-                                <div class="input-icon-group">
-                                    <i class="fa-solid fa-location-dot"></i>
-                                    <input type="text" id="customer-nearby" required placeholder="Landmark / Near by"
-                                        maxlength="45" oninput="if(this.value.length > 45) this.value = this.value.slice(0, 45);">
-                                </div>
-                            </div>
-
-                            <div class="hyperlocal-field">
-                                <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
-                                <div class="input-icon-group">
-                                    <i class="fa-solid fa-road"></i>
-                                    <input type="text" id="customer-street-name" required
-                                        placeholder="Street / House No." maxlength="25"
-                                        oninput="if(this.value.length > 25) this.value = this.value.slice(0, 25);">
-                                </div>
-                            </div>
-
-                            <div class="hyperlocal-field">
-                                <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
-                                <div class="input-icon-group">
-                                    <i class="fa-solid fa-hashtag"></i>
-                                    <input type="text" id="customer-ward-no" required placeholder="Ward No."
-                                        maxlength="6" oninput="if(this.value.length > 6) this.value = this.value.slice(0, 6);">
-                                </div>
-                            </div>
-
-                            <!-- INTERACTIVE GPS LOCATION CAPTURE FIELD (MANDATORY WITH MAP POPUP) -->
-                            <div class="hyperlocal-field full-width-gps-field">
-                                <div class="gps-field-header">
-                                    <label for="btn-open-map-modal">
-                                        <i class="fa-solid fa-map-location-dot"
-                                            style="color: var(--primary-orange);"></i> GPS Location Verification <span
-                                            class="req-star">*</span>
-                                    </label>
-                                    <span class="gps-status-badge" id="gps-status-badge" style="display: none;"></span>
-                                </div>
-                                <div class="gps-action-container">
-                                    <button type="button" class="btn-open-map-selector" id="btn-open-map-modal"
-                                        onclick="openCustomerMapModal()">
-                                        <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
-                                    </button>
-                                    <input type="hidden" id="customer-gps-lat" value="">
-                                    <input type="hidden" id="customer-gps-lng" value="">
-                                    <input type="hidden" id="customer-gps-is-live" value="false">
-                                </div>
-                                <div class="gps-coordinates-display" id="gps-coordinates-display"
-                                    style="display: none;">
-                                    <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location
-                                        Pinned on Map</span>
-                                </div>
-                            </div>
                         </div>
 
-                        <button type="submit" class="btn-confirm-order" id="btn-save-profile" style="margin-top: 18px;">
-                            <i class="fa-solid fa-floppy-disk"></i> Save Profile & Address
-                        </button>
+                        <!-- PROGRESSIVE DISCLOSURE: UNLOCKED ONLY AFTER SUCCESSFUL OTP VERIFICATION -->
+                        <div id="profile-post-auth-fields" class="profile-post-auth-fields" style="display: none;">
+                            <div class="form-grid-hyperlocal">
+                                <div class="hyperlocal-field">
+                                    <label for="customer-fullname">Full Name <span class="req-star">*</span></label>
+                                    <div class="input-icon-group">
+                                        <i class="fa-solid fa-user"></i>
+                                        <input type="text" id="customer-fullname" required autocomplete="name"
+                                            placeholder="Your full name" maxlength="25"
+                                            oninput="handleFullNameInputChange(this)"
+                                            onkeydown="handleFullNameKeyDown(event)"
+                                            onpaste="handleFullNamePaste(event)">
+                                    </div>
+                                </div>
+
+                                <div class="hyperlocal-field">
+                                    <label for="customer-colony-name">Colony Name <span class="req-star">*</span></label>
+                                    <div class="input-icon-group">
+                                        <i class="fa-solid fa-building"></i>
+                                        <input type="text" id="customer-colony-name" required placeholder="Colony / Area"
+                                            maxlength="30" oninput="if(this.value.length > 30) this.value = this.value.slice(0, 30);">
+                                    </div>
+                                </div>
+
+                                <div class="hyperlocal-field">
+                                    <label for="customer-nearby">Near By <span class="req-star">*</span></label>
+                                    <div class="input-icon-group">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        <input type="text" id="customer-nearby" required placeholder="Landmark / Near by"
+                                            maxlength="45" oninput="if(this.value.length > 45) this.value = this.value.slice(0, 45);">
+                                    </div>
+                                </div>
+
+                                <div class="hyperlocal-field">
+                                    <label for="customer-street-name">Street Name <span class="req-star">*</span></label>
+                                    <div class="input-icon-group">
+                                        <i class="fa-solid fa-road"></i>
+                                        <input type="text" id="customer-street-name" required
+                                            placeholder="Street / House No." maxlength="25"
+                                            oninput="if(this.value.length > 25) this.value = this.value.slice(0, 25);">
+                                    </div>
+                                </div>
+
+                                <div class="hyperlocal-field">
+                                    <label for="customer-ward-no">Ward Number <span class="req-star">*</span></label>
+                                    <div class="input-icon-group">
+                                        <i class="fa-solid fa-hashtag"></i>
+                                        <input type="text" id="customer-ward-no" required placeholder="Ward No."
+                                            maxlength="6" oninput="if(this.value.length > 6) this.value = this.value.slice(0, 6);">
+                                    </div>
+                                </div>
+
+                                <!-- INTERACTIVE GPS LOCATION CAPTURE FIELD (MANDATORY WITH MAP POPUP) -->
+                                <div class="hyperlocal-field full-width-gps-field">
+                                    <div class="gps-field-header">
+                                        <label for="btn-open-map-modal">
+                                            <i class="fa-solid fa-map-location-dot"
+                                                style="color: var(--primary-orange);"></i> GPS Location Verification <span
+                                                class="req-star">*</span>
+                                        </label>
+                                        <span class="gps-status-badge" id="gps-status-badge" style="display: none;"></span>
+                                    </div>
+                                    <div class="gps-action-container">
+                                        <button type="button" class="btn-open-map-selector" id="btn-open-map-modal"
+                                            onclick="openCustomerMapModal()">
+                                            <span id="gps-btn-text"><i class="fa-solid fa-map"></i> Open Location Map</span>
+                                        </button>
+                                        <input type="hidden" id="customer-gps-lat" value="">
+                                        <input type="hidden" id="customer-gps-lng" value="">
+                                        <input type="hidden" id="customer-gps-is-live" value="false">
+                                    </div>
+                                    <div class="gps-coordinates-display" id="gps-coordinates-display"
+                                        style="display: none;">
+                                        <span class="gps-verified-tag"><i class="fa-solid fa-location-dot"></i> Location
+                                            Pinned on Map</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn-confirm-order" id="btn-save-profile" style="margin-top: 18px;">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Profile & Address
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
