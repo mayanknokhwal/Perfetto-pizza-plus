@@ -2118,7 +2118,31 @@
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- MSG91 OTP Widget Script Loader (Headless Mode / Custom UI) -->
+    <!-- Pre-configure TraceIQ Widget to prevent oversized payload telemetry & RSA warnings -->
     <script type="text/javascript">
+        window.TRACEIQ_CONFIG = {
+            autoTrack: false,
+            debug: false,
+            userData: {
+                user_unique_id: "",
+                b: { domain: "", company_id: "" },
+                u: { name: "", mobile_number: "", email: "" },
+                d: { user_agent: "", ip: "" }
+            }
+        };
+        (function () {
+            var origWarn = console.warn;
+            console.warn = function () {
+                if (arguments.length > 0 && typeof arguments[0] === 'string') {
+                    if (arguments[0].indexOf('Data size is large for RSA encryption') !== -1 ||
+                        arguments[0].indexOf('Consider using smaller data or hybrid encryption') !== -1) {
+                        return;
+                    }
+                }
+                origWarn.apply(console, arguments);
+            };
+        })();
+
         var configuration = {
             widgetId: "3668716b4f68313937363038",
             tokenAuth: "561143TsR6UbiIs0v6a82f3f8P1",

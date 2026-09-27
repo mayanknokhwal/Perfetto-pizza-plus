@@ -56,7 +56,12 @@ async function handleUsersRequest(req, res) {
             }
 
             if (!user) {
-                return res.status(404).json({ success: false, message: 'User profile not found' });
+                return res.status(200).json({
+                    success: true,
+                    exists: false,
+                    user: null,
+                    message: 'User profile not found'
+                });
             }
 
             // Sync wallet balance from /wallets if available and user.walletBalance is not set
@@ -86,6 +91,7 @@ async function handleUsersRequest(req, res) {
 
             return res.status(200).json({
                 success: true,
+                exists: true,
                 user: normalizedUser
             });
         }

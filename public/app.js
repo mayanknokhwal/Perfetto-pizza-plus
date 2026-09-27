@@ -4,6 +4,20 @@
  * Fixed Bottom Navigation Controller & Fast Food Interaction
  */
 
+// Silence known third-party widget RSA telemetry overflow warnings
+(function () {
+    const origWarn = console.warn;
+    console.warn = function (...args) {
+        if (args.length > 0 && typeof args[0] === 'string') {
+            if (args[0].includes('Data size is large for RSA encryption') ||
+                args[0].includes('Consider using smaller data or hybrid encryption')) {
+                return;
+            }
+        }
+        origWarn.apply(console, args);
+    };
+})();
+
 // --------------------------------------------------------------------------
 // 1. CONSTANTS & DOM ELEMENTS
 // --------------------------------------------------------------------------
@@ -14124,6 +14138,10 @@ function launchCustomerMapModal(initialLat, initialLng) {
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
 
+        // Restore tab indexing on focusable descendants when modal opens
+        const hiddenFocusables = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex="-1"]');
+        hiddenFocusables.forEach(el => el.removeAttribute('tabindex'));
+
         // Force synchronous layout measurement so the map container is fully rendered in the DOM
         void modal.offsetHeight;
 
@@ -14177,7 +14195,24 @@ function closeCustomerMapModal() {
             mapModalSettleTimer = null;
         }
         const modal = document.getElementById('customer-map-modal');
+        const openBtn = document.getElementById('btn-open-map-modal');
+
+        // 1. Defocus descendant active element or safely return keyboard/touch focus to trigger button
+        // prior to setting aria-hidden="true" to eliminate "Blocked aria-hidden on an element because its descendant retained focus"
+        if (modal && document.activeElement && modal.contains(document.activeElement)) {
+            if (typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
+        }
+        if (openBtn && typeof openBtn.focus === 'function') {
+            try { openBtn.focus({ preventScroll: true }); } catch (_) {}
+        }
+
+        // 2. Hide modal, set aria-hidden, and remove focusables from tab index
         if (modal) {
+            const focusables = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            focusables.forEach(el => el.setAttribute('tabindex', '-1'));
+
             modal.style.display = 'none';
             modal.setAttribute('aria-hidden', 'true');
         }
@@ -15739,6 +15774,9 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
                 const data = await response.json();
                 if (data && data.success && data.user) {
                     u = data.user;
+                } else if (data && (data.exists === false || !data.user)) {
+                    // Gracefully treat as unregistered customer without throwing error
+                    u = null;
                 }
             }
         } catch (apiErr) {
@@ -15922,6 +15960,27 @@ async function restoreUserProfileFromFirestore(emailOrPhone, options = {}) {
             // Session restoration and wallet synchronizations run silently in the background without UI interruptions
             console.log('✅ User profile, wallet (₹' + restoredBalance + ') & orders successfully restored from Firestore:', restoredProfile.fullName);
             return restoredProfile;
+        } else {
+            // Graceful handling for new unregistered customer
+            if (cleanPhone) {
+                const currentLocalProfile = (typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null);
+                if (!currentLocalProfile || !currentLocalProfile.fullName) {
+                    const newProfile = {
+                        fullName: '',
+                        email: '',
+                        phone: cleanPhone,
+                        colonyName: '',
+                        nearBy: '',
+                        streetName: '',
+                        wardNo: '',
+                        isVerified: true,
+                        gpsLat: null,
+                        gpsLng: null
+                    };
+                    renderProfileHeaderAndInputs(newProfile);
+                }
+            }
+            return null;
         }
     } catch (err) {
         console.warn('Cross-device profile lookup notice:', err.message);
