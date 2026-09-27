@@ -13940,35 +13940,79 @@ function openCustomerMapModal() {
         const openBtn = document.getElementById('btn-open-map-modal');
         const openBtnText = document.getElementById('gps-btn-text');
         if (!modal) return;
+        if (openBtn && openBtn.disabled) return;
 
-        // Immediately reset open map button state so it is never stuck in loading
-        resetOpenMapButton(openBtn, openBtnText);
-
-        // Determine starting coordinates (stored GPS or store fallback)
+        // Check if we already have confirmed or saved coordinates
         const latHidden = document.getElementById('customer-gps-lat');
         const lngHidden = document.getElementById('customer-gps-lng');
+        const hasExistingCoords = Boolean((latHidden && latHidden.value && lngHidden && lngHidden.value) || (currentCustomerGps && currentCustomerGps.lat && currentCustomerGps.lng));
 
         const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
         const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
 
-        let initialLat = storeLat;
-        let initialLng = storeLng;
-        if (latHidden && latHidden.value && lngHidden && lngHidden.value) {
-            initialLat = parseFloat(latHidden.value) || storeLat;
-            initialLng = parseFloat(lngHidden.value) || storeLng;
-        } else if (currentCustomerGps && currentCustomerGps.lat && currentCustomerGps.lng) {
-            initialLat = parseFloat(currentCustomerGps.lat) || storeLat;
-            initialLng = parseFloat(currentCustomerGps.lng) || storeLng;
+        // If user already confirmed a location, open directly at their saved pin
+        if (hasExistingCoords) {
+            let initialLat = latHidden && latHidden.value ? parseFloat(latHidden.value) : (currentCustomerGps?.lat || storeLat);
+            let initialLng = lngHidden && lngHidden.value ? parseFloat(lngHidden.value) : (currentCustomerGps?.lng || storeLng);
+            resetOpenMapButton(openBtn, openBtnText);
+            launchCustomerMapModal(initialLat, initialLng);
+            return;
         }
 
-        // Open the modal right away so the user immediately sees the interactive map and draggable marker
-        launchCustomerMapModal(initialLat, initialLng);
+        // Sequential Live GPS Detection Before Opening Map:
+        // 1. Do NOT immediately pop open the map modal with a placeholder pin.
+        // 2. Change button label/state to "Locating via GPS..." with a loading indicator.
+        if (openBtn) {
+            openBtn.disabled = true;
+            openBtn.classList.add('loading', 'btn-loading', 'is-loading');
+        }
+        if (openBtnText) {
+            openBtnText.innerHTML = '<span class="btn-spinner"></span> Locating via GPS...';
+        }
 
-        // If no confirmed location yet and browser supports geolocation, query gently in background without blocking UI
-        const hasExistingCoords = Boolean(latHidden && latHidden.value && lngHidden && lngHidden.value) || Boolean(currentCustomerGps && currentCustomerGps.lat);
-        if (!hasExistingCoords && navigator.geolocation) {
+        if (!navigator.geolocation) {
+            resetOpenMapButton(openBtn, openBtnText);
+            if (typeof showToast === 'function') {
+                showToast('⚠️ Geolocation is not supported on this device. Please pin your location manually.');
+            }
+            launchCustomerMapModal(storeLat, storeLng);
+            return;
+        }
+
+        let isHandled = false;
+
+        const handleFallback = (reason) => {
+            if (isHandled) return;
+            isHandled = true;
+            if (fallbackGpsTimer) {
+                clearTimeout(fallbackGpsTimer);
+                fallbackGpsTimer = null;
+            }
+            console.warn('GPS detection fallback triggered:', reason);
+            resetOpenMapButton(openBtn, openBtnText);
+            lastGpsAccuracyMeters = null;
+            if (typeof showToast === 'function') {
+                showToast('Unable to auto-detect location. Please pin your location on the map manually.');
+            }
+            // Only now open map centered on fallback/store area for manual dragging
+            launchCustomerMapModal(storeLat, storeLng);
+        };
+
+        let fallbackGpsTimer = setTimeout(() => {
+            handleFallback('Timeout (8s)');
+        }, 8000);
+
+        try {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    if (isHandled) return;
+                    isHandled = true;
+                    if (fallbackGpsTimer) {
+                        clearTimeout(fallbackGpsTimer);
+                        fallbackGpsTimer = null;
+                    }
+                    resetOpenMapButton(openBtn, openBtnText);
+
                     try {
                         const liveLat = parseFloat(position.coords.latitude.toFixed(6));
                         const liveLng = parseFloat(position.coords.longitude.toFixed(6));
@@ -13984,21 +14028,16 @@ function openCustomerMapModal() {
                         }
 
                         customerTempCoords = { lat: finalLat, lng: finalLng, isLiveGps: true };
-                        updateMapModalCoordsDisplay(finalLat, finalLng);
 
-                        if (customerLocationMarker) {
-                            customerLocationMarker.setLatLng([finalLat, finalLng]);
-                        }
-                        if (customerLeafletMap) {
-                            customerLeafletMap.setView([finalLat, finalLng], 16, { animate: false });
-                            refreshCustomerLeafletMap(finalLat, finalLng);
-                        }
-                    } catch (e) {
-                        console.warn('Background geolocation parse notice:', e);
+                        // Open the location confirmation modal directly placed at fetched coordinates!
+                        launchCustomerMapModal(finalLat, finalLng);
+                    } catch (posErr) {
+                        console.error('Error processing GPS position:', posErr);
+                        handleFallback(posErr.message);
                     }
                 },
-                (err) => {
-                    console.warn('Background geolocation silent fallback:', err?.message || err);
+                (error) => {
+                    handleFallback(error ? error.message || error.code : 'Geolocation error');
                 },
                 {
                     enableHighAccuracy: true,
@@ -14006,6 +14045,9 @@ function openCustomerMapModal() {
                     maximumAge: 30000
                 }
             );
+        } catch (geoCallErr) {
+            console.error('Error calling getCurrentPosition:', geoCallErr);
+            handleFallback(geoCallErr.message);
         }
     } catch (e) {
         console.error('Unhandled exception in openCustomerMapModal:', e);
