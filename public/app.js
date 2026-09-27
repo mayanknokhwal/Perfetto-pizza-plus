@@ -14083,20 +14083,19 @@ window.resetOpenMapButton = resetOpenMapButton;
 function refreshCustomerLeafletMap(lat, lng) {
     if (!customerLeafletMap) return;
     try {
-        customerLeafletMap.invalidateSize({ pan: false, debounceMoveend: false });
         const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
         const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
         const targetLat = (typeof lat === 'number' && !isNaN(lat)) ? lat : (customerTempCoords?.lat || storeLat);
         const targetLng = (typeof lng === 'number' && !isNaN(lng)) ? lng : (customerTempCoords?.lng || storeLng);
-        customerLeafletMap.setView([targetLat, targetLng], 15, { animate: false });
+
+        // Apply coordinates and marker placement before the invalidation call to prevent secondary visual redraw
         if (customerLocationMarker) {
             customerLocationMarker.setLatLng([targetLat, targetLng]);
         }
-        customerLeafletMap.eachLayer((layer) => {
-            if (layer instanceof L.TileLayer && typeof layer.redraw === 'function') {
-                layer.redraw();
-            }
-        });
+        customerLeafletMap.setView([targetLat, targetLng], 15, { animate: false });
+
+        // Fire single invalidation with debounceMoveend
+        customerLeafletMap.invalidateSize({ debounceMoveend: true });
     } catch (e) {
         console.warn('Map refresh notice:', e);
     }
@@ -14108,9 +14107,13 @@ function launchCustomerMapModal(initialLat, initialLng) {
         const modal = document.getElementById('customer-map-modal');
         if (!modal) return;
 
-        // Clear any previous pending timers to prevent leaks & multiple runs
+        // Cancel any pending animation frame or timer to avoid competing triggers
         if (mapModalInitTimer) {
-            clearTimeout(mapModalInitTimer);
+            if (typeof cancelAnimationFrame === 'function') {
+                cancelAnimationFrame(mapModalInitTimer);
+            } else {
+                clearTimeout(mapModalInitTimer);
+            }
             mapModalInitTimer = null;
         }
         if (mapModalSettleTimer) {
@@ -14121,42 +14124,39 @@ function launchCustomerMapModal(initialLat, initialLng) {
         modal.style.display = 'flex';
         modal.setAttribute('aria-hidden', 'false');
 
-        customerTempCoords = { lat: initialLat, lng: initialLng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
-        updateMapModalCoordsDisplay(initialLat, initialLng);
+        // Force synchronous layout measurement so the map container is fully rendered in the DOM
+        void modal.offsetHeight;
+
+        const storeLat = typeof getRestaurantLat === 'function' ? getRestaurantLat() : 29.533736;
+        const storeLng = typeof getRestaurantLng === 'function' ? getRestaurantLng() : 73.447895;
+        const targetLat = (typeof initialLat === 'number' && !isNaN(initialLat)) ? initialLat : (customerTempCoords?.lat || storeLat);
+        const targetLng = (typeof initialLng === 'number' && !isNaN(initialLng)) ? initialLng : (customerTempCoords?.lng || storeLng);
+
+        customerTempCoords = { lat: targetLat, lng: targetLng, isLiveGps: Boolean(customerTempCoords?.isLiveGps) };
+        updateMapModalCoordsDisplay(targetLat, targetLng);
 
         // Initialize Leaflet map immediately so container and canvas are instantiated
-        initCustomerLeafletMap(initialLat, initialLng);
+        initCustomerLeafletMap(targetLat, targetLng);
 
-        // Immediate tick size recalculation
-        requestAnimationFrame(() => {
-            refreshCustomerLeafletMap(initialLat, initialLng);
-        });
-
-        // Mid-animation refresh (120ms)
-        mapModalInitTimer = setTimeout(() => {
-            try {
-                refreshCustomerLeafletMap(initialLat, initialLng);
-            } catch (err) {
-                console.error('Failed to refresh customer leaflet map:', err);
+        // Ensure coordinates (setView) and marker placement are applied before or during the single invalidation call
+        if (customerLeafletMap) {
+            if (customerLocationMarker) {
+                customerLocationMarker.setLatLng([targetLat, targetLng]);
             }
-        }, 120);
-
-        // Post-animation settle refresh (340ms) - ensures tile recalculation after CSS slideUp finishes
-        mapModalSettleTimer = setTimeout(() => {
-            try {
-                refreshCustomerLeafletMap(initialLat, initialLng);
-            } catch (err) {
-                console.warn('Map settle error:', err);
-            }
-        }, 340);
-
-        // Also hook animationend on modal card for guaranteed recalculation
-        const modalCard = modal.querySelector('.customer-map-modal-card');
-        if (modalCard) {
-            modalCard.addEventListener('animationend', () => {
-                refreshCustomerLeafletMap(initialLat, initialLng);
-            }, { once: true });
+            customerLeafletMap.setView([targetLat, targetLng], 15, { animate: false });
         }
+
+        // Fire invalidateSize({ debounceMoveend: true }) strictly once immediately after the modal container is fully visible and rendered in DOM
+        mapModalInitTimer = requestAnimationFrame(() => {
+            mapModalInitTimer = null;
+            if (customerLeafletMap) {
+                if (customerLocationMarker) {
+                    customerLocationMarker.setLatLng([targetLat, targetLng]);
+                }
+                customerLeafletMap.setView([targetLat, targetLng], 15, { animate: false });
+                customerLeafletMap.invalidateSize({ debounceMoveend: true });
+            }
+        });
     } catch (e) {
         console.error('Error in launchCustomerMapModal:', e);
     }
@@ -14165,7 +14165,11 @@ function launchCustomerMapModal(initialLat, initialLng) {
 function closeCustomerMapModal() {
     try {
         if (mapModalInitTimer) {
-            clearTimeout(mapModalInitTimer);
+            if (typeof cancelAnimationFrame === 'function') {
+                cancelAnimationFrame(mapModalInitTimer);
+            } else {
+                clearTimeout(mapModalInitTimer);
+            }
             mapModalInitTimer = null;
         }
         if (mapModalSettleTimer) {
@@ -14411,11 +14415,11 @@ function initCustomerLeafletMap(lat, lng) {
             customerLeafletMap.options.maxBounds = paddedBounds;
             customerLeafletMap.options.maxBoundsViscosity = 0.2;
 
-            refreshCustomerLeafletMap(lat, lng);
-
             if (customerLocationMarker) {
                 customerLocationMarker.setLatLng([lat, lng]);
             }
+            customerLeafletMap.setView([lat, lng], 15, { animate: false });
+
             deliveryMap = customerLeafletMap;
             deliveryMapMarker = customerLocationMarker;
             window.deliveryMap = customerLeafletMap;
@@ -14602,8 +14606,8 @@ function handleDetectLiveGps() {
 
                     if (customerLeafletMap && typeof customerLeafletMap.setView === 'function') {
                         try {
-                            customerLeafletMap.invalidateSize({ pan: false });
                             customerLeafletMap.setView([lat, lng], 16, { animate: false });
+                            customerLeafletMap.invalidateSize({ debounceMoveend: true });
                         } catch (mapErr) {
                             console.warn('Map view update error:', mapErr);
                         }
