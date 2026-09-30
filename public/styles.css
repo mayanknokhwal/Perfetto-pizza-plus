@@ -813,8 +813,7 @@ a {
 
 /* WHEN SHOP IS CLOSED: DISABLE ALL ADD TO CART & CHECKOUT BUTTONS */
 body.shop-closed .pizza-add-cart-btn,
-body.shop-closed .add-subitem-btn,
-body.shop-closed .checkout-btn {
+body.shop-closed .add-subitem-btn {
     opacity: 0.5 !important;
     cursor: not-allowed !important;
     pointer-events: none !important;
@@ -823,7 +822,14 @@ body.shop-closed .checkout-btn {
 }
 
 body.shop-closed .checkout-btn,
-body.shop-closed #checkout-btn,
+body.shop-closed #checkout-btn {
+    opacity: 0.75 !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    filter: grayscale(0.35) !important;
+    box-shadow: none !important;
+}
+
 body.shop-closed #btn-pay-cod,
 body.shop-closed #btn-pay-online {
     background: #64748b !important;
@@ -1489,6 +1495,8 @@ body.shop-closed #btn-pay-online {
     border-radius: 22px;
     padding: 20px;
     box-shadow: var(--card-shadow);
+    position: relative;
+    z-index: 10;
 }
 
 .summary-line {
@@ -1538,29 +1546,53 @@ body.shop-closed #btn-pay-online {
     gap: 10px;
     box-shadow: 0 8px 24px rgba(255, 107, 0, 0.4);
     transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    cursor: pointer;
+    cursor: pointer !important;
     touch-action: manipulation;
+    position: relative;
+    z-index: 12;
+    pointer-events: auto !important;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.checkout-btn:hover:not(:disabled) {
+.checkout-btn * {
+    pointer-events: none;
+}
+
+.checkout-btn:hover {
     background: linear-gradient(135deg, #e55e00 0%, #e02446 100%);
     transform: translateY(-2px);
     box-shadow: 0 12px 28px rgba(255, 107, 0, 0.5);
 }
 
-.checkout-btn:active:not(:disabled) {
+.checkout-btn:active {
     transform: translateY(1px) scale(0.99);
 }
 
+.checkout-btn.btn-inactive,
 .checkout-btn:disabled,
 .checkout-btn[disabled] {
-    background: #334155 !important;
-    color: #94a3b8 !important;
-    opacity: 0.6 !important;
-    cursor: not-allowed !important;
+    background: linear-gradient(135deg, #475569 0%, #334155 100%) !important;
+    color: #cbd5e1 !important;
+    opacity: 0.75 !important;
+    cursor: pointer !important;
     transform: none !important;
-    box-shadow: none !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2) !important;
     pointer-events: auto !important;
+}
+
+/* Ensure Cart View has adequate clearance above fixed bottom navigation bar */
+#view-cart {
+    padding-bottom: max(140px, calc(120px + env(safe-area-inset-bottom, 16px)));
+}
+
+/* Touch Trap Safeguard: Inactive/Hidden overlays must never intercept clicks */
+.checkout-modal-overlay[style*="display: none"],
+.checkout-modal-overlay[aria-hidden="true"]:not(.active),
+.modal-overlay[aria-hidden="true"]:not(.active),
+.logo-modal-overlay:not(.active),
+.customer-care-modal-overlay:not(.active) {
+    pointer-events: none !important;
 }
 
 /* --------------------------------------------------------------------------

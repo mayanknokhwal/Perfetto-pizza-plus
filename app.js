@@ -243,6 +243,10 @@ const ENGLISH_STRINGS = {
     scratch_won_banner: "You won ₹{amount} Cashback!",
     no_recent_active_orders: "No recent active orders",
     customer_name_fallback: "Customer Name",
+    cart_empty_title: "Your Cart is Empty",
+    cart_empty_desc: "Looks like you haven't added anything to your cart yet. Explore our delicious menu!",
+    CART_EMPTY_TITLE: "Your Cart is Empty",
+    CART_EMPTY_DESC: "Looks like you haven't added anything to your cart yet. Explore our delicious menu!",
     logout: "Log Out",
     logout_sub: "Sign out from your account on this device",
     logout_dialog_title: "Log Out from Perfetto?",
@@ -1765,22 +1769,24 @@ function setupNavigation() {
             closeCategoryDetail();
         });
     }
+
+    // Robust Global Event Delegation for "Proceed to Checkout" (Resilient across dynamic cart re-renders)
+    document.addEventListener('click', (e) => {
+        const checkoutTarget = e.target.closest('.checkout-btn, #checkout-btn, [data-action="checkout"]');
+        if (checkoutTarget) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof processCheckout === 'function') {
+                processCheckout();
+            }
+        }
+    }, true);
 }
 
 function switchTab(tabName, forceRootHome = false, isPopState = false, restoreHomeScroll = false) {
     if (tabName === 'cart' || tabName === 'profile') {
         if (typeof reconcileCustomerActiveOrdersLazySync === 'function') {
             reconcileCustomerActiveOrdersLazySync();
-        }
-    }
-
-    // If accessing Cart, check if profile is complete. If new/incomplete, redirect to Profile completion
-    if (tabName === 'cart') {
-        const savedProfile = getSavedDeliveryProfile();
-        if (!savedProfile) {
-            tabName = 'profile';
-            showProfileRedirectNotice(true);
-            openEditProfileModal();
         }
     }
 
@@ -4726,18 +4732,17 @@ function checkAndUpdateShopStatusUI() {
         document.body.classList.remove('shop-closed');
     }
 
-    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"], [data-action="checkout"]');
     checkoutBtns.forEach(btn => {
+        btn.removeAttribute('disabled');
+        btn.style.pointerEvents = 'auto';
+        btn.style.cursor = 'pointer';
         if (isClosed || (typeof cart !== 'undefined' && cart.length === 0)) {
-            btn.setAttribute('disabled', 'true');
-            btn.style.pointerEvents = 'none';
-            btn.style.opacity = '0.5';
-            btn.style.cursor = 'not-allowed';
+            btn.classList.add('btn-inactive');
+            btn.style.opacity = '0.7';
         } else {
-            btn.removeAttribute('disabled');
-            btn.style.pointerEvents = 'auto';
+            btn.classList.remove('btn-inactive');
             btn.style.opacity = '1';
-            btn.style.cursor = 'pointer';
         }
     });
 
@@ -5045,15 +5050,28 @@ function isWithinDeliveryRadius(userLat, userLng) {
 function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
     const banner = document.getElementById('cart-threshold-banner');
     const content = document.getElementById('threshold-banner-content');
-    const checkoutBtn = document.querySelector('.checkout-btn');
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"], [data-action="checkout"]');
+
+    const ensureCheckoutClickable = (isInactive = false) => {
+        checkoutBtns.forEach(btn => {
+            btn.removeAttribute('disabled');
+            btn.style.pointerEvents = 'auto';
+            btn.style.cursor = 'pointer';
+            if (isInactive) {
+                btn.classList.add('btn-inactive');
+                btn.style.opacity = '0.7';
+            } else {
+                btn.classList.remove('btn-inactive');
+                btn.style.opacity = '1';
+            }
+        });
+    };
 
     if (!banner || !content) return;
 
     if (cart.length === 0) {
         banner.style.display = 'none';
-        if (checkoutBtn) {
-            checkoutBtn.setAttribute('disabled', 'true');
-        }
+        ensureCheckoutClickable(true);
         return;
     }
 
@@ -5070,9 +5088,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
             <i class="fa-solid fa-triangle-exclamation"></i>
             <span>Minimum order value: ${formatPrice(minOrderVal)}</span>
         `;
-        if (checkoutBtn) {
-            checkoutBtn.setAttribute('disabled', 'true');
-        }
+        ensureCheckoutClickable(true);
     } else if (subtotal < freeDeliveryLim) {
         // CONDITION B: Above Minimum, Below Free Delivery Limit
         const diff = (freeDeliveryLim - subtotal).toFixed(2);
@@ -5081,19 +5097,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
             <i class="fa-solid fa-truck-arrow-right"></i>
             <span>Add ${formatPrice(diff)} more to get FREE Home Delivery!</span>
         `;
-        if (checkoutBtn) {
-            if (isShopClosed) {
-                checkoutBtn.setAttribute('disabled', 'true');
-                checkoutBtn.style.pointerEvents = 'none';
-                checkoutBtn.style.opacity = '0.5';
-                checkoutBtn.style.cursor = 'not-allowed';
-            } else {
-                checkoutBtn.removeAttribute('disabled');
-                checkoutBtn.style.pointerEvents = 'auto';
-                checkoutBtn.style.opacity = '1';
-                checkoutBtn.style.cursor = 'pointer';
-            }
-        }
+        ensureCheckoutClickable(isShopClosed);
     } else {
         // CONDITION C: Free Delivery Unlocked!
         banner.className = 'cart-threshold-banner status-unlocked-free';
@@ -5101,19 +5105,7 @@ function updateCartThresholdBanner(subtotal, minOrderVal, freeDeliveryLim) {
             <i class="fa-solid fa-circle-check"></i>
             <span>Congratulations! You have unlocked FREE Delivery.</span>
         `;
-        if (checkoutBtn) {
-            if (isShopClosed) {
-                checkoutBtn.setAttribute('disabled', 'true');
-                checkoutBtn.style.pointerEvents = 'none';
-                checkoutBtn.style.opacity = '0.5';
-                checkoutBtn.style.cursor = 'not-allowed';
-            } else {
-                checkoutBtn.removeAttribute('disabled');
-                checkoutBtn.style.pointerEvents = 'auto';
-                checkoutBtn.style.opacity = '1';
-                checkoutBtn.style.cursor = 'pointer';
-            }
-        }
+        ensureCheckoutClickable(isShopClosed);
     }
 }
 
@@ -10285,8 +10277,8 @@ function updateCartUI() {
         cartContainer.innerHTML = `
             <div class="empty-cart-view">
                 <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
-                <h4>${typeof t === 'function' ? t('cart_empty_title') : 'Your cart is empty'}</h4>
-                <p>${typeof t === 'function' ? t('cart_empty_desc') : 'Browse categories on Home and add items to your cart!'}</p>
+                <h4>${typeof t === 'function' ? t('cart_empty_title', null, 'Your Cart is Empty') : 'Your Cart is Empty'}</h4>
+                <p>${typeof t === 'function' ? t('cart_empty_desc', null, "Looks like you haven't added anything to your cart yet. Explore our delicious menu!") : "Looks like you haven't added anything to your cart yet. Explore our delicious menu!"}</p>
             </div>
         `;
     } else {
@@ -10560,11 +10552,18 @@ function updateCartUI() {
     }
 
     // Sync computed Grand Total into "Proceed to Checkout" button data attributes before review modal
-    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"], [data-action="checkout"]');
     checkoutBtns.forEach(btn => {
         btn.setAttribute('data-grand-total', String(grandTotal));
         btn.setAttribute('data-subtotal', String(subtotal));
         btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+        btn.removeAttribute('disabled');
+        btn.style.pointerEvents = 'auto';
+        btn.style.cursor = 'pointer';
+        if (!btn.getAttribute('onclick')) {
+            btn.setAttribute('onclick', 'processCheckout()');
+        }
+        btn.setAttribute('data-action', 'checkout');
     });
 
     // 4. Update Cart Threshold Banner, Cashback Incentive Bar & Checkout Button State
@@ -10795,14 +10794,30 @@ async function processCheckout() {
         return;
     }
 
-    // CHECKOUT SPEND-VALIDATION GUARD FOR BANNER SLOT #2
-    if (!checkLockedSlot2RewardGuard(() => processCheckout())) {
+    // CHECKOUT STORE STATUS GUARD (Immediate Feedback if Restaurant Closed)
+    const storeStatus = evaluateCustomerStoreStatus();
+    if (!storeStatus.isOpen) {
+        checkAndUpdateShopStatusUI();
+        if (typeof showToast === 'function') showToast('Store is currently closed for orders.');
         return;
     }
 
     const subtotal = effectiveCart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
     if (subtotal <= 0) {
         showToast('Your cart total is ₹0. Please add items before placing an order.');
+        return;
+    }
+
+    // MINIMUM ORDER VALUE GUARD (Immediate Feedback if Below Threshold)
+    const minOrderVal = getMinOrderValue();
+    if (subtotal < minOrderVal) {
+        const diff = (minOrderVal - subtotal).toFixed(2);
+        showToast(`Minimum order value is ${formatPrice(minOrderVal)}. Add ${formatPrice(diff)} more to checkout!`);
+        return;
+    }
+
+    // CHECKOUT SPEND-VALIDATION GUARD FOR BANNER SLOT #2
+    if (!checkLockedSlot2RewardGuard(() => processCheckout())) {
         return;
     }
 
@@ -10852,11 +10867,10 @@ async function processCheckout() {
         }
     } catch (e) { }
 
-    const storeStatus = evaluateCustomerStoreStatus();
-    if (!storeStatus.isOpen) {
+    const liveStoreStatus = evaluateCustomerStoreStatus();
+    if (!liveStoreStatus.isOpen) {
         checkAndUpdateShopStatusUI();
-        alert('Store is currently closed');
-        if (typeof showToast === 'function') showToast('Store is currently closed');
+        if (typeof showToast === 'function') showToast('Store is currently closed for orders.');
         return;
     }
 
@@ -10864,13 +10878,6 @@ async function processCheckout() {
     const verification = await verifyLatestMenuPricesAndAvailabilityBeforeCheckout();
     if (!verification.valid) {
         showToast(verification.message);
-        return;
-    }
-
-    const minOrderVal = getMinOrderValue();
-    const currentSubtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    if (currentSubtotal < minOrderVal) {
-        showToast(`Minimum order value: ${formatPrice(minOrderVal)}`);
         return;
     }
 
@@ -17553,8 +17560,8 @@ function executeUserLogout() {
         cartContainer.innerHTML = `
             <div class="empty-cart-view">
                 <i class="fa-solid fa-pizza-slice empty-cart-icon"></i>
-                <h4>${typeof t === 'function' ? t('cart_empty_title') : 'Your cart is empty'}</h4>
-                <p>${typeof t === 'function' ? t('cart_empty_desc') : 'Browse categories on Home and add items to your cart!'}</p>
+                <h4>${typeof t === 'function' ? t('cart_empty_title', null, 'Your Cart is Empty') : 'Your Cart is Empty'}</h4>
+                <p>${typeof t === 'function' ? t('cart_empty_desc', null, "Looks like you haven't added anything to your cart yet. Explore our delicious menu!") : "Looks like you haven't added anything to your cart yet. Explore our delicious menu!"}</p>
             </div>
         `;
     }
