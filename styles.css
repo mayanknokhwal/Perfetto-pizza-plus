@@ -1595,6 +1595,16 @@ body.shop-closed #btn-pay-online {
     pointer-events: none !important;
 }
 
+.checkout-modal-overlay.active,
+#checkout-modal.active,
+#checkout-modal[aria-hidden="false"] {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 99999 !important;
+}
+
 /* --------------------------------------------------------------------------
    STICKY FLOATING CART PILL BAR (Appears on Home & Category views)
    -------------------------------------------------------------------------- */

@@ -10645,8 +10645,20 @@ function getSavedDeliveryProfile() {
                 gpsLng = parseFloat(profile.gps.lng);
             }
 
-            if (fullName && phone && phone.length === 10 && colonyName && nearBy && streetName && wardNo && gpsLat !== null && gpsLng !== null && !isNaN(gpsLat) && !isNaN(gpsLng)) {
-                return { fullName, email, phone, colonyName, nearBy, streetName, wardNo, isVerified, gpsLat, gpsLng };
+            if (fullName || phone || colonyName || nearBy || streetName || wardNo || (profile.address && typeof profile.address === 'string')) {
+                return {
+                    fullName,
+                    email,
+                    phone,
+                    colonyName,
+                    nearBy,
+                    streetName,
+                    wardNo,
+                    address: (profile.address && typeof profile.address === 'string') ? profile.address.trim() : '',
+                    isVerified,
+                    gpsLat,
+                    gpsLng
+                };
             }
         }
     } catch (e) {
@@ -10821,122 +10833,27 @@ async function processCheckout() {
         return;
     }
 
-    // CHECKOUT AUTHENTICATION GUARD (Block Unverified Order Placement):
-    // Check if an active, OTP-verified customer session exists (currentUser and customerPhone)
-    const activePhone = (customerPhone && String(customerPhone).trim().length === 10)
-        ? String(customerPhone).trim()
-        : (typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : null);
-
-    const hasActiveVerifiedSession = Boolean(
-        currentUser &&
-        activePhone &&
-        (isPhoneVerified || (typeof getStoredVerifiedPhone === 'function' && getStoredVerifiedPhone() === activePhone))
-    );
-
-    if (!hasActiveVerifiedSession) {
-        // Prevent the "Review & Place Order" modal from opening
-        const checkoutModal = document.getElementById('checkout-modal');
-        if (checkoutModal) {
-            checkoutModal.style.display = 'none';
-            checkoutModal.setAttribute('aria-hidden', 'true');
-            document.body.classList.remove('modal-open');
-        }
-
-        // Display a clean toast message: "Please verify your mobile number to place an order"
-        showToast("Please verify your mobile number to place an order");
-
-        // Automatically trigger and open the Profile/Login modal with focus on the mobile number field
-        openEditProfileModal();
-        setTimeout(() => {
-            const phoneInput = document.getElementById('customer-phone');
-            if (phoneInput) {
-                phoneInput.focus();
-                if (typeof phoneInput.select === 'function') phoneInput.select();
-            }
-        }, 120);
-        return;
-    }
-
-    // Directly verify store status before initiating checkout
-    try {
-        if (customerFirestore) {
-            const snap = await customerFirestore.collection('settings').doc('storeSettings').get();
-            if (snap && snap.exists) {
-                applyIncomingSettingsData(snap.data());
-            }
-        }
-    } catch (e) { }
-
-    const liveStoreStatus = evaluateCustomerStoreStatus();
-    if (!liveStoreStatus.isOpen) {
-        checkAndUpdateShopStatusUI();
-        if (typeof showToast === 'function') showToast('Store is currently closed for orders.');
-        return;
-    }
-
-    // Checkout Price & Availability Verification: Verify against latest fetched menu data
-    const verification = await verifyLatestMenuPricesAndAvailabilityBeforeCheckout();
-    if (!verification.valid) {
-        showToast(verification.message);
-        return;
-    }
-
-    // Allow opening the order placement modal ONLY when phone verification has successfully completed and delivery address is saved
-    const savedProfile = getSavedDeliveryProfile();
-    const hasCompleteSavedAddress = Boolean(
-        savedProfile &&
-        savedProfile.isVerified &&
-        savedProfile.fullName &&
-        savedProfile.colonyName &&
-        savedProfile.nearBy &&
-        savedProfile.streetName &&
-        savedProfile.wardNo &&
-        (savedProfile.gpsLat !== null && savedProfile.gpsLng !== null && !isNaN(savedProfile.gpsLat) && !isNaN(savedProfile.gpsLng))
-    );
-
-    if (!hasCompleteSavedAddress) {
-        // Prevent the "Review & Place Order" modal from opening
-        const checkoutModal = document.getElementById('checkout-modal');
-        if (checkoutModal) {
-            checkoutModal.style.display = 'none';
-            checkoutModal.setAttribute('aria-hidden', 'true');
-        }
-
-        showToast("Please complete and save your delivery address to place an order.");
-        openEditProfileModal();
-        return;
-    }
-
-    // Check delivery radius boundary
-    const coords = (savedProfile.gpsLat !== null && savedProfile.gpsLng !== null)
-        ? { lat: parseFloat(savedProfile.gpsLat), lng: parseFloat(savedProfile.gpsLng) }
-        : (currentCustomerGps || null);
-
-    if (coords && !isNaN(coords.lat) && !isNaN(coords.lng)) {
-        const radiusCheck = isWithinDeliveryRadius(coords.lat, coords.lng);
-        if (!radiusCheck.isAllowed) {
-            const errMsg = `Selected location is outside our delivery radius of ${radiusCheck.maxRadiusKm} km (You are ${radiusCheck.distanceKm} km away).`;
-            showToast(`🚫 ${errMsg}`);
-            alert(`${errMsg}\n\nPlease move your marker to a valid nearby pick-up/delivery spot within the allowed zone.`);
-            launchCustomerMapModal(coords.lat, coords.lng);
-            return;
-        }
-    }
+    const savedProfile = (typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null)
+        || currentUserProfile
+        || currentUser
+        || (typeof safeStorage !== 'undefined' ? safeStorage.getJSON('perfettoSavedProfile', null) : null)
+        || {};
 
     // Sync computed Grand Total into button data attributes before opening review order modal
-    const deliveryInfo = calculateDynamicDeliveryInfo(currentSubtotal);
+    const deliveryInfo = calculateDynamicDeliveryInfo(subtotal);
     const deliveryFee = deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee;
     const grandTotal = (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery)
-        ? currentSubtotal
-        : Math.max(0, currentSubtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
+        ? subtotal
+        : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
 
-    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"], [data-action="checkout"]');
     checkoutBtns.forEach(btn => {
         btn.setAttribute('data-grand-total', String(grandTotal));
-        btn.setAttribute('data-subtotal', String(currentSubtotal));
+        btn.setAttribute('data-subtotal', String(subtotal));
         btn.setAttribute('data-delivery-fee', String(deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
     });
 
+    // Smoothly launch existing Order Confirmation Sheet
     openCheckoutModal(savedProfile);
 }
 
@@ -10957,41 +10874,21 @@ function openCheckoutModal(profile) {
     const modal = document.getElementById('checkout-modal');
     if (!modal) return;
 
-    // Strict Checkout Authentication Guard
-    const activePhone = (customerPhone && String(customerPhone).trim().length === 10)
-        ? String(customerPhone).trim()
-        : (typeof getVerifiedCustomerPhone === 'function' ? getVerifiedCustomerPhone() : ((profile && profile.phone) || null));
-
-    const hasActiveVerifiedSession = Boolean(
-        currentUser &&
-        activePhone &&
-        (isPhoneVerified || (typeof getStoredVerifiedPhone === 'function' && getStoredVerifiedPhone() === activePhone))
-    );
-
-    if (!hasActiveVerifiedSession) {
-        modal.style.display = 'none';
-        modal.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('modal-open');
-        showToast("Please verify your mobile number to place an order");
-        openEditProfileModal();
-        setTimeout(() => {
-            const phoneInput = document.getElementById('customer-phone');
-            if (phoneInput) {
-                phoneInput.focus();
-                if (typeof phoneInput.select === 'function') phoneInput.select();
-            }
-        }, 120);
-        return;
-    }
+    const currentProfile = profile
+        || (typeof getSavedDeliveryProfile === 'function' ? getSavedDeliveryProfile() : null)
+        || currentUserProfile
+        || currentUser
+        || (typeof safeStorage !== 'undefined' ? safeStorage.getJSON('perfettoSavedProfile', null) : null)
+        || {};
 
     // Reset checkout redemption selection fresh to prevent carrying over state
     isWalletRedemptionSelected = false;
     appliedWalletDiscountAmount = 0;
 
-    const phone = (profile && profile.phone) 
+    const phone = (currentProfile && currentProfile.phone) 
         || (currentUserProfile && currentUserProfile.phone) 
-        || (typeof getSavedDeliveryProfile === 'function' && getSavedDeliveryProfile()?.phone)
-        || (safeStorage.getJSON('perfettoSavedProfile', null)?.phone) 
+        || (customerPhone && String(customerPhone).trim().length === 10 ? String(customerPhone).trim() : '')
+        || (typeof safeStorage !== 'undefined' && safeStorage.getJSON('perfettoSavedProfile', null)?.phone) 
         || '';
 
     // Recompute spendable balance fresh from Firestore, clearing all lingering or dangling state references
@@ -11006,9 +10903,9 @@ function openCheckoutModal(profile) {
 
     const itemCount = cart.reduce((sum, item) => sum + (item.qty || 0), 0);
     const subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 0)), 0);
-    const customCoords = (profile && profile.gpsLat !== undefined && profile.gpsLng !== undefined && profile.gpsLat !== null && profile.gpsLng !== null)
-        ? { lat: parseFloat(profile.gpsLat), lng: parseFloat(profile.gpsLng) }
-        : null;
+    const customCoords = (currentProfile && currentProfile.gpsLat !== undefined && currentProfile.gpsLng !== undefined && currentProfile.gpsLat !== null && currentProfile.gpsLng !== null)
+        ? { lat: parseFloat(currentProfile.gpsLat), lng: parseFloat(currentProfile.gpsLng) }
+        : (currentCustomerGps || null);
     const deliveryInfo = calculateDynamicDeliveryInfo(subtotal, customCoords);
     const deliveryFee = deliveryInfo.isFreeDelivery ? 'FREE' : deliveryInfo.finalDeliveryFee;
     const grandTotal = (deliveryFee === 'FREE' || deliveryInfo.isFreeDelivery)
@@ -11016,7 +10913,7 @@ function openCheckoutModal(profile) {
         : Math.max(0, subtotal + (deliveryFee === 'FREE' ? 0 : Number(deliveryFee)));
 
     // Sync button data attributes before opening review order modal
-    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"]');
+    const checkoutBtns = document.querySelectorAll('.checkout-btn, #checkout-btn, [onclick*="processCheckout"], [data-action="checkout"]');
     checkoutBtns.forEach(btn => {
         btn.setAttribute('data-grand-total', String(grandTotal));
         btn.setAttribute('data-subtotal', String(subtotal));
@@ -11054,23 +10951,39 @@ function openCheckoutModal(profile) {
 
     // 2. Render Saved Address Summary Card inside Checkout
     const addressContentEl = document.getElementById('checkout-address-content');
-    if (addressContentEl && profile) {
-        const gpsInfo = (profile.gpsLat && profile.gpsLng)
-            ? `<div style="margin-top: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 700;">
-                 <i class="fa-solid fa-location-crosshairs"></i> GPS Verified (${deliveryInfo.distanceKm !== null ? deliveryInfo.distanceKm + ' km from store' : 'Location pinned'})
-               </div>`
-            : '';
+    const hasAddressDetails = Boolean(
+        currentProfile &&
+        (currentProfile.colonyName || currentProfile.streetName || currentProfile.nearBy || currentProfile.address || currentProfile.fullName)
+    );
 
-        addressContentEl.innerHTML = `
-            <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
-                <i class="fa-solid fa-user" style="color: var(--primary-orange); margin-right: 6px;"></i>${profile.fullName || 'Customer'} (${profile.phone || ''})
-            </div>
-            <div><strong style="color: var(--text-muted);">Colony:</strong> ${profile.colonyName || 'N/A'}</div>
-            <div><strong style="color: var(--text-muted);">Landmark:</strong> ${profile.nearBy || 'N/A'}</div>
-            <div><strong style="color: var(--text-muted);">Street:</strong> ${profile.streetName || 'N/A'}</div>
-            <div><strong style="color: var(--text-muted);">Ward No:</strong> ${profile.wardNo || 'N/A'}</div>
-            ${gpsInfo}
-        `;
+    if (addressContentEl) {
+        if (hasAddressDetails) {
+            const gpsInfo = (customCoords && customCoords.lat && customCoords.lng)
+                ? `<div style="margin-top: 6px; font-size: 0.8rem; color: #16a34a; font-weight: 700;">
+                     <i class="fa-solid fa-location-crosshairs"></i> GPS Verified (${deliveryInfo.distanceKm !== null ? deliveryInfo.distanceKm + ' km from store' : 'Location pinned'})
+                   </div>`
+                : '';
+
+            addressContentEl.innerHTML = `
+                <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
+                    <i class="fa-solid fa-user" style="color: var(--primary-orange); margin-right: 6px;"></i>${currentProfile.fullName || 'Customer'} (${currentProfile.phone || phone || 'Phone not set'})
+                </div>
+                <div><strong style="color: var(--text-muted);">Colony:</strong> ${currentProfile.colonyName || 'N/A'}</div>
+                <div><strong style="color: var(--text-muted);">Landmark:</strong> ${currentProfile.nearBy || 'N/A'}</div>
+                <div><strong style="color: var(--text-muted);">Street:</strong> ${currentProfile.streetName || 'N/A'}</div>
+                <div><strong style="color: var(--text-muted);">Ward No:</strong> ${currentProfile.wardNo || 'N/A'}</div>
+                ${gpsInfo}
+            `;
+        } else {
+            addressContentEl.innerHTML = `
+                <div style="padding: 4px 0;">
+                    <div style="font-weight: 700; color: var(--text-main); font-size: 0.95rem; margin-bottom: 4px;">
+                        <i class="fa-solid fa-location-dot" style="color: var(--primary-orange); margin-right: 6px;"></i> Delivery Address Needed
+                    </div>
+                    <p style="font-size: 0.84rem; color: var(--text-muted); margin: 0 0 10px 0;">Tap 'Edit Details' to specify your delivery colony, street & landmark.</p>
+                </div>
+            `;
+        }
     }
 
     // 2.1 Check delivery radius boundary & render warning banner if outside
@@ -11128,6 +11041,8 @@ function openCheckoutModal(profile) {
 
     modal.style.display = 'flex';
     modal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
 }
 
 function closeCheckoutModal() {
@@ -11135,6 +11050,8 @@ function closeCheckoutModal() {
     if (!modal) return;
     modal.style.display = 'none';
     modal.setAttribute('aria-hidden', 'true');
+    modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
 }
 
 function handleEditAddressFromCheckout() {
@@ -11485,11 +11402,11 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
         deliveryOtp: deliveryOtp,
         otp: deliveryOtp,
         firebaseUid: (currentUserProfile && currentUserProfile.firebaseUid) || '',
-        customerName: profile.fullName,
-        customerPhone: profile.phone,
+        customerName: profile.fullName || profile.name || (currentUserProfile && (currentUserProfile.fullName || currentUserProfile.name)) || 'Customer',
+        customerPhone: profile.phone || (currentUserProfile && currentUserProfile.phone) || customerPhone || '',
         customerEmail: (currentUserProfile && currentUserProfile.email) || profile.email || '',
-        phone: profile.phone,
-        address: `${profile.colonyName}, Near: ${profile.nearBy}, ${profile.streetName}, Ward No. ${profile.wardNo}`,
+        phone: profile.phone || (currentUserProfile && currentUserProfile.phone) || customerPhone || '',
+        address: profile.address || [profile.colonyName, profile.nearBy ? `Near: ${profile.nearBy}` : '', profile.streetName, profile.wardNo ? `Ward No. ${profile.wardNo}` : ''].filter(Boolean).join(', ') || 'Address on file',
         gpsLat: (customCoords && customCoords.lat) || null,
         gpsLng: (customCoords && customCoords.lng) || null,
         gps: {
@@ -11497,10 +11414,10 @@ function executeOrderPlacement(profile, paymentMethod = 'Cash on Delivery', paym
             lng: (customCoords && customCoords.lng) || null,
         },
         deliveryDetails: {
-            colonyName: profile.colonyName,
-            nearBy: profile.nearBy,
-            streetName: profile.streetName,
-            wardNo: profile.wardNo,
+            colonyName: profile.colonyName || '',
+            nearBy: profile.nearBy || '',
+            streetName: profile.streetName || '',
+            wardNo: profile.wardNo || '',
             gpsLat: (customCoords && customCoords.lat) || null,
             gpsLng: (customCoords && customCoords.lng) || null,
             distanceKm: deliveryInfo.distanceKm,
